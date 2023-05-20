@@ -37,59 +37,11 @@ VID = 0x0483  # 1155
 PID = 0x5740  # 22336
 REF_LEVEL = (1 << 9)
 
-logging.basicConfig(format="%(message)s", level=logging.DEBUG)
+logging.basicConfig(format="%(message)s", level=logging.INFO)
 
 
 F_LOW = 88e6
 F_HIGH = 90e6
-
-
-# # return 1D numpy array with power as dBm
-# def get_tinysa_dBm(s_port, f_low=F_LOW, f_high=F_HIGH, points=POINTS, rbw=0) -> np.array:
-#     with serial.Serial(port=s_port, baudrate=115200) as tinySA:
-#         tinySA.timeout = 1
-#         while tinySA.inWaiting():
-#             tinySA.read_all()  # keep the serial buffer clean
-#             time.sleep(0.1)
-
-#         span_k = (f_high - f_low) / 1e3
-#         if 0 == rbw:  # calculate from scan range and steps
-#             rbw_k = span_k / points  # RBW / kHz
-#         else:
-#             rbw_k = rbw / 1e3
-
-#         if rbw_k < 2:
-#             rbw_k = 2
-#         elif rbw_k > 850:
-#             rbw_k = 850
-
-#         rbw_command = f'rbw {int(rbw_k)}\r'.encode()
-#         logging.debug(rbw_command)
-#         tinySA.write(rbw_command)
-#         tinySA.read_until(b'ch> ')  # skip command echo and prompt
-
-#         # set timeout accordingly - can be very long - use a heuristic approach
-#         timeout = int(span_k / (rbw_k * rbw_k) + points / 1e3 + 5)
-#         tinySA.timeout = timeout
-
-#         logging.debug(f'frequency step: {int( span_k / ( points-1 ) )} kHz\n')
-#         logging.debug(f'RBW: {int(rbw_k)} kHz\n')
-#         logging.debug(f'serial timeout: {timeout} s\n')
-
-#         scan_command = f'scanraw {int(f_low)} {int(f_high)} {int(points)}\r'.encode()
-#         tinySA.write(scan_command)
-#         tinySA.read_until(b'{')  # skip command echoes
-#         raw_data = tinySA.read_until(b'}ch> ')
-#         tinySA.write('rbw auto\r'.encode())  # switch to auto RBW for faster tinySA screen update
-
-#     raw_data = struct.unpack('<' + 'xH'*points, raw_data[:-5])  # ignore trailing '}ch> '
-#     raw_data = np.array(raw_data, dtype=np.uint16)
-#     # tinySA:  SCALE = 128
-#     # tinySA4: SCALE = 174
-#     SCALE = 174
-#     dBm_power = (raw_data / 32) - SCALE  # scale 0..4095 -> -128..-0.03 dBm
-#     logging.debug(dBm_power)
-#     return dBm_power
 
 
 ###############################################################################
@@ -100,148 +52,105 @@ class analyser:
         self.dev = getport()
         self._frequencies = None
         self.points = 101
+        self.running = False
+        self.signals = WorkerSignals()
+        self.signals.result.connect(self.updateGUI)
+        self.timeout = 1
+        # self.signals.error.connect(spiError)
+        # self.fifo = queue.SimpleQueue()
 
     @property
     def frequencies(self):
         # what does this do?
         return self._frequencies
 
-    def setTinySA(self, command):
-        with serial.Serial(port=self.dev, baudrate=115200) as tinySA:
-            tinySA.timeout = 1
-            while tinySA.inWaiting():
-                tinySA.read_all()  # keep the serial buffer clean
-                time.sleep(0.1)
-            logging.debug(command)
-            tinySA.write(command)
-            tinySA.read_until(b'ch> ')  # skip command echo and prompt
+    def startMeasurement(self, startF, stopF, points):
+        self.sweep = Worker(self.spectrum, startF, stopF, points)  # workers are auto-deleted when thread stops
+        self.running = True
+        threadpool.start(self.sweep)
 
-    def set_frequencies(self, start=1e6, stop=350e6, points=None):
+    def setTinySA(self, command):
+        self.clearBuffer()
+        with serial.Serial(port=self.dev, baudrate=3000000) as SA:
+            SA.timeout = 1
+            logging.debug(command)
+            SA.write(command)
+            SA.read_until(b'ch> ')  # skip command echo and prompt
+
+    def set_frequencies(self, startF, stopF, points):  # needs update
         # creates a np array of equi-spaced freqs but doesn't actually set it on the tinySA
         if points:
             self.points = points
-        self._frequencies = np.linspace(start, stop, self.points)
+        self._frequencies = np.linspace(startF, stopF, self.points)
         logging.debug(f'frequencies = {self._frequencies}')
 
-    def fetch_frequencies(self):  # fetch list of frequencies from TinySA and store on self in np array
-        # dumps the frequencies used by the last sweep
-        self.send_command("frequencies\r")
-        data = self.fetch_data()
-        logging.debug(f'fetch frequencies {data}')
-        x = []
-        for line in data.split('\n'):
-            if line:
-                x.append(float(line))
-        self._frequencies = np.array(x)
+    def setRBW(self):
+        self.rbw = ui.rbw_box.currentText()  # ui values are discrete ones in kHz
+        rbw_command = f'rbw {self.rbw}\r'.encode()
+        self.setTinySA(rbw_command)
 
-    # return 1D numpy array with power as dBm
-    def spectrum(self, f_low, f_high, points, rbw):
-        with serial.Serial(self.dev, baudrate=115200) as tinySA:
-            tinySA.timeout = 1
-            while tinySA.inWaiting():
-                tinySA.read_all()  # keep the serial buffer clean
+
+    def clearBuffer(self):
+        with serial.Serial(self.dev, baudrate=3000000) as serialPort:
+            serialPort.timeout = 1
+            while serialPort.inWaiting():
+                serialPort.read_all()  # keep the serial buffer clean
                 time.sleep(0.1)
 
-            rbw_command = f'rbw {(rbw)}\r'.encode()
-            logging.debug(rbw_command)
-            tinySA.write(rbw_command)
-            tinySA.read_until(b'ch> ')  # skip command echo and prompt
+    def sweepTimeout(self, f_low, f_high, points):  # freqs are in Hz
+            if self.rbw == 'auto':
+                rbw = (f_high / 1e3 - f_low / 1e3) / points  # rbw equal to freq step size in kHz
+            else:
+                rbw = float(self.rbw)
 
-            # set timeout accordingly - can be very long - use a heuristic approach
-            logging.debug(f'RBW: {(rbw)} kHz\n')
-            if rbw == 'auto':
-                bw = 0.2
-            timeout = int((((f_high - f_low) * 1e-3 / (float(bw) ** 2) + points) / 1e3) + 5)
-            tinySA.timeout = timeout
+            if rbw < 0.2:  # change this to something more fancy
+                rbw = 0.2
+            elif rbw > 850:
+                rbw = 850
 
-            logging.debug(f'serial timeout: {timeout} s\n')
+            # timeout can be very long - use a heuristic approach
+            timeout = int(((f_high - f_low) / 1e3) / (rbw ** 2) + points / 1e3) + 5
+            self.timeout = timeout
+            logging.debug(f'sweepTimeout = {self.timeout}')
 
-            scan_command = f'scanraw {int(f_low)} {int(f_high)} {int(points)}\r'.encode()
-            tinySA.write(scan_command)
-            tinySA.read_until(b'{')  # skip command echoes
-            raw_data = tinySA.read_until(b'}ch> ')
-            rbw_command = f'rbw auto\r'.encode()
-            tinySA.write(rbw_command)  # switch to auto RBW for faster tinySA screen update
+    # return 1D numpy array with power as dBm.  Freqs are in Hz
+    def spectrum(self, f_low, f_high, points):  # to be threaded
+        while self.running:
+            with serial.Serial(self.dev, baudrate=3000000) as serialPort:
+                serialPort.timeout = self.timeout
+                logging.debug(f'serial timeout: {self.timeout} s\n')
+                logging.debug(f'points: {points} s\n')
+                scan_command = f'scanraw {int(f_low)} {int(f_high)} {int(points)}\r'.encode()
+                serialPort.write(scan_command)
+                serialPort.read_until(b'{')  # skip command echoes
+                raw_data = serialPort.read_until(b'}ch> ')
+            raw_data = struct.unpack('<' + 'xH'*points, raw_data[:-5])  # ignore trailing '}ch> '
+            raw_data = np.array(raw_data, dtype=np.uint16)
+            logging.debug(f'raw data: {raw_data} s\n')
+            SCALE = 174  # tinySA: 128  tinySA4: 174
+            dBm_power = (raw_data / 32) - SCALE  # scale 0..4095 -> -128..-0.03 dBm
+            self.signals.result.emit(dBm_power)
 
-        raw_data = struct.unpack('<' + 'xH'*points, raw_data[:-5])  # ignore trailing '}ch> '
-        raw_data = np.array(raw_data, dtype=np.uint16)
-        # tinySA:  SCALE = 128
-        # tinySA4: SCALE = 174
-        SCALE = 174
-        dBm_power = (raw_data / 32) - SCALE  # scale 0..4095 -> -128..-0.03 dBm
-        logging.debug(dBm_power)
-        return dBm_power
+    def battery():
+        command = 'vbat\r'.encode()
+        tinySA.write(command)  # needs to use a diffeent one to get data
+        #     voltage = tinySA.cmd('vbat')
+        #     voltage = float(voltage[:4])/1000
+        #     return voltage
+        # ui.battery.setValue(voltage)
 
-    # def openComms(self):  # changed from 'open' because 'open' is a Python Function Name
-    #     if self.serial is None:
-    #         self.serial = serial.Serial(self.dev)  # self.dev comes from getport() in init
+    def updateGUI(self, signaldBm):
+        spectrumDisplay.setData((tinySA.frequencies/1e6), signaldBm)
 
-    # def closeComms(self):  # changed from 'close' because 'close' is a Python Function Name
-    #     if self.serial:
-    #         self.serial.close()
-    #     self.serial = None
+    def resume(self):
+        # resumes the sweeping in either input or output mode
+        resume_command = 'resume\r'.encode()
+        self.setTinySA(resume_command)
 
-    # def send_command(self, cmd):  # what is the repationship between this Fn and cmd()?
-    #     self.openComms()
-    #     self.serial.write(cmd.encode())
-    #     self.serial.readline()  # discard empty line
-#        print(self.serial.readline()) # discard empty line
-
-#     def cmd(self, text):
-#         self.openComms()
-#         self.serial.write((text + "\r").encode())
-#         self.serial.readline()  # discard empty line
-#         data = self.fetch_data()
-#         return data
-# #        self.serial.readline() # discard empty line
-
-    # def set_sweep(self, start, stop):
-    #     # Set sweep boundaries or execute a sweep
-    #     # usage: sweep [ ( start|stop|center|span|cw {frequency} ) | ( {start(Hz)} {stop(Hz)} [0..290] ) ]
-    #     # Sweep without arguments lists the current sweep settings, the frequencies specified
-    #     # should be within the permissible range. The sweep commands apply both to input and output modes
-    #     if start is not None:
-    #         self.send_command("sweep start %d\r" % start)
-    #     if stop is not None:
-    #         self.send_command("sweep stop %d\r" % stop)
-
-    # def set_span(self, span):
-    #     if span is not None:
-    #         self.send_command("sweep span %d\r" % span)
-
-    # def set_center(self, center):
-    #     if center is not None:
-    #         self.send_command("sweep center %d\r" % center)
-
-    # def set_level(self, level):
-    #     # sets the output level in dBm.	  Usage: level -76..13. 	Not all values in the range are available
-    #     if level is not None:
-    #         self.send_command("level %d\r" % level)
-
-    # def set_output(self, on):
-    #     if on is not None:
-    #         if on:
-    #             self.send_command("output on\r")
-    #         else:
-    #             self.send_command("output off\r")
-
-    # def set_frequency(self, freq):
-    #     # pauses the sweep and sets the measurement frequency.  Postfix k, M, G accepted.
-    #     if freq is not None:
-    #         self.send_command("freq %d\r" % freq)
-
-    # def measure(self, freq):
-    #     # measures the input level at each of the requested frequencies
-    #     # Usage: hop {start(Hz)} {stop(Hz)} {step(Hz) | points} [outmask]
-    #     # If the third parameter is < 450 it assumes points, else as frequency step
-    #     # Outmask selects the output. 1 = frequency 2 = level
-    #     if freq is not None:
-    #         self.send_command("hop %d 2\r" % freq)
-    #         # hop can also accept start/stop/step parameters.  Frequency (1) or level (2) is output
-    #         data = self.fetch_data()
-    #         for line in data.split('\n'):
-    #             if line:
-    #                 return float(line)
+    def pause(self):
+        # pauses the sweeping in either input or output mode
+        pause_command = 'pause\r'.encode()
+        self.setTinySA(pause_command)
 
     # def temperature(self):
     #     self.send_command("k\r")
@@ -250,137 +159,10 @@ class analyser:
     #         if line:
     #             return float(line)
 
-    # def rbw(self, data=0):
-    #     # sets the rbw to either automatic or a specific value
-    #     # usage: rbw auto|3..600.  The number specifies the target rbw in kHz
-    #     if data == 0:
-    #         self.send_command("rbw auto\r")
-    #         return
-    #     if data < 1:
-    #         self.send_command("rbw %f\r" % data)
-    #         return
-    #     if data >= 1:
-    #         self.send_command("rbw %d\r" % data)
-
-#     def fetch_data(self):  # a general Fn used to return various types of data depending on calling Fn
-#         result = ''
-#         line = ''
-#         while True:
-#             c = self.serial.read().decode('utf-8')
-#             if c == chr(13):
-#                 next  # ignore CR
-#             line += c
-#             if c == chr(10):
-#                 result += line
-#                 line = ''
-#                 next
-#             if line.endswith('ch>'):
-#                 # stop on prompt
-#                 break
-#         return result
-
-#     def resume(self):
-#         # resumes the sweeping in either input or output mode
-#         self.send_command("resume\r")
-
-#     def pause(self):  # not used anywhere
-#         # pauses the sweeping in either input or output mode
-#         self.send_command("pause\r")
-
-#     def marker_value(self, nr=1):  # default to marker 1 only?
-#         # sets or dumps marker info.  Usage: marker {id} on|off|peak|{freq}|{index}
-#         # where id=1..4 index=0..num_points-1.  Marker levels will use the selected unit.
-#         # Marker peak will activate the marker (if not done already), position the marker
-#         # on the strongest 	signal and display the marker info.  The frequency must be within the selected sweep range
-#         self.send_command("marker %d\r" % nr)
-#         data = self.fetch_data()
-#         line = data.split('\n')[0]
-# #        print(line)
-#         if line:
-#             dl = line.strip().split(' ')
-#             if len(dl) >= 4:
-#                 d = line.strip().split(' ')[3]
-#                 return float(d)
-#         return 0
-
-#     def listSD(self, file=""):  # changed from 'list' because 'list' is a Python Function Name
-#         self.send_command("sd_list %s\r" % file)
-#         data = self.fetch_data()
-#         return (data)
-
-#     def readSD(self, file):
-#         self.send_command("sd_read %s\r" % file)
-#         f = "<1i"
-#         b = self.serial.read(4)
-#         size = struct.unpack(f, b)
-#         size = size[0]
-#         print(size)
-#         data = self.serial.read(size)
-#         # print (data.size)
-#         return (data)
-
-#     def data(self, array=2):
-#         # dumps the trace data. 0=temp value, 1=stored trace, 2=measurement
-#         self.send_command("data %d\r" % array)
-#         data = self.fetch_data()
-#         logging.debug(f'data = {data}')
-#         x = []
-#         for line in data.split('\n'):  # a list with newline as separator
-#             if line:
-#                 d = line.strip().split(' ')  # for each item in the list, trim spaces, split at . into a list
-#                 logging.debug(f'data {d}')
-#                 # then d isn't used?
-#                 x.append(float(d))
-#         logging.debug(f'x = {x}')
-#         return np.array(x)
-
-#     def send_scan(self, start=1e6, stop=900e6, points=None):
-#         # performs a scan and optionally outputs the measured data.
-#         # Usage: scan {start(Hz)} {stop(Hz)} [points] [outmask]
-#         # where the outmask is a binary OR of 1=frequencies, 2=measured data, 4=stored data and points
-#         if points:
-#             self.send_command("scan %d %d %d\r" % (start, stop, points))
-#         else:
-#             self.send_command("scan %d %d\r" % (start, stop))
-
-    def scan(self):  # scans in segments if needed, using send_scan Fn
-        segment_length = 101
-        array0 = []  # not used
-        array1 = []
-        if self._frequencies is None:  # from when class is instantiated or from set_frequencies()
-            self.fetch_frequencies()  # fetch and stores them
-        freqs = self._frequencies
-        logging.debug(f'frequencies in scan Fn = {self._frequencies}')
-        while len(freqs) > 0:
-            seg_start = freqs[0]
-            # chop the scan into segments
-            seg_stop = freqs[segment_length-1] if len(freqs) >= segment_length else freqs[-1]
-            length = segment_length if len(freqs) >= segment_length else len(freqs)
-            # print((seg_start, seg_stop, length))
-            # and set the scan parameters
-            self.send_scan(seg_start, seg_stop, length)
-            # and use data Fn to get the results from TinySA
-            array1.extend(self.data(1))
-            freqs = freqs[segment_length:]
-        self.resume()  # re-start TinySA normal scanning
-        return (array0, array1)  # array0 is still empty
-
-    # def scanRaw(self):
-        # performas a scan of unlimited amount of points and send data in binary form
-        # Usage: scanraw {start(Hz)} {stop(Hz)} [points]
-        # Measured data is level in dBm and is sent as '{'('x' MSB LSB)*points '}
-        # To get the dBm level from the 16-bit data, divide by 32 and subtract 128
-
-
-    def logmag(self, x):  # plots graph using matplotlib
-        pl.grid(True)
-        pl.xlim(self.frequencies[0], self.frequencies[-1])
-        pl.plot(self.frequencies, x)
-
-    # def battery(self):
-    #     voltage = tinySA.cmd('vbat')
-    #     voltage = float(voltage[:4])/1000
-    #     return voltage
+# def logmag(self, x):  # plots graph using matplotlib
+#     pl.grid(True)
+#     pl.xlim(self.frequencies[0], self.frequencies[-1])
+#     pl.plot(self.frequencies, x)
 
 
 # tinySA ######################################################################
@@ -388,107 +170,114 @@ class analyser:
 
 class WorkerSignals(QObject):
     error = pyqtSignal(str)
-    result = pyqtSignal(np.ndarray, float, float)
+    result = pyqtSignal(np.ndarray)
 
 
 class Worker(QRunnable):
     '''Worker threads so that measurements can run outside GUI event loop'''
 
-    def __init__(self, fn):
+    def __init__(self, fn, *args):
         super(Worker, self).__init__()
         self.fn = fn
+        self.args = args
         self.signals = WorkerSignals()
 
     @pyqtSlot()
     def run(self):
         '''Initialise the runner'''
-
         logging.info(f'{self.fn.__name__} thread running')
-        self.fn()
+        self.fn(*self.args)
 
 
 ###############################################################################
 # other methods
-#             nv.fetch_frequencies()
-#             s = nv.data(p)
-# #            nv.fetch_frequencies()
-#     if opt.save:
-#         nv.writeCSV(s, opt.save)
-#     if opt.plot:
-#         nv.logmag(s)
-        pl.show()
-
 
 # Get tinysa device automatically
 def getport() -> str:
-    device_list = list_ports.comports()
+    try:
+        device_list = list_ports.comports()
+    except serial.SerialException:
+        logging.info('serial exception')
     for x in device_list:
         if x.vid == VID and x.pid == PID:
             return x.device
-    raise OSError("device not found")
+    raise OSError("TinySA not found")
 
-def scan_button():
+
+def scan_start():
+    tinySA.pause()
     startF = ui.start_freq.value()*1e6
     stopF = ui.stop_freq.value()*1e6
-    rbw = ui.rbw_box.currentText()
-    # tinySA.set_sweep(startF, stopF)
-    tinySA.set_frequencies(startF, stopF, 101)
-    # tinySA.send_command('pause\r')
-    # tinySA.send_command("scan %d %d %d %d\r" % (startF, stopF, 450, 2))
-    # s = tinySA.data(1)
-    s = tinySA.spectrum(startF, stopF, 101, rbw)
-    logging.debug(f'scan = {s}')
+    points = int(ui.points_box.currentText())
+    tinySA.set_frequencies(startF, stopF, points)
+    tinySA.setRBW()  # fetches rbw value from the GUI combobox and sends it to TinySA
+    tinySA.clearBuffer()
+    tinySA.sweepTimeout(startF, stopF, points)
+    activeButtons(False)
+    tinySA.startMeasurement(startF, stopF, points)  # runs measurement in separate thread
+
+
+def scan_stop():
+    tinySA.running = False
+    activeButtons(True)
+
 
 def rbw_changed():
-    rbw = ui.rbw_box.currentText()
-    rbw_command = f'rbw {rbw}\r'.encode()
-    tinySA.setTinySA(rbw_command)
+    tinySA.setRBW()
+
+
+def start_freq_changed():
+    start = ui.start_freq.value() * 1e6
+    stop = ui.stop_freq.value()
+    ui.graphWidget.setXRange(start / 1e6, stop)
+    command = f'sweep start {start}\r'.encode()
+    tinySA.setTinySA(command)
+
+
+def stop_freq_changed():
+    stop = ui.stop_freq.value() * 1e6
+    start = ui.start_freq.value()
+    ui.graphWidget.setXRange(start, stop / 1e6)
+    command = f'sweep stop {stop}\r'.encode()
+    tinySA.setTinySA(command)
+
 
 def measure_button():
-    vbw_command = f'vbw 1.0\r'.encode()
-    tinySA.setTinySA(vbw_command)
+    command = 'vbw 1.0\r'.encode()
+    tinySA.setTinySA(command)
+
 
 def attenuate_changed():
     atten = ui.atten_box.value()
-    atten_command = f'attenuate {atten}\r'.encode()
-    tinySA.setTinySA(atten_command)
+    command = f'attenuate {atten}\r'.encode()
+    tinySA.setTinySA(command)
 
-def plot_button():
-    tinySA.fetch_frequencies()
-    s = tinySA.data(0)
-#    logging.debug(f's = {s}')
-#    tinySA.logmag(s)
-#    pl.show()
-    logging.debug(f's = {s}')
-    logging.debug(f'freqs = {tinySA.frequencies/1e6}')
-    spectrum.setData((tinySA.frequencies/1e6), s)
-    app.processEvents()
 
-# ##   nv.set_port(opt.port)
-#     if opt.start or opt.stop or opt.points:
-#         nv.set_frequencies(opt.start, opt.stop, opt.points)
-# ##    plot = opt.plot
-#     if opt.plot or opt.save or opt.scan:
-#         p = int(opt.port) if opt.port else 0
-#         if opt.scan or opt.points > 101:
-#             s = nv.scan()
-#             s = s[p]
-#         else:
-#             if opt.start or opt.stop:
-#                 nv.set_sweep(opt.start, opt.stop)
-#             nv.fetch_frequencies()
-#             s = nv.data(p)
-# ##            nv.fetch_frequencies()
-    # if opt.save:
-    #     nv.writeCSV(s, opt.save)
-    # if opt.plot:
-    #     nv.logmag(s)
-    #     pl.show()
+def calc_changed():
+    logging.info('calc does nothing yet')
+
+
+def spur_checked():  # doesn't work
+    command = 'spur off'.encode()
+    if ui.spur.isChecked:
+        command = 'spur on'.encode()
+    tinySA.setTinySA(command)
+
+
+def centre_checked():  # doesn't work
+    if ui.centre.isChecked:
+        ui.freq_label_1.setText('Centre')
+        ui.freq_label_2.setText('Span')
+    else:
+        ui.freq_label_1.setText('Start')
+        ui.freq_label_2.setText('Stop')
+
 
 def exit_handler():
     # meter.running = False
     # while meter.fifo.qsize() > 0:
     #     time.sleep(0.2)  # allow time for the fifo queue to empty
+    tinySA.resume()
     app.processEvents()
     logging.info('Closed')
 
@@ -505,22 +294,17 @@ def popUp(message, button):
 
 
 def activeButtons(tF):
-    # prevent User button presses that may affect readings when meter is running
-    ui.saveDevice.setEnabled(tF)
-    ui.loadS2P.setEnabled(tF)
-    ui.saveValues.setEnabled(tF)
-#    ui.measHigh.setEnabled(tF)
-#    ui.measLow.setEnabled(tF)
-    ui.addDevice.setEnabled(tF)
-    ui.deleteDevice.setEnabled(tF)
-    ui.addFreq.setEnabled(tF)
-    ui.delFreq.setEnabled(tF)
-    ui.delAllFreq.setEnabled(tF)
-#    ui.calibrate.setEnabled(tF)
-#    ui.saveCal.setEnabled(tF)
-#    ui.addCal.setEnabled(tF)
-#    ui.deleteCal.setEnabled(tF)
-    ui.inUse.setEnabled(tF)
+    # prevent User button presses when TinySA is scanning
+    ui.atten_box.setEnabled(tF)
+    ui.spur.setEnabled(tF)
+    ui.rbw_box.setEnabled(tF)
+    ui.vbw_box.setEnabled(tF)
+    ui.points_box.setEnabled(tF)
+    ui.band_box.setEnabled(tF)
+    ui.start_freq.setEnabled(tF)
+    ui.stop_freq.setEnabled(tF)
+    ui.scan_start.setEnabled(tF)
+
 
 
 ###############################################################################
@@ -541,16 +325,16 @@ ui.setupUi(window)
 red = pyqtgraph.mkPen(color='r', width=1.0)
 red_dash = pyqtgraph.mkPen(color='r', width=0.5, style=QtCore.Qt.DashLine)
 yellow = pyqtgraph.mkPen(color='y', width=1.0)
-ui.graphWidget.setYRange(-100, 5)
+ui.graphWidget.setYRange(-110, 5)
 ui.graphWidget.setXRange(90, 100)
 ui.graphWidget.setBackground('k')  # black
 ui.graphWidget.showGrid(x=True, y=True)
-ui.graphWidget.addLine(y=6, movable=False, pen=red, label='max', labelOpts={'position':0.05, 'color':('r')})
-ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='', labelOpts={'position':0.025, 'color':('c')})
+ui.graphWidget.addLine(y=6, movable=False, pen=red, label='', labelOpts={'position':0.05, 'color':('r')})
+ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='max', labelOpts={'position':0.025, 'color':('r')})
 # ui.graphWidget.addLine(y=-50, movable=False, pen=blue, label='', labelOpts={'position':0.025, 'color':('c')})
 ui.graphWidget.setLabel('left', 'Signal', 'dBm')
 ui.graphWidget.setLabel('bottom', 'Frequency', 'MHz')
-spectrum = ui.graphWidget.plot([], [], name='Spectrum', pen=yellow, width=1)
+spectrumDisplay = ui.graphWidget.plot([], [], name='Spectrum', pen=yellow, width=1)
 
 # pyqtgraph settings for calibration display
 # ui.slopeFreq.addLegend(offset=(20, 10))
@@ -572,22 +356,23 @@ spectrum = ui.graphWidget.plot([], [], name='Spectrum', pen=yellow, width=1)
 
 # ui.runButton.clicked.connect(startMeasurement)
 # ui.scan.clicked.connect(lambda: analyser.scan())
-ui.scan_button.clicked.connect(scan_button)
+ui.scan_start.clicked.connect(scan_start)
+ui.scan_stop.clicked.connect(scan_stop)
 ui.rbw_box.currentTextChanged.connect(rbw_changed)
 ui.atten_box.valueChanged.connect(attenuate_changed)
-
-# test
-ui.measure.clicked.connect(measure_button)
-ui.plot.clicked.connect(plot_button)
-#
+ui.start_freq.valueChanged.connect(start_freq_changed)
+ui.stop_freq.valueChanged.connect(stop_freq_changed)
+ui.calc_box.currentTextChanged.connect(calc_changed)
+ui.spur.stateChanged.connect(spur_checked)
+ui.centre.stateChanged.connect(centre_checked)
 
 
 ###############################################################################
 # set up the application
 
 ui.rbw_box.addItems(['auto', '0.2', '1', '3', '10', '30', '100', '300', '600', '850'])
-ui.vbw_box.addItems(['auto', '0.01', '0.03', '0.1', '0.33', '1.0'])
-ui.accuracy_box.addItems(['normal', 'precise', 'fast', 'noise source', 'speedup'])
+ui.vbw_box.addItems(['not available'])
+ui.calc_box.addItems(['off', 'minh', 'maxh', 'maxd', 'aver4', 'aver16', 'quasip'])
 ui.points_box.addItems(['25', '50', '100', '200', '290', '450'])
 ui.points_box.setCurrentIndex(5)
 ui.band_box.addItems(['set freq', '14', '50', '70', '144', '432', '1296', '2320', '3400', '5700'])

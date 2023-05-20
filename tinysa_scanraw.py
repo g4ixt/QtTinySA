@@ -52,6 +52,7 @@ def get_tinysa_dBm( s_port, f_low=F_LOW, f_high=F_HIGH, points=POINTS, rbw=0, ve
         # set timeout accordingly - can be very long - use a heuristic approach
         timeout = int( span_k / ( rbw_k * rbw_k ) + points / 1e3 + 5)
         tinySA.timeout = timeout
+        print("timeout =", timeout)
 
         if verbose:
             sys.stderr.write( f'frequency step: {int( span_k / ( points-1 ) )} kHz\n' )
