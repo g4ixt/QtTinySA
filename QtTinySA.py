@@ -14,24 +14,25 @@ Python package for RF and Microwave applications.
 import time
 import logging
 import numpy as np
-import queue
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import pyqtSlot, pyqtSignal, QRunnable, QObject, QThreadPool
 from PyQt5.QtWidgets import QMessageBox, QFileDialog
 import pyqtgraph
 import QtTinySpectrum  # the GUI
 
+#  For 3D
+from pyqtgraph.Qt import QtCore, QtGui
+import pyqtgraph.opengl as pyqtgl
+#  3D
+
 # tinySA4 #####################################################################
-import pylab as pl
+# import pylab as pl
 import struct
 import serial
 from serial.tools import list_ports
 # tinySA ######################################################################
 
 threadpool = QThreadPool()
-
-# Frequency radio button values
-fBand = [14, 50, 70, 144, 432, 1296, 2320, 3400, 5700]
 
 VID = 0x0483  # 1155
 PID = 0x5740  # 22336
@@ -54,7 +55,7 @@ class analyser:
         self.points = 101
         self.running = False
         self.signals = WorkerSignals()
-        self.signals.result.connect(self.updateGUI)
+        self.signals.result.connect(self.sigProcess)
         self.timeout = 1
         # self.signals.error.connect(spiError)
         # self.fifo = queue.SimpleQueue()
@@ -64,9 +65,10 @@ class analyser:
         # what does this do?
         return self._frequencies
 
-    def startMeasurement(self, startF, stopF, points):
-        self.sweep = Worker(self.spectrum, startF, stopF, points)  # workers are auto-deleted when thread stops
+    def startMeasurement(self, startF, stopF):
+        self.sweep = Worker(self.spectrum, startF, stopF)  # workers are auto-deleted when thread stops
         self.running = True
+        self.sweepresults = np.zeros((100, self.points), dtype=float)  # to do - add row count to GUI
         threadpool.start(self.sweep)
 
     def setTinySA(self, command):
@@ -79,8 +81,7 @@ class analyser:
 
     def set_frequencies(self, startF, stopF, points):  # needs update
         # creates a np array of equi-spaced freqs but doesn't actually set it on the tinySA
-        if points:
-            self.points = points
+        self.points = points
         self._frequencies = np.linspace(startF, stopF, self.points)
         logging.debug(f'frequencies = {self._frequencies}')
 
@@ -89,7 +90,6 @@ class analyser:
         rbw_command = f'rbw {self.rbw}\r'.encode()
         self.setTinySA(rbw_command)
 
-
     def clearBuffer(self):
         with serial.Serial(self.dev, baudrate=3000000) as serialPort:
             serialPort.timeout = 1
@@ -97,50 +97,88 @@ class analyser:
                 serialPort.read_all()  # keep the serial buffer clean
                 time.sleep(0.1)
 
-    def sweepTimeout(self, f_low, f_high, points):  # freqs are in Hz
-            if self.rbw == 'auto':
-                rbw = (f_high / 1e3 - f_low / 1e3) / points  # rbw equal to freq step size in kHz
-            else:
-                rbw = float(self.rbw)
+    def sweepTimeout(self, f_low, f_high):  # freqs are in Hz
+        if self.rbw == 'auto':
+            rbw = (f_high / 1e3 - f_low / 1e3) / self.points  # rbw equal to freq step size in kHz
+        else:
+            rbw = float(self.rbw)
 
-            if rbw < 0.2:  # change this to something more fancy
-                rbw = 0.2
-            elif rbw > 850:
-                rbw = 850
+        if rbw < 0.2:  # change this to something more fancy
+            rbw = 0.2
+        elif rbw > 850:
+            rbw = 850
 
-            # timeout can be very long - use a heuristic approach
-            timeout = int(((f_high - f_low) / 1e3) / (rbw ** 2) + points / 1e3) + 5
-            self.timeout = timeout
-            logging.debug(f'sweepTimeout = {self.timeout}')
+        # timeout can be very long - use a heuristic approach
+        timeout = int(((f_high - f_low) / 1e3) / (rbw ** 2) + self.points / 1e3) + 5
+        self.timeout = timeout
+        logging.debug(f'sweepTimeout = {self.timeout}')
 
     # return 1D numpy array with power as dBm.  Freqs are in Hz
-    def spectrum(self, f_low, f_high, points):  # to be threaded
+    def spectrum(self, f_low, f_high):  # runs in a separae thread
         while self.running:
             with serial.Serial(self.dev, baudrate=3000000) as serialPort:
                 serialPort.timeout = self.timeout
                 logging.debug(f'serial timeout: {self.timeout} s\n')
-                logging.debug(f'points: {points} s\n')
-                scan_command = f'scanraw {int(f_low)} {int(f_high)} {int(points)}\r'.encode()
+                logging.debug(f'points: {self.points} s\n')
+                scan_command = f'scanraw {int(f_low)} {int(f_high)} {int(self.points)}\r'.encode()
                 serialPort.write(scan_command)
                 serialPort.read_until(b'{')  # skip command echoes
                 raw_data = serialPort.read_until(b'}ch> ')
-            raw_data = struct.unpack('<' + 'xH'*points, raw_data[:-5])  # ignore trailing '}ch> '
+            raw_data = struct.unpack('<' + 'xH'*self.points, raw_data[:-5])  # ignore trailing '}ch> '
             raw_data = np.array(raw_data, dtype=np.uint16)
             logging.debug(f'raw data: {raw_data} s\n')
             SCALE = 174  # tinySA: 128  tinySA4: 174
             dBm_power = (raw_data / 32) - SCALE  # scale 0..4095 -> -128..-0.03 dBm
             self.signals.result.emit(dBm_power)
 
-    def battery():
-        command = 'vbat\r'.encode()
-        tinySA.write(command)  # needs to use a diffeent one to get data
-        #     voltage = tinySA.cmd('vbat')
-        #     voltage = float(voltage[:4])/1000
-        #     return voltage
-        # ui.battery.setValue(voltage)
+#    def battery():
+        # command = 'vbat\r'.encode()
+        # tinySA.write(command)  # need to get data
 
-    def updateGUI(self, signaldBm):
-        spectrumDisplay.setData((tinySA.frequencies/1e6), signaldBm)
+    def sigProcess(self, signaldBm):  # signaldBm is emitted from the worker thread
+        # store each sweep in an array with most recent at index 0
+        self.sweepresults = np.roll(self.sweepresults, 1, axis=0)
+        self.sweepresults[0] = signaldBm
+        self.procresult = signaldBm
+
+        method = ui.calc_box.currentText()  # future - make this adjustable from the GUI
+        if method == 'aver4':
+            self.procresult = np.average(self.sweepresults[:4, ::], axis=0)
+        if method == 'aver16':
+            self.procresult = np.average(self.sweepresults[:16, ::], axis=0)
+        if method == 'maxh':
+            self.procresult = np.amax(self.sweepresults[:50, ::], axis=0)
+        if method == 'minh':
+            self.procresult = np.amin(self.sweepresults[:50, ::], axis=0)
+
+        self.updateGUI()
+        self.updateTimeSpectrum()
+
+    def updateGUI(self):
+        # self.sweepresults[1:2:, 0::] = self.sweepresults[0:1:, 0::]
+        spectrumDisplay.setData((self.frequencies/1e6), self.procresult)
+
+    def createTimeSpectrum(self):
+        xarray = np.ndarray((1, self.points), dtype=float)
+        yarray = np.ndarray((1, self.points), dtype=float)
+        zarray = np.ndarray((1, self.points), dtype=float)
+        pts = np.vstack([xarray, zarray, yarray]).transpose()
+        self.plt = pyqtgl.GLLinePlotItem(pos=pts, color=pyqtgraph.glColor((1, 5)), width=1, antialias=True)
+        # ui.openGLWidget.setCameraPosition(distance=1)
+        # self.plt.translate(0, 0, 0)
+        ui.openGLWidget.addItem(self.plt)
+
+    def updateTimeSpectrum(self):
+        xarray = (self.frequencies/1e6)
+        yarray = np.ndarray((1, self.points), dtype=float)
+        for i in range(10):
+            zarray = -1*self.sweepresults[i]
+            logging.info(f'xarray = {xarray}')
+            logging.info(f'yarray = {yarray}')
+            logging.info(f'zarray = {zarray}')
+            yarray.fill(-i)
+            pts = np.vstack([xarray, yarray, zarray]).transpose()
+            self.plt.setData(pos=pts, color=pyqtgraph.glColor((i, 5)), width=1, antialias=True)
 
     def resume(self):
         # resumes the sweeping in either input or output mode
@@ -151,18 +189,6 @@ class analyser:
         # pauses the sweeping in either input or output mode
         pause_command = 'pause\r'.encode()
         self.setTinySA(pause_command)
-
-    # def temperature(self):
-    #     self.send_command("k\r")
-    #     data = self.fetch_data()
-    #     for line in data.split('\n'):
-    #         if line:
-    #             return float(line)
-
-# def logmag(self, x):  # plots graph using matplotlib
-#     pl.grid(True)
-#     pl.xlim(self.frequencies[0], self.frequencies[-1])
-#     pl.plot(self.frequencies, x)
 
 
 # tinySA ######################################################################
@@ -212,14 +238,15 @@ def scan_start():
     tinySA.set_frequencies(startF, stopF, points)
     tinySA.setRBW()  # fetches rbw value from the GUI combobox and sends it to TinySA
     tinySA.clearBuffer()
-    tinySA.sweepTimeout(startF, stopF, points)
+    tinySA.sweepTimeout(startF, stopF)
     activeButtons(False)
-    tinySA.startMeasurement(startF, stopF, points)  # runs measurement in separate thread
+    tinySA.startMeasurement(startF, stopF)  # runs measurement in separate thread
 
 
 def scan_stop():
     tinySA.running = False
     activeButtons(True)
+    # tinySA.updateTimeSpectrum()
 
 
 def rbw_changed():
@@ -253,10 +280,6 @@ def attenuate_changed():
     tinySA.setTinySA(command)
 
 
-def calc_changed():
-    logging.info('calc does nothing yet')
-
-
 def spur_checked():  # doesn't work
     command = 'spur off'.encode()
     if ui.spur.isChecked:
@@ -264,13 +287,9 @@ def spur_checked():  # doesn't work
     tinySA.setTinySA(command)
 
 
-def centre_checked():  # doesn't work
-    if ui.centre.isChecked:
-        ui.freq_label_1.setText('Centre')
-        ui.freq_label_2.setText('Span')
-    else:
-        ui.freq_label_1.setText('Start')
-        ui.freq_label_2.setText('Stop')
+# def start_or_centre():  # doesn't work
+#     if ui.start_freq_button.isChecked:
+#         ui.start_freq_button.setText('Centre Freq')
 
 
 def exit_handler():
@@ -306,7 +325,6 @@ def activeButtons(tF):
     ui.scan_start.setEnabled(tF)
 
 
-
 ###############################################################################
 # Instantiate classes
 
@@ -336,35 +354,42 @@ ui.graphWidget.setLabel('left', 'Signal', 'dBm')
 ui.graphWidget.setLabel('bottom', 'Frequency', 'MHz')
 spectrumDisplay = ui.graphWidget.plot([], [], name='Spectrum', pen=yellow, width=1)
 
-# pyqtgraph settings for calibration display
-# ui.slopeFreq.addLegend(offset=(20, 10))
-# ui.slopeFreq.setXRange(0, 3200, padding=0)
-# ui.slopeFreq.showGrid(x=True, y=True)
-# ui.slopeFreq.setBackground('k')  # white
-# ui.slopeFreq.setLabel('bottom', 'Frequency', '')
-# ui.slopeFreq.setLabel('left', 'Transfer Fn Slope (Codes/dB)', '')
-# maxLim = ui.slopeFreq.plot(fSpec, maxSlope, name='AD8318 spec limits', pen='y')
-# minLim = ui.slopeFreq.plot(fSpec, minSlope, pen='y')
+# pyqtgraph settings for time spectrum
+
+# create three grids, add each to the view
+# xgrid = gl.GLGridItem()
+# xgrid.rotate(90, 0, 1, 0)  # rotate to face the correct direction
+# ygrid = gl.GLGridItem()
+# ygrid.rotate(90, 1, 0, 0)  # rotate to face the correct direction
+# zgrid = gl.GLGridItem()
+# ui.openGLWidget.addItem(xgrid)
+# ui.openGLWidget.addItem(ygrid)
+# ui.openGLWidget.addItem(zgrid)
+axes = pyqtgl.GLAxisItem()
+# axes.setSize(120, -120, 5)
+ui.openGLWidget.addItem(axes)
+tinySA.createTimeSpectrum()
+
+# # ?
+# xgrid.translate(-10, 0, 0)
+# ygrid.translate(0, -10, 0)
+# zgrid.translate(0, 0, -10)
+
 
 # voltage = tinySA.battery()
 # ui.battery.setValue(voltage)
 
 
-
 ###############################################################################
 # Connect signals from buttons and sliders
 
-# ui.runButton.clicked.connect(startMeasurement)
-# ui.scan.clicked.connect(lambda: analyser.scan())
 ui.scan_start.clicked.connect(scan_start)
 ui.scan_stop.clicked.connect(scan_stop)
 ui.rbw_box.currentTextChanged.connect(rbw_changed)
 ui.atten_box.valueChanged.connect(attenuate_changed)
 ui.start_freq.valueChanged.connect(start_freq_changed)
 ui.stop_freq.valueChanged.connect(stop_freq_changed)
-ui.calc_box.currentTextChanged.connect(calc_changed)
 ui.spur.stateChanged.connect(spur_checked)
-ui.centre.stateChanged.connect(centre_checked)
 
 
 ###############################################################################
@@ -372,12 +397,10 @@ ui.centre.stateChanged.connect(centre_checked)
 
 ui.rbw_box.addItems(['auto', '0.2', '1', '3', '10', '30', '100', '300', '600', '850'])
 ui.vbw_box.addItems(['not available'])
-ui.calc_box.addItems(['off', 'minh', 'maxh', 'maxd', 'aver4', 'aver16', 'quasip'])
-ui.points_box.addItems(['25', '50', '100', '200', '290', '450'])
+ui.calc_box.addItems(['off', 'minh', 'maxh', 'aver4', 'aver16'])
+ui.points_box.addItems(['25', '50', '100', '200', '290', '450', '900', '1800', '3600', '7200', '15400'])
 ui.points_box.setCurrentIndex(5)
 ui.band_box.addItems(['set freq', '14', '50', '70', '144', '432', '1296', '2320', '3400', '5700'])
-# tinySA.set_frequencies(90, 100, 450)
-# tinySA.set_sweep(90e6, 100e6)
 
 window.show()
 
