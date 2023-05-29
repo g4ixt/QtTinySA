@@ -17,9 +17,15 @@ https://github.com/Ho-Ro
 The GUI is designed for a 7" 1024 x 600 screen but should maximise properly.  The GUI appearence may change significantly due to development.
 
 Intended development in no particular order:
+
 Markers.
+
 More traces.
+
 Error trapping.
+
 Other ideas.
+
 Generator control.
+
 Time Spectrum (3D view of stored sweeps going back in time).
