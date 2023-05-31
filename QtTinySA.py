@@ -330,7 +330,7 @@ def band_changed():
 #         ui.stop_freq_button.setText('Stop Freq')
 
 
-def attenuate_changed():
+def attenuate_changed():  # lna and attenuator are switched so mutually exclusive. To do: add code for this
     atten = ui.atten_box.value()
     if atten == 0:
         atten = 'auto'
@@ -350,7 +350,7 @@ def spur():
     tinySA.serialSend(command)
 
 
-def lna():
+def lna():  # lna and attenuator are switched so mutually exclusive. To do: add code for this
     if tinySA.lna_on:
         command = 'lna off\r'.encode()
         tinySA.lna_on = False
