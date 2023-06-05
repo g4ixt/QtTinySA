@@ -25,7 +25,7 @@
     <item row="0" column="0">
      <widget class="QTabWidget" name="tabWidget">
       <property name="sizePolicy">
-       <sizepolicy hsizetype="Ignored" vsizetype="Expanding">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
         <horstretch>0</horstretch>
         <verstretch>0</verstretch>
        </sizepolicy>
@@ -37,16 +37,33 @@
        <number>0</number>
       </property>
       <widget class="QWidget" name="analyserTab">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
        <attribute name="title">
         <string>Analyser</string>
        </attribute>
-       <layout class="QGridLayout" name="gridLayout_3">
+       <layout class="QGridLayout" name="gridLayout">
         <item row="0" column="0">
-         <layout class="QGridLayout" name="controlgrid">
-          <property name="horizontalSpacing">
-           <number>6</number>
-          </property>
-          <item row="1" column="0">
+         <layout class="QVBoxLayout" name="verticalLayout">
+          <item>
+           <widget class="QLabel" name="label_5">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Attenuator 0=auto</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QSpinBox" name="atten_box">
             <property name="suffix">
              <string>dB</string>
@@ -62,112 +79,14 @@
             </property>
            </widget>
           </item>
-          <item row="9" column="0">
-           <widget class="QLabel" name="label_4">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>VBW</string>
-            </property>
-           </widget>
-          </item>
-          <item row="19" column="0">
-           <spacer name="verticalSpacer">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>20</width>
-              <height>40</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="2" column="0">
+          <item>
            <widget class="QPushButton" name="lna_button">
             <property name="text">
              <string>LNA off</string>
             </property>
            </widget>
           </item>
-          <item row="6" column="0">
-           <widget class="QComboBox" name="points_box">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="currentIndex">
-             <number>-1</number>
-            </property>
-           </widget>
-          </item>
-          <item row="7" column="0">
-           <widget class="QLabel" name="label_3">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>RBW kHz</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="0">
-           <widget class="QLabel" name="label_5">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Attenuator 0=auto</string>
-            </property>
-           </widget>
-          </item>
-          <item row="14" column="0">
-           <widget class="QPushButton" name="spur_button">
-            <property name="text">
-             <string>SPUR auto</string>
-            </property>
-           </widget>
-          </item>
-          <item row="8" column="0">
-           <widget class="QComboBox" name="rbw_box">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="editable">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="12" column="0">
-           <widget class="QComboBox" name="calc_box">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-           </widget>
-          </item>
-          <item row="5" column="0">
+          <item>
            <widget class="QLabel" name="label_2">
             <property name="font">
              <font>
@@ -181,7 +100,71 @@
             </property>
            </widget>
           </item>
-          <item row="11" column="0">
+          <item>
+           <widget class="QComboBox" name="points_box">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="currentIndex">
+             <number>-1</number>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_3">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>RBW kHz</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="rbw_box">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="editable">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_4">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>VBW</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="vbw_box">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QLabel" name="label">
             <property name="font">
              <font>
@@ -195,91 +178,119 @@
             </property>
            </widget>
           </item>
-          <item row="10" column="0">
-           <widget class="QComboBox" name="vbw_box">
+          <item>
+           <widget class="QPushButton" name="spur_button">
+            <property name="text">
+             <string>SPUR auto</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_8">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Averaging</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSlider" name="avgSlider">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
+            <property name="toolTip">
+             <string/>
+            </property>
+            <property name="maximum">
+             <number>20</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="invertedAppearance">
+             <bool>false</bool>
+            </property>
+            <property name="invertedControls">
+             <bool>false</bool>
+            </property>
+            <property name="tickPosition">
+             <enum>QSlider::TicksAbove</enum>
+            </property>
            </widget>
+          </item>
+          <item>
+           <widget class="QRadioButton" name="maxH">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Max Hold</string>
+            </property>
+            <attribute name="buttonGroup">
+             <string notr="true">Hold</string>
+            </attribute>
+           </widget>
+          </item>
+          <item>
+           <widget class="QRadioButton" name="Norm">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Normal</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+            <attribute name="buttonGroup">
+             <string notr="true">Hold</string>
+            </attribute>
+           </widget>
+          </item>
+          <item>
+           <widget class="QRadioButton" name="minH">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Min Hold</string>
+            </property>
+            <attribute name="buttonGroup">
+             <string notr="true">Hold</string>
+            </attribute>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_2">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>17</width>
+              <height>13</height>
+             </size>
+            </property>
+           </spacer>
           </item>
          </layout>
         </item>
-        <item row="0" column="2">
-         <widget class="PlotWidget" name="graphWidget" native="true">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="autoFillBackground">
-           <bool>false</bool>
-          </property>
-          <property name="styleSheet">
-           <string notr="true"/>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="2">
-         <layout class="QGridLayout" name="freqgrid">
-          <item row="0" column="6">
-           <widget class="QDoubleSpinBox" name="stop_freq">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="suffix">
-             <string>MHz</string>
-            </property>
-            <property name="decimals">
-             <number>6</number>
-            </property>
-            <property name="minimum">
-             <double>0.100000000000000</double>
-            </property>
-            <property name="maximum">
-             <double>6000.000000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>1.000000000000000</double>
-            </property>
-            <property name="value">
-             <double>100.000000000000000</double>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="3">
-           <spacer name="horizontalSpacer_2">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="0" column="5">
-           <spacer name="horizontalSpacer">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="0" column="2">
+        <item row="0" column="1">
+         <layout class="QGridLayout" name="gridLayout_2">
+          <item row="1" column="1">
            <widget class="QDoubleSpinBox" name="start_freq">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -310,17 +321,20 @@
             </property>
            </widget>
           </item>
-          <item row="0" column="1">
-           <widget class="QComboBox" name="band_box">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
+          <item row="1" column="3">
+           <spacer name="horizontalSpacer">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
             </property>
-           </widget>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
           </item>
-          <item row="0" column="7">
+          <item row="1" column="11">
            <widget class="QPushButton" name="scan_button">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -333,6 +347,165 @@
             </property>
             <property name="checkable">
              <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="5">
+           <widget class="QCheckBox" name="mkr1">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>1</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0" colspan="12">
+           <widget class="PlotWidget" name="graphWidget" native="true">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="autoFillBackground">
+             <bool>false</bool>
+            </property>
+            <property name="styleSheet">
+             <string notr="true"/>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="10">
+           <widget class="QDoubleSpinBox" name="stop_freq">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="suffix">
+             <string>MHz</string>
+            </property>
+            <property name="decimals">
+             <number>6</number>
+            </property>
+            <property name="minimum">
+             <double>0.100000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>6000.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>1.000000000000000</double>
+            </property>
+            <property name="value">
+             <double>100.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QComboBox" name="band_box">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="7">
+           <widget class="QCheckBox" name="mkr3_type">
+            <property name="font">
+             <font>
+              <family>Standard Symbols L</family>
+             </font>
+            </property>
+            <property name="text">
+             <string>n</string>
+            </property>
+            <property name="tristate">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="8">
+           <widget class="QCheckBox" name="mkr4">
+            <property name="text">
+             <string>4</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="6">
+           <widget class="QCheckBox" name="mkr2_type">
+            <property name="font">
+             <font>
+              <family>Standard Symbols L</family>
+             </font>
+            </property>
+            <property name="text">
+             <string>n</string>
+            </property>
+            <property name="tristate">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="6">
+           <widget class="QCheckBox" name="mkr2">
+            <property name="autoFillBackground">
+             <bool>false</bool>
+            </property>
+            <property name="text">
+             <string>2</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="7">
+           <widget class="QCheckBox" name="mkr3">
+            <property name="text">
+             <string>3</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="8">
+           <widget class="QCheckBox" name="mkr4_type">
+            <property name="font">
+             <font>
+              <family>Standard Symbols L</family>
+             </font>
+            </property>
+            <property name="text">
+             <string>n</string>
+            </property>
+            <property name="tristate">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="9">
+           <spacer name="horizontalSpacer_2">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item row="1" column="4">
+           <widget class="QToolButton" name="mkr_start">
+            <property name="text">
+             <string>...</string>
+            </property>
+            <property name="arrowType">
+             <enum>Qt::LeftArrow</enum>
             </property>
            </widget>
           </item>
@@ -464,4 +637,8 @@
    <bool>true</bool>
   </property>
  </designerdata>
+ <buttongroups>
+  <buttongroup name="mkr_type"/>
+  <buttongroup name="Hold"/>
+ </buttongroups>
 </ui>

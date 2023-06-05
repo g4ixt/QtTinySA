@@ -65,8 +65,6 @@ class analyser:
         self.signals = WorkerSignals()
         self.signals.result.connect(self.sigProcess)
         self.timeout = 1
-        # self.marker = ui.graphWidget.addLine(0, 90, movable=True, pen='g', label="{value:.2f}")
-        # self.marker.label.setPosition(0.1)
 
     @property
     def frequencies(self):
@@ -88,10 +86,16 @@ class analyser:
             SA.read_until(b'ch> ')  # skip command echo and prompt
 
     def set_frequencies(self, startF, stopF, points):  # needs update
-        # creates a np array of equi-spaced freqs but doesn't actually set it on the tinySA
+        # creates a np array of equi-spaced freqs in Hz (but doesn't set it on the tinySA)
         self.points = points
-        self._frequencies = np.linspace(startF, stopF, self.points)
+        self._frequencies = np.linspace(startF, stopF, self.points, dtype=int)
         logging.debug(f'frequencies = {self._frequencies}')
+
+        # move all markers to the nearest discrete freq point
+        # mkr1.toSweepRange(startF, stopF)
+        # mkr2.toSweepRange(startF, stopF)
+        # mkr3.toSweepRange(startF, stopF)
+        # mkr4.toSweepRange(startF, stopF)
 
     def setRBW(self):
         if ui.rbw_box.currentIndex == 0:
@@ -125,7 +129,7 @@ class analyser:
         logging.debug(f'sweepTimeout = {self.timeout}')
 
     # return 1D numpy array with power as dBm.  Freqs are in Hz
-    def spectrum(self, f_low, f_high):  # runs in a separae thread
+    def spectrum(self, f_low, f_high):  # runs in a separate thread
         self.threadrunning = True
         while self.sweeping:
             with serial.Serial(self.dev, baudrate=3000000) as serialPort:  # baudrate does nothing for USB cnx
@@ -154,15 +158,12 @@ class analyser:
         self.sweepresults[0] = signaldBm
         self.procresult = signaldBm
 
-        method = ui.calc_box.currentText()  # future - make this adjustable from the GUI
-        if method == 'aver4':
-            self.procresult = np.average(self.sweepresults[:4, ::], axis=0)
-        if method == 'aver16':
-            self.procresult = np.average(self.sweepresults[:16, ::], axis=0)
-        if method == 'maxh':
-            self.procresult = np.amax(self.sweepresults[:50, ::], axis=0)
-        if method == 'minh':
-            self.procresult = np.amin(self.sweepresults[:50, ::], axis=0)
+        if ui.avgSlider.value() > 0:
+            self.procresult = np.average(self.sweepresults[:ui.avgSlider.value(), ::], axis=0)
+        if ui.maxH.isChecked():
+            self.procresult = np.amax(self.sweepresults[:100, ::], axis=0)
+        if ui.minH.isChecked():
+            self.procresult = np.amin(self.sweepresults[:100, ::], axis=0)
 
         self.updateGUI()
         # self.updateTimeSpectrum()
@@ -170,6 +171,12 @@ class analyser:
     def updateGUI(self):
         # self.sweepresults[1:2:, 0::] = self.sweepresults[0:1:, 0::]
         spectrumDisplay.setData((self.frequencies/1e6), self.procresult)
+        # if ui.mkr1.isChecked():
+        mkr1.update()
+        mkr2.update()
+        mkr3.update()
+        mkr4.update()
+
 
     # def createTimeSpectrum(self):
     #     xarray = np.ndarray((1, self.points), dtype=float)
@@ -210,6 +217,61 @@ class analyser:
         command = 'lna off\r'.encode()
         tinySA.serialSend(command)
         self.lna_on = False
+
+
+class marker:
+    def __init__(self, graph):
+        self.vline = graph.addLine(88, 90, movable=True, pen=pyqtgraph.mkPen('g', width=0.5, style=QtCore.Qt.DashLine), label="{value:.2f}")
+        self.hline = graph.addLine(-100, 0, movable=False, pen=pyqtgraph.mkPen('g', width=0.5, style=QtCore.Qt.DashLine),  label="{value:.2f}")
+        self.hline.setAngle(0)
+        self.vline.hide()
+        self.hline.hide()
+        self.fIndex = 0
+        self.type = 0  # 0 = simple frequency marker; 1 = delta; 2 = peak
+
+    def setDiscrete(self):
+        # update marker to discrete freq point nearest, if it's within the sweep range
+        if self.vline.value() >= ui.start_freq.value() and self.vline.value() <= ui.stop_freq.value():
+            try:
+                for i in range(tinySA.points):
+                    if tinySA.frequencies[i] / 1e6 >= self.vline.value():
+                        self.vline.setValue(tinySA.frequencies[i] / 1e6)
+                        self.hline.setValue(float(tinySA.procresult[i]))
+                        self.fIndex = i
+                        return
+            except AttributeError:
+                return
+
+    # def toSweepRange(self, startF, stopF):
+    #     # bring the marker inside the sweep freq range
+    #     if self.vline.value() < startF / 1e6 or self.vline.value() > stopF / 1e6:
+    #         self.vline.setValue(startF / 1e6)
+    #     else:
+    #         # set the markers to a discrete freq nearest where they are
+    #         for i in range(tinySA.points):
+    #             if tinySA.frequencies[i] / 1e6 >= self.vline.value():
+    #                 self.vline.setValue(tinySA.frequencies[i] / 1e6)
+    #                 self.fIndex = i
+
+    def toStart(self):
+        self.fIndex = 0
+        self.vline.setValue(ui.start_freq.value())
+
+    def setType(self, mkr):
+        self.type = mkr.checkState()
+        logging.info(f'marker = type {self.type}')  # 0 = freq , 1 = delta, 2 = peak
+
+    def update(self):
+        self.hline.setValue(tinySA.procresult[self.fIndex])
+
+    def enable(self, mkr):
+        if mkr.isChecked():
+            self.vline.show()
+            self.hline.show()
+        else:
+            self.vline.hide()
+            self.hline.hide()
+
 
 # tinySA end ######################################################################
 
@@ -290,6 +352,7 @@ def start_freq_changed():
         stop = start
         stop_freq_changed()
     ui.graphWidget.setXRange(start, stop)
+
     command = f'sweep start {start * 1e6}\r'.encode()
     tinySA.serialSend(command)
 
@@ -303,6 +366,7 @@ def stop_freq_changed():
         start = stop
         start_freq_changed()
     ui.graphWidget.setXRange(start, stop)
+
     command = f'sweep stop {stop * 1e6}\r'.encode()
     tinySA.serialSend(command)
 
@@ -319,15 +383,6 @@ def band_changed():
         stop = fBandStop[index]
         ui.stop_freq.setValue(stop)
         stop_freq_changed()
-
-
-# def start_freq_button():
-#     if ui.start_freq_button.isChecked:
-#         ui.start_freq_button.setText('Centre Freq')
-#         ui.stop_freq_button.setText('Freq span')
-#     else:
-#         ui.start_freq_button.setText('Start Freq')
-#         ui.stop_freq_button.setText('Stop Freq')
 
 
 def attenuate_changed():  # lna and attenuator are switched so mutually exclusive. To do: add code for this
@@ -360,6 +415,17 @@ def lna():  # lna and attenuator are switched so mutually exclusive. To do: add 
         tinySA.lna_on = True
         ui.lna_button.setText('LNA on')
     tinySA.serialSend(command)
+
+
+def toStart():
+    if ui.mkr1.isChecked():
+        mkr1.toStart()
+    if ui.mkr2.isChecked():
+        mkr2.toStart()
+    if ui.mkr3.isChecked():
+        mkr3.toStart()
+    if ui.mkr4.isChecked():
+        mkr4.toStart()
 
 
 def exit_handler():
@@ -408,14 +474,22 @@ window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
 
+# markers
+mkr1 = marker(ui.graphWidget)
+mkr2 = marker(ui.graphWidget)
+mkr3 = marker(ui.graphWidget)
+mkr4 = marker(ui.graphWidget)
+
 ###############################################################################
 # GUI settings
 
-# pyqtgraph settings for spectrum display
+# pyqtgraph pens
 red = pyqtgraph.mkPen(color='r', width=1.0)
 red_dash = pyqtgraph.mkPen(color='r', width=0.5, style=QtCore.Qt.DashLine)
 yellow = pyqtgraph.mkPen(color='y', width=1.0)
 blue = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
+
+# pyqtgraph settings for spectrum display
 ui.graphWidget.setYRange(-110, 5)
 ui.graphWidget.setXRange(88, 100)
 ui.graphWidget.setBackground('k')  # black
@@ -423,11 +497,20 @@ ui.graphWidget.showGrid(x=True, y=True)
 ui.graphWidget.addLine(y=6, movable=False, pen=red, label='', labelOpts={'position':0.05, 'color':('r')})
 ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='max', labelOpts={'position':0.025, 'color':('r')})
 ui.graphWidget.addLine(y=-25, movable=False, pen=blue, label='best', labelOpts={'position':0.025, 'color':('b')})
-# ui.graphWidget.addLine(y=-50, movable=False, pen=blue, label='', labelOpts={'position':0.025, 'color':('c')})
 ui.graphWidget.setLabel('left', 'Signal', 'dBm')
 ui.graphWidget.setLabel('bottom', 'Frequency MHz')
-
 spectrumDisplay = ui.graphWidget.plot([], [], name='Spectrum', pen=yellow, width=1)
+
+# marker label positions
+mkr1.vline.label.setPosition(0.99)
+mkr2.vline.label.setPosition(0.96)
+mkr3.vline.label.setPosition(0.93)
+mkr4.vline.label.setPosition(0.90)
+
+mkr1.hline.label.setPosition(0.06)
+mkr2.hline.label.setPosition(1.0)
+mkr3.hline.label.setPosition(0.06)
+mkr4.hline.label.setPosition(1.0)
 
 
 # pyqtgraph settings for time spectrum
@@ -439,6 +522,7 @@ spectrumDisplay = ui.graphWidget.plot([], [], name='Spectrum', pen=yellow, width
 
 # voltage = tinySA.battery()
 # ui.battery.setValue(voltage)
+
 
 
 ###############################################################################
@@ -453,15 +537,29 @@ ui.spur_button.clicked.connect(spur)
 ui.lna_button.clicked.connect(lna)
 ui.band_box.currentTextChanged.connect(band_changed)
 
+mkr1.vline.sigPositionChanged.connect(mkr1.setDiscrete)
+mkr2.vline.sigPositionChanged.connect(mkr2.setDiscrete)
+mkr3.vline.sigPositionChanged.connect(mkr3.setDiscrete)
+mkr4.vline.sigPositionChanged.connect(mkr4.setDiscrete)
+
+ui.mkr1.stateChanged.connect(lambda: mkr1.enable(ui.mkr1))
+ui.mkr2.stateChanged.connect(lambda: mkr2.enable(ui.mkr2))
+ui.mkr3.stateChanged.connect(lambda: mkr3.enable(ui.mkr3))
+ui.mkr4.stateChanged.connect(lambda: mkr4.enable(ui.mkr4))
+
+ui.mkr_start.clicked.connect(toStart)
+ui.mkr2_type.stateChanged.connect(lambda: mkr2.setType(ui.mkr2_type))
+ui.mkr3_type.stateChanged.connect(lambda: mkr3.setType(ui.mkr3_type))
+ui.mkr4_type.stateChanged.connect(lambda: mkr4.setType(ui.mkr3_type))
+# ui.mkr_f.clicked.connect(lambda: delta(False))
 
 ###############################################################################
 # set up the application
 
 ui.rbw_box.addItems(['auto', '0.2', '1', '3', '10', '30', '100', '300', '600', '850'])
 ui.vbw_box.addItems(['auto'])
-ui.calc_box.addItems(['Off', 'minh', 'maxh', 'aver4', 'aver16'])
 ui.points_box.addItems(['25', '50', '100', '200', '290', '450', '900', '1800', '3600', '7200', '15400'])
-ui.points_box.setCurrentIndex(5)
+ui.points_box.setCurrentIndex(4)
 ui.band_box.addItems(bands)
 
 tinySA.initialise()
