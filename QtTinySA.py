@@ -65,6 +65,7 @@ class analyser:
         self.signals = WorkerSignals()
         self.signals.result.connect(self.sigProcess)
         self.timeout = 1
+        self.scanCount = 0
 
     @property
     def frequencies(self):
@@ -74,7 +75,8 @@ class analyser:
     def startMeasurement(self, startF, stopF):
         self.sweep = Worker(self.spectrum, startF, stopF)  # workers are auto-deleted when thread stops
         self.sweeping = True
-        self.sweepresults = np.zeros((100, self.points), dtype=float)  # to do - add row count to GUI
+        self.sweepresults = np.empty((self.points, self.points), dtype=float)  # to do - add row count to GUI
+        tinySA.createTimeSpectrum()
         threadpool.start(self.sweep)
 
     def serialSend(self, command):
@@ -166,7 +168,8 @@ class analyser:
             self.procresult = np.amin(self.sweepresults[:100, ::], axis=0)
 
         self.updateGUI()
-        # self.updateTimeSpectrum()
+        self.updateTimeSpectrum()
+        self.scancount += 1
 
     def updateGUI(self):
         # self.sweepresults[1:2:, 0::] = self.sweepresults[0:1:, 0::]
@@ -177,28 +180,21 @@ class analyser:
         mkr3.update()
         mkr4.update()
 
+    def createTimeSpectrum(self):
+        # x = self.frequencies / 1e7
+        x = np.arange(start=self.points, stop=0, step=-1)
+        y = np.arange(start=0, stop=self.points)  # this is the spectrum measurement depth
+        z = self.sweepresults
+        logging.debug(f'z = {z}')
+        self.p2 = pyqtgl.GLSurfacePlotItem(x=x, y=y, z=z, shader='normalColor')
+        self.p2.translate(-10, -10, 0)
+        self.p2.setDepthValue(-120)
+        ui.openGLWidget.addItem(self.p2)
 
-    # def createTimeSpectrum(self):
-    #     xarray = np.ndarray((1, self.points), dtype=float)
-    #     yarray = np.ndarray((1, self.points), dtype=float)
-    #     zarray = np.ndarray((1, self.points), dtype=float)
-    #     pts = np.vstack([xarray, zarray, yarray]).transpose()
-    #     self.plt = pyqtgl.GLLinePlotItem(pos=pts, color=pyqtgraph.glColor((1, 5)), width=1, antialias=True)
-    #     # ui.openGLWidget.setCameraPosition(distance=1)
-    #     # self.plt.translate(0, 0, 0)
-    #     ui.openGLWidget.addItem(self.plt)
-
-    # def updateTimeSpectrum(self):
-    #     xarray = (self.frequencies/1e6)
-    #     yarray = np.ndarray((1, self.points), dtype=float)
-    #     for i in range(10):
-    #         zarray = -1*self.sweepresults[i]
-    #         logging.info(f'xarray = {xarray}')
-    #         logging.info(f'yarray = {yarray}')
-    #         logging.info(f'zarray = {zarray}')
-    #         yarray.fill(-i)
-    #         pts = np.vstack([xarray, yarray, zarray]).transpose()
-    #         self.plt.setData(pos=pts, color=pyqtgraph.glColor((i, 5)), width=1, antialias=True)
+    def updateTimeSpectrum(self):
+        z = self.sweepresults
+        logging.info(f'z = {z}')
+        self.p2.setData(z=z)
 
     def pause(self):
         # pauses the sweeping in either input or output mode
@@ -226,8 +222,9 @@ class marker:
         self.hline.setAngle(0)
         self.vline.hide()
         self.hline.hide()
-        self.fIndex = 0
         self.type = 0  # 0 = simple frequency marker; 1 = delta; 2 = peak
+        self.fIndex = 0  # index of current marker freq in frequencies array
+        self.dIndex = 0
 
     def setDiscrete(self):
         # update marker to discrete freq point nearest, if it's within the sweep range
@@ -238,20 +235,11 @@ class marker:
                         self.vline.setValue(tinySA.frequencies[i] / 1e6)
                         self.hline.setValue(float(tinySA.procresult[i]))
                         self.fIndex = i
+                        if self.type == 1:
+                            self.dIndex = self.fIndex - mkr1.fIndex
                         return
             except AttributeError:
                 return
-
-    # def toSweepRange(self, startF, stopF):
-    #     # bring the marker inside the sweep freq range
-    #     if self.vline.value() < startF / 1e6 or self.vline.value() > stopF / 1e6:
-    #         self.vline.setValue(startF / 1e6)
-    #     else:
-    #         # set the markers to a discrete freq nearest where they are
-    #         for i in range(tinySA.points):
-    #             if tinySA.frequencies[i] / 1e6 >= self.vline.value():
-    #                 self.vline.setValue(tinySA.frequencies[i] / 1e6)
-    #                 self.fIndex = i
 
     def toStart(self):
         self.fIndex = 0
@@ -259,6 +247,7 @@ class marker:
 
     def setType(self, mkr):
         self.type = mkr.checkState()
+        self.dIndex = self.fIndex - mkr1.fIndex
         logging.info(f'marker = type {self.type}')  # 0 = freq , 1 = delta, 2 = peak
 
     def update(self):
@@ -271,7 +260,6 @@ class marker:
         else:
             self.vline.hide()
             self.hline.hide()
-
 
 # tinySA end ######################################################################
 
@@ -428,17 +416,28 @@ def toStart():
         mkr4.toStart()
 
 
+def mkr1_moved():
+    mkr1.vline.sigPositionChanged.connect(mkr1.setDiscrete)
+    try:
+        if mkr2.type == 1:
+            mkr2.fIndex = mkr1.fIndex + mkr2.dIndex
+            mkr2.vline.setValue(tinySA.frequencies[mkr2.fIndex] / 1e6)
+        if mkr3.type == 1:
+            mkr3.fIndex = mkr1.fIndex + mkr3.dIndex
+            mkr3.vline.setValue(tinySA.frequencies[mkr3.fIndex] / 1e6)
+        if mkr4.type == 1:
+            mkr4.fIndex = mkr1.fIndex + mkr4.dIndex
+            mkr4.vline.setValue(tinySA.frequencies[mkr4.fIndex] / 1e6)
+    except IndexError:
+        popUp('Delta Marker out of bounds', 'ok')
+
+
 def exit_handler():
     tinySA.sweeping = False
     time.sleep(1)  # allow time for measurements to stop
     tinySA.resume()
     app.processEvents()
     logging.info('Closed')
-
-# axes = pyqtgl.GLAxisItem()
-# axes.setSize(120, -120, 5)
-# ui.openGLWidget.addItem(axes)
-# tinySA.createTimeSpectrum()
 
 
 def popUp(message, button):
@@ -514,11 +513,15 @@ mkr4.hline.label.setPosition(1.0)
 
 
 # pyqtgraph settings for time spectrum
-# axes = pyqtgl.GLAxisItem()
-# # axes.setSize(120, -120, 5)
-# ui.openGLWidget.addItem(axes)
-# tinySA.createTimeSpectrum()
+axes = pyqtgl.GLAxisItem()
+axes.setSize(450, 450, 120)  # x=blue, time.  y=yellow, freqs, z=green dBm
+ui.openGLWidget.addItem(axes)
 
+## Add a grid to the view
+# g = pyqtgl.GLGridItem()
+# g.scale(2,2,1)
+# g.setDepthValue(10)  # draw grid after surfaces since they may be translucent
+# ui.openGLWidget.addItem(g)
 
 # voltage = tinySA.battery()
 # ui.battery.setValue(voltage)
@@ -537,7 +540,8 @@ ui.spur_button.clicked.connect(spur)
 ui.lna_button.clicked.connect(lna)
 ui.band_box.currentTextChanged.connect(band_changed)
 
-mkr1.vline.sigPositionChanged.connect(mkr1.setDiscrete)
+# mkr1.vline.sigPositionChanged.connect(mkr1.setDiscrete)
+mkr1.vline.sigPositionChanged.connect(mkr1_moved)
 mkr2.vline.sigPositionChanged.connect(mkr2.setDiscrete)
 mkr3.vline.sigPositionChanged.connect(mkr3.setDiscrete)
 mkr4.vline.sigPositionChanged.connect(mkr4.setDiscrete)
@@ -550,8 +554,8 @@ ui.mkr4.stateChanged.connect(lambda: mkr4.enable(ui.mkr4))
 ui.mkr_start.clicked.connect(toStart)
 ui.mkr2_type.stateChanged.connect(lambda: mkr2.setType(ui.mkr2_type))
 ui.mkr3_type.stateChanged.connect(lambda: mkr3.setType(ui.mkr3_type))
-ui.mkr4_type.stateChanged.connect(lambda: mkr4.setType(ui.mkr3_type))
-# ui.mkr_f.clicked.connect(lambda: delta(False))
+ui.mkr4_type.stateChanged.connect(lambda: mkr4.setType(ui.mkr4_type))
+
 
 ###############################################################################
 # set up the application

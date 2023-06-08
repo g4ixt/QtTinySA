@@ -34,7 +34,7 @@
        <bool>false</bool>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="analyserTab">
        <property name="sizePolicy">
@@ -248,7 +248,7 @@
              </font>
             </property>
             <property name="text">
-             <string>Normal</string>
+             <string>Norm/ Max/ Min</string>
             </property>
             <property name="checked">
              <bool>true</bool>
@@ -290,6 +290,49 @@
         </item>
         <item row="0" column="1">
          <layout class="QGridLayout" name="gridLayout_2">
+          <item row="1" column="10">
+           <widget class="QDoubleSpinBox" name="stop_freq">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="suffix">
+             <string>MHz</string>
+            </property>
+            <property name="decimals">
+             <number>6</number>
+            </property>
+            <property name="minimum">
+             <double>0.100000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>6000.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>1.000000000000000</double>
+            </property>
+            <property name="value">
+             <double>100.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="7">
+           <widget class="QCheckBox" name="mkr3_type">
+            <property name="font">
+             <font>
+              <family>Standard Symbols L</family>
+             </font>
+            </property>
+            <property name="text">
+             <string>d</string>
+            </property>
+            <property name="tristate">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
           <item row="1" column="1">
            <widget class="QDoubleSpinBox" name="start_freq">
             <property name="sizePolicy">
@@ -321,19 +364,6 @@
             </property>
            </widget>
           </item>
-          <item row="1" column="3">
-           <spacer name="horizontalSpacer">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
           <item row="1" column="11">
            <widget class="QPushButton" name="scan_button">
             <property name="sizePolicy">
@@ -350,16 +380,13 @@
             </property>
            </widget>
           </item>
-          <item row="1" column="5">
-           <widget class="QCheckBox" name="mkr1">
+          <item row="1" column="0">
+           <widget class="QComboBox" name="band_box">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
-            </property>
-            <property name="text">
-             <string>1</string>
             </property>
            </widget>
           </item>
@@ -379,56 +406,48 @@
             </property>
            </widget>
           </item>
-          <item row="1" column="10">
-           <widget class="QDoubleSpinBox" name="stop_freq">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
+          <item row="1" column="3">
+           <spacer name="horizontalSpacer">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
             </property>
-            <property name="suffix">
-             <string>MHz</string>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
             </property>
-            <property name="decimals">
-             <number>6</number>
-            </property>
-            <property name="minimum">
-             <double>0.100000000000000</double>
-            </property>
-            <property name="maximum">
-             <double>6000.000000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>1.000000000000000</double>
-            </property>
-            <property name="value">
-             <double>100.000000000000000</double>
-            </property>
-           </widget>
+           </spacer>
           </item>
-          <item row="1" column="0">
-           <widget class="QComboBox" name="band_box">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="7">
-           <widget class="QCheckBox" name="mkr3_type">
+          <item row="2" column="8">
+           <widget class="QCheckBox" name="mkr4_type">
             <property name="font">
              <font>
               <family>Standard Symbols L</family>
              </font>
             </property>
             <property name="text">
-             <string>n</string>
+             <string>d</string>
             </property>
             <property name="tristate">
              <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="7">
+           <widget class="QCheckBox" name="mkr3">
+            <property name="text">
+             <string>3</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="4">
+           <widget class="QToolButton" name="mkr_start">
+            <property name="text">
+             <string>...</string>
+            </property>
+            <property name="arrowType">
+             <enum>Qt::LeftArrow</enum>
             </property>
            </widget>
           </item>
@@ -447,10 +466,23 @@
              </font>
             </property>
             <property name="text">
-             <string>n</string>
+             <string>d</string>
             </property>
             <property name="tristate">
              <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="5">
+           <widget class="QCheckBox" name="mkr1">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>1</string>
             </property>
            </widget>
           </item>
@@ -461,28 +493,6 @@
             </property>
             <property name="text">
              <string>2</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="7">
-           <widget class="QCheckBox" name="mkr3">
-            <property name="text">
-             <string>3</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="8">
-           <widget class="QCheckBox" name="mkr4_type">
-            <property name="font">
-             <font>
-              <family>Standard Symbols L</family>
-             </font>
-            </property>
-            <property name="text">
-             <string>n</string>
-            </property>
-            <property name="tristate">
-             <bool>true</bool>
             </property>
            </widget>
           </item>
@@ -499,13 +509,24 @@
             </property>
            </spacer>
           </item>
-          <item row="1" column="4">
-           <widget class="QToolButton" name="mkr_start">
-            <property name="text">
-             <string>...</string>
+          <item row="2" column="11">
+           <widget class="QProgressBar" name="progressBar">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
             </property>
-            <property name="arrowType">
-             <enum>Qt::LeftArrow</enum>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="value">
+             <number>0</number>
+            </property>
+            <property name="format">
+             <string/>
             </property>
            </widget>
           </item>
@@ -533,12 +554,15 @@
       </widget>
       <widget class="QWidget" name="TimeTab">
        <property name="enabled">
-        <bool>false</bool>
+        <bool>true</bool>
        </property>
        <attribute name="title">
         <string>Time Spectrum</string>
        </attribute>
        <widget class="GLViewWidget" name="openGLWidget">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
         <property name="geometry">
          <rect>
           <x>240</x>
@@ -549,6 +573,9 @@
         </property>
        </widget>
        <widget class="QLabel" name="label_7">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
         <property name="geometry">
          <rect>
           <x>40</x>
@@ -638,7 +665,6 @@
   </property>
  </designerdata>
  <buttongroups>
-  <buttongroup name="mkr_type"/>
   <buttongroup name="Hold"/>
  </buttongroups>
 </ui>
