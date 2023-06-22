@@ -164,10 +164,10 @@ class analyser:
         signalMax = np.amax(signaldBm[:100, ::], axis=0)
         signalMin = np.amin(signaldBm[:100, ::], axis=0)
         options = {'Normal': signaldBm[0], 'Average': signalAvg, 'Max': signalMax, 'Min': signalMin}
-        spectrum1.updateGUI(options.get(spectrum1.traceType))
-        spectrum2.updateGUI(options.get(spectrum2.traceType))
-        spectrum3.updateGUI(options.get(spectrum3.traceType))
-        spectrum4.updateGUI(options.get(spectrum4.traceType))
+        S1.updateGUI(options.get(S1.traceType))
+        S2.updateGUI(options.get(S2.traceType))
+        S3.updateGUI(options.get(S3.traceType))
+        S4.updateGUI(options.get(S4.traceType))
 
         # self.updateTimeSpectrum()
 
@@ -207,8 +207,9 @@ class analyser:
 
 
 class display:
-    def __init__(self, name):
-        self.trace = ui.graphWidget.plot([], [], name=name, pen=yellow, width=1)
+    def __init__(self, name, pen):
+        self.trace = ui.graphWidget.plot([], [], name=name, pen=pen, width=1)
+        self.trace.hide()
         self.traceType = 'Normal'  # Normal, Average, Max, Min
         self.markerType = 'Normal'  # Normal, Delta; Peak
         self.vline = ui.graphWidget.addLine(88, 90, movable=True, pen=pyqtgraph.mkPen('g', width=0.5, style=QtCore.Qt.DashLine), label="{value:.2f}")
@@ -229,7 +230,7 @@ class display:
                         self.hline.setValue(float(tinySA.sweepresults[0, i]))
                         self.fIndex = i
                         if self.markerType == 'Delta':
-                            self.dIndex = self.fIndex - spectrum1.fIndex
+                            self.dIndex = self.fIndex - S1.fIndex
                         return
             except AttributeError:
                 return
@@ -241,13 +242,13 @@ class display:
 
     def mType(self, uiBox):
         self.markerType = uiBox.currentText()
-        self.dIndex = self.fIndex - spectrum1.fIndex
-        logging.debug(f'marker = type {self.markerType}')
+        self.dIndex = self.fIndex - S1.fIndex
+        logging.info(f'marker = type {self.markerType}')
 
     def tType(self, uiBox):
         self.traceType = uiBox.currentText()
 
-    def enableMarker(self, mkr):
+    def mEnable(self, mkr):
         if mkr.isChecked():
             self.vline.show()
             self.hline.show()
@@ -255,8 +256,21 @@ class display:
             self.vline.hide()
             self.hline.hide()
 
+    def tEnable(self, trace):
+        if trace.isChecked():
+            self.trace.show()
+        else:
+            self.trace.hide()
+
+
     def updateGUI(self, signal):
         self.trace.setData((tinySA.frequencies/1e6), signal)
+        if self.markerType == 'Peak':
+            peak = np.argmax(signal)
+            if signal[peak] >= ui.mPeak.value():
+                logging.info(f'peak index = {peak}')
+                self.fIndex = peak
+                self.vline.setValue(tinySA.frequencies[peak] / 1e6)
         self.hline.setValue(signal[self.fIndex])  # set to dBm value at marker freq
 
 
@@ -401,31 +415,32 @@ def lna():  # lna and attenuator are switched so mutually exclusive. To do: add 
     tinySA.serialSend(command)
 
 
-def mStart():
+def markerToStart():
     if ui.marker1.isChecked():
-        spectrum1.mStart()
+        S1.mStart()
     if ui.marker2.isChecked():
-        spectrum2.mStart()
+        S2.mStart()
     if ui.marker3.isChecked():
-        spectrum3.mStart()
+        S3.mStart()
     if ui.marker4.isChecked():
-        spectrum4.mStart()
+        S4.mStart()
 
 
 def mkr1_moved():
-    spectrum1.vline.sigPositionChanged.connect(spectrum1.setDiscrete)
+    S1.vline.sigPositionChanged.connect(S1.setDiscrete)
     try:
-        if spectrum2.markerType == 'Delta':
-            spectrum2.fIndex = spectrum1.fIndex + spectrum2.dIndex
-            spectrum2.vline.setValue(tinySA.frequencies[spectrum2.fIndex] / 1e6)
-        if spectrum3.markerType == 'Delta':
-            spectrum3.fIndex = spectrum1.fIndex + spectrum3.dIndex
-            spectrum3.vline.setValue(tinySA.frequencies[spectrum3.fIndex] / 1e6)
-        if spectrum4.markerType == 'Delta':
-            spectrum4.fIndex = spectrum1.fIndex + spectrum4.dIndex
-            spectrum4.vline.setValue(tinySA.frequencies[spectrum4.fIndex] / 1e6)
+        if S2.markerType == 'Delta':
+            S2.fIndex = S1.fIndex + S2.dIndex
+            S2.vline.setValue(tinySA.frequencies[S2.fIndex] / 1e6)
+        if S3.markerType == 'Delta':
+            S3.fIndex = S1.fIndex + S3.dIndex
+            S3.vline.setValue(tinySA.frequencies[S3.fIndex] / 1e6)
+        if S4.markerType == 'Delta':
+            S4.fIndex = S1.fIndex + S4.dIndex
+            S4.vline.setValue(tinySA.frequencies[S4.fIndex] / 1e6)
     except IndexError:
-        popUp('Delta Marker out of bounds', 'ok')
+        popUp('Delta Marker out of sweep range', 'ok')
+        # gets stuck, needs to be fixed
 
 
 def exit_handler():
@@ -471,13 +486,10 @@ ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
 
 # Traces & markers
-spectrum1 = display(1)
-spectrum2 = display(2)
-spectrum2.trace.setPen(red)
-spectrum3 = display(3)
-spectrum3.trace.setPen(cyan)
-spectrum4 = display(4)
-spectrum4.trace.setPen(white)
+S1 = display('S1', yellow)
+S2 = display('S2', red)
+S3 = display('S3', cyan)
+S4 = display('S4', white)
 
 ###############################################################################
 # GUI settings
@@ -492,26 +504,24 @@ ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='max', labelOpts=
 ui.graphWidget.addLine(y=-25, movable=False, pen=blue_dash, label='best', labelOpts={'position':0.025, 'color':('b')})
 ui.graphWidget.setLabel('left', 'Signal', 'dBm')
 ui.graphWidget.setLabel('bottom', 'Frequency MHz')
-# spectrumDisplay = ui.graphWidget.plot([], [], name='Spectrum', pen=yellow, width=1)
 
 # marker label positions
-spectrum1.vline.label.setPosition(0.99)
-spectrum2.vline.label.setPosition(0.96)
-spectrum3.vline.label.setPosition(0.93)
-spectrum4.vline.label.setPosition(0.90)
+S1.vline.label.setPosition(0.99)
+S2.vline.label.setPosition(0.96)
+S3.vline.label.setPosition(0.93)
+S4.vline.label.setPosition(0.90)
 
-spectrum1.hline.label.setPosition(0.06)
-spectrum2.hline.label.setPosition(1.0)
-spectrum3.hline.label.setPosition(0.06)
-spectrum4.hline.label.setPosition(1.0)
+S1.hline.label.setPosition(0.06)
+S2.hline.label.setPosition(1.0)
+S3.hline.label.setPosition(0.06)
+S4.hline.label.setPosition(1.0)
 
-
-# pyqtgraph settings for time spectrum
+# pyqtgraph settings for 3D spectrum
 axes = pyqtgl.GLAxisItem()
 axes.setSize(450, 450, 120)  # x=blue, time.  y=yellow, freqs, z=green dBm
 ui.openGLWidget.addItem(axes)
 
-## Add a grid to the view
+## Add a grid to the 3D view
 # g = pyqtgl.GLGridItem()
 # g.scale(2,2,1)
 # g.setDepthValue(10)  # draw grid after surfaces since they may be translucent
@@ -534,25 +544,32 @@ ui.spur_button.clicked.connect(spur)
 ui.lna_button.clicked.connect(lna)
 ui.band_box.currentTextChanged.connect(band_changed)
 
-# spectrum1.vline.sigPositionChanged.connect(spectrum1.setDiscrete)
-spectrum1.vline.sigPositionChanged.connect(mkr1_moved)
-spectrum2.vline.sigPositionChanged.connect(spectrum2.setDiscrete)
-spectrum3.vline.sigPositionChanged.connect(spectrum3.setDiscrete)
-spectrum4.vline.sigPositionChanged.connect(spectrum4.setDiscrete)
+# S1.vline.sigPositionChanged.connect(S1.setDiscrete)
+S1.vline.sigPositionChanged.connect(mkr1_moved)
+S2.vline.sigPositionChanged.connect(S2.setDiscrete)
+S3.vline.sigPositionChanged.connect(S3.setDiscrete)
+S4.vline.sigPositionChanged.connect(S4.setDiscrete)
 
-ui.marker1.stateChanged.connect(lambda: spectrum1.enableMarker(ui.marker1))
-ui.marker2.stateChanged.connect(lambda: spectrum2.enableMarker(ui.marker2))
-ui.marker3.stateChanged.connect(lambda: spectrum3.enableMarker(ui.marker3))
-ui.marker4.stateChanged.connect(lambda: spectrum4.enableMarker(ui.marker4))
-ui.mkr_start.clicked.connect(mStart)
-ui.m2_type.currentTextChanged.connect(lambda: spectrum2.mType(ui.m2_type))
-ui.m3_type.currentTextChanged.connect(lambda: spectrum3.mType(ui.m3_type))
-ui.m4_type.currentTextChanged.connect(lambda: spectrum4.mType(ui.m4_type))
+ui.marker1.stateChanged.connect(lambda: S1.mEnable(ui.marker1))
+ui.marker2.stateChanged.connect(lambda: S2.mEnable(ui.marker2))
+ui.marker3.stateChanged.connect(lambda: S3.mEnable(ui.marker3))
+ui.marker4.stateChanged.connect(lambda: S4.mEnable(ui.marker4))
 
-ui.t1_type.currentTextChanged.connect(lambda: spectrum1.tType(ui.t1_type))
-ui.t2_type.currentTextChanged.connect(lambda: spectrum2.tType(ui.t2_type))
-ui.t3_type.currentTextChanged.connect(lambda: spectrum3.tType(ui.t3_type))
-ui.t4_type.currentTextChanged.connect(lambda: spectrum4.tType(ui.t4_type))
+ui.mkr_start.clicked.connect(markerToStart)
+ui.m1_type.currentTextChanged.connect(lambda: S1.mType(ui.m1_type))
+ui.m2_type.currentTextChanged.connect(lambda: S2.mType(ui.m2_type))
+ui.m3_type.currentTextChanged.connect(lambda: S3.mType(ui.m3_type))
+ui.m4_type.currentTextChanged.connect(lambda: S4.mType(ui.m4_type))
+
+ui.trace1.stateChanged.connect(lambda: S1.tEnable(ui.trace1))
+ui.trace2.stateChanged.connect(lambda: S2.tEnable(ui.trace2))
+ui.trace3.stateChanged.connect(lambda: S3.tEnable(ui.trace3))
+ui.trace4.stateChanged.connect(lambda: S4.tEnable(ui.trace4))
+
+ui.t1_type.currentTextChanged.connect(lambda: S1.tType(ui.t1_type))
+ui.t2_type.currentTextChanged.connect(lambda: S2.tType(ui.t2_type))
+ui.t3_type.currentTextChanged.connect(lambda: S3.tType(ui.t3_type))
+ui.t4_type.currentTextChanged.connect(lambda: S4.tType(ui.t4_type))
 
 ###############################################################################
 # set up the application
@@ -566,6 +583,7 @@ ui.t1_type.addItems(['Normal', 'Average', 'Max', 'Min'])
 ui.t2_type.addItems(['Normal', 'Average', 'Max', 'Min'])
 ui.t3_type.addItems(['Normal', 'Average', 'Max', 'Min'])
 ui.t4_type.addItems(['Normal', 'Average', 'Max', 'Min'])
+ui.m1_type.addItems(['Normal', 'Peak'])  # Marker 1 is the reference
 ui.m2_type.addItems(['Normal', 'Delta', 'Peak'])
 ui.m3_type.addItems(['Normal', 'Delta', 'Peak'])
 ui.m4_type.addItems(['Normal', 'Delta', 'Peak'])
