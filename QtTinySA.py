@@ -39,19 +39,26 @@ logging.basicConfig(format="%(message)s", level=logging.INFO)
 
 threadpool = QThreadPool()
 
+# TinySA Ultra hardware ID
 VID = 0x0483  # 1155
 PID = 0x5740  # 22336
 
 # amateur frequency band values
 fBandStart = [1.8, 3.5, 7.0, 10.1, 14.0, 18.068, 21.0, 24.89, 28.0,
               50.0, 70.0, 144.0, 430.0, 1240, 2300, 2390, 3300, 5650]
-
 fBandStop = [2.0, 3.8, 7.1, 10.15, 14.35, 18.168, 21.45, 24.99, 29.7,
              52.0, 70.5, 146.0, 440.0, 1325, 2310, 2450, 3500, 5925]
-
 bands = list(map(str, fBandStart))  # convert start freq float list to string list for GUI combobox
 bands = [freq + ' MHz' for freq in bands]
 bands.insert(0, 'Band')
+
+# pyqtgraph pens
+red = pyqtgraph.mkPen(color='r', width=1.0)
+yellow = pyqtgraph.mkPen(color='y', width=1.0)
+white = pyqtgraph.mkPen(color='w', width=1.0)
+cyan = pyqtgraph.mkPen(color='c', width=1.0)
+red_dash = pyqtgraph.mkPen(color='r', width=0.5, style=QtCore.Qt.DashLine)
+blue_dash = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
 
 ###############################################################################
 # classes
@@ -66,6 +73,7 @@ class analyser:
         self.signals.result.connect(self.sigProcess)
         self.timeout = 1
         self.scanCount = 0
+        self.runTimer = QtCore.QElapsedTimer()
 
     @property
     def frequencies(self):
@@ -73,9 +81,9 @@ class analyser:
         return self._frequencies
 
     def startMeasurement(self, startF, stopF):
-        self.sweep = Worker(self.spectrum, startF, stopF)  # workers are auto-deleted when thread stops
+        self.sweep = Worker(self.measurement, startF, stopF)  # workers are auto-deleted when thread stops
         self.sweeping = True
-        self.sweepresults = np.empty((self.points, self.points), dtype=float)  # to do - add row count to GUI
+        self.sweepresults = np.full((self.points, self.points), -100, dtype=float)  # to do - add row count to GUI
         tinySA.createTimeSpectrum()
         threadpool.start(self.sweep)
 
@@ -92,12 +100,6 @@ class analyser:
         self.points = points
         self._frequencies = np.linspace(startF, stopF, self.points, dtype=int)
         logging.debug(f'frequencies = {self._frequencies}')
-
-        # move all markers to the nearest discrete freq point
-        # mkr1.toSweepRange(startF, stopF)
-        # mkr2.toSweepRange(startF, stopF)
-        # mkr3.toSweepRange(startF, stopF)
-        # mkr4.toSweepRange(startF, stopF)
 
     def setRBW(self):
         if ui.rbw_box.currentIndex == 0:
@@ -131,7 +133,7 @@ class analyser:
         logging.debug(f'sweepTimeout = {self.timeout}')
 
     # return 1D numpy array with power as dBm.  Freqs are in Hz
-    def spectrum(self, f_low, f_high):  # runs in a separate thread
+    def measurement(self, f_low, f_high):  # runs in a separate thread
         self.threadrunning = True
         while self.sweeping:
             with serial.Serial(self.dev, baudrate=3000000) as serialPort:  # baudrate does nothing for USB cnx
@@ -147,7 +149,10 @@ class analyser:
             logging.debug(f'raw data: {raw_data} s\n')
             SCALE = 174  # tinySA: 128  tinySA4: 174
             dBm_power = (raw_data / 32) - SCALE  # scale 0..4095 -> -128..-0.03 dBm
-            self.signals.result.emit(dBm_power)
+            # store each sweep in an array with most recent at index 0
+            self.sweepresults = np.roll(self.sweepresults, 1, axis=0)
+            self.sweepresults[0] = dBm_power
+            self.signals.result.emit(self.sweepresults)
         self.threadrunning = False
 
 #    def battery():
@@ -155,30 +160,16 @@ class analyser:
         # need to get data
 
     def sigProcess(self, signaldBm):  # signaldBm is emitted from the worker thread
-        # store each sweep in an array with most recent at index 0
-        self.sweepresults = np.roll(self.sweepresults, 1, axis=0)
-        self.sweepresults[0] = signaldBm
-        self.procresult = signaldBm
+        signalAvg = np.average(signaldBm[:ui.avgSlider.value(), ::], axis=0)
+        signalMax = np.amax(signaldBm[:100, ::], axis=0)
+        signalMin = np.amin(signaldBm[:100, ::], axis=0)
+        options = {'Normal': signaldBm[0], 'Average': signalAvg, 'Max': signalMax, 'Min': signalMin}
+        spectrum1.updateGUI(options.get(spectrum1.traceType))
+        spectrum2.updateGUI(options.get(spectrum2.traceType))
+        spectrum3.updateGUI(options.get(spectrum3.traceType))
+        spectrum4.updateGUI(options.get(spectrum4.traceType))
 
-        if ui.avgSlider.value() > 0:
-            self.procresult = np.average(self.sweepresults[:ui.avgSlider.value(), ::], axis=0)
-        if ui.maxH.isChecked():
-            self.procresult = np.amax(self.sweepresults[:100, ::], axis=0)
-        if ui.minH.isChecked():
-            self.procresult = np.amin(self.sweepresults[:100, ::], axis=0)
-
-        self.updateGUI()
-        self.updateTimeSpectrum()
-        self.scancount += 1
-
-    def updateGUI(self):
-        # self.sweepresults[1:2:, 0::] = self.sweepresults[0:1:, 0::]
-        spectrumDisplay.setData((self.frequencies/1e6), self.procresult)
-        # if ui.mkr1.isChecked():
-        mkr1.update()
-        mkr2.update()
-        mkr3.update()
-        mkr4.update()
+        # self.updateTimeSpectrum()
 
     def createTimeSpectrum(self):
         # x = self.frequencies / 1e7
@@ -215,14 +206,16 @@ class analyser:
         self.lna_on = False
 
 
-class marker:
-    def __init__(self, graph):
-        self.vline = graph.addLine(88, 90, movable=True, pen=pyqtgraph.mkPen('g', width=0.5, style=QtCore.Qt.DashLine), label="{value:.2f}")
-        self.hline = graph.addLine(-100, 0, movable=False, pen=pyqtgraph.mkPen('g', width=0.5, style=QtCore.Qt.DashLine),  label="{value:.2f}")
+class display:
+    def __init__(self, name):
+        self.trace = ui.graphWidget.plot([], [], name=name, pen=yellow, width=1)
+        self.traceType = 'Normal'  # Normal, Average, Max, Min
+        self.markerType = 'Normal'  # Normal, Delta; Peak
+        self.vline = ui.graphWidget.addLine(88, 90, movable=True, pen=pyqtgraph.mkPen('g', width=0.5, style=QtCore.Qt.DashLine), label="{value:.2f}")
+        self.hline = ui.graphWidget.addLine(-100, 0, movable=False, pen=pyqtgraph.mkPen('g', width=0.5, style=QtCore.Qt.DashLine),  label="{value:.2f}")
         self.hline.setAngle(0)
         self.vline.hide()
         self.hline.hide()
-        self.type = 0  # 0 = simple frequency marker; 1 = delta; 2 = peak
         self.fIndex = 0  # index of current marker freq in frequencies array
         self.dIndex = 0
 
@@ -233,27 +226,28 @@ class marker:
                 for i in range(tinySA.points):
                     if tinySA.frequencies[i] / 1e6 >= self.vline.value():
                         self.vline.setValue(tinySA.frequencies[i] / 1e6)
-                        self.hline.setValue(float(tinySA.procresult[i]))
+                        self.hline.setValue(float(tinySA.sweepresults[0, i]))
                         self.fIndex = i
-                        if self.type == 1:
-                            self.dIndex = self.fIndex - mkr1.fIndex
+                        if self.markerType == 'Delta':
+                            self.dIndex = self.fIndex - spectrum1.fIndex
                         return
             except AttributeError:
                 return
 
-    def toStart(self):
+    def mStart(self):
+        # set marker to the sweep start frequency
         self.fIndex = 0
         self.vline.setValue(ui.start_freq.value())
 
-    def setType(self, mkr):
-        self.type = mkr.checkState()
-        self.dIndex = self.fIndex - mkr1.fIndex
-        logging.info(f'marker = type {self.type}')  # 0 = freq , 1 = delta, 2 = peak
+    def mType(self, uiBox):
+        self.markerType = uiBox.currentText()
+        self.dIndex = self.fIndex - spectrum1.fIndex
+        logging.debug(f'marker = type {self.markerType}')
 
-    def update(self):
-        self.hline.setValue(tinySA.procresult[self.fIndex])
+    def tType(self, uiBox):
+        self.traceType = uiBox.currentText()
 
-    def enable(self, mkr):
+    def enableMarker(self, mkr):
         if mkr.isChecked():
             self.vline.show()
             self.hline.show()
@@ -261,7 +255,9 @@ class marker:
             self.vline.hide()
             self.hline.hide()
 
-# tinySA end ######################################################################
+    def updateGUI(self, signal):
+        self.trace.setData((tinySA.frequencies/1e6), signal)
+        self.hline.setValue(signal[self.fIndex])  # set to dBm value at marker freq
 
 
 class WorkerSignals(QObject):
@@ -271,7 +267,7 @@ class WorkerSignals(QObject):
 
 
 class Worker(QRunnable):
-    '''Worker threads so that measurements can run outside GUI event loop'''
+    '''Worker threads so that functions can run outside GUI event loop'''
 
     def __init__(self, fn, *args):
         super(Worker, self).__init__()
@@ -304,10 +300,10 @@ def getport() -> str:
 
 def scan():
     if tinySA.sweeping:  # if it's running, stop it
-        tinySA.sweeping = False  # tells the thread to stop
+        tinySA.sweeping = False  # tells the measurement thread to stop once current scan complete
         ui.scan_button.setEnabled(False)  # prevent repeat presses of 'stop'
         while tinySA.threadrunning:
-            time.sleep(0.1)  # wait until the thread stops using serial comms
+            time.sleep(0.1)  # wait until the measurement thread stops using the serial comms
         ui.scan_button.setEnabled(True)
         activeButtons(True)
         ui.scan_button.setText('Run')  # toggle the 'Stop' button text
@@ -405,29 +401,29 @@ def lna():  # lna and attenuator are switched so mutually exclusive. To do: add 
     tinySA.serialSend(command)
 
 
-def toStart():
-    if ui.mkr1.isChecked():
-        mkr1.toStart()
-    if ui.mkr2.isChecked():
-        mkr2.toStart()
-    if ui.mkr3.isChecked():
-        mkr3.toStart()
-    if ui.mkr4.isChecked():
-        mkr4.toStart()
+def mStart():
+    if ui.marker1.isChecked():
+        spectrum1.mStart()
+    if ui.marker2.isChecked():
+        spectrum2.mStart()
+    if ui.marker3.isChecked():
+        spectrum3.mStart()
+    if ui.marker4.isChecked():
+        spectrum4.mStart()
 
 
 def mkr1_moved():
-    mkr1.vline.sigPositionChanged.connect(mkr1.setDiscrete)
+    spectrum1.vline.sigPositionChanged.connect(spectrum1.setDiscrete)
     try:
-        if mkr2.type == 1:
-            mkr2.fIndex = mkr1.fIndex + mkr2.dIndex
-            mkr2.vline.setValue(tinySA.frequencies[mkr2.fIndex] / 1e6)
-        if mkr3.type == 1:
-            mkr3.fIndex = mkr1.fIndex + mkr3.dIndex
-            mkr3.vline.setValue(tinySA.frequencies[mkr3.fIndex] / 1e6)
-        if mkr4.type == 1:
-            mkr4.fIndex = mkr1.fIndex + mkr4.dIndex
-            mkr4.vline.setValue(tinySA.frequencies[mkr4.fIndex] / 1e6)
+        if spectrum2.markerType == 'Delta':
+            spectrum2.fIndex = spectrum1.fIndex + spectrum2.dIndex
+            spectrum2.vline.setValue(tinySA.frequencies[spectrum2.fIndex] / 1e6)
+        if spectrum3.markerType == 'Delta':
+            spectrum3.fIndex = spectrum1.fIndex + spectrum3.dIndex
+            spectrum3.vline.setValue(tinySA.frequencies[spectrum3.fIndex] / 1e6)
+        if spectrum4.markerType == 'Delta':
+            spectrum4.fIndex = spectrum1.fIndex + spectrum4.dIndex
+            spectrum4.vline.setValue(tinySA.frequencies[spectrum4.fIndex] / 1e6)
     except IndexError:
         popUp('Delta Marker out of bounds', 'ok')
 
@@ -446,6 +442,7 @@ def popUp(message, button):
     msg.setText(message)
     msg.addButton(button, QMessageBox.ActionRole)
     msg.exec_()
+
 
 ##############################################################################
 # respond to GUI signals
@@ -473,20 +470,17 @@ window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
 
-# markers
-mkr1 = marker(ui.graphWidget)
-mkr2 = marker(ui.graphWidget)
-mkr3 = marker(ui.graphWidget)
-mkr4 = marker(ui.graphWidget)
+# Traces & markers
+spectrum1 = display(1)
+spectrum2 = display(2)
+spectrum2.trace.setPen(red)
+spectrum3 = display(3)
+spectrum3.trace.setPen(cyan)
+spectrum4 = display(4)
+spectrum4.trace.setPen(white)
 
 ###############################################################################
 # GUI settings
-
-# pyqtgraph pens
-red = pyqtgraph.mkPen(color='r', width=1.0)
-red_dash = pyqtgraph.mkPen(color='r', width=0.5, style=QtCore.Qt.DashLine)
-yellow = pyqtgraph.mkPen(color='y', width=1.0)
-blue = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
 
 # pyqtgraph settings for spectrum display
 ui.graphWidget.setYRange(-110, 5)
@@ -495,21 +489,21 @@ ui.graphWidget.setBackground('k')  # black
 ui.graphWidget.showGrid(x=True, y=True)
 ui.graphWidget.addLine(y=6, movable=False, pen=red, label='', labelOpts={'position':0.05, 'color':('r')})
 ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='max', labelOpts={'position':0.025, 'color':('r')})
-ui.graphWidget.addLine(y=-25, movable=False, pen=blue, label='best', labelOpts={'position':0.025, 'color':('b')})
+ui.graphWidget.addLine(y=-25, movable=False, pen=blue_dash, label='best', labelOpts={'position':0.025, 'color':('b')})
 ui.graphWidget.setLabel('left', 'Signal', 'dBm')
 ui.graphWidget.setLabel('bottom', 'Frequency MHz')
-spectrumDisplay = ui.graphWidget.plot([], [], name='Spectrum', pen=yellow, width=1)
+# spectrumDisplay = ui.graphWidget.plot([], [], name='Spectrum', pen=yellow, width=1)
 
 # marker label positions
-mkr1.vline.label.setPosition(0.99)
-mkr2.vline.label.setPosition(0.96)
-mkr3.vline.label.setPosition(0.93)
-mkr4.vline.label.setPosition(0.90)
+spectrum1.vline.label.setPosition(0.99)
+spectrum2.vline.label.setPosition(0.96)
+spectrum3.vline.label.setPosition(0.93)
+spectrum4.vline.label.setPosition(0.90)
 
-mkr1.hline.label.setPosition(0.06)
-mkr2.hline.label.setPosition(1.0)
-mkr3.hline.label.setPosition(0.06)
-mkr4.hline.label.setPosition(1.0)
+spectrum1.hline.label.setPosition(0.06)
+spectrum2.hline.label.setPosition(1.0)
+spectrum3.hline.label.setPosition(0.06)
+spectrum4.hline.label.setPosition(1.0)
 
 
 # pyqtgraph settings for time spectrum
@@ -534,28 +528,31 @@ ui.openGLWidget.addItem(axes)
 ui.scan_button.clicked.connect(scan)
 ui.rbw_box.currentTextChanged.connect(rbw_changed)
 ui.atten_box.valueChanged.connect(attenuate_changed)
-ui.start_freq.valueChanged.connect(start_freq_changed)
-ui.stop_freq.valueChanged.connect(stop_freq_changed)
+ui.start_freq.editingFinished.connect(start_freq_changed)
+ui.stop_freq.editingFinished.connect(stop_freq_changed)
 ui.spur_button.clicked.connect(spur)
 ui.lna_button.clicked.connect(lna)
 ui.band_box.currentTextChanged.connect(band_changed)
 
-# mkr1.vline.sigPositionChanged.connect(mkr1.setDiscrete)
-mkr1.vline.sigPositionChanged.connect(mkr1_moved)
-mkr2.vline.sigPositionChanged.connect(mkr2.setDiscrete)
-mkr3.vline.sigPositionChanged.connect(mkr3.setDiscrete)
-mkr4.vline.sigPositionChanged.connect(mkr4.setDiscrete)
+# spectrum1.vline.sigPositionChanged.connect(spectrum1.setDiscrete)
+spectrum1.vline.sigPositionChanged.connect(mkr1_moved)
+spectrum2.vline.sigPositionChanged.connect(spectrum2.setDiscrete)
+spectrum3.vline.sigPositionChanged.connect(spectrum3.setDiscrete)
+spectrum4.vline.sigPositionChanged.connect(spectrum4.setDiscrete)
 
-ui.mkr1.stateChanged.connect(lambda: mkr1.enable(ui.mkr1))
-ui.mkr2.stateChanged.connect(lambda: mkr2.enable(ui.mkr2))
-ui.mkr3.stateChanged.connect(lambda: mkr3.enable(ui.mkr3))
-ui.mkr4.stateChanged.connect(lambda: mkr4.enable(ui.mkr4))
+ui.marker1.stateChanged.connect(lambda: spectrum1.enableMarker(ui.marker1))
+ui.marker2.stateChanged.connect(lambda: spectrum2.enableMarker(ui.marker2))
+ui.marker3.stateChanged.connect(lambda: spectrum3.enableMarker(ui.marker3))
+ui.marker4.stateChanged.connect(lambda: spectrum4.enableMarker(ui.marker4))
+ui.mkr_start.clicked.connect(mStart)
+ui.m2_type.currentTextChanged.connect(lambda: spectrum2.mType(ui.m2_type))
+ui.m3_type.currentTextChanged.connect(lambda: spectrum3.mType(ui.m3_type))
+ui.m4_type.currentTextChanged.connect(lambda: spectrum4.mType(ui.m4_type))
 
-ui.mkr_start.clicked.connect(toStart)
-ui.mkr2_type.stateChanged.connect(lambda: mkr2.setType(ui.mkr2_type))
-ui.mkr3_type.stateChanged.connect(lambda: mkr3.setType(ui.mkr3_type))
-ui.mkr4_type.stateChanged.connect(lambda: mkr4.setType(ui.mkr4_type))
-
+ui.t1_type.currentTextChanged.connect(lambda: spectrum1.tType(ui.t1_type))
+ui.t2_type.currentTextChanged.connect(lambda: spectrum2.tType(ui.t2_type))
+ui.t3_type.currentTextChanged.connect(lambda: spectrum3.tType(ui.t3_type))
+ui.t4_type.currentTextChanged.connect(lambda: spectrum4.tType(ui.t4_type))
 
 ###############################################################################
 # set up the application
@@ -565,6 +562,13 @@ ui.vbw_box.addItems(['auto'])
 ui.points_box.addItems(['25', '50', '100', '200', '290', '450', '900', '1800', '3600', '7200', '15400'])
 ui.points_box.setCurrentIndex(4)
 ui.band_box.addItems(bands)
+ui.t1_type.addItems(['Normal', 'Average', 'Max', 'Min'])
+ui.t2_type.addItems(['Normal', 'Average', 'Max', 'Min'])
+ui.t3_type.addItems(['Normal', 'Average', 'Max', 'Min'])
+ui.t4_type.addItems(['Normal', 'Average', 'Max', 'Min'])
+ui.m2_type.addItems(['Normal', 'Delta', 'Peak'])
+ui.m3_type.addItems(['Normal', 'Delta', 'Peak'])
+ui.m4_type.addItems(['Normal', 'Delta', 'Peak'])
 
 tinySA.initialise()
 

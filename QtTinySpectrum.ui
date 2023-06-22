@@ -34,7 +34,7 @@
        <bool>false</bool>
       </property>
       <property name="currentIndex">
-       <number>2</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="analyserTab">
        <property name="sizePolicy">
@@ -48,73 +48,45 @@
        </attribute>
        <layout class="QGridLayout" name="gridLayout">
         <item row="0" column="0">
-         <layout class="QVBoxLayout" name="verticalLayout">
-          <item>
-           <widget class="QLabel" name="label_5">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Attenuator 0=auto</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QSpinBox" name="atten_box">
-            <property name="suffix">
-             <string>dB</string>
-            </property>
-            <property name="minimum">
-             <number>0</number>
-            </property>
-            <property name="maximum">
-             <number>31</number>
-            </property>
-            <property name="value">
-             <number>0</number>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="lna_button">
-            <property name="text">
-             <string>LNA off</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="label_2">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Points</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="points_box">
+         <layout class="QGridLayout" name="gridLayout_3">
+          <item row="14" column="1">
+           <widget class="QComboBox" name="t4_type">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
-            <property name="currentIndex">
-             <number>-1</number>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
             </property>
            </widget>
           </item>
-          <item>
+          <item row="11" column="1">
+           <widget class="QComboBox" name="t1_type">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="1">
            <widget class="QLabel" name="label_3">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="font">
              <font>
               <pointsize>7</pointsize>
@@ -127,77 +99,92 @@
             </property>
            </widget>
           </item>
-          <item>
-           <widget class="QComboBox" name="rbw_box">
+          <item row="5" column="1">
+           <widget class="QComboBox" name="points_box">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
-            <property name="editable">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="label_4">
             <property name="font">
              <font>
               <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
              </font>
             </property>
-            <property name="text">
-             <string>VBW</string>
+            <property name="currentIndex">
+             <number>-1</number>
             </property>
            </widget>
           </item>
-          <item>
-           <widget class="QComboBox" name="vbw_box">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="label">
+          <item row="13" column="0">
+           <widget class="QCheckBox" name="trace3">
             <property name="font">
              <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
+              <pointsize>9</pointsize>
              </font>
             </property>
             <property name="text">
-             <string>Trace Processing</string>
+             <string>T3</string>
             </property>
            </widget>
           </item>
-          <item>
+          <item row="3" column="1">
            <widget class="QPushButton" name="spur_button">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
             <property name="text">
              <string>SPUR auto</string>
             </property>
            </widget>
           </item>
-          <item>
-           <widget class="QLabel" name="label_8">
+          <item row="13" column="1">
+           <widget class="QComboBox" name="t3_type">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="font">
              <font>
               <pointsize>7</pointsize>
              </font>
             </property>
+           </widget>
+          </item>
+          <item row="12" column="0">
+           <widget class="QCheckBox" name="trace2">
+            <property name="font">
+             <font>
+              <pointsize>9</pointsize>
+             </font>
+            </property>
             <property name="text">
-             <string>Averaging</string>
+             <string>T2</string>
+            </property>
+            <property name="tristate">
+             <bool>false</bool>
             </property>
            </widget>
           </item>
-          <item>
+          <item row="17" column="1">
+           <spacer name="verticalSpacer_2">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>17</width>
+              <height>13</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item row="16" column="0" colspan="3">
            <widget class="QSlider" name="avgSlider">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -205,11 +192,22 @@
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
             <property name="toolTip">
              <string/>
             </property>
+            <property name="minimum">
+             <number>1</number>
+            </property>
             <property name="maximum">
-             <number>20</number>
+             <number>50</number>
+            </property>
+            <property name="value">
+             <number>10</number>
             </property>
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
@@ -225,66 +223,238 @@
             </property>
            </widget>
           </item>
-          <item>
-           <widget class="QRadioButton" name="maxH">
+          <item row="7" column="1">
+           <widget class="QComboBox" name="rbw_box">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="font">
              <font>
               <pointsize>7</pointsize>
              </font>
             </property>
-            <property name="text">
-             <string>Max Hold</string>
+            <property name="editable">
+             <bool>true</bool>
             </property>
-            <attribute name="buttonGroup">
-             <string notr="true">Hold</string>
-            </attribute>
            </widget>
           </item>
-          <item>
-           <widget class="QRadioButton" name="Norm">
+          <item row="10" column="1">
+           <widget class="QLabel" name="label">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Traces</string>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="1">
+           <widget class="QComboBox" name="vbw_box">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="font">
              <font>
               <pointsize>7</pointsize>
              </font>
             </property>
+           </widget>
+          </item>
+          <item row="8" column="1">
+           <widget class="QLabel" name="label_4">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
             <property name="text">
-             <string>Norm/ Max/ Min</string>
+             <string>VBW</string>
+            </property>
+           </widget>
+          </item>
+          <item row="12" column="1">
+           <widget class="QComboBox" name="t2_type">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QSpinBox" name="atten_box">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="readOnly">
+             <bool>true</bool>
+            </property>
+            <property name="suffix">
+             <string>dB</string>
+            </property>
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>31</number>
+            </property>
+            <property name="value">
+             <number>0</number>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QLabel" name="label_2">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Points</string>
+            </property>
+           </widget>
+          </item>
+          <item row="14" column="0">
+           <widget class="QCheckBox" name="trace4">
+            <property name="font">
+             <font>
+              <pointsize>9</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>T4</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLabel" name="label_5">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Attenuator</string>
+            </property>
+           </widget>
+          </item>
+          <item row="11" column="0">
+           <widget class="QCheckBox" name="trace1">
+            <property name="font">
+             <font>
+              <pointsize>9</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>T1</string>
             </property>
             <property name="checked">
              <bool>true</bool>
             </property>
-            <attribute name="buttonGroup">
-             <string notr="true">Hold</string>
-            </attribute>
+            <property name="tristate">
+             <bool>false</bool>
+            </property>
            </widget>
           </item>
-          <item>
-           <widget class="QRadioButton" name="minH">
+          <item row="2" column="1">
+           <widget class="QPushButton" name="lna_button">
             <property name="font">
              <font>
               <pointsize>7</pointsize>
              </font>
             </property>
             <property name="text">
-             <string>Min Hold</string>
+             <string>LNA off</string>
             </property>
-            <attribute name="buttonGroup">
-             <string notr="true">Hold</string>
-            </attribute>
            </widget>
           </item>
-          <item>
-           <spacer name="verticalSpacer_2">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
+          <item row="15" column="0" colspan="2">
+           <widget class="QLabel" name="label_8">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
             </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>17</width>
-              <height>13</height>
-             </size>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
             </property>
-           </spacer>
+            <property name="text">
+             <string>Averaging</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QCheckBox" name="checkBox_3">
+            <property name="font">
+             <font>
+              <pointsize>9</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>A</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
           </item>
          </layout>
         </item>
@@ -315,21 +485,6 @@
             </property>
             <property name="value">
              <double>100.000000000000000</double>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="7">
-           <widget class="QCheckBox" name="mkr3_type">
-            <property name="font">
-             <font>
-              <family>Standard Symbols L</family>
-             </font>
-            </property>
-            <property name="text">
-             <string>d</string>
-            </property>
-            <property name="tristate">
-             <bool>true</bool>
             </property>
            </widget>
           </item>
@@ -419,25 +574,10 @@
             </property>
            </spacer>
           </item>
-          <item row="2" column="8">
-           <widget class="QCheckBox" name="mkr4_type">
-            <property name="font">
-             <font>
-              <family>Standard Symbols L</family>
-             </font>
-            </property>
-            <property name="text">
-             <string>d</string>
-            </property>
-            <property name="tristate">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
           <item row="1" column="7">
-           <widget class="QCheckBox" name="mkr3">
+           <widget class="QCheckBox" name="marker3">
             <property name="text">
-             <string>3</string>
+             <string>M3</string>
             </property>
            </widget>
           </item>
@@ -452,29 +592,14 @@
            </widget>
           </item>
           <item row="1" column="8">
-           <widget class="QCheckBox" name="mkr4">
+           <widget class="QCheckBox" name="marker4">
             <property name="text">
-             <string>4</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="6">
-           <widget class="QCheckBox" name="mkr2_type">
-            <property name="font">
-             <font>
-              <family>Standard Symbols L</family>
-             </font>
-            </property>
-            <property name="text">
-             <string>d</string>
-            </property>
-            <property name="tristate">
-             <bool>true</bool>
+             <string>M4</string>
             </property>
            </widget>
           </item>
           <item row="1" column="5">
-           <widget class="QCheckBox" name="mkr1">
+           <widget class="QCheckBox" name="marker1">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -482,17 +607,17 @@
              </sizepolicy>
             </property>
             <property name="text">
-             <string>1</string>
+             <string>M1</string>
             </property>
            </widget>
           </item>
           <item row="1" column="6">
-           <widget class="QCheckBox" name="mkr2">
+           <widget class="QCheckBox" name="marker2">
             <property name="autoFillBackground">
              <bool>false</bool>
             </property>
             <property name="text">
-             <string>2</string>
+             <string>M2</string>
             </property>
            </widget>
           </item>
@@ -527,6 +652,72 @@
             </property>
             <property name="format">
              <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="6">
+           <widget class="QComboBox" name="m2_type">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>45</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="sizeAdjustPolicy">
+             <enum>QComboBox::AdjustToContentsOnFirstShow</enum>
+            </property>
+            <property name="minimumContentsLength">
+             <number>0</number>
+            </property>
+            <property name="iconSize">
+             <size>
+              <width>16</width>
+              <height>16</height>
+             </size>
+            </property>
+            <property name="placeholderText">
+             <string notr="true"/>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="7">
+           <widget class="QComboBox" name="m3_type">
+            <property name="maximumSize">
+             <size>
+              <width>45</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="8">
+           <widget class="QComboBox" name="m4_type">
+            <property name="maximumSize">
+             <size>
+              <width>45</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
             </property>
            </widget>
           </item>
@@ -664,7 +855,4 @@
    <bool>true</bool>
   </property>
  </designerdata>
- <buttongroups>
-  <buttongroup name="Hold"/>
- </buttongroups>
 </ui>
