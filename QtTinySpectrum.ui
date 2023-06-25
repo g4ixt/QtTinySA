@@ -480,7 +480,7 @@
             </property>
             <property name="maximumSize">
              <size>
-              <width>50</width>
+              <width>55</width>
               <height>16777215</height>
              </size>
             </property>
@@ -538,7 +538,7 @@
            <widget class="QComboBox" name="m4_type">
             <property name="maximumSize">
              <size>
-              <width>50</width>
+              <width>55</width>
               <height>16777215</height>
              </size>
             </property>
@@ -625,7 +625,7 @@
            <widget class="QComboBox" name="m3_type">
             <property name="maximumSize">
              <size>
-              <width>50</width>
+              <width>55</width>
               <height>16777215</height>
              </size>
             </property>
@@ -771,7 +771,7 @@
            <widget class="QComboBox" name="m1_type">
             <property name="maximumSize">
              <size>
-              <width>50</width>
+              <width>55</width>
               <height>16777215</height>
              </size>
             </property>

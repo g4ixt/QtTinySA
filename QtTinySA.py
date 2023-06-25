@@ -212,11 +212,8 @@ class display:
         self.trace.hide()
         self.traceType = 'Normal'  # Normal, Average, Max, Min
         self.markerType = 'Normal'  # Normal, Delta; Peak
-        self.vline = ui.graphWidget.addLine(88, 90, movable=True, pen=pyqtgraph.mkPen('g', width=0.5, style=QtCore.Qt.DashLine), label="{value:.2f}")
-        self.hline = ui.graphWidget.addLine(-100, 0, movable=False, pen=pyqtgraph.mkPen('g', width=0.5, style=QtCore.Qt.DashLine),  label="{value:.2f}")
-        self.hline.setAngle(0)
+        self.vline = ui.graphWidget.addLine(88, 90, movable=True, name=name, pen=pyqtgraph.mkPen('g', width=0.5, style=QtCore.Qt.DashLine), label="{value:.2f}")
         self.vline.hide()
-        self.hline.hide()
         self.fIndex = 0  # index of current marker freq in frequencies array
         self.dIndex = 0
 
@@ -227,7 +224,6 @@ class display:
                 for i in range(tinySA.points):
                     if tinySA.frequencies[i] / 1e6 >= self.vline.value():
                         self.vline.setValue(tinySA.frequencies[i] / 1e6)
-                        self.hline.setValue(float(tinySA.sweepresults[0, i]))
                         self.fIndex = i
                         if self.markerType == 'Delta':
                             self.dIndex = self.fIndex - S1.fIndex
@@ -243,7 +239,7 @@ class display:
     def mType(self, uiBox):
         self.markerType = uiBox.currentText()
         self.dIndex = self.fIndex - S1.fIndex
-        logging.info(f'marker = type {self.markerType}')
+        logging.debug(f'marker = type {self.markerType}')
 
     def tType(self, uiBox):
         self.traceType = uiBox.currentText()
@@ -251,10 +247,8 @@ class display:
     def mEnable(self, mkr):
         if mkr.isChecked():
             self.vline.show()
-            self.hline.show()
         else:
             self.vline.hide()
-            self.hline.hide()
 
     def tEnable(self, trace):
         if trace.isChecked():
@@ -262,16 +256,19 @@ class display:
         else:
             self.trace.hide()
 
+    def mPeak(self, signal):
+        peaks = np.argsort(-signal)  # finds the indices of the peaks in a copy of signal array; indices sorted desc
+        if signal[peaks[0]] >= ui.mPeak.value():  # largest peak value is above the threshold set in GUI
+            options = {'Peak1': peaks[0], 'Peak2': peaks[1], 'Peak3': peaks[2], 'Peak4': peaks[3]}
+            self.fIndex = options.get(self.markerType)
+            self.vline.setValue(tinySA.frequencies[options.get(self.markerType)] / 1e6)
+            logging.debug(f'peaks = {peaks[:4]}')
 
     def updateGUI(self, signal):
         self.trace.setData((tinySA.frequencies/1e6), signal)
-        if self.markerType == 'Peak':
-            peak = np.argmax(signal)
-            if signal[peak] >= ui.mPeak.value():
-                logging.info(f'peak index = {peak}')
-                self.fIndex = peak
-                self.vline.setValue(tinySA.frequencies[peak] / 1e6)
-        self.hline.setValue(signal[self.fIndex])  # set to dBm value at marker freq
+        if self.markerType != 'Normal' and self.markerType != 'Delta':  # then it must be a peak marker
+            self.mPeak(signal)
+        self.vline.label.setText(f'M{self.vline.name()} {tinySA.frequencies[self.fIndex]/1e6:.3f}MHz  {signal[self.fIndex]:.1f}dBm')
 
 
 class WorkerSignals(QObject):
@@ -486,10 +483,10 @@ ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
 
 # Traces & markers
-S1 = display('S1', yellow)
-S2 = display('S2', red)
-S3 = display('S3', cyan)
-S4 = display('S4', white)
+S1 = display('1', yellow)
+S2 = display('2', red)
+S3 = display('3', cyan)
+S4 = display('4', white)
 
 ###############################################################################
 # GUI settings
@@ -507,14 +504,9 @@ ui.graphWidget.setLabel('bottom', 'Frequency MHz')
 
 # marker label positions
 S1.vline.label.setPosition(0.99)
-S2.vline.label.setPosition(0.96)
-S3.vline.label.setPosition(0.93)
-S4.vline.label.setPosition(0.90)
-
-S1.hline.label.setPosition(0.06)
-S2.hline.label.setPosition(1.0)
-S3.hline.label.setPosition(0.06)
-S4.hline.label.setPosition(1.0)
+S2.vline.label.setPosition(0.95)
+S3.vline.label.setPosition(0.90)
+S4.vline.label.setPosition(0.85)
 
 # pyqtgraph settings for 3D spectrum
 axes = pyqtgl.GLAxisItem()
@@ -583,10 +575,10 @@ ui.t1_type.addItems(['Normal', 'Average', 'Max', 'Min'])
 ui.t2_type.addItems(['Normal', 'Average', 'Max', 'Min'])
 ui.t3_type.addItems(['Normal', 'Average', 'Max', 'Min'])
 ui.t4_type.addItems(['Normal', 'Average', 'Max', 'Min'])
-ui.m1_type.addItems(['Normal', 'Peak'])  # Marker 1 is the reference
-ui.m2_type.addItems(['Normal', 'Delta', 'Peak'])
-ui.m3_type.addItems(['Normal', 'Delta', 'Peak'])
-ui.m4_type.addItems(['Normal', 'Delta', 'Peak'])
+ui.m1_type.addItems(['Normal', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])  # Marker 1 is the reference for others
+ui.m2_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
+ui.m3_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
+ui.m4_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 
 tinySA.initialise()
 
