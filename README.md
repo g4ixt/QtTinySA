@@ -14,7 +14,7 @@ http://athome.kaashoek.com/tinySA/python/
 The serial communication commands are based on the Python NanoVNA/TinySA Toolset of Martin Ho-Ro:
 https://github.com/Ho-Ro
 
-Dependencies: Install from the repository - python3-pyqt5, python3-numpy, python3-spidev, python3-pyqtgraph
+Dependencies: Install from the repository - python3-pyqt5, python3-numpy, python3-pyqtgraph
 The 3D (time) spectrum requires OpenGL
 
 The GUI is designed for a 7" 1024 x 600 screen but should maximise properly.  The GUI appearence may change significantly due to development.
