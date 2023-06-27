@@ -186,7 +186,7 @@ class analyser:
 
     def updateTimeSpectrum(self):
         z = self.sweepresults
-        logging.info(f'z = {z}')
+        logging.debug(f'z = {z}')
         self.p2.setData(z=z)
 
     def pause(self):
