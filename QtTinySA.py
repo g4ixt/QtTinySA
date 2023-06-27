@@ -169,17 +169,19 @@ class analyser:
         S3.updateGUI(options.get(S3.traceType))
         S4.updateGUI(options.get(S4.traceType))
 
-        # self.updateTimeSpectrum()
+        self.updateTimeSpectrum()
 
     def createTimeSpectrum(self):
         # x = self.frequencies / 1e7
-        x = np.arange(start=self.points, stop=0, step=-1)
+        # x=blue, time.  y=yellow, freqs, z=green dBm
+        x = np.arange(start=0, stop=self.points, step=1)
         y = np.arange(start=0, stop=self.points)  # this is the spectrum measurement depth
         z = self.sweepresults
         logging.debug(f'z = {z}')
-        self.p2 = pyqtgl.GLSurfacePlotItem(x=x, y=y, z=z, shader='normalColor')
-        self.p2.translate(-10, -10, 0)
-        self.p2.setDepthValue(-120)
+        self.p2 = pyqtgl.GLSurfacePlotItem(x=x, y=y, z=z, shader='normalColor', computeNormals=True, smooth=False)
+        self.p2.translate(-self.points/2, -self.points, 0)
+        # self.p2.setDepthValue(-150)
+        self.p2.scale(1, 1, 1)
         ui.openGLWidget.addItem(self.p2)
 
     def updateTimeSpectrum(self):
@@ -261,7 +263,7 @@ class display:
         if signal[peaks[0]] >= ui.mPeak.value():  # largest peak value is above the threshold set in GUI
             options = {'Peak1': peaks[0], 'Peak2': peaks[1], 'Peak3': peaks[2], 'Peak4': peaks[3]}
             self.fIndex = options.get(self.markerType)
-            self.vline.setValue(tinySA.frequencies[options.get(self.markerType)] / 1e6)
+            self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
             logging.debug(f'peaks = {peaks[:4]}')
 
     def updateGUI(self, signal):
@@ -510,14 +512,14 @@ S4.vline.label.setPosition(0.85)
 
 # pyqtgraph settings for 3D spectrum
 axes = pyqtgl.GLAxisItem()
-axes.setSize(450, 450, 120)  # x=blue, time.  y=yellow, freqs, z=green dBm
+axes.setSize(100, 100, 100)  # x=blue, time.  y=yellow, freqs, z=green dBm
 ui.openGLWidget.addItem(axes)
 
-## Add a grid to the 3D view
-# g = pyqtgl.GLGridItem()
-# g.scale(2,2,1)
-# g.setDepthValue(10)  # draw grid after surfaces since they may be translucent
-# ui.openGLWidget.addItem(g)
+# Add a grid to the 3D view
+g = pyqtgl.GLGridItem()
+g.scale(1, 1, 1)
+g.setDepthValue(1)  # draw grid after surfaces since they may be translucent
+ui.openGLWidget.addItem(g)
 
 # voltage = tinySA.battery()
 # ui.battery.setValue(voltage)

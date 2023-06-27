@@ -797,24 +797,6 @@
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="generatorTab">
-       <attribute name="title">
-        <string>Generator</string>
-       </attribute>
-       <widget class="QLabel" name="label_6">
-        <property name="geometry">
-         <rect>
-          <x>30</x>
-          <y>20</y>
-          <width>58</width>
-          <height>18</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>To Do</string>
-        </property>
-       </widget>
-      </widget>
       <widget class="QWidget" name="TimeTab">
        <property name="enabled">
         <bool>true</bool>
@@ -828,10 +810,10 @@
         </property>
         <property name="geometry">
          <rect>
-          <x>240</x>
+          <x>155</x>
           <y>10</y>
-          <width>756</width>
-          <height>509</height>
+          <width>841</width>
+          <height>481</height>
          </rect>
         </property>
        </widget>
