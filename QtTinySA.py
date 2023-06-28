@@ -43,15 +43,6 @@ threadpool = QThreadPool()
 VID = 0x0483  # 1155
 PID = 0x5740  # 22336
 
-# amateur frequency band values
-fBandStart = [1.8, 3.5, 7.0, 10.1, 14.0, 18.068, 21.0, 24.89, 28.0,
-              50.0, 70.0, 144.0, 430.0, 1240, 2300, 2390, 3300, 5650]
-fBandStop = [2.0, 3.8, 7.1, 10.15, 14.35, 18.168, 21.45, 24.99, 29.7,
-             52.0, 70.5, 146.0, 440.0, 1325, 2310, 2450, 3500, 5925]
-bands = list(map(str, fBandStart))  # convert start freq float list to string list for GUI combobox
-bands = [freq + ' MHz' for freq in bands]
-bands.insert(0, 'Band')
-
 # pyqtgraph pens
 red = pyqtgraph.mkPen(color='r', width=1.0)
 yellow = pyqtgraph.mkPen(color='y', width=1.0)
@@ -67,6 +58,10 @@ blue_dash = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
 class analyser:
     def __init__(self, dev=None):
         self.dev = getport()
+        if self.version().startswith('tinySA4'):
+            self.tinySA4 = True
+        else:
+            self.tinySA4 = False
         self._frequencies = None
         self.sweeping = False
         self.signals = WorkerSignals()
@@ -94,6 +89,17 @@ class analyser:
             logging.debug(command)
             SA.write(command)
             SA.read_until(b'ch> ')  # skip command echo and prompt
+
+    def serialQuery(self, command):
+        self.clearBuffer()
+        with serial.Serial(port=self.dev, baudrate=3000000) as SA:  # baudrate does nothing for USB cnx
+            SA.timeout = 1
+            logging.debug(command)
+            SA.write(command)
+            SA.read_until(command + b'\n') # skip command echo
+            response = SA.read_until(b'ch> ')
+            logging.debug(response)
+            return response[:-6].decode() # remove prompt
 
     def set_frequencies(self, startF, stopF, points):  # needs update
         # creates a np array of equi-spaced freqs in Hz (but doesn't set it on the tinySA)
@@ -147,7 +153,11 @@ class analyser:
             raw_data = struct.unpack('<' + 'xH'*self.points, raw_data[:-5])  # ignore trailing '}ch> '
             raw_data = np.array(raw_data, dtype=np.uint16)
             logging.debug(f'raw data: {raw_data} s\n')
-            SCALE = 174  # tinySA: 128  tinySA4: 174
+            # tinySA: 128  tinySA4: 174
+            if self.tinySA4:
+                SCALE = 174
+            else:
+                SCALE = 128
             dBm_power = (raw_data / 32) - SCALE  # scale 0..4095 -> -128..-0.03 dBm
             # store each sweep in an array with most recent at index 0
             self.sweepresults = np.roll(self.sweepresults, 1, axis=0)
@@ -155,9 +165,15 @@ class analyser:
             self.signals.result.emit(self.sweepresults)
         self.threadrunning = False
 
-#    def battery():
-        # command = 'vbat\r'.encode()
-        # need to get data
+    def battery(self):
+        command = 'vbat\r'.encode()
+        vbat = self.serialQuery(command)
+        return vbat
+
+    def version(self):
+        command = 'version\r'.encode()
+        version = self.serialQuery(command)
+        return version
 
     def sigProcess(self, signaldBm):  # signaldBm is emitted from the worker thread
         signalAvg = np.average(signaldBm[:ui.avgSlider.value(), ::], axis=0)
@@ -479,6 +495,8 @@ def activeButtons(tF):
 # Instantiate classes
 
 tinySA = analyser(getport())
+
+
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
@@ -495,7 +513,7 @@ S4 = display('4', white)
 
 # pyqtgraph settings for spectrum display
 ui.graphWidget.setYRange(-110, 5)
-ui.graphWidget.setXRange(88, 100)
+ui.graphWidget.setXRange(87.5, 108)
 ui.graphWidget.setBackground('k')  # black
 ui.graphWidget.showGrid(x=True, y=True)
 ui.graphWidget.addLine(y=6, movable=False, pen=red, label='', labelOpts={'position':0.05, 'color':('r')})
@@ -568,7 +586,24 @@ ui.t4_type.currentTextChanged.connect(lambda: S4.tType(ui.t4_type))
 ###############################################################################
 # set up the application
 
-ui.rbw_box.addItems(['auto', '0.2', '1', '3', '10', '30', '100', '300', '600', '850'])
+if tinySA.tinySA4:
+    # amateur frequency band values (plus FM radio for a quick test)
+    fBandStart = [1.8, 3.5, 7.0, 10.1, 14.0, 18.068, 21.0, 24.89, 28.0,
+                50.0, 70.0, 87.5, 144.0, 430.0, 1240, 2300, 2390, 3300, 5650]
+    fBandStop = [2.0, 3.8, 7.1, 10.15, 14.35, 18.168, 21.45, 24.99, 29.7,
+                52.0, 70.5, 108.0, 146.0, 440.0, 1325, 2310, 2450, 3500, 5925]
+    ui.rbw_box.addItems(['auto', '0.2', '1', '3', '10', '30', '100', '300', '600', '850'])
+else:
+    fBandStart = [1.8, 3.5, 7.0, 10.1, 14.0, 18.068, 21.0, 24.89, 28.0,
+                50.0, 70.0, 87.5, 144.0]
+    fBandStop = [2.0, 3.8, 7.1, 10.15, 14.35, 18.168, 21.45, 24.99, 29.7,
+                52.0, 70.5, 108.0, 146.0]
+    ui.rbw_box.addItems(['auto', '3', '10', '30', '100', '300', '600'])
+
+bands = list(map(str, fBandStart))  # convert start freq float list to string list for GUI combobox
+bands = [freq for freq in bands]
+bands.insert(0, 'Band')
+
 ui.vbw_box.addItems(['auto'])
 ui.points_box.addItems(['25', '50', '100', '200', '290', '450', '900', '1800', '3600', '7200', '15400'])
 ui.points_box.setCurrentIndex(4)
