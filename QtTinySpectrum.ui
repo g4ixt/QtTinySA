@@ -460,17 +460,122 @@
         </item>
         <item row="0" column="1">
          <layout class="QGridLayout" name="gridLayout_2">
-          <item row="1" column="6">
-           <widget class="QCheckBox" name="marker2">
-            <property name="autoFillBackground">
-             <bool>false</bool>
+          <item row="1" column="11">
+           <widget class="QPushButton" name="scan_button">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
             </property>
             <property name="text">
-             <string>M2</string>
+             <string>Run</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
             </property>
            </widget>
           </item>
-          <item row="2" column="6">
+          <item row="1" column="4">
+           <widget class="QCheckBox" name="marker1">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>M1</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="7">
+           <widget class="QCheckBox" name="marker4">
+            <property name="text">
+             <string>M4</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="8">
+           <widget class="QLabel" name="label_9">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Peak Marker</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0" colspan="12">
+           <widget class="PlotWidget" name="graphWidget" native="true">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="autoFillBackground">
+             <bool>false</bool>
+            </property>
+            <property name="styleSheet">
+             <string notr="true"/>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="11">
+           <widget class="QProgressBar" name="progressBar">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="value">
+             <number>0</number>
+            </property>
+            <property name="format">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="10">
+           <widget class="QDoubleSpinBox" name="stop_freq">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="suffix">
+             <string>MHz</string>
+            </property>
+            <property name="decimals">
+             <number>6</number>
+            </property>
+            <property name="minimum">
+             <double>0.100000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>6000.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>1.000000000000000</double>
+            </property>
+            <property name="value">
+             <double>108.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="5">
            <widget class="QComboBox" name="m2_type">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -506,232 +611,27 @@
             </property>
            </widget>
           </item>
-          <item row="1" column="11">
-           <widget class="QDoubleSpinBox" name="stop_freq">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="suffix">
-             <string>MHz</string>
-            </property>
-            <property name="decimals">
-             <number>6</number>
-            </property>
-            <property name="minimum">
-             <double>0.100000000000000</double>
-            </property>
-            <property name="maximum">
-             <double>6000.000000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>1.000000000000000</double>
-            </property>
-            <property name="value">
-             <double>108.000000000000000</double>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="8">
-           <widget class="QComboBox" name="m4_type">
-            <property name="maximumSize">
-             <size>
-              <width>55</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="10">
-           <spacer name="horizontalSpacer_2">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="1" column="7">
-           <widget class="QCheckBox" name="marker3">
+          <item row="2" column="3">
+           <widget class="QToolButton" name="mkr_start">
             <property name="text">
-             <string>M3</string>
+             <string>...</string>
             </property>
-           </widget>
-          </item>
-          <item row="2" column="12">
-           <widget class="QProgressBar" name="progressBar">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="value">
-             <number>0</number>
-            </property>
-            <property name="format">
-             <string/>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="1">
-           <widget class="QDoubleSpinBox" name="start_freq">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="prefix">
-             <string/>
-            </property>
-            <property name="suffix">
-             <string>MHz</string>
-            </property>
-            <property name="decimals">
-             <number>6</number>
-            </property>
-            <property name="minimum">
-             <double>0.100000000000000</double>
-            </property>
-            <property name="maximum">
-             <double>6000.000000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>1.000000000000000</double>
-            </property>
-            <property name="value">
-             <double>87.500000000000000</double>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="7">
-           <widget class="QComboBox" name="m3_type">
-            <property name="maximumSize">
-             <size>
-              <width>55</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="12">
-           <widget class="QPushButton" name="scan_button">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="text">
-             <string>Run</string>
-            </property>
-            <property name="checkable">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="0">
-           <widget class="QComboBox" name="band_box">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>65</width>
-              <height>16777215</height>
-             </size>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="0" colspan="13">
-           <widget class="PlotWidget" name="graphWidget" native="true">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="autoFillBackground">
-             <bool>false</bool>
-            </property>
-            <property name="styleSheet">
-             <string notr="true"/>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="2">
-           <spacer name="horizontalSpacer">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="1" column="8">
-           <widget class="QCheckBox" name="marker4">
-            <property name="text">
-             <string>M4</string>
+            <property name="arrowType">
+             <enum>Qt::LeftArrow</enum>
             </property>
            </widget>
           </item>
           <item row="1" column="5">
-           <widget class="QCheckBox" name="marker1">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
+           <widget class="QCheckBox" name="marker2">
+            <property name="autoFillBackground">
+             <bool>false</bool>
             </property>
             <property name="text">
-             <string>M1</string>
+             <string>M2</string>
             </property>
            </widget>
           </item>
-          <item row="1" column="9">
-           <widget class="QLabel" name="label_9">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Peak Marker</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="9">
+          <item row="2" column="8">
            <widget class="QSpinBox" name="mPeak">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -767,7 +667,86 @@
             </property>
            </widget>
           </item>
-          <item row="2" column="5">
+          <item row="1" column="9">
+           <spacer name="horizontalSpacer_2">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item row="2" column="7">
+           <widget class="QComboBox" name="m4_type">
+            <property name="maximumSize">
+             <size>
+              <width>55</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="6">
+           <widget class="QCheckBox" name="marker3">
+            <property name="text">
+             <string>M3</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QDoubleSpinBox" name="start_freq">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="prefix">
+             <string/>
+            </property>
+            <property name="suffix">
+             <string>MHz</string>
+            </property>
+            <property name="decimals">
+             <number>6</number>
+            </property>
+            <property name="minimum">
+             <double>0.100000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>6000.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>1.000000000000000</double>
+            </property>
+            <property name="value">
+             <double>87.500000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="2">
+           <spacer name="horizontalSpacer">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item row="2" column="4">
            <widget class="QComboBox" name="m1_type">
             <property name="maximumSize">
              <size>
@@ -783,13 +762,34 @@
             </property>
            </widget>
           </item>
-          <item row="2" column="4">
-           <widget class="QToolButton" name="mkr_start">
-            <property name="text">
-             <string>...</string>
+          <item row="1" column="0">
+           <widget class="QComboBox" name="band_box">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
             </property>
-            <property name="arrowType">
-             <enum>Qt::LeftArrow</enum>
+            <property name="maximumSize">
+             <size>
+              <width>65</width>
+              <height>16777215</height>
+             </size>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="6">
+           <widget class="QComboBox" name="m3_type">
+            <property name="maximumSize">
+             <size>
+              <width>55</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
             </property>
            </widget>
           </item>
