@@ -342,7 +342,7 @@
              <string>T1</string>
             </property>
             <property name="checked">
-             <bool>false</bool>
+             <bool>true</bool>
             </property>
             <property name="tristate">
              <bool>false</bool>
@@ -823,6 +823,9 @@
             </property>
             <property name="value">
              <number>0</number>
+            </property>
+            <property name="textVisible">
+             <bool>false</bool>
             </property>
             <property name="format">
              <string/>

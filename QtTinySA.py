@@ -74,6 +74,7 @@ class analyser:
         self.timeout = 1
         self.scanCount = 0
         self.runTimer = QtCore.QElapsedTimer()
+        self.scale = 174
 
     @property
     def frequencies(self):
@@ -145,42 +146,62 @@ class analyser:
         self.timeout = timeout
         logging.debug(f'sweepTimeout = {self.timeout}')
 
-    # return 1D numpy array with power as dBm.  Freqs are in Hz
+    # # return 1D numpy array with power as dBm.  Freqs are in Hz
+    # def measurement(self, f_low, f_high):  # runs in a separate thread
+    #     self.threadrunning = True
+    #     while self.sweeping:
+    #         with serial.Serial(self.dev, baudrate=3000000) as serialPort:  # baudrate does nothing for USB cnx
+    #             serialPort.timeout = self.timeout
+    #             logging.debug(f'serial timeout: {self.timeout} s\n')
+    #             logging.debug(f'points: {self.points} s\n')
+    #             scan_command = f'scanraw {int(f_low)} {int(f_high)} {int(self.points)}\r'.encode()
+    #             serialPort.write(scan_command)
+    #             serialPort.read_until(b'{')  # skip command echoes
+    #             raw_data = serialPort.read_until(b'}ch> ')
+    #         raw_data = struct.unpack('<' + 'xH'*self.points, raw_data[:-5])  # ignore trailing '}ch> '
+    #         raw_data = np.array(raw_data, dtype=np.uint16)
+    #         logging.debug(f'raw data: {raw_data} s\n')
+    #         # tinySA: 128  tinySA4: 174
+    #         if self.tinySA4:
+    #             SCALE = 174
+    #         else:
+    #             SCALE = 128
+    #         dBm_power = (raw_data / 32) - SCALE  # scale 0..4095 -> -128..-0.03 dBm
+    #         # store each sweep in an array with most recent at index 0
+    #         self.sweepresults = np.roll(self.sweepresults, 1, axis=0)
+    #         self.sweepresults[0] = dBm_power
+    #         self.signals.result.emit(self.sweepresults)
+    #     self.threadrunning = False
+
     def measurement(self, f_low, f_high):  # runs in a separate thread
         self.threadrunning = True
         while self.sweeping:
             with serial.Serial(self.dev, baudrate=3000000) as serialPort:  # baudrate does nothing for USB cnx
-                serialPort.timeout = self.timeout
-                logging.debug(f'serial timeout: {self.timeout} s\n')
-                logging.debug(f'points: {self.points} s\n')
+                #serialPort.timeout = self.timeout
+                serialPort.timeout = 0.2  # anything < 0.12 causes errors (when running in Spyder)
                 scan_command = f'scanraw {int(f_low)} {int(f_high)} {int(self.points)}\r'.encode()
                 serialPort.write(scan_command)
-                serialPort.read_until(b'{')  # skip command echoes
-                raw_data = serialPort.read_until(b'}ch> ')
-            raw_data = struct.unpack('<' + 'xH'*self.points, raw_data[:-5])  # ignore trailing '}ch> '
-            raw_data = np.array(raw_data, dtype=np.uint16)
-            logging.debug(f'raw data: {raw_data} s\n')
-            # tinySA: 128  tinySA4: 174
-            if self.tinySA4:
-                SCALE = 174
-            else:
-                SCALE = 128
-            dBm_power = (raw_data / 32) - SCALE  # scale 0..4095 -> -128..-0.03 dBm
-            # store each sweep in an array with most recent at index 0
+                index = 0
+                serialPort.read_until(scan_command + b'\n{')  # skip command echo
+                dataBlock = ''
+                while dataBlock != b'}ch':  # if dataBlock is '}ch' it's reached the end of the scan points
+                    dataBlock = (serialPort.read(3))  # read a block of 3 bytes of data
+                    logging.debug(f'dataBlock: {dataBlock}\n')
+                    if dataBlock != b'}ch':
+                        c, data = struct.unpack('<' + 'cH', dataBlock)  # does 'c' tell us something?
+                        dBm_power = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
+                        # write each measurement into sweepresults and emit
+                        self.sweepresults[0, index] = dBm_power
+                        self.signals.result.emit(self.sweepresults)
+                        index += 1
+                    logging.debug(f'level = {dBm_power}dBm')
+                null = (serialPort.read(3))  # discard the command prompt
+            # # store each sweep in an array with most recent at index 0
             self.sweepresults = np.roll(self.sweepresults, 1, axis=0)
-            self.sweepresults[0] = dBm_power
-            self.signals.result.emit(self.sweepresults)
+            # self.sweepresults[0] = dBm_power
+            # self.signals.result.emit(self.sweepresults)
         self.threadrunning = False
 
-    def battery(self):
-        command = 'vbat\r'.encode()
-        vbat = self.serialQuery(command)
-        return vbat
-
-    def version(self):
-        command = 'version\r'.encode()
-        version = self.serialQuery(command)
-        return version
 
     def sigProcess(self, signaldBm):  # signaldBm is emitted from the worker thread
         signalAvg = np.average(signaldBm[:ui.avgSlider.value(), ::], axis=0)
@@ -227,6 +248,7 @@ class analyser:
             self.tinySA4 = True
         else:
             self.tinySA4 = False
+            self.scale = 128
 
         command = 'spur auto\r'.encode()
         tinySA.serialSend(command)
@@ -237,7 +259,15 @@ class analyser:
         ui.battery.setText(self.battery())
         ui.version.setText(self.version())
 
+    def battery(self):
+        command = 'vbat\r'.encode()
+        vbat = self.serialQuery(command)
+        return vbat
 
+    def version(self):
+        command = 'version\r'.encode()
+        version = self.serialQuery(command)
+        return version
 
 class display:
     def __init__(self, name, pen):
@@ -354,7 +384,7 @@ def scan():
         ui.battery.setText(tinySA.battery())
         # tinySA.updateTimeSpectrum()
     else:
-        tinySA.pause()
+        # tinySA.pause()
         startF = ui.start_freq.value()*1e6
         stopF = ui.stop_freq.value()*1e6
         points = int(ui.points_box.currentText())
