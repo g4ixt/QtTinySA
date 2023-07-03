@@ -21,8 +21,8 @@
    <string>QtTinySA</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QGridLayout" name="gridLayout_4">
-    <item row="0" column="0">
+   <layout class="QHBoxLayout" name="horizontalLayout">
+    <item>
      <widget class="QTabWidget" name="tabWidget">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
@@ -49,52 +49,11 @@
        <layout class="QGridLayout" name="gridLayout">
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_3">
-          <item row="2" column="1">
-           <widget class="QPushButton" name="lna_button">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
+          <item row="6" column="1">
+           <widget class="QComboBox" name="vbw_box">
+            <property name="enabled">
+             <bool>false</bool>
             </property>
-            <property name="text">
-             <string>LNA off</string>
-            </property>
-           </widget>
-          </item>
-          <item row="13" column="0">
-           <widget class="QCheckBox" name="trace3">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-             </font>
-            </property>
-            <property name="text">
-             <string>T3</string>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="1">
-           <widget class="QLabel" name="label_2">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Points</string>
-            </property>
-           </widget>
-          </item>
-          <item row="14" column="1">
-           <widget class="QComboBox" name="t4_type">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -108,103 +67,29 @@
             </property>
            </widget>
           </item>
-          <item row="11" column="1">
-           <widget class="QComboBox" name="t1_type">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-           </widget>
-          </item>
-          <item row="18" column="0" colspan="2">
-           <widget class="QLabel" name="version">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="text">
-             <string>Version</string>
-            </property>
-           </widget>
-          </item>
-          <item row="16" column="0" colspan="3">
-           <widget class="QSlider" name="avgSlider">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string/>
-            </property>
+          <item row="14" column="0" colspan="2">
+           <widget class="QSlider" name="memSlider">
             <property name="minimum">
              <number>1</number>
             </property>
             <property name="maximum">
-             <number>50</number>
+             <number>200</number>
             </property>
             <property name="value">
-             <number>10</number>
+             <number>50</number>
             </property>
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="invertedAppearance">
-             <bool>false</bool>
-            </property>
-            <property name="invertedControls">
-             <bool>false</bool>
             </property>
             <property name="tickPosition">
              <enum>QSlider::TicksAbove</enum>
             </property>
            </widget>
           </item>
-          <item row="14" column="0">
-           <widget class="QCheckBox" name="trace4">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-             </font>
-            </property>
-            <property name="text">
-             <string>T4</string>
-            </property>
-           </widget>
-          </item>
-          <item row="13" column="1">
-           <widget class="QComboBox" name="t3_type">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-           </widget>
-          </item>
           <item row="1" column="1">
            <widget class="QSpinBox" name="atten_box">
             <property name="enabled">
-             <bool>true</bool>
+             <bool>false</bool>
             </property>
             <property name="font">
              <font>
@@ -228,7 +113,7 @@
             </property>
            </widget>
           </item>
-          <item row="6" column="1">
+          <item row="5" column="0">
            <widget class="QLabel" name="label_3">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
@@ -248,15 +133,87 @@
             </property>
            </widget>
           </item>
-          <item row="3" column="1">
-           <widget class="QPushButton" name="spur_button">
+          <item row="8" column="1">
+           <widget class="QComboBox" name="t2_type">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="1">
+           <widget class="QComboBox" name="t1_type">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QPushButton" name="lna_button">
             <property name="font">
              <font>
               <pointsize>7</pointsize>
              </font>
             </property>
             <property name="text">
-             <string>SPUR auto</string>
+             <string>LNA off</string>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="1">
+           <widget class="QComboBox" name="t3_type">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+           </widget>
+          </item>
+          <item row="8" column="0">
+           <widget class="QCheckBox" name="trace2">
+            <property name="font">
+             <font>
+              <pointsize>9</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>T2</string>
+            </property>
+            <property name="tristate">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="17" column="0">
+           <widget class="QLabel" name="label_6">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Battery:</string>
             </property>
            </widget>
           </item>
@@ -275,7 +232,63 @@
             </property>
            </widget>
           </item>
-          <item row="8" column="1">
+          <item row="10" column="0">
+           <widget class="QCheckBox" name="trace4">
+            <property name="font">
+             <font>
+              <pointsize>9</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>T4</string>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="0">
+           <widget class="QCheckBox" name="trace3">
+            <property name="font">
+             <font>
+              <pointsize>9</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>T3</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_5">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Attenuate</string>
+            </property>
+           </widget>
+          </item>
+          <item row="17" column="1">
+           <widget class="QLabel" name="battery">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Battery</string>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="0">
            <widget class="QLabel" name="label_4">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
@@ -295,26 +308,8 @@
             </property>
            </widget>
           </item>
-          <item row="9" column="1">
-           <widget class="QComboBox" name="vbw_box">
-            <property name="enabled">
-             <bool>false</bool>
-            </property>
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-           </widget>
-          </item>
-          <item row="15" column="0" colspan="2">
-           <widget class="QLabel" name="label_8">
+          <item row="4" column="0">
+           <widget class="QLabel" name="label_2">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
               <horstretch>0</horstretch>
@@ -324,33 +319,17 @@
             <property name="font">
              <font>
               <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
              </font>
             </property>
             <property name="text">
-             <string>Averaging</string>
+             <string>Points</string>
             </property>
            </widget>
           </item>
-          <item row="11" column="0">
-           <widget class="QCheckBox" name="trace1">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-             </font>
-            </property>
-            <property name="text">
-             <string>T1</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-            <property name="tristate">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="12" column="1">
-           <widget class="QComboBox" name="t2_type">
+          <item row="10" column="1">
+           <widget class="QComboBox" name="t4_type">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -364,7 +343,7 @@
             </property>
            </widget>
           </item>
-          <item row="7" column="1">
+          <item row="5" column="1">
            <widget class="QComboBox" name="rbw_box">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -382,14 +361,28 @@
             </property>
            </widget>
           </item>
-          <item row="10" column="1">
+          <item row="11" column="0" colspan="2">
+           <widget class="QLabel" name="label_8">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Averaging</string>
+            </property>
+           </widget>
+          </item>
+          <item row="13" column="0" colspan="2">
            <widget class="QLabel" name="label">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
             <property name="font">
              <font>
               <pointsize>7</pointsize>
@@ -398,46 +391,23 @@
              </font>
             </property>
             <property name="text">
-             <string>Traces</string>
+             <string>Scan Memory Size</string>
             </property>
            </widget>
           </item>
-          <item row="12" column="0">
-           <widget class="QCheckBox" name="trace2">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-             </font>
-            </property>
-            <property name="text">
-             <string>T2</string>
-            </property>
-            <property name="tristate">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="1">
-           <widget class="QLabel" name="label_5">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
+          <item row="16" column="0" colspan="2">
+           <widget class="QLabel" name="version">
             <property name="font">
              <font>
               <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
              </font>
             </property>
             <property name="text">
-             <string>Attenuator</string>
+             <string>Version</string>
             </property>
            </widget>
           </item>
-          <item row="17" column="0">
+          <item row="15" column="0">
            <spacer name="verticalSpacer_2">
             <property name="orientation">
              <enum>Qt::Vertical</enum>
@@ -450,8 +420,20 @@
             </property>
            </spacer>
           </item>
-          <item row="5" column="1">
-           <widget class="QComboBox" name="points_box">
+          <item row="3" column="1">
+           <widget class="QPushButton" name="spur_button">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>SPUR auto</string>
+            </property>
+           </widget>
+          </item>
+          <item row="12" column="0" colspan="3">
+           <widget class="QSlider" name="avgSlider">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -463,32 +445,71 @@
               <pointsize>7</pointsize>
              </font>
             </property>
-            <property name="currentIndex">
-             <number>-1</number>
+            <property name="toolTip">
+             <string/>
+            </property>
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>100</number>
+            </property>
+            <property name="value">
+             <number>10</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="invertedAppearance">
+             <bool>false</bool>
+            </property>
+            <property name="invertedControls">
+             <bool>false</bool>
+            </property>
+            <property name="tickPosition">
+             <enum>QSlider::TicksAbove</enum>
             </property>
            </widget>
           </item>
-          <item row="19" column="1">
-           <widget class="QLabel" name="battery">
+          <item row="7" column="0">
+           <widget class="QCheckBox" name="trace1">
+            <property name="font">
+             <font>
+              <pointsize>9</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>T1</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+            <property name="tristate">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QSpinBox" name="points_box">
             <property name="font">
              <font>
               <pointsize>7</pointsize>
              </font>
             </property>
-            <property name="text">
-             <string>Battery</string>
+            <property name="minimum">
+             <number>100</number>
             </property>
-           </widget>
-          </item>
-          <item row="19" column="0">
-           <widget class="QLabel" name="label_6">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
+            <property name="maximum">
+             <number>3500</number>
             </property>
-            <property name="text">
-             <string>Battery:</string>
+            <property name="singleStep">
+             <number>100</number>
+            </property>
+            <property name="stepType">
+             <enum>QAbstractSpinBox::AdaptiveDecimalStepType</enum>
+            </property>
+            <property name="value">
+             <number>400</number>
             </property>
            </widget>
           </item>
@@ -758,7 +779,7 @@
              </font>
             </property>
             <property name="text">
-             <string>Peak Marker</string>
+             <string>M Pk Threshold</string>
             </property>
            </widget>
           </item>
@@ -843,34 +864,119 @@
        <attribute name="title">
         <string>3D Spectrum</string>
        </attribute>
-       <widget class="GLViewWidget" name="openGLWidget">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
+       <widget class="QWidget" name="gridLayoutWidget">
         <property name="geometry">
          <rect>
-          <x>155</x>
-          <y>10</y>
-          <width>841</width>
+          <x>179</x>
+          <y>9</y>
+          <width>811</width>
           <height>481</height>
          </rect>
         </property>
+        <layout class="QGridLayout" name="gridLayout_5">
+         <item row="0" column="0">
+          <widget class="GLViewWidget" name="openGLWidget">
+           <property name="enabled">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
-       <widget class="QLabel" name="label_7">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
+       <widget class="QWidget" name="">
         <property name="geometry">
          <rect>
-          <x>40</x>
-          <y>30</y>
-          <width>58</width>
-          <height>18</height>
+          <x>10</x>
+          <y>13</y>
+          <width>161</width>
+          <height>481</height>
          </rect>
         </property>
-        <property name="text">
-         <string>To Do</string>
-        </property>
+        <layout class="QGridLayout" name="gridLayout_4">
+         <item row="0" column="0">
+          <widget class="QCheckBox" name="Enabled3D">
+           <property name="text">
+            <string>3D Enabled</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <spacer name="verticalSpacer">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>40</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="7" column="0">
+          <widget class="QSlider" name="rotateSlider">
+           <property name="minimum">
+            <number>-90</number>
+           </property>
+           <property name="maximum">
+            <number>90</number>
+           </property>
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="tickPosition">
+            <enum>QSlider::TicksAbove</enum>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QRadioButton" name="xButton">
+           <property name="text">
+            <string>X</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+           <attribute name="buttonGroup">
+            <string notr="true">rotation</string>
+           </attribute>
+          </widget>
+         </item>
+         <item row="5" column="0">
+          <widget class="QRadioButton" name="zButton">
+           <property name="text">
+            <string>Z</string>
+           </property>
+           <attribute name="buttonGroup">
+            <string notr="true">rotation</string>
+           </attribute>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QRadioButton" name="yButton">
+           <property name="text">
+            <string>Y</string>
+           </property>
+           <attribute name="buttonGroup">
+            <string notr="true">rotation</string>
+           </attribute>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="label_7">
+           <property name="font">
+            <font>
+             <pointsize>7</pointsize>
+             <weight>75</weight>
+             <bold>true</bold>
+            </font>
+           </property>
+           <property name="text">
+            <string>Rotate</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </widget>
      </widget>
@@ -948,4 +1054,7 @@
    <bool>true</bool>
   </property>
  </designerdata>
+ <buttongroups>
+  <buttongroup name="rotation"/>
+ </buttongroups>
 </ui>
