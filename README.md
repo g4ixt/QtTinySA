@@ -23,7 +23,7 @@ There is limited error trapping.  The 3D spectrum is primitive and can crash the
 
 Working Features:
 
-Trace updates as tinySA scans
+Trace updates as tinySA scans  
 LNA on/off  
 SPUR auto/off  
 Scan points selectable between 100 and 3,500.  
@@ -43,5 +43,5 @@ The 3D spectrum can be enabled/disabled on its tab page.  Disabled by default.
 
 To do:  
 
-Learn how to use the height colour shader for the 3D spectrum properly, with the height colour shader.
+Learn how to use the height colour shader for the 3D spectrum properly, with the height colour shader.  
 Build an executable.
