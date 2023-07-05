@@ -23,7 +23,7 @@ import logging
 import numpy as np
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import pyqtSlot, pyqtSignal, QRunnable, QObject, QThreadPool
-from PyQt5.QtWidgets import QMessageBox, QFileDialog
+from PyQt5.QtWidgets import QMessageBox
 import pyqtgraph
 import QtTinySpectrum  # the GUI
 import struct
@@ -31,9 +31,8 @@ import serial
 from serial.tools import list_ports
 
 #  For 3D
-from pyqtgraph.Qt import QtCore, QtGui
 import pyqtgraph.opengl as pyqtgl
-#  3D
+
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 
@@ -191,27 +190,24 @@ class analyser:
             self.updateTimeSpectrum()
 
     def createTimeSpectrum(self):
-        # x = self.frequencies / 1e7
-        # x=blue, time.  y=yellow, freqs, z=green dBm
+        # x=time y=freqs z=dBm
         x = np.arange(start=0, stop=self.scanMemory, step=1)  # this is the time axis depth
         y = np.arange(start=0, stop=self.points)
         z = self.sweepresults
         logging.debug(f'z = {z}')
         self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='normalColor', computeNormals=True, smooth=False)
-        self.p2.translate(self.scanMemory, -self.points/2, 0)
-        # self.p2.setDepthValue(-150)
-        self.p2.scale(0.23, 0.05, 0.05, local=False)
-        self.p2.translate(-0.3*self.scanMemory, 0, 0)
+        # self.p2.shader()['colorMap'] = np.array([0.01, 40, 0.5, 0.01, 40, 1, 0.01, 40, 2])
+        self.p2.translate(-0.7*self.scanMemory, -self.points/2, -self.points/3)
+        self.p2.scale(self.points/2000, 0.05, 0.05, local=False)
         self.p2.rotate(45, 0, 0, 1)
         ui.openGLWidget.addItem(self.p2)
 
-
-        # pyqtgraph settings for 3D spectrum
         # Add a grid to the 3D view
         g = pyqtgl.GLGridItem()
-        g.scale(0.4, 0.4, 0.4)
-        g.rotate(90, 1, 0, 0)
+        g.scale(0.5, 0.5, 0.5)
         g.rotate(-45, 0, 0, 1)
+        g.translate(0, 0, 0)
+        g.setSpacing(0.5, 0.5, 0.5)
         ui.openGLWidget.addItem(g)
 
     def updateTimeSpectrum(self):
@@ -230,6 +226,7 @@ class analyser:
         self.serialSend(resume_command)
 
     def initialise(self):
+        # self.getport()
         if self.version().startswith('tinySA4'):
             self.tinySA4 = True
         else:
@@ -253,6 +250,7 @@ class analyser:
         command = 'version\r'.encode()
         version = self.serialQuery(command)
         return version
+
 
 class display:
     def __init__(self, name, pen):
@@ -542,7 +540,8 @@ def activeButtons(tF):
 ###############################################################################
 # Instantiate classes
 
-tinySA = analyser(getport())
+# tinySA = analyser(getport())
+tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 window = QtWidgets.QMainWindow()
