@@ -1,10 +1,10 @@
 # QtTinySA
 
-A Python TinySA Ultra GUI programme using Qt5 and PyQt5 designed to run in Linux.
+A Python TinySA Ultra GUI programme using Qt5 and PyQt5 designed to run in Linux.  Should also now work with the original TinySA.
 
 This code attempts to replicate some of the TinySA Ultra on-screen commands on the PC.  Generator control seemed pointless so I have not added it.
 Development took place on Kubuntu 22.04LTS with Python 3.9 and PyQt5 using Spyder in Anaconda.
-Not tested in any version of Windows.
+Not tested in any version of Windows or Mac but it should work on both.
 
 'TinySA' and 'TinySA Ultra' are trademarks of Erik Kaashoek and are used with his permission.
 
@@ -23,20 +23,25 @@ There is limited error trapping.  The 3D spectrum is primitive and can crash the
 
 Working Features:
 
+Trace updates as tinySA scans
 LNA on/off  
 SPUR auto/off  
-Theoretically unlimited points, but I have set the maximum to 15,400 for no particular reason.  
+Scan points selectable between 100 and 3,500.  
 RBW control  
 4 different colour traces, all can be turned on/off and set to average, max hold or min hold  
 Selectable averaging  
+Selectable memory depth.  
 Amateur band frequency selection  
 Start/stop frequency selection  
-4 markers.  Each trace has 1 marker associated with it. Markers can be set to normal, delta, or one of the four largest peaks.  
+4 markers.  Each trace has 1 marker associated with it. Markers can be set to normal, delta, or one of the four largest peaks
+with a selectable threshold.  
 The selected marker(s) can be set to sweep start frequency with a button, or can be draggged to any desired frequency.  
 All standard pyqtgraph features, selectable by right-click on the graph display, including:  
     Export as CSV, HDF5, Image file of various types, Matplotlib window, SVG  
 3D spectrum with measurements over time represented as a surface plot.  Can be clicked/zoomed/dragged/rotated using the mouse.  
+The 3D spectrum can be enabled/disabled on its tab page.  Disabled by default.  
 
 To do:  
 
-Learn how to do the 3D spectrum properly, with the height colour shader, control over the display and some references on the axes.
+Learn how to use the height colour shader for the 3D spectrum properly, with the height colour shader.
+Build an executable.
