@@ -151,8 +151,8 @@ class analyser:
         self.threadrunning = True
         while self.sweeping:
             with serial.Serial(self.dev, baudrate=3000000) as serialPort:  # baudrate does nothing for USB cnx
-                #serialPort.timeout = self.timeout
-                serialPort.timeout = 5  # test
+                serialPort.timeout = self.timeout
+                #  serialPort.timeout = 5  # test
                 scan_command = f'scanraw {int(f_low)} {int(f_high)} {int(self.points)}\r'.encode()
                 serialPort.write(scan_command)
                 index = 0
@@ -175,7 +175,6 @@ class analyser:
             # store each sweep in an array with most recent at index 0
             self.sweepresults = np.roll(self.sweepresults, 1, axis=0)
         self.threadrunning = False
-
 
     def sigProcess(self, signaldBm):  # signaldBm is emitted from the worker thread
         signalAvg = np.average(signaldBm[:ui.avgSlider.value(), ::], axis=0)
