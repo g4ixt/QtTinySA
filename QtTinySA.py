@@ -359,6 +359,7 @@ def scan():
         tinySA.sweeping = False  # tells the measurement thread to stop once current scan complete
         ui.scan_button.setEnabled(False)  # prevent repeat presses of 'stop'
         while tinySA.threadrunning:
+            app.processEvents()  # keep updating the trace until the scan ends
             time.sleep(0.1)  # wait until the measurement thread stops using the serial comms
         ui.scan_button.setEnabled(True)
         activeButtons(True)
@@ -534,6 +535,7 @@ def activeButtons(tF):
     ui.start_freq.setEnabled(tF)
     ui.stop_freq.setEnabled(tF)
     ui.memSlider.setEnabled(tF)
+    ui.Enabled3D.setEnabled(tF)
 
 
 ###############################################################################
