@@ -36,6 +36,7 @@ import pyqtgraph.opengl as pyqtgl
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 
+
 threadpool = QThreadPool()
 
 # TinySA Ultra hardware ID
@@ -160,9 +161,11 @@ class analyser:
                 dataBlock = ''
                 self.sweepresults[0] = self.sweepresults[1]  # populate each sweep with previous sweep as starting point
                 while dataBlock != b'}ch':  # if dataBlock is '}ch' it's reached the end of the scan points
+                    self.runTimer.start()
                     dataBlock = (serialPort.read(3))  # read a block of 3 bytes of data
                     logging.debug(f'dataBlock: {dataBlock}\n')
                     if dataBlock != b'}ch':
+                        logging.info(f'index {index} elapsed time = {self.runTimer.nsecsElapsed()/1e6}')
                         c, data = struct.unpack('<' + 'cH', dataBlock)
                         dBm_power = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
                         # write each measurement into sweepresults and emit
