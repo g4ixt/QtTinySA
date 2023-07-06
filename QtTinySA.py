@@ -151,8 +151,8 @@ class analyser:
         self.threadrunning = True
         while self.sweeping:
             with serial.Serial(self.dev, baudrate=3000000) as serialPort:  # baudrate does nothing for USB cnx
-                #serialPort.timeout = self.timeout
-                serialPort.timeout = 5  # test
+                serialPort.timeout = self.timeout
+                #  serialPort.timeout = 5  # test
                 scan_command = f'scanraw {int(f_low)} {int(f_high)} {int(self.points)}\r'.encode()
                 serialPort.write(scan_command)
                 index = 0
