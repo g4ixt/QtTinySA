@@ -76,6 +76,7 @@ class analyser:
         self.runTimer = QtCore.QElapsedTimer()
         self.scale = 174
         self.scanMemory = 50
+        self.scan3D = False
 
     @property
     def frequencies(self):
@@ -96,7 +97,6 @@ class analyser:
             SA.timeout = 1
             logging.debug(command)
             SA.write(command)
-
             SA.read_until(b'ch> ')  # skip command echo and prompt
 
     def serialQuery(self, command):
@@ -105,7 +105,6 @@ class analyser:
             SA.timeout = 1
             logging.debug(command)
             SA.write(command)
-
             SA.read_until(command + b'\n')  # skip command echo
             response = SA.read_until(b'ch> ')
             logging.debug(response)
@@ -161,16 +160,17 @@ class analyser:
                 dataBlock = ''
                 self.sweepresults[0] = self.sweepresults[1]  # populate each sweep with previous sweep as starting point
                 while dataBlock != b'}ch':  # if dataBlock is '}ch' it's reached the end of the scan points
-                    self.runTimer.start()
                     dataBlock = (serialPort.read(3))  # read a block of 3 bytes of data
                     logging.debug(f'dataBlock: {dataBlock}\n')
                     if dataBlock != b'}ch':
-                        logging.info(f'index {index} elapsed time = {self.runTimer.nsecsElapsed()/1e6}')
+                        logging.debug(f'index {index} elapsed time = {self.runTimer.nsecsElapsed()/1e6}')
                         c, data = struct.unpack('<' + 'cH', dataBlock)
                         dBm_power = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
                         # write each measurement into sweepresults and emit
                         self.sweepresults[0, index] = dBm_power
-                        if index // 20 == index / 20 or index == (self.points - 1):
+                        if self.scan3D and (index // 20 == index / 20 or index == (self.points - 1)):
+                            self.signals.result.emit(self.sweepresults)
+                        else:
                             self.signals.result.emit(self.sweepresults)
                         index += 1
                     logging.debug(f'level = {dBm_power}dBm')
@@ -198,7 +198,7 @@ class analyser:
         z = self.sweepresults
         logging.debug(f'z = {z}')
         self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='normalColor', computeNormals=True, smooth=False)
-        # self.p2.shader()['colorMap'] = np.array([0.01, 40, 0.5, 0.01, 40, 1, 0.01, 40, 2])
+        # self.p2.shader()['colorMap'] = np.array([20, -100, 0.5, -100, 1, 1, 0.2, -100, 2])
         self.p2.translate(-0.7*self.scanMemory, -self.points/2, -self.points/3)
         self.p2.scale(self.points/2000, 0.05, 0.05, local=False)
         self.p2.rotate(45, 0, 0, 1)
@@ -358,6 +358,7 @@ def getport() -> str:
 
 
 def scan():
+    tinySA.scan3D = ui.Enabled3D.isChecked()
     if tinySA.sweeping:  # if it's running, stop it
         tinySA.sweeping = False  # tells the measurement thread to stop once current scan complete
         ui.scan_button.setEnabled(False)  # prevent repeat presses of 'stop'
