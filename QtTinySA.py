@@ -133,19 +133,23 @@ class analyser:
 
     def sweepTimeout(self, f_low, f_high):  # freqs are in Hz
         if self.rbw == 'auto':
-            rbw = (f_high / 1e3 - f_low / 1e3) / self.points  # rbw equal to freq step size in kHz
+            # rbw auto setting from tinySA: ~7 kHz per 1 MHz scan frequency span
+            rbw = (f_high - f_low) * 7e-6
         else:
             rbw = float(self.rbw)
-
-        if rbw < 0.2:  # change this to something more fancy
-            rbw = 0.2
-        elif rbw > 850:
-            rbw = 850
-
+        # lower / upper limit
+        if rbw < float(resBW[1]):
+            rbw = float(resBW[1])
+        elif rbw > float(resBW[-1]):
+            rbw = float(resBW[-1])
         # timeout can be very long - use a heuristic approach
-        timeout = int(((f_high - f_low) / 1e3) / (rbw ** 2) + self.points / 1e3) + 5
-        self.timeout = timeout
-        logging.debug(f'sweepTimeout = {self.timeout}')
+        # 1st summand is the scanning time, 2nd summand is the USB transfer overhead
+        timeout = ((f_high - f_low) / 20e3) / (rbw ** 2) + self.points / 500
+        if self.spur_auto and f_high > 8 * 1e8:  # scan time doubles in Ultra mode with spur removal
+            timeout *= 2
+        # transfer is done in blocks of 20 points, this is the timeout for one block
+        self.timeout = timeout * 20 / self.points + 1  # minimum is 1 second
+        logging.info(f'sweepTimeout = {self.timeout} s')
 
     def measurement(self, f_low, f_high):  # runs in a separate thread
         self.threadrunning = True
@@ -165,16 +169,15 @@ class analyser:
                     if dataBlock != b'}ch':
                         logging.debug(f'index {index} elapsed time = {self.runTimer.nsecsElapsed()/1e6}')
                         c, data = struct.unpack('<' + 'cH', dataBlock)
+                        logging.debug(f'dataBlock: {dataBlock} data: {data}\n')
                         dBm_power = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
                         # write each measurement into sweepresults and emit
                         self.sweepresults[0, index] = dBm_power
-                        if self.scan3D and (index // 20 == index / 20 or index == (self.points - 1)):
-                            self.signals.result.emit(self.sweepresults)
-                        else:
+                        if index // 20 == index / 20 or index == (self.points - 1):
                             self.signals.result.emit(self.sweepresults)
                         index += 1
                     logging.debug(f'level = {dBm_power}dBm')
-                null = (serialPort.read(2))  # discard the command prompt
+                serialPort.read(2)  # discard the command prompt
             # store each sweep in an array with most recent at index 0
             self.sweepresults = np.roll(self.sweepresults, 1, axis=0)
         self.threadrunning = False
@@ -228,7 +231,7 @@ class analyser:
         self.serialSend(resume_command)
 
     def initialise(self):
-        # self.getport()
+        logging.info(f'version = {self.version()}')
         if self.version().startswith('tinySA4'):
             self.tinySA4 = True
         else:
