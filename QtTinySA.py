@@ -33,24 +33,8 @@ from serial.tools import list_ports
 #  For 3D
 import pyqtgraph.opengl as pyqtgl
 
-
 logging.basicConfig(format="%(message)s", level=logging.INFO)
-
-
 threadpool = QThreadPool()
-
-# TinySA Ultra hardware ID
-VID = 0x0483  # 1155
-PID = 0x5740  # 22336
-
-# amateur frequency band values (plus VHF radio)
-fBandStart = [1.8, 3.5, 7.0, 10.1, 14.0, 18.068, 21.0, 24.89, 28.0,
-              50.0, 70.0, 87.5, 144.0, 430.0, 1240, 2300, 2390, 3300, 5650]
-fBandStop = [2.0, 3.8, 7.1, 10.15, 14.35, 18.168, 21.45, 24.99, 29.7,
-             52.0, 70.5, 108.0, 146.0, 440.0, 1325, 2310, 2450, 3500, 5925]
-
-# TinySA Ultra resolution bandwidth filters in kHz
-resBW = ['0.2', '1', '3', '10', '30', '100', '300', '600', '850']
 
 # pyqtgraph pens
 red = pyqtgraph.mkPen(color='r', width=1.0)
@@ -65,8 +49,9 @@ blue_dash = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
 
 
 class analyser:
-    def __init__(self, dev=None):
-        self.dev = getport()
+    def __init__(self):
+        # self.dev = getport()
+        self.dev = None
         self._frequencies = None
         self.sweeping = False
         self.signals = WorkerSignals()
@@ -82,6 +67,63 @@ class analyser:
     def frequencies(self):
         # what does this do?
         return self._frequencies
+
+    def initialise(self):
+        # Get tinysa device automatically using hardware ID
+        VID = 0x0483  # 1155
+        PID = 0x5740  # 22336
+        try:
+            device_list = list_ports.comports()
+        except serial.SerialException:
+            logging.info('serial port exception')
+        for x in device_list:
+            if x.vid == VID and x.pid == PID:
+                self.dev = x.device
+        if self.dev is None:
+            popUp('TinySA not found', 'ok')
+            return
+
+        # amateur frequency band values (plus VHF radio)
+        self.fBandStart = [1.8, 3.5, 7.0, 10.1, 14.0, 18.068, 21.0, 24.89, 28.0,
+                           50.0, 70.0, 87.5, 144.0, 430.0, 1240, 2300, 2390, 3300, 5650]
+        self.fBandStop = [2.0, 3.8, 7.1, 10.15, 14.35, 18.168, 21.45, 24.99, 29.7,
+                          52.0, 70.5, 108.0, 146.0, 440.0, 1325, 2310, 2450, 3500, 5925]
+
+        # TinySA Ultra resolution bandwidth filters in kHz
+        self.resBW = ['0.2', '1', '3', '10', '30', '100', '300', '600', '850']
+
+        hardware = self.version()
+        logging.info(f'version = {hardware}')
+        if hardware[:7] == 'tinySA4':  # It's an Ultra
+            self.tinySA4 = True
+        else:
+            self.tinySA4 = False
+            self.scale = 128
+            self.fBandStart = self.fBandStart[:13]  # Original TinySA has a smaller frequency band range
+            self.fBandStop = self.fBandStop[:13]
+            self.resBW = self.resBW[2:8]  # Original TinySA has fewer resolution bandwidth filters
+
+        # set the frequency band & rbw comboboxes to suit detected hardware
+        bands = list(map(str, self.fBandStart))  # convert start freq float list to string list for GUI combobox
+        bands = [freq for freq in bands]
+        bands.insert(0, 'Band')
+        self.resBW.insert(0, 'auto')
+        ui.rbw_box.addItems(self.resBW)
+        ui.band_box.addItems(bands)
+
+        # set spur removal to Auto and LNA Off as starting values
+        command = 'spur auto\r'.encode()
+        tinySA.serialSend(command)
+        self.spur_auto = True
+        command = 'lna off\r'.encode()
+        tinySA.serialSend(command)
+        self.lna_on = False
+
+        # show hardware information in GUI
+        ui.battery.setText(self.battery())
+        ui.version.setText(hardware)
+
+        S1.trace.show()
 
     def startMeasurement(self, startF, stopF):
         self.sweep = Worker(self.measurement, startF, stopF)  # workers are auto-deleted when thread stops
@@ -138,10 +180,10 @@ class analyser:
         else:
             rbw = float(self.rbw)
         # lower / upper limit
-        if rbw < float(resBW[1]):
-            rbw = float(resBW[1])
-        elif rbw > float(resBW[-1]):
-            rbw = float(resBW[-1])
+        if rbw < float(self.resBW[1]):
+            rbw = float(self.resBW[1])
+        elif rbw > float(self.resBW[-1]):
+            rbw = float(self.resBW[-1])
         # timeout can be very long - use a heuristic approach
         # 1st summand is the scanning time, 2nd summand is the USB transfer overhead
         timeout = ((f_high - f_low) / 20e3) / (rbw ** 2) + self.points / 500
@@ -156,7 +198,6 @@ class analyser:
         while self.sweeping:
             with serial.Serial(self.dev, baudrate=3000000) as serialPort:  # baudrate does nothing for USB cnx
                 serialPort.timeout = self.timeout
-                #  serialPort.timeout = 5  # test
                 scan_command = f'scanraw {int(f_low)} {int(f_high)} {int(self.points)}\r'.encode()
                 serialPort.write(scan_command)
                 index = 0
@@ -191,10 +232,10 @@ class analyser:
         S2.updateGUI(options.get(S2.traceType))
         S3.updateGUI(options.get(S3.traceType))
         S4.updateGUI(options.get(S4.traceType))
-        if ui.Enabled3D.isChecked():
+        if ui.Enabled3D.isChecked():  # change this so that it only updates 3D once per sweep, for performance reasons
             self.updateTimeSpectrum()
 
-    def createTimeSpectrum(self):
+    def createTimeSpectrum(self):  # To Do: move this into 'display' class
         # x=time y=freqs z=dBm
         x = np.arange(start=0, stop=self.scanMemory, step=1)  # this is the time axis depth
         y = np.arange(start=0, stop=self.points)
@@ -215,7 +256,7 @@ class analyser:
         g.setSpacing(0.5, 0.5, 0.5)
         ui.openGLWidget.addItem(g)
 
-    def updateTimeSpectrum(self):
+    def updateTimeSpectrum(self):  # To Do: move this into 'display' class
         z = self.sweepresults
         logging.debug(f'z = {z}')
         self.p2.setData(z=z)
@@ -229,22 +270,6 @@ class analyser:
         # resumes the sweeping in either input or output mode
         resume_command = 'resume\r'.encode()
         self.serialSend(resume_command)
-
-    def initialise(self):
-        logging.info(f'version = {self.version()}')
-        if self.version().startswith('tinySA4'):
-            self.tinySA4 = True
-        else:
-            self.tinySA4 = False
-            self.scale = 128
-        command = 'spur auto\r'.encode()
-        tinySA.serialSend(command)
-        self.spur_auto = True
-        command = 'lna off\r'.encode()
-        tinySA.serialSend(command)
-        self.lna_on = False
-        ui.battery.setText(self.battery())
-        ui.version.setText(self.version())
 
     def battery(self):
         command = 'vbat\r'.encode()
@@ -266,7 +291,7 @@ class display:
         self.vline = ui.graphWidget.addLine(88, 90, movable=True, name=name, pen=pyqtgraph.mkPen('g', width=0.5, style=QtCore.Qt.DashLine), label="{value:.2f}")
         self.vline.hide()
         self.fIndex = 0  # index of current marker freq in frequencies array
-        self.dIndex = 0
+        self.dIndex = 0  # the difference between this marker and reference marker 1
 
     def setDiscrete(self):
         # update marker to discrete freq point nearest, if it's within the sweep range
@@ -348,49 +373,44 @@ class Worker(QRunnable):
 ###############################################################################
 # other methods
 
-# Get tinysa device automatically
-def getport() -> str:
-    try:
-        device_list = list_ports.comports()
-    except serial.SerialException:
-        logging.info('serial port exception')
-    for x in device_list:
-        if x.vid == VID and x.pid == PID:
-            return x.device
-    raise OSError("TinySA not found")
-
-
 def scan():
     tinySA.scan3D = ui.Enabled3D.isChecked()
-    if tinySA.sweeping:  # if it's running, stop it
-        tinySA.sweeping = False  # tells the measurement thread to stop once current scan complete
-        ui.scan_button.setEnabled(False)  # prevent repeat presses of 'stop'
-        while tinySA.threadrunning:
-            app.processEvents()  # keep updating the trace until the scan ends
-            time.sleep(0.1)  # wait until the measurement thread stops using the serial comms
-        ui.scan_button.setEnabled(True)
-        activeButtons(True)
-        ui.scan_button.setText('Run')  # toggle the 'Stop' button text
-        ui.battery.setText(tinySA.battery())
-        tinySA.resume()
-        if ui.atten_auto.isChecked():
-            ui.atten_box.setEnabled(False)
+    if tinySA.dev is None:
+        tinySA.initialise()
+    if tinySA.dev is not None:
+        if tinySA.sweeping:  # if it's running, stop it
+            tinySA.sweeping = False  # tells the measurement thread to stop once current scan complete
+            ui.scan_button.setEnabled(False)  # prevent repeat presses of 'stop'
+            while tinySA.threadrunning:
+                app.processEvents()  # keep updating the trace until the scan ends
+                time.sleep(0.1)  # wait until the measurement thread stops using the serial comms
+            ui.scan_button.setEnabled(True)
+            activeButtons(True)
+            ui.scan_button.setText('Run')  # toggle the 'Stop' button text
+            ui.battery.setText(tinySA.battery())
+            tinySA.resume()
+            if ui.atten_auto.isChecked():
+                ui.atten_box.setEnabled(False)
+            else:
+                ui.atten_box.setEnabled(True)
         else:
-            ui.atten_box.setEnabled(True)
-    else:
-        tinySA.pause()
-        startF = ui.start_freq.value()*1e6
-        stopF = ui.stop_freq.value()*1e6
-        points = ui.points_box.value()
-        tinySA.set_frequencies(startF, stopF, points)
-        tinySA.clearBuffer()
-        tinySA.setRBW()  # fetches rbw value from the GUI combobox and sends it to TinySA
-        tinySA.sweepTimeout(startF, stopF)
-        activeButtons(False)
-        ui.scan_button.setText('Stop')  # toggle the 'Run' button text
-        ui.battery.setText(tinySA.battery())
-        app.processEvents()
-        tinySA.startMeasurement(startF, stopF)  # runs measurement in separate thread
+            try:
+                tinySA.pause()
+                startF = ui.start_freq.value()*1e6
+                stopF = ui.stop_freq.value()*1e6
+                points = ui.points_box.value()
+                tinySA.set_frequencies(startF, stopF, points)
+                tinySA.clearBuffer()
+                tinySA.setRBW()  # fetches rbw value from the GUI combobox and sends it to TinySA
+                tinySA.sweepTimeout(startF, stopF)
+                activeButtons(False)
+                ui.scan_button.setText('Stop')  # toggle the 'Run' button text
+                ui.battery.setText(tinySA.battery())
+                app.processEvents()
+                tinySA.startMeasurement(startF, stopF)  # runs measurement in separate thread
+            except serial.SerialException:
+                popUp('TinySA not found', 'ok')
+                tinySA.dev = None
 
 
 def rbw_changed():
@@ -431,10 +451,10 @@ def band_changed():
         return
     else:
         index -= 1
-        start = fBandStart[index]
+        start = tinySA.fBandStart[index]
         ui.start_freq.setValue(start)
         start_freq_changed()
-        stop = fBandStop[index]
+        stop = tinySA.fBandStop[index]
         ui.stop_freq.setValue(stop)
         stop_freq_changed()
 
@@ -510,9 +530,10 @@ def memChanged():
 
 
 def exit_handler():
-    tinySA.sweeping = False
-    time.sleep(1)  # allow time for measurements to stop
-    tinySA.resume()
+    if tinySA.dev is not None:
+        tinySA.sweeping = False
+        time.sleep(1)  # allow time for measurements to stop
+        tinySA.resume()
     app.processEvents()
     logging.info('Closed')
 
@@ -548,7 +569,6 @@ def activeButtons(tF):
 ###############################################################################
 # Instantiate classes
 
-# tinySA = analyser(getport())
 tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
@@ -627,21 +647,9 @@ ui.memSlider.sliderMoved.connect(memChanged)
 ###############################################################################
 # set up the application
 
-tinySA.initialise()
-S1.trace.show()
-
-if not tinySA.tinySA4:  # Original TinySA has a smaller frequency band range and resolution bandwidth
-    fBandStart = fBandStart[:13]
-    fBandStop = fBandStop[:13]
-    resBW = resBW[2:8]
-bands = list(map(str, fBandStart))  # convert start freq float list to string list for GUI combobox
-bands = [freq for freq in bands]
-bands.insert(0, 'Band')
-resBW.insert(0, 'auto')
-ui.rbw_box.addItems(resBW)
+# S1.trace.show()
 
 ui.vbw_box.addItems(['auto'])
-ui.band_box.addItems(bands)
 ui.t1_type.addItems(['Normal', 'Average', 'Max', 'Min'])
 ui.t2_type.addItems(['Normal', 'Average', 'Max', 'Min'])
 ui.t3_type.addItems(['Normal', 'Average', 'Max', 'Min'])
