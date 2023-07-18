@@ -514,7 +514,7 @@ class Ui_MainWindow(object):
         self.label_2.setText(_translate("MainWindow", "Points"))
         self.label_8.setText(_translate("MainWindow", "Averaging"))
         self.label.setText(_translate("MainWindow", "Scan Memory Size"))
-        self.version.setText(_translate("MainWindow", "Version"))
+        self.version.setText(_translate("MainWindow", "Not Connected"))
         self.spur_button.setText(_translate("MainWindow", "SPUR auto"))
         self.trace1.setText(_translate("MainWindow", "T1"))
         self.marker3.setText(_translate("MainWindow", "M3"))
