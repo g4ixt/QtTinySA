@@ -68,7 +68,7 @@ class analyser:
         # what does this do?
         return self._frequencies
 
-    def initialise(self):
+    def initialise(self, doPopUp=True):
         # Get tinysa device automatically using hardware ID
         VID = 0x0483  # 1155
         PID = 0x5740  # 22336
@@ -80,7 +80,9 @@ class analyser:
             if x.vid == VID and x.pid == PID:
                 self.dev = x.device
         if self.dev is None:
-            popUp('TinySA not found', 'ok')
+            ui.version.setText('Not Connected')
+            if doPopUp:
+                popUp('TinySA not found', 'ok')
             return
 
         # amateur frequency band values (plus VHF radio)
@@ -92,16 +94,24 @@ class analyser:
         # TinySA Ultra resolution bandwidth filters in kHz
         self.resBW = ['0.2', '1', '3', '10', '30', '100', '300', '600', '850']
 
+        self.spurModes = ['off', 'on', 'auto']
+        self.spurIndex = 0
+
         hardware = self.version()
         logging.info(f'version = {hardware}')
         if hardware[:7] == 'tinySA4':  # It's an Ultra
             self.tinySA4 = True
+            self.spurIndex = 2
         else:
             self.tinySA4 = False
             self.scale = 128
             self.fBandStart = self.fBandStart[:13]  # Original TinySA has a smaller frequency band range
             self.fBandStop = self.fBandStop[:13]
             self.resBW = self.resBW[2:8]  # Original TinySA has fewer resolution bandwidth filters
+            self.spurModes = self.spurModes[:2] # only spur modes 'off' and 'on'
+            ui.lna_button.setEnabled(False)
+            ui.vbw_label.setEnabled(False)
+            ui.vbw_box.setEnabled(False)
 
         # set the frequency band & rbw comboboxes to suit detected hardware
         bands = list(map(str, self.fBandStart))  # convert start freq float list to string list for GUI combobox
@@ -112,9 +122,9 @@ class analyser:
         ui.band_box.addItems(bands)
 
         # set spur removal to Auto and LNA Off as starting values
-        command = 'spur auto\r'.encode()
+        command = f'spur {self.spurModes[self.spurIndex]}\r'.encode()
         tinySA.serialSend(command)
-        self.spur_auto = True
+        ui.spur_button.setText(f'SPUR {self.spurModes[self.spurIndex]}')
         command = 'lna off\r'.encode()
         tinySA.serialSend(command)
         self.lna_on = False
@@ -187,7 +197,7 @@ class analyser:
         # timeout can be very long - use a heuristic approach
         # 1st summand is the scanning time, 2nd summand is the USB transfer overhead
         timeout = ((f_high - f_low) / 20e3) / (rbw ** 2) + self.points / 500
-        if self.spur_auto and f_high > 8 * 1e8:  # scan time doubles in Ultra mode with spur removal
+        if self.spurIndex == 1 or (self.spurIndex == 2 and f_high > 8 * 1e8):  # scan time doubles with spur removal
             timeout *= 2
         # transfer is done in blocks of 20 points, this is the timeout for one block
         self.timeout = timeout * 20 / self.points + 1  # minimum is 1 second
@@ -381,6 +391,7 @@ def scan():
         if tinySA.sweeping:  # if it's running, stop it
             tinySA.sweeping = False  # tells the measurement thread to stop once current scan complete
             ui.scan_button.setEnabled(False)  # prevent repeat presses of 'stop'
+            ui.scan_button.setText('Stopping ...')  # toggle the 'Run' button text
             while tinySA.threadrunning:
                 app.processEvents()  # keep updating the trace until the scan ends
                 time.sleep(0.1)  # wait until the measurement thread stops using the serial comms
@@ -409,8 +420,8 @@ def scan():
                 app.processEvents()
                 tinySA.startMeasurement(startF, stopF)  # runs measurement in separate thread
             except serial.SerialException:
-                popUp('TinySA not found', 'ok')
                 tinySA.dev = None
+                tinySA.initialise()
 
 
 def rbw_changed():
@@ -471,15 +482,11 @@ def attenuate_changed():  # lna and attenuator are switched so mutually exclusiv
 
 
 def spur():
-    if tinySA.spur_auto:
-        command = 'spur off\r'.encode()
-        tinySA.spur_auto = False
-        ui.spur_button.setText('SPUR off')
-    else:
-        command = 'spur auto\r'.encode()
-        tinySA.spur_auto = True
-        ui.spur_button.setText('SPUR auto')
-    tinySA.serialSend(command)
+    tinySA.spurIndex += 1
+    if tinySA.spurIndex >= len(tinySA.spurModes):
+        tinySA.spurIndex = 0
+    tinySA.serialSend(f'spur {tinySA.spurModes[tinySA.spurIndex]}\r'.encode())
+    ui.spur_button.setText(f'SPUR {tinySA.spurModes[tinySA.spurIndex]}')
 
 
 def lna():  # lna and attenuator are switched so mutually exclusive. To do: add code for this
@@ -555,9 +562,9 @@ def activeButtons(tF):
     ui.atten_box.setEnabled(tF)
     ui.atten_auto.setEnabled(tF)
     ui.spur_button.setEnabled(tF)
-    ui.lna_button.setEnabled(tF)
+    ui.lna_button.setEnabled(tF and tinySA.tinySA4)
     ui.rbw_box.setEnabled(tF)
-    ui.vbw_box.setEnabled(tF)
+    ui.vbw_box.setEnabled(tF and tinySA.tinySA4)
     ui.points_box.setEnabled(tF)
     ui.band_box.setEnabled(tF)
     ui.start_freq.setEnabled(tF)
@@ -660,6 +667,8 @@ ui.m1_type.addItems(['Normal', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])  # Marker 1 
 ui.m2_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 ui.m3_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 ui.m4_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
+
+tinySA.initialise(False) # try to init, ignore failure
 
 window.show()
 
