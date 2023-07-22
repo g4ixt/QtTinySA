@@ -99,9 +99,11 @@ class analyser:
         else:
             self.tinySA4 = False
             self.scale = 128
-            self.fBandStart = self.fBandStart[:13]  # Original TinySA has a smaller frequency band range
+            self.fBandStart = self.fBandStart[:13]  # TinySA Basic has a smaller frequency band range
             self.fBandStop = self.fBandStop[:13]
-            self.resBW = self.resBW[2:8]  # Original TinySA has fewer resolution bandwidth filters
+            self.resBW = self.resBW[2:8]  # TinySA Basic has fewer resolution bandwidth filters
+            ui.spur_box.setTristate(False)  # TinySA Basic has no 'auto' setting for Spur'
+            ui.spur_box.setText('On')
 
         # set the frequency band & rbw comboboxes to suit detected hardware
         bands = list(map(str, self.fBandStart))  # convert start freq float list to string list for GUI combobox
@@ -482,6 +484,17 @@ def spur():
     tinySA.serialSend(command)
 
 
+def spur_box():
+    if tinySA.spur_auto:
+        command = 'spur off\r'.encode()
+        tinySA.spur_auto = False
+        ui.spur_button.setText('SPUR off')
+    else:
+        command = 'spur auto\r'.encode()
+        tinySA.spur_auto = True
+        ui.spur_button.setText('SPUR auto')
+    tinySA.serialSend(command)
+
 def lna():  # lna and attenuator are switched so mutually exclusive. To do: add code for this
     if tinySA.lna_on:
         command = 'lna off\r'.encode()
@@ -555,9 +568,9 @@ def activeButtons(tF):
     ui.atten_box.setEnabled(tF)
     ui.atten_auto.setEnabled(tF)
     ui.spur_button.setEnabled(tF)
-    ui.lna_button.setEnabled(tF)
+    ui.spur_box.setEnabled(tF)
+    ui.lna_box.setEnabled(tF)
     ui.rbw_box.setEnabled(tF)
-    ui.vbw_box.setEnabled(tF)
     ui.points_box.setEnabled(tF)
     ui.band_box.setEnabled(tF)
     ui.start_freq.setEnabled(tF)
@@ -647,9 +660,6 @@ ui.memSlider.sliderMoved.connect(memChanged)
 ###############################################################################
 # set up the application
 
-# S1.trace.show()
-
-ui.vbw_box.addItems(['auto'])
 ui.t1_type.addItems(['Normal', 'Average', 'Max', 'Min'])
 ui.t2_type.addItems(['Normal', 'Average', 'Max', 'Min'])
 ui.t3_type.addItems(['Normal', 'Average', 'Max', 'Min'])
