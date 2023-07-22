@@ -68,7 +68,7 @@ class analyser:
         # what does this do?
         return self._frequencies
 
-    def initialise(self):
+    def initialise(self, doPopUp=True):
         # Get tinysa device automatically using hardware ID
         VID = 0x0483  # 1155
         PID = 0x5740  # 22336
@@ -80,7 +80,9 @@ class analyser:
             if x.vid == VID and x.pid == PID:
                 self.dev = x.device
         if self.dev is None:
-            popUp('TinySA not found', 'ok')
+            ui.version.setText('Not Connected')
+            if doPopUp:
+                popUp('TinySA not found', 'ok')
             return
 
         # amateur frequency band values (plus VHF radio)
@@ -411,8 +413,8 @@ def scan():
                 app.processEvents()
                 tinySA.startMeasurement(startF, stopF)  # runs measurement in separate thread
             except serial.SerialException:
-                popUp('TinySA not found', 'ok')
                 tinySA.dev = None
+                tinySA.initialise()
 
 
 def rbw_changed():
@@ -568,8 +570,8 @@ def activeButtons(tF):
     ui.atten_box.setEnabled(tF)
     ui.atten_auto.setEnabled(tF)
     ui.spur_button.setEnabled(tF)
-    ui.spur_box.setEnabled(tF)
-    ui.lna_box.setEnabled(tF)
+#    ui.spur_box.setEnabled(tF)
+#    ui.lna_box.setEnabled(tF)
     ui.rbw_box.setEnabled(tF)
     ui.points_box.setEnabled(tF)
     ui.band_box.setEnabled(tF)
@@ -670,6 +672,8 @@ ui.m1_type.addItems(['Normal', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])  # Marker 1 
 ui.m2_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 ui.m3_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 ui.m4_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
+
+tinySA.initialise(False)  # try to init, ignore failure
 
 window.show()
 
