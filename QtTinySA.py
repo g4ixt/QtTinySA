@@ -95,17 +95,22 @@ class analyser:
         self.resBW = ['0.2', '1', '3', '10', '30', '100', '300', '600', '850']
 
         hardware = self.version()
+        # hardware = 'basic'
         logging.info(f'version = {hardware}')
         if hardware[:7] == 'tinySA4':  # It's an Ultra
             self.tinySA4 = True
+            ui.spur_box.setTristate(True)  # TinySA Ultra has 'auto', 'on' and 'off' setting for Spur
+            ui.spur_box.setCheckState(QtCore.Qt.PartiallyChecked)
+            self.spur(1)  # 1 = auto
         else:
             self.tinySA4 = False
             self.scale = 128
             self.fBandStart = self.fBandStart[:13]  # TinySA Basic has a smaller frequency band range
             self.fBandStop = self.fBandStop[:13]
             self.resBW = self.resBW[2:8]  # TinySA Basic has fewer resolution bandwidth filters
-            ui.spur_box.setTristate(False)  # TinySA Basic has no 'auto' setting for Spur'
-            ui.spur_box.setText('On')
+            ui.spur_box.setTristate(False)  # TinySA Basic has only 'on' and 'off' setting for Spur'
+            ui.spur_box.setChecked(True)
+            self.spur(2)  # 2 = on
 
         # set the frequency band & rbw comboboxes to suit detected hardware
         bands = list(map(str, self.fBandStart))  # convert start freq float list to string list for GUI combobox
@@ -115,10 +120,6 @@ class analyser:
         ui.rbw_box.addItems(self.resBW)
         ui.band_box.addItems(bands)
 
-        # set spur removal to Auto and LNA Off as starting values
-        command = 'spur auto\r'.encode()
-        tinySA.serialSend(command)
-        self.spur_auto = True
         command = 'lna off\r'.encode()
         tinySA.serialSend(command)
         self.lna_on = False
@@ -191,8 +192,8 @@ class analyser:
         # timeout can be very long - use a heuristic approach
         # 1st summand is the scanning time, 2nd summand is the USB transfer overhead
         timeout = ((f_high - f_low) / 20e3) / (rbw ** 2) + self.points / 500
-        if self.spur_auto and f_high > 8 * 1e8:  # scan time doubles in Ultra mode with spur removal
-            timeout *= 2
+        # if self.spur_auto and f_high > 8 * 1e8:  # scan time doubles in Ultra mode with spur removal
+        #     timeout *= 2
         # transfer is done in blocks of 20 points, this is the timeout for one block
         self.timeout = timeout * 20 / self.points + 1  # minimum is 1 second
         logging.info(f'sweepTimeout = {self.timeout} s')
@@ -284,6 +285,15 @@ class analyser:
         command = 'version\r'.encode()
         version = self.serialQuery(command)
         return version
+
+    def spur(self, sType=0):
+        options = {0: 'spur off\r'.encode(), 1: 'spur auto\r'.encode(), 2: 'spur on\r'.encode()}
+        command = options.get(sType)
+        tinySA.serialSend(command)
+        if sType == 1:
+            ui.spur_box.setText('Auto')
+        else:
+            ui.spur_box.setText('')
 
 
 class display:
@@ -475,28 +485,11 @@ def attenuate_changed():  # lna and attenuator are switched so mutually exclusiv
     tinySA.serialSend(command)
 
 
-def spur():
-    if tinySA.spur_auto:
-        command = 'spur off\r'.encode()
-        tinySA.spur_auto = False
-        ui.spur_button.setText('SPUR off')
-    else:
-        command = 'spur auto\r'.encode()
-        tinySA.spur_auto = True
-        ui.spur_button.setText('SPUR auto')
-    tinySA.serialSend(command)
-
-
 def spur_box():
-    if tinySA.spur_auto:
-        command = 'spur off\r'.encode()
-        tinySA.spur_auto = False
-        ui.spur_button.setText('SPUR off')
-    else:
-        command = 'spur auto\r'.encode()
-        tinySA.spur_auto = True
-        ui.spur_button.setText('SPUR auto')
-    tinySA.serialSend(command)
+    boxState = ui.spur_box.checkState()
+    logging.debug(f'spur_box state = {boxState}')
+    tinySA.spur(boxState)
+
 
 def lna():  # lna and attenuator are switched so mutually exclusive. To do: add code for this
     if tinySA.lna_on:
@@ -570,9 +563,8 @@ def activeButtons(tF):
     # disable/enable buttons that send commands to TinySA (Because Comms are in use if scanning)
     ui.atten_box.setEnabled(tF)
     ui.atten_auto.setEnabled(tF)
-    ui.spur_button.setEnabled(tF)
-#    ui.spur_box.setEnabled(tF)
-#    ui.lna_box.setEnabled(tF)
+    ui.spur_box.setEnabled(tF)
+    ui.lna_box.setEnabled(tF)
     ui.rbw_box.setEnabled(tF)
     ui.points_box.setEnabled(tF)
     ui.band_box.setEnabled(tF)
@@ -628,7 +620,8 @@ ui.atten_box.valueChanged.connect(attenuate_changed)
 ui.atten_auto.clicked.connect(attenuate_changed)
 ui.start_freq.editingFinished.connect(start_freq_changed)
 ui.stop_freq.editingFinished.connect(stop_freq_changed)
-ui.spur_button.clicked.connect(spur)
+# ui.spur_button.clicked.connect(spur)
+ui.spur_box.stateChanged.connect(spur_box)
 ui.lna_button.clicked.connect(lna)
 ui.band_box.currentTextChanged.connect(band_changed)
 

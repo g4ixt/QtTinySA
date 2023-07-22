@@ -49,132 +49,6 @@
        <layout class="QGridLayout" name="gridLayout">
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_3">
-          <item row="6" column="1">
-           <widget class="QComboBox" name="vbw_box">
-            <property name="enabled">
-             <bool>false</bool>
-            </property>
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-           </widget>
-          </item>
-          <item row="14" column="0" colspan="2">
-           <widget class="QSlider" name="memSlider">
-            <property name="minimum">
-             <number>1</number>
-            </property>
-            <property name="maximum">
-             <number>200</number>
-            </property>
-            <property name="value">
-             <number>50</number>
-            </property>
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="tickPosition">
-             <enum>QSlider::TicksAbove</enum>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="1">
-           <widget class="QSpinBox" name="atten_box">
-            <property name="enabled">
-             <bool>false</bool>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="readOnly">
-             <bool>false</bool>
-            </property>
-            <property name="suffix">
-             <string>dB</string>
-            </property>
-            <property name="minimum">
-             <number>0</number>
-            </property>
-            <property name="maximum">
-             <number>31</number>
-            </property>
-            <property name="value">
-             <number>0</number>
-            </property>
-           </widget>
-          </item>
-          <item row="5" column="0">
-           <widget class="QLabel" name="label_3">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>RBW kHz</string>
-            </property>
-           </widget>
-          </item>
-          <item row="8" column="1">
-           <widget class="QComboBox" name="t2_type">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-           </widget>
-          </item>
-          <item row="7" column="1">
-           <widget class="QComboBox" name="t1_type">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="1">
-           <widget class="QPushButton" name="lna_button">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="text">
-             <string>LNA off</string>
-            </property>
-           </widget>
-          </item>
           <item row="9" column="1">
            <widget class="QComboBox" name="t3_type">
             <property name="sizePolicy">
@@ -187,223 +61,6 @@
              <font>
               <pointsize>7</pointsize>
              </font>
-            </property>
-           </widget>
-          </item>
-          <item row="8" column="0">
-           <widget class="QCheckBox" name="trace2">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-             </font>
-            </property>
-            <property name="text">
-             <string>T2</string>
-            </property>
-            <property name="tristate">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="17" column="0">
-           <widget class="QLabel" name="label_6">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="text">
-             <string>Battery:</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="0">
-           <widget class="QCheckBox" name="atten_auto">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="text">
-             <string>Auto</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="10" column="0">
-           <widget class="QCheckBox" name="trace4">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-             </font>
-            </property>
-            <property name="text">
-             <string>T4</string>
-            </property>
-           </widget>
-          </item>
-          <item row="9" column="0">
-           <widget class="QCheckBox" name="trace3">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-             </font>
-            </property>
-            <property name="text">
-             <string>T3</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="0">
-           <widget class="QLabel" name="label_5">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Attenuate</string>
-            </property>
-           </widget>
-          </item>
-          <item row="17" column="1">
-           <widget class="QLabel" name="battery">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="text">
-             <string>Battery</string>
-            </property>
-           </widget>
-          </item>
-          <item row="6" column="0">
-           <widget class="QLabel" name="vbw_label">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>VBW</string>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="0">
-           <widget class="QLabel" name="label_2">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Points</string>
-            </property>
-           </widget>
-          </item>
-          <item row="10" column="1">
-           <widget class="QComboBox" name="t4_type">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-           </widget>
-          </item>
-          <item row="5" column="1">
-           <widget class="QComboBox" name="rbw_box">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="editable">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="11" column="0" colspan="2">
-           <widget class="QLabel" name="label_8">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Averaging</string>
-            </property>
-           </widget>
-          </item>
-          <item row="13" column="0" colspan="2">
-           <widget class="QLabel" name="label">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Scan Memory Size</string>
-            </property>
-           </widget>
-          </item>
-          <item row="16" column="0" colspan="2">
-           <widget class="QLabel" name="version">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="text">
-             <string>Not Connected</string>
             </property>
            </widget>
           </item>
@@ -420,15 +77,66 @@
             </property>
            </spacer>
           </item>
-          <item row="3" column="1">
-           <widget class="QPushButton" name="spur_button">
+          <item row="6" column="0" colspan="2">
+           <widget class="QLabel" name="label_10">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Trace Settings</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0" colspan="2">
+           <widget class="QLabel" name="label_5">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string> Attenuator Auto/Man</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="label_7">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Spur</string>
+            </property>
+           </widget>
+          </item>
+          <item row="8" column="1">
+           <widget class="QComboBox" name="t2_type">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="font">
              <font>
               <pointsize>7</pointsize>
              </font>
-            </property>
-            <property name="text">
-             <string>SPUR auto</string>
             </property>
            </widget>
           </item>
@@ -471,21 +179,186 @@
             </property>
            </widget>
           </item>
-          <item row="7" column="0">
-           <widget class="QCheckBox" name="trace1">
+          <item row="14" column="0" colspan="2">
+           <widget class="QSlider" name="memSlider">
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>200</number>
+            </property>
+            <property name="value">
+             <number>50</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="tickPosition">
+             <enum>QSlider::TicksAbove</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="1">
+           <widget class="QComboBox" name="t1_type">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="font">
              <font>
-              <pointsize>9</pointsize>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_4">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
              </font>
             </property>
             <property name="text">
-             <string>T1</string>
+             <string>LNA</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QCheckBox" name="spur_box">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string/>
             </property>
             <property name="checked">
              <bool>true</bool>
             </property>
             <property name="tristate">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="1">
+           <widget class="QComboBox" name="rbw_box">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="editable">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="10" column="0">
+           <widget class="QCheckBox" name="trace4">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>T4</string>
+            </property>
+           </widget>
+          </item>
+          <item row="11" column="0" colspan="2">
+           <widget class="QLabel" name="label_8">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>50</weight>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Trace Averaging</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QSpinBox" name="atten_box">
+            <property name="enabled">
              <bool>false</bool>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="readOnly">
+             <bool>false</bool>
+            </property>
+            <property name="suffix">
+             <string>dB</string>
+            </property>
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>31</number>
+            </property>
+            <property name="value">
+             <number>0</number>
+            </property>
+           </widget>
+          </item>
+          <item row="16" column="0" colspan="2">
+           <widget class="QLabel" name="version">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Not Connected</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QCheckBox" name="lna_box">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="13" column="0" colspan="2">
+           <widget class="QLabel" name="label">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Scan Memory Size</string>
             </property>
            </widget>
           </item>
@@ -510,6 +383,151 @@
             </property>
             <property name="value">
              <number>400</number>
+            </property>
+           </widget>
+          </item>
+          <item row="8" column="0">
+           <widget class="QCheckBox" name="trace2">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>T2</string>
+            </property>
+            <property name="tristate">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="0">
+           <widget class="QCheckBox" name="trace1">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>T1</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+            <property name="tristate">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="17" column="0">
+           <widget class="QLabel" name="label_6">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Battery:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="0">
+           <widget class="QLabel" name="label_2">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Points</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QCheckBox" name="atten_auto">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Auto</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="17" column="1">
+           <widget class="QLabel" name="battery">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Battery</string>
+            </property>
+           </widget>
+          </item>
+          <item row="10" column="1">
+           <widget class="QComboBox" name="t4_type">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="0">
+           <widget class="QLabel" name="label_3">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>RBW kHz</string>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="0">
+           <widget class="QCheckBox" name="trace3">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>T3</string>
             </property>
            </widget>
           </item>
@@ -826,6 +844,18 @@
             </property>
             <property name="value">
              <number>-90</number>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="11">
+           <widget class="QPushButton" name="lna_button">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>LNA off</string>
             </property>
            </widget>
           </item>
