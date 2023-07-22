@@ -385,6 +385,7 @@ def scan():
         if tinySA.sweeping:  # if it's running, stop it
             tinySA.sweeping = False  # tells the measurement thread to stop once current scan complete
             ui.scan_button.setEnabled(False)  # prevent repeat presses of 'stop'
+            ui.scan_button.setText('Stopping ...')  # highlight for slow scans
             while tinySA.threadrunning:
                 app.processEvents()  # keep updating the trace until the scan ends
                 time.sleep(0.1)  # wait until the measurement thread stops using the serial comms
