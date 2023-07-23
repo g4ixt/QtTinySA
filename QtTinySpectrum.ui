@@ -847,18 +847,6 @@
             </property>
            </widget>
           </item>
-          <item row="2" column="11">
-           <widget class="QPushButton" name="lna_button">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="text">
-             <string>LNA off</string>
-            </property>
-           </widget>
-          </item>
          </layout>
         </item>
        </layout>

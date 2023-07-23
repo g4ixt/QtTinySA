@@ -120,9 +120,7 @@ class analyser:
         ui.rbw_box.addItems(self.resBW)
         ui.band_box.addItems(bands)
 
-        command = 'lna off\r'.encode()
-        tinySA.serialSend(command)
-        self.lna_on = False
+        self.lna()  # LNA off at first run
 
         # show hardware information in GUI
         ui.battery.setText(self.battery())
@@ -192,8 +190,8 @@ class analyser:
         # timeout can be very long - use a heuristic approach
         # 1st summand is the scanning time, 2nd summand is the USB transfer overhead
         timeout = ((f_high - f_low) / 20e3) / (rbw ** 2) + self.points / 500
-        # if self.spur_auto and f_high > 8 * 1e8:  # scan time doubles in Ultra mode with spur removal
-        #     timeout *= 2
+        if ui.spur_box.checkState() != 0 and f_high > 8 * 1e8:  # scan time doubles with spur removal
+            timeout *= 2
         # transfer is done in blocks of 20 points, this is the timeout for one block
         self.timeout = timeout * 20 / self.points + 1  # minimum is 1 second
         logging.info(f'sweepTimeout = {self.timeout} s')
@@ -294,6 +292,19 @@ class analyser:
             ui.spur_box.setText('Auto')
         else:
             ui.spur_box.setText('')
+
+    def lna(self):
+        if ui.lna_box.isChecked():
+            command = 'lna on\r'.encode()
+            ui.atten_auto.setEnabled(False)  # attenuator and lna are switched so mutually exclusive
+            ui.atten_auto.setChecked(False)
+            ui.atten_box.setEnabled(False)
+            ui.atten_box.setValue(0)
+        else:
+            command = 'lna off\r'.encode()
+            ui.atten_auto.setEnabled(True)
+            ui.atten_auto.setChecked(True)
+        tinySA.serialSend(command)
 
 
 class display:
@@ -404,10 +415,6 @@ def scan():
             ui.scan_button.setText('Run')  # toggle the 'Stop' button text
             ui.battery.setText(tinySA.battery())
             tinySA.resume()
-            if ui.atten_auto.isChecked():
-                ui.atten_box.setEnabled(False)
-            else:
-                ui.atten_box.setEnabled(True)
         else:
             try:
                 tinySA.pause()
@@ -474,13 +481,14 @@ def band_changed():
         stop_freq_changed()
 
 
-def attenuate_changed():  # lna and attenuator are switched so mutually exclusive. To do: add code for this
+def attenuate_changed():
     atten = ui.atten_box.value()
     if ui.atten_auto.isChecked():
         atten = 'auto'
         ui.atten_box.setEnabled(False)
     else:
-        ui.atten_box.setEnabled(True)
+        if not ui.lna_box.isChecked():  # attenuator and lna are switched so mutually exclusive
+            ui.atten_box.setEnabled(True)
     command = f'attenuate {str(atten)}\r'.encode()
     tinySA.serialSend(command)
 
@@ -489,18 +497,6 @@ def spur_box():
     boxState = ui.spur_box.checkState()
     logging.debug(f'spur_box state = {boxState}')
     tinySA.spur(boxState)
-
-
-def lna():  # lna and attenuator are switched so mutually exclusive. To do: add code for this
-    if tinySA.lna_on:
-        command = 'lna off\r'.encode()
-        tinySA.lna_on = False
-        ui.lna_button.setText('LNA off')
-    else:
-        command = 'lna on\r'.encode()
-        tinySA.lna_on = True
-        ui.lna_button.setText('LNA on')
-    tinySA.serialSend(command)
 
 
 def markerToStart():
@@ -622,7 +618,7 @@ ui.start_freq.editingFinished.connect(start_freq_changed)
 ui.stop_freq.editingFinished.connect(stop_freq_changed)
 # ui.spur_button.clicked.connect(spur)
 ui.spur_box.stateChanged.connect(spur_box)
-ui.lna_button.clicked.connect(lna)
+ui.lna_box.stateChanged.connect(tinySA.lna)
 ui.band_box.currentTextChanged.connect(band_changed)
 
 S1.vline.sigPositionChanged.connect(mkr1_moved)
