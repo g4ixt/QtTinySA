@@ -110,6 +110,9 @@ class analyser:
             self.resBW = self.resBW[2:8]  # TinySA Basic has fewer resolution bandwidth filters
             ui.spur_box.setTristate(False)  # TinySA Basic has only 'on' and 'off' setting for Spur'
             ui.spur_box.setChecked(True)
+            ui.lna_label.setVisible(False)
+            ui.lna_box.setVisible(False)
+            ui.lna_box.setEnabled(False)
             self.spur(2)  # 2 = on
 
         # set the frequency band & rbw comboboxes to suit detected hardware
@@ -190,8 +193,8 @@ class analyser:
         # timeout can be very long - use a heuristic approach
         # 1st summand is the scanning time, 2nd summand is the USB transfer overhead
         timeout = ((f_high - f_low) / 20e3) / (rbw ** 2) + self.points / 500
-        if ui.spur_box.checkState() != 0 and f_high > 8 * 1e8:  # scan time doubles with spur removal
-            timeout *= 2
+        if (ui.spur_box.checkState() == 1 and f_high > 8 * 1e8) or ui.spur_box.checkState() == 2:
+            timeout *= 2  # scan time doubles with spur on or spur auto above 800 MHz
         # transfer is done in blocks of 20 points, this is the timeout for one block
         self.timeout = timeout * 20 / self.points + 1  # minimum is 1 second
         logging.info(f'sweepTimeout = {self.timeout} s')
@@ -560,7 +563,7 @@ def activeButtons(tF):
     ui.atten_box.setEnabled(tF)
     ui.atten_auto.setEnabled(tF)
     ui.spur_box.setEnabled(tF)
-    ui.lna_box.setEnabled(tF)
+    ui.lna_box.setEnabled(tF and tinySA.tinySA4)
     ui.rbw_box.setEnabled(tF)
     ui.points_box.setEnabled(tF)
     ui.band_box.setEnabled(tF)
