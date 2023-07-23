@@ -194,7 +194,7 @@ class analyser:
             timeout *= 2
         # transfer is done in blocks of 20 points, this is the timeout for one block
         self.timeout = timeout * 20 / self.points + 1  # minimum is 1 second
-        logging.info(f'sweepTimeout = {self.timeout} s')
+        logging.debug(f'sweepTimeout = {self.timeout} s')
 
     def measurement(self, f_low, f_high):  # runs in a separate thread
         self.threadrunning = True
@@ -365,6 +365,15 @@ class display:
             self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
             logging.debug(f'peaks = {peaks[:4]}')
 
+    def mDelta(self):
+        self.fIndex = S1.fIndex + self.dIndex
+        if self.fIndex < 0:  # delta marker is now below sweep range
+            self.fIndex = 0
+        if self.fIndex > tinySA.points - 1:  # delta marker is now above sweep range
+            self.fIndex = tinySA.points - 1
+        self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
+        # S1.vline.setPen(color='g')
+
     def updateGUI(self, signal):
         self.trace.setData((tinySA.frequencies/1e6), signal)
         if self.markerType != 'Normal' and self.markerType != 'Delta':  # then it must be a peak marker
@@ -433,10 +442,6 @@ def scan():
             except serial.SerialException:
                 tinySA.dev = None
                 tinySA.initialise()
-
-
-def rbw_changed():
-    tinySA.setRBW()
 
 
 def start_freq_changed():
@@ -511,20 +516,17 @@ def markerToStart():
 
 
 def mkr1_moved():
-    S1.vline.sigPositionChanged.connect(S1.setDiscrete)
-    try:
-        if S2.markerType == 'Delta':
-            S2.fIndex = S1.fIndex + S2.dIndex
-            S2.vline.setValue(tinySA.frequencies[S2.fIndex] / 1e6)
-        if S3.markerType == 'Delta':
-            S3.fIndex = S1.fIndex + S3.dIndex
-            S3.vline.setValue(tinySA.frequencies[S3.fIndex] / 1e6)
-        if S4.markerType == 'Delta':
-            S4.fIndex = S1.fIndex + S4.dIndex
-            S4.vline.setValue(tinySA.frequencies[S4.fIndex] / 1e6)
-    except IndexError:
-        popUp('Delta Marker out of sweep range', 'ok')
-        # gets stuck, needs to be fixed
+    S1.setDiscrete()
+    if S2.markerType == 'Delta' or S3.markerType == 'Delta' or S4.markerType == 'Delta':
+        S1.vline.setPen(color='g', width=0.5)
+    else:
+        S1.vline.setPen(color='g', width=0.5, style=QtCore.Qt.DashLine)
+    if S2.markerType == 'Delta':
+        S2.mDelta()
+    if S3.markerType == 'Delta':
+        S3.mDelta()
+    if S4.markerType == 'Delta':
+        S4.mDelta()
 
 
 def memChanged():
@@ -611,12 +613,11 @@ S4.vline.label.setPosition(0.85)
 # Connect signals from buttons and sliders
 
 ui.scan_button.clicked.connect(scan)
-ui.rbw_box.currentTextChanged.connect(rbw_changed)
+ui.rbw_box.currentTextChanged.connect(tinySA.setRBW)
 ui.atten_box.valueChanged.connect(attenuate_changed)
 ui.atten_auto.clicked.connect(attenuate_changed)
 ui.start_freq.editingFinished.connect(start_freq_changed)
 ui.stop_freq.editingFinished.connect(stop_freq_changed)
-# ui.spur_button.clicked.connect(spur)
 ui.spur_box.stateChanged.connect(spur_box)
 ui.lna_box.stateChanged.connect(tinySA.lna)
 ui.band_box.currentTextChanged.connect(band_changed)
