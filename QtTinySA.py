@@ -80,6 +80,7 @@ class analyser:
             if x.vid == VID and x.pid == PID:
                 self.dev = x.device
         if self.dev is None:
+            activeButtons(False) # do not trigger serial commands
             ui.version.setText('Not Connected')
             if doPopUp:
                 popUp('TinySA not found', 'ok')
@@ -110,10 +111,12 @@ class analyser:
             self.resBW = self.resBW[2:8]  # TinySA Basic has fewer resolution bandwidth filters
             ui.spur_box.setTristate(False)  # TinySA Basic has only 'on' and 'off' setting for Spur'
             ui.spur_box.setChecked(True)
-            ui.lna_label.setVisible(False)
-            ui.lna_box.setVisible(False)
-            ui.lna_box.setEnabled(False)
             self.spur(2)  # 2 = on
+
+        # Basic has no lna
+        ui.lna_label.setVisible(self.tinySA4)
+        ui.lna_box.setVisible(self.tinySA4)
+        ui.lna_box.setEnabled(self.tinySA4)
 
         # set the frequency band & rbw comboboxes to suit detected hardware
         bands = list(map(str, self.fBandStart))  # convert start freq float list to string list for GUI combobox
@@ -123,7 +126,9 @@ class analyser:
         ui.rbw_box.addItems(self.resBW)
         ui.band_box.addItems(bands)
 
-        self.lna()  # LNA off at first run
+        activeButtons(True) # enable ui components that trigger serial commands
+        if self.tinySA4:
+            self.lna()  # LNA off at first run
 
         # show hardware information in GUI
         ui.battery.setText(self.battery())
