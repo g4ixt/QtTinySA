@@ -32,6 +32,7 @@ from serial.tools import list_ports
 
 #  For 3D
 import pyqtgraph.opengl as pyqtgl
+import matplotlib.pyplot as plt
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 threadpool = QThreadPool()
@@ -242,13 +243,48 @@ class analyser:
             self.updateTimeSpectrum()
 
     def createTimeSpectrum(self):  # To Do: move this into 'display' class
-        # x=time y=freqs z=dBm
-        x = np.arange(start=0, stop=self.scanMemory, step=1)  # this is the time axis depth
-        y = np.arange(start=0, stop=self.points)
-        z = self.sweepresults
+        x = np.arange(start=0, stop=self.scanMemory, step=1)  # the time axis depth
+        y = np.arange(start=0, stop=self.points)  # the frequency axis width
+        z = self.sweepresults  # the measurement azis heights in dBm
         logging.debug(f'z = {z}')
-        self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='normalColor', computeNormals=True, smooth=False)
+        #self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='normalColor', computeNormals=True, smooth=False)
         # self.p2.shader()['colorMap'] = np.array([20, -100, 0.5, -100, 1, 1, 0.2, -100, 2])
+        # test
+        zmax = -10
+        zmin = -100
+        self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader = 'heightColor', computeNormals=False, smooth=False)
+
+        # cmap = plt.get_cmap('jet')
+        # minZ=1
+        # maxZ=2
+        # rgba_img = cmap((-minZ)/(maxZ -minZ))
+        # self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, colors=rgba_img, computeNormals=False, smooth=False)
+
+        # This shader uses a uniform called "colorMap" to determine how to map the colors:
+        #    red   = pow(z * colorMap[0] + colorMap[1], colorMap[2])
+        #    green = pow(z * colorMap[3] + colorMap[4], colorMap[5])
+        #    blue  = pow(z * colorMap[6] + colorMap[7], colorMap[8])
+
+        self.p2.shader()['colorMap'] = np.array([-zmin/100,   # red 1   [0]
+                                                  0,        # red 2   [1]
+                                                  0.01,     # red 3   [2]
+                                                  -zmin/100,  # green 1 [3]
+                                                  0.2,        # green 2 [4]
+                                                  0.01,     # green 3 [5]
+                                                  -zmin/125,  # blue 1  [6]
+                                                  0,    # blue 2  [7]
+                                                  0.1])       # blue 3  [8]
+
+        # self.p2.shader()['colorMap'] = np.array([.01/zmax,  # red 1
+        #                                           0,         # red 2
+        #                                           0.01,      # red 3
+        #                                           0.01/zmax, # green 1
+        #                                           0,         # green 2
+        #                                           .05,       # green 3
+        #                                           1/zmax,    # blue 1
+        #                                           -zmin,     # blue 2
+        #                                           1])        # blue 3
+        # test
         self.p2.translate(-0.7*self.scanMemory, -self.points/2, -self.points/3)
         self.p2.scale(self.points/2000, 0.05, 0.05, local=False)
         self.p2.rotate(45, 0, 0, 1)
