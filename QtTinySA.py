@@ -245,48 +245,23 @@ class analyser:
     def createTimeSpectrum(self):  # To Do: move this into 'display' class
         x = np.arange(start=0, stop=self.scanMemory, step=1)  # the time axis depth
         y = np.arange(start=0, stop=self.points)  # the frequency axis width
-        z = self.sweepresults + 120  # the measurement azis heights in dBm, convert to dBf
+        z = self.sweepresults  # the measurement azis heights in dBm, convert to dBf
         logging.debug(f'z = {z}')
-        #self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='normalColor', computeNormals=True, smooth=False)
-        # self.p2.shader()['colorMap'] = np.array([20, -100, 0.5, -100, 1, 1, 0.2, -100, 2])
-        # test
-        zmax = 100
-        zmin = 1
-        self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader = 'heightColor', computeNormals=False, smooth=False)
+        # self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='normalColor', computeNormals=True, smooth=False)
 
-        # cmap = plt.get_cmap('jet')
-        # minZ=1
-        # maxZ=2
-        # rgba_img = cmap((-minZ)/(maxZ -minZ))
-        # self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, colors=rgba_img, computeNormals=False, smooth=False)
+        self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='heightColor', computeNormals=False, smooth=True)
+        self.p2.shader()['colorMap'] = np.array([0.01,   # red   [0]
+                                                 0,     # red   [1]
+                                                 1,     # red   [2]
+                                                 0.01,  # green [3]
+                                                 0,     # green [4]
+                                                 3,     # green [5]
+                                                 0,     # blue  [6]
+                                                 0,     # blue  [7]
+                                                 4])    # blue  [8]
 
-        # This shader uses a uniform called "colorMap" to determine how to map the colors:
-        #    red   = pow(z * colorMap[0] + colorMap[1], colorMap[2])
-        #    green = pow(z * colorMap[3] + colorMap[4], colorMap[5])
-        #    blue  = pow(z * colorMap[6] + colorMap[7], colorMap[8])
-
-        self.p2.shader()['colorMap'] = np.array([0.8/zmin,   # red [0]
-                                                  0.05,        # red   [1]
-                                                  0.8,      # red   [2]
-                                                  0.3/zmax,  # green   [3]
-                                                  0.15,        # green  [4]
-                                                  0.4,     # green      [5]
-                                                 20/zmin,  # blue    [6]
-                                                 0,    # blue        [7]
-                                                  0.3])       # blue    [8]
-
-        # self.p2.shader()['colorMap'] = np.array([.01/zmax,  # red 1
-        #                                           0,         # red 2
-        #                                           0.01,      # red 3
-        #                                           0.01/zmax, # green 1
-        #                                           0,         # green 2
-        #                                           .05,       # green 3
-        #                                           1/zmax,    # blue 1
-        #                                           -zmin,     # blue 2
-        #                                           1])        # blue 3
-        # test
-        self.p2.translate(-0.7*self.scanMemory, -self.points/2, -self.points/3)
-        self.p2.scale(self.points/2000, 0.05, 0.05, local=False)
+        self.p2.translate(-0.2*self.scanMemory, -self.points/2, -self.points/3)
+        self.p2.scale(self.points/1000, 0.05, 0.05, local=False)
         self.p2.rotate(45, 0, 0, 1)
         ui.openGLWidget.addItem(self.p2)
 
@@ -294,7 +269,8 @@ class analyser:
         g = pyqtgl.GLGridItem()
         g.scale(0.5, 0.5, 0.5)
         g.rotate(-45, 0, 0, 1)
-        g.translate(0, 0, 0)
+        g.rotate(90, 1, 1, 0)
+        g.translate(-14, 0, -0.7)
         g.setSpacing(0.5, 0.5, 0.5)
         ui.openGLWidget.addItem(g)
 
