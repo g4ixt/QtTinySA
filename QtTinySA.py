@@ -367,6 +367,7 @@ class display:
 
     def mEnable(self, mkr):
         if mkr.isChecked():
+            self.mStart()
             self.vline.show()
         else:
             self.vline.hide()
