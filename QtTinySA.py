@@ -245,13 +245,13 @@ class analyser:
     def createTimeSpectrum(self):  # To Do: move this into 'display' class
         x = np.arange(start=0, stop=self.scanMemory, step=1)  # the time axis depth
         y = np.arange(start=0, stop=self.points)  # the frequency axis width
-        z = self.sweepresults  # the measurement azis heights in dBm
+        z = self.sweepresults + 120  # the measurement azis heights in dBm, convert to dBf
         logging.debug(f'z = {z}')
         #self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='normalColor', computeNormals=True, smooth=False)
         # self.p2.shader()['colorMap'] = np.array([20, -100, 0.5, -100, 1, 1, 0.2, -100, 2])
         # test
-        zmax = -10
-        zmin = -100
+        zmax = 100
+        zmin = 1
         self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader = 'heightColor', computeNormals=False, smooth=False)
 
         # cmap = plt.get_cmap('jet')
@@ -265,15 +265,15 @@ class analyser:
         #    green = pow(z * colorMap[3] + colorMap[4], colorMap[5])
         #    blue  = pow(z * colorMap[6] + colorMap[7], colorMap[8])
 
-        self.p2.shader()['colorMap'] = np.array([-zmin/100,   # red 1   [0]
-                                                  0,        # red 2   [1]
-                                                  0.01,     # red 3   [2]
-                                                  -zmin/100,  # green 1 [3]
-                                                  0.2,        # green 2 [4]
-                                                  0.01,     # green 3 [5]
-                                                  -zmin/125,  # blue 1  [6]
-                                                  0,    # blue 2  [7]
-                                                  0.1])       # blue 3  [8]
+        self.p2.shader()['colorMap'] = np.array([0.8/zmin,   # red [0]
+                                                  0.05,        # red   [1]
+                                                  0.8,      # red   [2]
+                                                  0.3/zmax,  # green   [3]
+                                                  0.15,        # green  [4]
+                                                  0.4,     # green      [5]
+                                                 20/zmin,  # blue    [6]
+                                                 0,    # blue        [7]
+                                                  0.3])       # blue    [8]
 
         # self.p2.shader()['colorMap'] = np.array([.01/zmax,  # red 1
         #                                           0,         # red 2
@@ -299,7 +299,7 @@ class analyser:
         ui.openGLWidget.addItem(g)
 
     def updateTimeSpectrum(self):  # To Do: move this into 'display' class
-        z = self.sweepresults
+        z = self.sweepresults + 120  # convert from dBm to dBf
         logging.debug(f'z = {z}')
         self.p2.setData(z=z)
 
