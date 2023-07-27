@@ -254,16 +254,26 @@ class analyser:
         logging.debug(f'z = {z}')
         # self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='normalColor', computeNormals=True, smooth=False)
 
-        self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='heightColor', computeNormals=False, smooth=True)
-        self.p2.shader()['colorMap'] = np.array([0.01,   # red   [0]
-                                                 0,     # red   [1]
-                                                 1,     # red   [2]
-                                                 0.01,  # green [3]
-                                                 0,     # green [4]
-                                                 3,     # green [5]
-                                                 0,     # blue  [6]
-                                                 0,     # blue  [7]
-                                                 4])    # blue  [8]
+        self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='heightColor', computeNormals=ui.glNormals, smooth=ui.glSmooth)
+        #  for each colour, map   = pow(z * colorMap[0] + colorMap[1], colorMap[2])
+        # self.p2.shader()['colorMap'] = np.array([0.01,   # red   [0]
+        #                                          0,     # red   [1]
+        #                                          0.9,     # red   [2]
+        #                                          0.01,  # green [3]
+        #                                          0,     # green [4]
+        #                                          3,     # green [5]
+        #                                          0.1,     # blue  [6]
+        #                                          0,     # blue  [7]
+        #                                          4])    # blue  [8]
+        self.p2.shader()['colorMap'] = np.array([ui.rMulti.value(),   # red   [0]
+                                                 ui.rConst.value(),     # red   [1]
+                                                 ui.rExponent.value(),     # red   [2]
+                                                 ui.gMulti.value(),  # green [3]
+                                                 ui.gConst.value(),     # green [4]
+                                                 ui.gExponent.value(),     # green [5]
+                                                 ui.bMulti.value(),     # blue  [6]
+                                                 ui.bConst.value(),     # blue  [7]
+                                                 ui.gExponent.value()])    # blue  [8]
 
         self.p2.translate(-0.2*self.scanMemory, -self.points/2, -self.points/3)
         self.p2.scale(self.points/1000, 0.05, 0.05, local=False)
