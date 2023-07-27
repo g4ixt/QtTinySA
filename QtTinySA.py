@@ -57,6 +57,7 @@ class analyser:
         self.sweeping = False
         self.signals = WorkerSignals()
         self.signals.result.connect(self.sigProcess)
+        self.signals.result3D.connect(self.updateTimeSpectrum)
         self.timeout = 1
         self.scanCount = 0
         self.runTimer = QtCore.QElapsedTimer()
@@ -224,14 +225,14 @@ class analyser:
                         c, data = struct.unpack('<' + 'cH', dataBlock)
                         logging.debug(f'dataBlock: {dataBlock} data: {data}\n')
                         dBm_power = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
-                        # write each measurement into sweepresults and emit
                         self.sweepresults[0, index] = dBm_power
                         if index // 20 == index / 20 or index == (self.points - 1):
                             self.signals.result.emit(self.sweepresults)
                         index += 1
                     logging.debug(f'level = {dBm_power}dBm')
                 serialPort.read(2)  # discard the command prompt
-            # store each sweep in an array with most recent at index 0
+            self.signals.result3D.emit(self.sweepresults)  # update 3D only once per sweep, for performance reasons
+            # the row is now full so roll it down 1 row ready for the next sweep to be stored at row 0
             self.sweepresults = np.roll(self.sweepresults, 1, axis=0)
         self.threadrunning = False
 
@@ -244,55 +245,45 @@ class analyser:
         S2.updateGUI(options.get(S2.traceType))
         S3.updateGUI(options.get(S3.traceType))
         S4.updateGUI(options.get(S4.traceType))
-        if ui.Enabled3D.isChecked():  # change this so that it only updates 3D once per sweep, for performance reasons
-            self.updateTimeSpectrum()
 
-    def createTimeSpectrum(self):  # To Do: move this into 'display' class
+    def createTimeSpectrum(self):
         x = np.arange(start=0, stop=self.scanMemory, step=1)  # the time axis depth
         y = np.arange(start=0, stop=self.points)  # the frequency axis width
-        z = self.sweepresults  # the measurement azis heights in dBm, convert to dBf
+        z = self.sweepresults  # the measurement azis heights in dBm
         logging.debug(f'z = {z}')
-        # self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='normalColor', computeNormals=True, smooth=False)
+        self.surface = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='heightColor', computeNormals=ui.glNormals, smooth=ui.glSmooth)
 
-        self.p2 = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='heightColor', computeNormals=ui.glNormals, smooth=ui.glSmooth)
-        #  for each colour, map   = pow(z * colorMap[0] + colorMap[1], colorMap[2])
-        # self.p2.shader()['colorMap'] = np.array([0.01,   # red   [0]
-        #                                          0,     # red   [1]
-        #                                          0.9,     # red   [2]
-        #                                          0.01,  # green [3]
-        #                                          0,     # green [4]
-        #                                          3,     # green [5]
-        #                                          0.1,     # blue  [6]
-        #                                          0,     # blue  [7]
-        #                                          4])    # blue  [8]
-        self.p2.shader()['colorMap'] = np.array([ui.rMulti.value(),   # red   [0]
-                                                 ui.rConst.value(),     # red   [1]
-                                                 ui.rExponent.value(),     # red   [2]
-                                                 ui.gMulti.value(),  # green [3]
-                                                 ui.gConst.value(),     # green [4]
-                                                 ui.gExponent.value(),     # green [5]
-                                                 ui.bMulti.value(),     # blue  [6]
-                                                 ui.bConst.value(),     # blue  [7]
-                                                 ui.gExponent.value()])    # blue  [8]
+        #  for each colour, map = pow(z * colorMap[0] + colorMap[1], colorMap[2])
+        self.surface.shader()['colorMap'] = np.array([ui.rMulti.value(),     # red   [0]
+                                                     ui.rConst.value(),      # red   [1]
+                                                     ui.rExponent.value(),   # red   [2]
+                                                     ui.gMulti.value(),      # green [3]
+                                                     ui.gConst.value(),      # green [4]
+                                                     ui.gExponent.value(),   # green [5]
+                                                     ui.bMulti.value(),      # blue  [6]
+                                                     ui.bConst.value(),      # blue  [7]
+                                                     ui.gExponent.value()])  # blue  [8]
 
-        self.p2.translate(-0.2*self.scanMemory, -self.points/2, -self.points/3)
-        self.p2.scale(self.points/1000, 0.05, 0.05, local=False)
-        self.p2.rotate(45, 0, 0, 1)
-        ui.openGLWidget.addItem(self.p2)
+        self.surface.translate(-0.15*self.scanMemory, -self.points/2, -self.points/3)
+        self.surface.scale(self.points/1250, 0.05, 0.05, local=False)
+        self.surface.rotate(45, 0, 0, 1)
+        ui.openGLWidget.addItem(self.surface)
 
-        # Add a grid to the 3D view
-        g = pyqtgl.GLGridItem()
-        g.scale(0.5, 0.5, 0.5)
-        g.rotate(-45, 0, 0, 1)
-        g.rotate(90, 1, 1, 0)
-        g.translate(-14, 0, -0.7)
-        g.setSpacing(0.5, 0.5, 0.5)
-        ui.openGLWidget.addItem(g)
+        # Add a vertical grid to the 3D view
+        vGrid = pyqtgl.GLGridItem()
+        vGrid.scale(1, 0.5, 0.2)
+        vGrid.rotate(90, 0, 1, 0)
+        vGrid.rotate(90, 1, 0, 0)
+        vGrid.rotate(45, 0, 0, 1)
+        vGrid.translate(-12, -12, -1)
+        vGrid.setSpacing(1, 1, 2)
+        ui.openGLWidget.addItem(vGrid)
 
-    def updateTimeSpectrum(self):  # To Do: move this into 'display' class
-        z = self.sweepresults + 120  # convert from dBm to dBf
-        logging.debug(f'z = {z}')
-        self.p2.setData(z=z)
+    def updateTimeSpectrum(self, results):
+        if ui.Enabled3D.isChecked():
+            z = results + 120  # Surface plot height shader needs positive numbers so convert from dBm to dBf
+            logging.debug(f'z = {z}')
+            self.surface.setData(z=z)
 
     def pause(self):
         # pauses the sweeping in either input or output mode
@@ -415,6 +406,7 @@ class display:
 class WorkerSignals(QObject):
     error = pyqtSignal(str)
     result = pyqtSignal(np.ndarray)
+    result3D = pyqtSignal(np.ndarray)
     finished = pyqtSignal()
 
 
@@ -446,13 +438,17 @@ def scan():
         if tinySA.sweeping:  # if it's running, stop it
             tinySA.sweeping = False  # tells the measurement thread to stop once current scan complete
             ui.scan_button.setEnabled(False)  # prevent repeat presses of 'stop'
+            ui.run3D.setEnabled(False)
             ui.scan_button.setText('Stopping ...')  # highlight for slow scans
+            ui.run3D.setText('Stopping ...')
             while tinySA.threadrunning:
                 app.processEvents()  # keep updating the trace until the scan ends
                 time.sleep(0.1)  # wait until the measurement thread stops using the serial comms
             ui.scan_button.setEnabled(True)
+            ui.run3D.setEnabled(True)
             activeButtons(True)
             ui.scan_button.setText('Run')  # toggle the 'Stop' button text
+            ui.run3D.setText('Run')
             ui.battery.setText(tinySA.battery())
             tinySA.resume()
         else:
@@ -467,6 +463,7 @@ def scan():
                 tinySA.sweepTimeout(startF, stopF)
                 activeButtons(False)
                 ui.scan_button.setText('Stop')  # toggle the 'Run' button text
+                ui.run3D.setText('Stop')
                 ui.battery.setText(tinySA.battery())
                 app.processEvents()
                 tinySA.startMeasurement(startF, stopF)  # runs measurement in separate thread
@@ -644,6 +641,7 @@ S4.vline.label.setPosition(0.85)
 # Connect signals from buttons and sliders
 
 ui.scan_button.clicked.connect(scan)
+ui.run3D.clicked.connect(scan)
 ui.rbw_box.currentTextChanged.connect(tinySA.setRBW)
 ui.atten_box.valueChanged.connect(attenuate_changed)
 ui.atten_auto.clicked.connect(attenuate_changed)
