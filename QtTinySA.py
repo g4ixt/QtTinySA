@@ -32,7 +32,6 @@ from serial.tools import list_ports
 
 #  For 3D
 import pyqtgraph.opengl as pyqtgl
-import matplotlib.pyplot as plt
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 threadpool = QThreadPool()
@@ -128,7 +127,7 @@ class analyser:
         ui.rbw_box.addItems(self.resBW)
         ui.band_box.addItems(bands)
 
-        activeButtons(True) # enable ui components that trigger serial commands
+        activeButtons(True)  # enable ui components that trigger serial commands
         if self.tinySA4:
             self.lna()  # LNA off at first run
 
@@ -204,7 +203,7 @@ class analyser:
             timeout *= 2  # scan time doubles with spur on or spur auto above 800 MHz
         # transfer is done in blocks of 20 points, this is the timeout for one block
         self.timeout = timeout * 20 / self.points + 1  # minimum is 1 second
-        logging.debug(f'sweepTimeout = {self.timeout} s')
+        logging.info(f'sweepTimeout = {self.timeout} s')
 
     def measurement(self, f_low, f_high):  # runs in a separate thread
         self.threadrunning = True
@@ -232,7 +231,7 @@ class analyser:
                     logging.debug(f'level = {dBm_power}dBm')
                 serialPort.read(2)  # discard the command prompt
             self.signals.result3D.emit(self.sweepresults)  # update 3D only once per sweep, for performance reasons
-            # the row is now full so roll it down 1 row ready for the next sweep to be stored at row 0
+            # results row 0 is now full: roll it down 1 row ready for the next sweep to be stored at row 0
             self.sweepresults = np.roll(self.sweepresults, 1, axis=0)
         self.threadrunning = False
 
@@ -264,18 +263,18 @@ class analyser:
                                                      ui.bConst.value(),      # blue  [7]
                                                      ui.gExponent.value()])  # blue  [8]
 
-        self.surface.translate(-0.15*self.scanMemory, -self.points/2, -self.points/3)
+        self.surface.translate(-0.15*self.scanMemory, -self.points/2, -130)
         self.surface.scale(self.points/1250, 0.05, 0.05, local=False)
         self.surface.rotate(45, 0, 0, 1)
         ui.openGLWidget.addItem(self.surface)
 
         # Add a vertical grid to the 3D view
         vGrid = pyqtgl.GLGridItem()
-        vGrid.scale(1, 0.5, 0.2)
+        vGrid.scale(self.points/400, 0.4, 0.2)
         vGrid.rotate(90, 0, 1, 0)
         vGrid.rotate(90, 1, 0, 0)
         vGrid.rotate(45, 0, 0, 1)
-        vGrid.translate(-12, -12, -1)
+        vGrid.translate(-self.points/33, -self.points/33, -1)
         vGrid.setSpacing(1, 1, 2)
         ui.openGLWidget.addItem(vGrid)
 
@@ -358,6 +357,11 @@ class display:
         self.fIndex = 0
         self.vline.setValue(ui.start_freq.value())
 
+    def mCentre(self):
+        # set marker to the sweep centre frequency
+        self.fIndex = int(ui.points_box.value()/2)
+        self.vline.setValue(ui.centre_freq.value())
+
     def mType(self, uiBox):
         self.markerType = uiBox.currentText()
         self.dIndex = self.fIndex - S1.fIndex
@@ -368,7 +372,6 @@ class display:
 
     def mEnable(self, mkr):
         if mkr.isChecked():
-            self.mStart()
             self.vline.show()
         else:
             self.vline.hide()
@@ -499,6 +502,12 @@ def stop_freq_changed():
     command = f'sweep stop {stop * 1e6}\r'.encode()
     tinySA.serialSend(command)
 
+def centre_freq_changed():
+    ui.start_freq.setValue(ui.centre_freq.value()-ui.span_freq.value()/2)
+    start_freq_changed()
+    ui.stop_freq.setValue(ui.centre_freq.value()+ui.span_freq.value()/2)
+    stop_freq_changed()
+
 
 def band_changed():
     index = ui.band_box.currentIndex()
@@ -541,6 +550,17 @@ def markerToStart():
         S3.mStart()
     if ui.marker4.isChecked():
         S4.mStart()
+
+
+def markerToCentre():
+    if ui.marker1.isChecked():
+        S1.mCentre()
+    if ui.marker2.isChecked():
+        S2.mCentre()
+    if ui.marker3.isChecked():
+        S3.mCentre()
+    if ui.marker4.isChecked():
+        S4.mCentre()
 
 
 def mkr1_moved():
@@ -596,8 +616,11 @@ def activeButtons(tF):
     ui.band_box.setEnabled(tF)
     ui.start_freq.setEnabled(tF)
     ui.stop_freq.setEnabled(tF)
+    ui.centre_freq.setEnabled(tF)
+    ui.span_freq.setEnabled(tF)
     ui.memSlider.setEnabled(tF)
     ui.Enabled3D.setEnabled(tF)
+
 
 
 ###############################################################################
@@ -651,6 +674,9 @@ ui.spur_box.stateChanged.connect(spur_box)
 ui.lna_box.stateChanged.connect(tinySA.lna)
 ui.band_box.currentTextChanged.connect(band_changed)
 
+ui.centre_freq.editingFinished.connect(centre_freq_changed)
+ui.span_freq.editingFinished.connect(centre_freq_changed)
+
 S1.vline.sigPositionChanged.connect(mkr1_moved)
 S2.vline.sigPositionChanged.connect(S2.setDiscrete)
 S3.vline.sigPositionChanged.connect(S3.setDiscrete)
@@ -662,6 +688,7 @@ ui.marker3.stateChanged.connect(lambda: S3.mEnable(ui.marker3))
 ui.marker4.stateChanged.connect(lambda: S4.mEnable(ui.marker4))
 
 ui.mkr_start.clicked.connect(markerToStart)
+ui.mkr_centre.clicked.connect(markerToCentre)
 ui.m1_type.currentTextChanged.connect(lambda: S1.mType(ui.m1_type))
 ui.m2_type.currentTextChanged.connect(lambda: S2.mType(ui.m2_type))
 ui.m3_type.currentTextChanged.connect(lambda: S3.mType(ui.m3_type))
