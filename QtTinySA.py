@@ -203,7 +203,7 @@ class analyser:
             timeout *= 2  # scan time doubles with spur on or spur auto above 800 MHz
         # transfer is done in blocks of 20 points, this is the timeout for one block
         self.timeout = timeout * 20 / self.points + 1  # minimum is 1 second
-        logging.info(f'sweepTimeout = {self.timeout} s')
+        logging.debug(f'sweepTimeout = {self.timeout} s')
 
     def measurement(self, f_low, f_high):  # runs in a separate thread
         self.threadrunning = True
@@ -484,6 +484,8 @@ def start_freq_changed():
         stop = start
         stop_freq_changed()
     ui.graphWidget.setXRange(start, stop)
+    ui.centre_freq.setValue(start + (stop - start) / 2)
+    ui.span_freq.setValue(stop - start)
 
     command = f'sweep start {start * 1e6}\r'.encode()
     tinySA.serialSend(command)
@@ -498,9 +500,12 @@ def stop_freq_changed():
         start = stop
         start_freq_changed()
     ui.graphWidget.setXRange(start, stop)
+    ui.centre_freq.setValue(start + (stop - start) / 2)
+    ui.span_freq.setValue(stop - start)
 
     command = f'sweep stop {stop * 1e6}\r'.encode()
     tinySA.serialSend(command)
+
 
 def centre_freq_changed():
     ui.start_freq.setValue(ui.centre_freq.value()-ui.span_freq.value()/2)
