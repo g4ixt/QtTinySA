@@ -476,35 +476,35 @@ def scan():
                 tinySA.initialise()
 
 
-def start_freq_changed():
+def start_freq_changed(loopy=False):
     ui.band_box.setCurrentIndex(0)
     start = ui.start_freq.value()
     stop = ui.stop_freq.value()
     if start > stop:
         ui.stop_freq.setValue(start)
         stop = start
-        stop_freq_changed()
+        stop_freq_changed(loopy)
     ui.graphWidget.setXRange(start, stop)
-#    ui.centre_freq.setValue(start + (stop - start) / 2)
-#    ui.span_freq.setValue(stop - start)
+    if not loopy:
+        ui.centre_freq.setValue(start + (stop - start) / 2)
+        ui.span_freq.setValue(stop - start)
 
     command = f'sweep start {start * 1e6}\r'.encode()
     tinySA.serialSend(command)
 
 
-
-def stop_freq_changed():
+def stop_freq_changed(loopy=False):
     ui.band_box.setCurrentIndex(0)
     start = ui.start_freq.value()
     stop = ui.stop_freq.value()
     if start > stop:
         ui.start_freq.setValue(stop)
         start = stop
-        start_freq_changed()
+        start_freq_changed(loopy)
     ui.graphWidget.setXRange(start, stop)
-#    ui.centre_freq.setValue(start + (stop - start) / 2)
-#    ui.span_freq.setValue(stop - start)
-
+    if not loopy:
+        ui.centre_freq.setValue(start + (stop - start) / 2)
+        ui.span_freq.setValue(stop - start)
 
     command = f'sweep stop {stop * 1e6}\r'.encode()
     tinySA.serialSend(command)
@@ -512,9 +512,9 @@ def stop_freq_changed():
 
 def centre_freq_changed():
     ui.start_freq.setValue(ui.centre_freq.value()-ui.span_freq.value()/2)
-    start_freq_changed()
+    start_freq_changed(True)
     ui.stop_freq.setValue(ui.centre_freq.value()+ui.span_freq.value()/2)
-    stop_freq_changed()
+    stop_freq_changed(True)
 
 
 def band_changed():
@@ -525,10 +525,10 @@ def band_changed():
         index -= 1
         start = tinySA.fBandStart[index]
         ui.start_freq.setValue(start)
-        start_freq_changed()
+        start_freq_changed(False)
         stop = tinySA.fBandStop[index]
         ui.stop_freq.setValue(stop)
-        stop_freq_changed()
+        stop_freq_changed(False)
 
 
 def attenuate_changed():
@@ -676,8 +676,8 @@ ui.run3D.clicked.connect(scan)
 ui.rbw_box.currentTextChanged.connect(tinySA.setRBW)
 ui.atten_box.valueChanged.connect(attenuate_changed)
 ui.atten_auto.clicked.connect(attenuate_changed)
-ui.start_freq.editingFinished.connect(start_freq_changed)
-ui.stop_freq.editingFinished.connect(stop_freq_changed)
+ui.start_freq.editingFinished.connect(lambda: start_freq_changed(False))
+ui.stop_freq.editingFinished.connect(lambda: stop_freq_changed(False))
 ui.spur_box.stateChanged.connect(spur_box)
 ui.lna_box.stateChanged.connect(tinySA.lna)
 ui.band_box.currentTextChanged.connect(band_changed)
