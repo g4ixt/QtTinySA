@@ -12,7 +12,7 @@ Not tested in any version of Windows or Mac but it should work on both.
 TinySA commands are based on Erik's Python examples:
 http://athome.kaashoek.com/tinySA/python/
 
-The serial communication commands are based on the Python NanoVNA/TinySA Toolset of Martin Ho-Ro:
+The serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset
 https://github.com/Ho-Ro
 
 Dependencies: Install from the repository - python3-pyqt5, python3-numpy, python3-pyqtgraph
