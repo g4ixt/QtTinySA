@@ -250,7 +250,8 @@ class analyser:
         y = np.arange(start=0, stop=self.points)  # the frequency axis width
         z = self.sweepresults  # the measurement azis heights in dBm
         logging.debug(f'z = {z}')
-        self.surface = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='heightColor', computeNormals=ui.glNormals, smooth=ui.glSmooth)
+        self.surface = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='heightColor',
+                                                computeNormals=ui.glNormals.isChecked(), smooth=ui.glSmooth.isChecked())
 
         #  for each colour, map = pow(z * colorMap[0] + colorMap[1], colorMap[2])
         self.surface.shader()['colorMap'] = np.array([ui.rMulti.value(),     # red   [0]
