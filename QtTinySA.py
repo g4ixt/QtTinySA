@@ -57,6 +57,7 @@ class analyser:
         self.signals = WorkerSignals()
         self.signals.result.connect(self.sigProcess)
         self.signals.result3D.connect(self.updateTimeSpectrum)
+        self.signals.finished.connect(self.threadEnds)
         self.timeout = 1
         self.scanCount = 0
         self.runTimer = QtCore.QElapsedTimer()
@@ -87,7 +88,7 @@ class analyser:
                 popUp('TinySA not found', 'ok')
             return
 
-        # amateur frequency band values (plus VHF radio)
+        # amateur frequency band values (plus VHF radio Band 2)
         self.fBandStart = [1.8, 3.5, 7.0, 10.1, 14.0, 18.068, 21.0, 24.89, 28.0,
                            50.0, 70.0, 87.5, 144.0, 430.0, 1240, 2300, 2390, 3300, 5650]
         self.fBandStop = [2.0, 3.8, 7.1, 10.15, 14.35, 18.168, 21.45, 24.99, 29.7,
@@ -97,7 +98,7 @@ class analyser:
         self.resBW = ['0.2', '1', '3', '10', '30', '100', '300', '600', '850']
 
         hardware = self.version()
-        # hardware = 'basic'
+        # hardware = 'basic'  # for testing
         logging.info(f'version = {hardware}')
         if hardware[:7] == 'tinySA4':  # It's an Ultra
             self.tinySA4 = True
@@ -136,6 +137,32 @@ class analyser:
         ui.version.setText(hardware)
 
         S1.trace.show()
+
+    def scan(self):
+        self.scan3D = ui.Enabled3D.isChecked()
+        if self.dev is None:
+            self.initialise()
+        if self.dev is not None:
+            if self.sweeping:  # if it's running, stop it
+                self.sweeping = False  # tells the measurement thread to stop once current scan complete
+                ui.scan_button.setEnabled(False)  # prevent repeat presses of 'stop'
+                ui.run3D.setEnabled(False)
+            else:
+                try:
+                    self.pause()
+                    startF = ui.start_freq.value()*1e6
+                    stopF = ui.stop_freq.value()*1e6
+                    points = ui.points_box.value()
+                    self.set_frequencies(startF, stopF, points)
+                    self.clearBuffer()
+                    self.setRBW()  # fetches rbw value from the GUI combobox and sends it to self
+                    self.sweepTimeout(startF, stopF)
+                    activeButtons(False)
+                    self.runButton('Stop')
+                    self.startMeasurement(startF, stopF)  # runs measurement in separate thread
+                except serial.SerialException:
+                    self.dev = None
+                    self.initialise()
 
     def startMeasurement(self, startF, stopF):
         self.sweep = Worker(self.measurement, startF, stopF)  # workers are auto-deleted when thread stops
@@ -231,9 +258,15 @@ class analyser:
                     logging.debug(f'level = {dBm_power}dBm')
                 serialPort.read(2)  # discard the command prompt
             self.signals.result3D.emit(self.sweepresults)  # update 3D only once per sweep, for performance reasons
+
             # results row 0 is now full: roll it down 1 row ready for the next sweep to be stored at row 0
             self.sweepresults = np.roll(self.sweepresults, 1, axis=0)
+        self.signals.finished.emit()
+
+    def threadEnds(self):
         self.threadrunning = False
+        self.runButton('Run')
+        activeButtons(True)
 
     def sigProcess(self, signaldBm):  # signaldBm is emitted from the worker thread
         signalAvg = np.average(signaldBm[:ui.avgSlider.value(), ::], axis=0)
@@ -285,15 +318,34 @@ class analyser:
             logging.debug(f'z = {z}')
             self.surface.setData(z=z)
 
+    def runButton(self, action):
+        # Update the Run/Stop buttons' text and colour
+        ui.scan_button.setText(action)
+        ui.run3D.setText(action)
+        if action == 'Stopping':
+            ui.scan_button.setStyleSheet('background-color: yellow')
+            ui.run3D.setStyleSheet('background-color: yellow')
+        else:
+            ui.scan_button.setStyleSheet('background-color: white')
+            ui.run3D.setStyleSheet('background-color: white')
+            ui.scan_button.setEnabled(True)
+            ui.run3D.setEnabled(True)
+            ui.battery.setText(self.battery())
+
     def pause(self):
         # pauses the sweeping in either input or output mode
-        pause_command = 'pause\r'.encode()
-        self.serialSend(pause_command)
+        command = 'pause\r'.encode()
+        self.serialSend(command)
 
     def resume(self):
         # resumes the sweeping in either input or output mode
-        resume_command = 'resume\r'.encode()
-        self.serialSend(resume_command)
+        command = 'resume\r'.encode()
+        self.serialSend(command)
+
+    def reset(self):
+        # not yet found any detail for what is actually reset
+        command = 'reset\r'.encode()
+        self.serialSend(command)
 
     def battery(self):
         command = 'vbat\r'.encode()
@@ -405,6 +457,11 @@ class display:
         if self.markerType != 'Normal' and self.markerType != 'Delta':  # then it must be a peak marker
             self.mPeak(signal)
         self.vline.label.setText(f'M{self.vline.name()} {tinySA.frequencies[self.fIndex]/1e6:.3f}MHz  {signal[self.fIndex]:.1f}dBm')
+        if not tinySA.sweeping:  # measurement thread is stopping
+            ui.scan_button.setText('Stopping ...')
+            ui.scan_button.setStyleSheet('background-color: orange')
+            ui.run3D.setText('Stopping ...')
+            ui.run3D.setStyleSheet('background-color: orange')
 
 
 class WorkerSignals(QObject):
@@ -433,48 +490,6 @@ class Worker(QRunnable):
 
 ###############################################################################
 # other methods
-
-def scan():
-    tinySA.scan3D = ui.Enabled3D.isChecked()
-    if tinySA.dev is None:
-        tinySA.initialise()
-    if tinySA.dev is not None:
-        if tinySA.sweeping:  # if it's running, stop it
-            tinySA.sweeping = False  # tells the measurement thread to stop once current scan complete
-            ui.scan_button.setEnabled(False)  # prevent repeat presses of 'stop'
-            ui.run3D.setEnabled(False)
-            ui.scan_button.setText('Stopping ...')  # highlight for slow scans
-            ui.run3D.setText('Stopping ...')
-            while tinySA.threadrunning:
-                app.processEvents()  # keep updating the trace until the scan ends
-                time.sleep(0.1)  # wait until the measurement thread stops using the serial comms
-            ui.scan_button.setEnabled(True)
-            ui.run3D.setEnabled(True)
-            activeButtons(True)
-            ui.scan_button.setText('Run')  # toggle the 'Stop' button text
-            ui.run3D.setText('Run')
-            ui.battery.setText(tinySA.battery())
-            tinySA.resume()
-        else:
-            try:
-                tinySA.pause()
-                startF = ui.start_freq.value()*1e6
-                stopF = ui.stop_freq.value()*1e6
-                points = ui.points_box.value()
-                tinySA.set_frequencies(startF, stopF, points)
-                tinySA.clearBuffer()
-                tinySA.setRBW()  # fetches rbw value from the GUI combobox and sends it to TinySA
-                tinySA.sweepTimeout(startF, stopF)
-                activeButtons(False)
-                ui.scan_button.setText('Stop')  # toggle the 'Run' button text
-                ui.run3D.setText('Stop')
-                ui.battery.setText(tinySA.battery())
-                app.processEvents()
-                tinySA.startMeasurement(startF, stopF)  # runs measurement in separate thread
-            except serial.SerialException:
-                tinySA.dev = None
-                tinySA.initialise()
-
 
 def start_freq_changed(loopy=False):
     ui.band_box.setCurrentIndex(0)
@@ -630,7 +645,6 @@ def activeButtons(tF):
     ui.Enabled3D.setEnabled(tF)
 
 
-
 ###############################################################################
 # Instantiate classes
 
@@ -671,8 +685,8 @@ S4.vline.label.setPosition(0.85)
 ###############################################################################
 # Connect signals from buttons and sliders
 
-ui.scan_button.clicked.connect(scan)
-ui.run3D.clicked.connect(scan)
+ui.scan_button.clicked.connect(tinySA.scan)
+ui.run3D.clicked.connect(tinySA.scan)
 ui.rbw_box.currentTextChanged.connect(tinySA.setRBW)
 ui.atten_box.valueChanged.connect(attenuate_changed)
 ui.atten_auto.clicked.connect(attenuate_changed)
