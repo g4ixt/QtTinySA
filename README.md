@@ -1,8 +1,9 @@
 # QtTinySA
 
-A Python TinySA Ultra GUI programme using Qt5 and PyQt5 designed to run in Linux.  Should also now work with the original TinySA.
+A Python TinySA Ultra GUI programme using Qt5 and PyQt5 designed to run in Linux.  Should also now work with the original TinySA.  
+See 'Wiki' for information about using the traces, markers, saving the spectrum, etc.  
 
-This code attempts to replicate some of the TinySA Ultra on-screen commands on the PC.  Generator control seemed pointless so I have not added it.
+The code attempts to replicate some of the TinySA Ultra on-screen commands on the PC.  Generator control seemed pointless so I have not added it.
 Development took place on Kubuntu 22.04LTS with Python 3.9 and PyQt5 using Spyder in Anaconda.
 Not tested in any version of Windows or Mac but it should work on both.
 
@@ -11,17 +12,17 @@ Not tested in any version of Windows or Mac but it should work on both.
 TinySA commands are based on Erik's Python examples:
 http://athome.kaashoek.com/tinySA/python/
 
-The serial communication commands are based on the Python NanoVNA/TinySA Toolset of Martin Ho-Ro:
+The serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset
 https://github.com/Ho-Ro
 
 Dependencies: Install from the repository - python3-pyqt5, python3-numpy, python3-pyqtgraph
 The 3D (time) spectrum requires OpenGL
 
-The GUI is designed for a 7" 1024 x 600 screen but should maximise properly.  The GUI appearence may change significantly due to development.
+The GUI was originally designed for a 7" 1024 x 600 screen but should maximise properly.  The GUI appearence may change significantly due to development.
 
-There is limited error trapping.  The 3D spectrum is primitive and can crash the Application, but this only happens if it's selected.
+There is limited error trapping.  The 3D spectrum can sometimes crash the Application, but this only happens if it's enabled.  
 
-Working Features:
+Working Features:  
 
 Trace updates as tinySA scans  
 LNA on/off  
@@ -43,5 +44,4 @@ The 3D spectrum can be enabled/disabled on its tab page.  Disabled by default.
 
 To do:  
 
-Learn how to use the height colour shader for the 3D spectrum properly, with the height colour shader.  
 Build an executable.
