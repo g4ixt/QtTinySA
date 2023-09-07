@@ -88,11 +88,11 @@ class analyser:
                 popUp('TinySA not found', 'ok')
             return
 
-        # amateur frequency band values (plus VHF radio Band 2)
+        # amateur frequency band values (plus VHF radio Band 2 and AO-100 LNB output)
         self.fBandStart = [1.8, 3.5, 7.0, 10.1, 14.0, 18.068, 21.0, 24.89, 28.0,
-                           50.0, 70.0, 87.5, 144.0, 430.0, 1240, 2300, 2390, 3300, 5650]
+                           50.0, 70.0, 87.5, 144.0, 430.0, 739.4, 1240, 2300, 2390, 3300, 5650]
         self.fBandStop = [2.0, 3.8, 7.1, 10.15, 14.35, 18.168, 21.45, 24.99, 29.7,
-                          52.0, 70.5, 108.0, 146.0, 440.0, 1325, 2310, 2450, 3500, 5925]
+                          52.0, 70.5, 108.0, 146.0, 440.0, 740.1, 1325, 2310, 2450, 3500, 5925]
 
         # TinySA Ultra resolution bandwidth filters in kHz
         self.resBW = ['0.2', '1', '3', '10', '30', '100', '300', '600', '850']
@@ -108,8 +108,8 @@ class analyser:
         else:
             self.tinySA4 = False
             self.scale = 128
-            self.fBandStart = self.fBandStart[:13]  # TinySA Basic has a smaller frequency band range
-            self.fBandStop = self.fBandStop[:13]
+            self.fBandStart = self.fBandStart[:14]  # TinySA Basic has a smaller frequency band range
+            self.fBandStop = self.fBandStop[:14]
             self.resBW = self.resBW[2:8]  # TinySA Basic has fewer resolution bandwidth filters
             ui.spur_box.setTristate(False)  # TinySA Basic has only 'on' and 'off' setting for Spur'
             ui.spur_box.setChecked(True)
@@ -124,7 +124,7 @@ class analyser:
         bands = list(map(str, self.fBandStart))  # convert start freq float list to string list for GUI combobox
         bands = [freq for freq in bands]
         bands.insert(0, 'Band')
-        self.resBW.insert(0, 'auto')
+        # self.resBW.insert(0, 'auto')
         ui.rbw_box.addItems(self.resBW)
         ui.band_box.addItems(bands)
 
@@ -198,12 +198,23 @@ class analyser:
         logging.debug(f'frequencies = {self._frequencies}')
 
     def setRBW(self):
-        if ui.rbw_box.currentIndex == 0:
+        if ui.rbw_auto.isChecked():
             self.rbw = 'auto'
+            ui.points_auto.setChecked(False)  # can't calculate Points because we don't know what the RBW will be
+            ui.points_auto.setEnabled(False)
         else:
             self.rbw = ui.rbw_box.currentText()  # ui values are discrete ones in kHz
+            ui.points_auto.setEnabled(True)
+            self.setPoints()
         rbw_command = f'rbw {self.rbw}\r'.encode()
         self.serialSend(rbw_command)
+
+    def setPoints(self):
+        if ui.points_auto.isChecked():
+            points = int((ui.span_freq.value()*1000)/(float(self.rbw)/2))  # values in kHz
+            if points > 30000:
+                points = 30000
+            ui.points_box.setValue(points)
 
     def clearBuffer(self):
         with serial.Serial(self.dev, baudrate=3000000) as serialPort:  # baudrate does nothing for USB cnx
@@ -230,7 +241,7 @@ class analyser:
             timeout *= 2  # scan time doubles with spur on or spur auto above 800 MHz
         # transfer is done in blocks of 20 points, this is the timeout for one block
         self.timeout = timeout * 20 / self.points + 1  # minimum is 1 second
-        logging.info(f'sweepTimeout = {self.timeout} s')
+        logging.info(f'sweepTimeout = {self.timeout:.2f} s')
 
     def measurement(self, f_low, f_high):  # runs in a separate thread
         self.threadrunning = True
@@ -288,14 +299,14 @@ class analyser:
 
         #  for each colour, map = pow(z * colorMap[0] + colorMap[1], colorMap[2])
         self.surface.shader()['colorMap'] = np.array([ui.rMulti.value(),     # red   [0]
-                                                     ui.rConst.value(),      # red   [1]
-                                                     ui.rExponent.value(),   # red   [2]
-                                                     ui.gMulti.value(),      # green [3]
-                                                     ui.gConst.value(),      # green [4]
-                                                     ui.gExponent.value(),   # green [5]
-                                                     ui.bMulti.value(),      # blue  [6]
-                                                     ui.bConst.value(),      # blue  [7]
-                                                     ui.gExponent.value()])  # blue  [8]
+                                                      ui.rConst.value(),      # red   [1]
+                                                      ui.rExponent.value(),   # red   [2]
+                                                      ui.gMulti.value(),      # green [3]
+                                                      ui.gConst.value(),      # green [4]
+                                                      ui.gExponent.value(),   # green [5]
+                                                      ui.bMulti.value(),      # blue  [6]
+                                                      ui.bConst.value(),      # blue  [7]
+                                                      ui.gExponent.value()])  # blue  [8]
 
         self.surface.translate(-0.15*self.scanMemory, -self.points/2, -130)
         self.surface.scale(self.points/1250, 0.05, 0.05, local=False)
@@ -630,12 +641,13 @@ def popUp(message, button):
 
 def activeButtons(tF):
     # disable/enable buttons that send commands to TinySA (Because Comms are in use if scanning)
-    ui.atten_box.setEnabled(tF)
     ui.atten_auto.setEnabled(tF)
     ui.spur_box.setEnabled(tF)
     ui.lna_box.setEnabled(tF and tinySA.tinySA4)
     ui.rbw_box.setEnabled(tF)
+    ui.rbw_auto.setEnabled(tF)
     ui.points_box.setEnabled(tF)
+    ui.points_auto.setEnabled(tF)
     ui.band_box.setEnabled(tF)
     ui.start_freq.setEnabled(tF)
     ui.stop_freq.setEnabled(tF)
@@ -688,6 +700,7 @@ S4.vline.label.setPosition(0.85)
 ui.scan_button.clicked.connect(tinySA.scan)
 ui.run3D.clicked.connect(tinySA.scan)
 ui.rbw_box.currentTextChanged.connect(tinySA.setRBW)
+ui.rbw_auto.stateChanged.connect(tinySA.setRBW)
 ui.atten_box.valueChanged.connect(attenuate_changed)
 ui.atten_auto.clicked.connect(attenuate_changed)
 ui.start_freq.editingFinished.connect(lambda: start_freq_changed(False))
@@ -695,6 +708,7 @@ ui.stop_freq.editingFinished.connect(lambda: stop_freq_changed(False))
 ui.spur_box.stateChanged.connect(spur_box)
 ui.lna_box.stateChanged.connect(tinySA.lna)
 ui.band_box.currentTextChanged.connect(band_changed)
+ui.points_auto.stateChanged.connect(tinySA.setPoints)
 
 ui.centre_freq.editingFinished.connect(centre_freq_changed)
 ui.span_freq.editingFinished.connect(centre_freq_changed)
