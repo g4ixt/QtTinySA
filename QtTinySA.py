@@ -82,7 +82,7 @@ class analyser:
             if x.vid == VID and x.pid == PID:
                 self.dev = x.device
         if self.dev is None:
-            activeButtons(False) # do not trigger serial commands
+            activeButtons(False)  # do not trigger serial commands
             ui.version.setText('Not Connected')
             if doPopUp:
                 popUp('TinySA not found', 'ok')
@@ -124,9 +124,10 @@ class analyser:
         bands = list(map(str, self.fBandStart))  # convert start freq float list to string list for GUI combobox
         bands = [freq for freq in bands]
         bands.insert(0, 'Band')
-        # self.resBW.insert(0, 'auto')
-        ui.rbw_box.addItems(self.resBW)
         ui.band_box.addItems(bands)
+        self.resBW.insert(0, 'auto')
+        ui.rbw_box.addItems(self.resBW)
+        ui.rbw_box.setCurrentIndex(len(self.resBW)-4)
 
         activeButtons(True)  # enable ui components that trigger serial commands
         if self.tinySA4:
@@ -198,13 +199,13 @@ class analyser:
         logging.debug(f'frequencies = {self._frequencies}')
 
     def setRBW(self):
-        if ui.rbw_auto.isChecked():
+        if ui.rbw_box.currentIndex() == 0:
             self.rbw = 'auto'
             ui.points_auto.setChecked(False)  # can't calculate Points because we don't know what the RBW will be
-            ui.points_auto.setEnabled(False)
+            # ui.points_auto.setEnabled(False)
         else:
             self.rbw = ui.rbw_box.currentText()  # ui values are discrete ones in kHz
-            ui.points_auto.setEnabled(True)
+            # ui.points_auto.setEnabled(True)
             self.setPoints()
         rbw_command = f'rbw {self.rbw}\r'.encode()
         self.serialSend(rbw_command)
@@ -645,7 +646,6 @@ def activeButtons(tF):
     ui.spur_box.setEnabled(tF)
     ui.lna_box.setEnabled(tF and tinySA.tinySA4)
     ui.rbw_box.setEnabled(tF)
-    ui.rbw_auto.setEnabled(tF)
     ui.points_box.setEnabled(tF)
     ui.points_auto.setEnabled(tF)
     ui.band_box.setEnabled(tF)
@@ -699,8 +699,7 @@ S4.vline.label.setPosition(0.85)
 
 ui.scan_button.clicked.connect(tinySA.scan)
 ui.run3D.clicked.connect(tinySA.scan)
-ui.rbw_box.currentTextChanged.connect(tinySA.setRBW)
-ui.rbw_auto.stateChanged.connect(tinySA.setRBW)
+# ui.rbw_box.currentTextChanged.connect(tinySA.setRBW)
 ui.atten_box.valueChanged.connect(attenuate_changed)
 ui.atten_auto.clicked.connect(attenuate_changed)
 ui.start_freq.editingFinished.connect(lambda: start_freq_changed(False))
