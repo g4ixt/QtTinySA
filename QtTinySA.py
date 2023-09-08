@@ -128,6 +128,7 @@ class analyser:
         self.resBW.insert(0, 'auto')
         ui.rbw_box.addItems(self.resBW)
         ui.rbw_box.setCurrentIndex(len(self.resBW)-4)
+        ui.rbw_box.currentIndexChanged.connect(tinySA.setRBW)
 
         activeButtons(True)  # enable ui components that trigger serial commands
         if self.tinySA4:
@@ -202,10 +203,8 @@ class analyser:
         if ui.rbw_box.currentIndex() == 0:
             self.rbw = 'auto'
             ui.points_auto.setChecked(False)  # can't calculate Points because we don't know what the RBW will be
-            # ui.points_auto.setEnabled(False)
         else:
             self.rbw = ui.rbw_box.currentText()  # ui values are discrete ones in kHz
-            # ui.points_auto.setEnabled(True)
             self.setPoints()
         rbw_command = f'rbw {self.rbw}\r'.encode()
         self.serialSend(rbw_command)
@@ -213,8 +212,11 @@ class analyser:
     def setPoints(self):
         if ui.points_auto.isChecked():
             points = int((ui.span_freq.value()*1000)/(float(self.rbw)/2))  # values in kHz
+            logging.debug(f'points = {points}')
             if points > 30000:
-                points = 30000
+                points = 30000  # future - allow this to be set in 'preferences''
+            if points < 100:
+                points = 100  # future - allow this to be set in 'preferences''
             ui.points_box.setValue(points)
 
     def clearBuffer(self):
@@ -518,6 +520,7 @@ def start_freq_changed(loopy=False):
 
     command = f'sweep start {start * 1e6}\r'.encode()
     tinySA.serialSend(command)
+    tinySA.setPoints()
 
 
 def stop_freq_changed(loopy=False):
@@ -535,6 +538,7 @@ def stop_freq_changed(loopy=False):
 
     command = f'sweep stop {stop * 1e6}\r'.encode()
     tinySA.serialSend(command)
+    tinySA.setPoints()
 
 
 def centre_freq_changed():
@@ -699,7 +703,6 @@ S4.vline.label.setPosition(0.85)
 
 ui.scan_button.clicked.connect(tinySA.scan)
 ui.run3D.clicked.connect(tinySA.scan)
-# ui.rbw_box.currentTextChanged.connect(tinySA.setRBW)
 ui.atten_box.valueChanged.connect(attenuate_changed)
 ui.atten_auto.clicked.connect(attenuate_changed)
 ui.start_freq.editingFinished.connect(lambda: start_freq_changed(False))
