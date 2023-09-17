@@ -1,4 +1,5 @@
-# QtTinySA
+# QtTinySA  
+![autoRBW_20230908_170224](https://github.com/g4ixt/QtTinySA/assets/76836635/a6c471e5-5de0-4e9c-b2fa-87d4fa0484d5)
 
 A Python TinySA Ultra GUI programme using Qt5 and PyQt5 designed to run in Linux.  Should also now work with the original TinySA.  
 See 'Wiki' for information about using the traces, markers, saving the spectrum, etc.  
