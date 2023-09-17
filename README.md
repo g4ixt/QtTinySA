@@ -28,7 +28,7 @@ Working Features:
 Trace updates as tinySA scans  
 LNA on/off  
 SPUR auto/off  
-Scan points selectable between 100 and 3,500.  
+Scan points selectable between 20 and 30,000 set manually or automatically based on RBW    
 RBW control  
 4 different colour traces, all can be turned on/off and set to average, max hold or min hold  
 Selectable averaging  
