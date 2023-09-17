@@ -150,7 +150,7 @@ class analyser:
                 ui.scan_button.setEnabled(False)  # prevent repeat presses of 'stop'
                 ui.run3D.setEnabled(False)
             else:
-                try:
+                try:  # start measurements
                     self.pause()
                     startF = ui.start_freq.value()*1e6
                     stopF = ui.stop_freq.value()*1e6
@@ -203,20 +203,23 @@ class analyser:
         if ui.rbw_box.currentIndex() == 0:
             self.rbw = 'auto'
             ui.points_auto.setChecked(False)  # can't calculate Points because we don't know what the RBW will be
+            ui.points_auto.setEnabled(False)
         else:
             self.rbw = ui.rbw_box.currentText()  # ui values are discrete ones in kHz
             self.setPoints()
+            ui.points_auto.setEnabled(True)
         rbw_command = f'rbw {self.rbw}\r'.encode()
         self.serialSend(rbw_command)
 
     def setPoints(self):
         if ui.points_auto.isChecked():
             points = int((ui.span_freq.value()*1000)/(float(self.rbw)/2))  # values in kHz
+            # future - (self.rbw)/3) for best power accuracy: allow this to be set in 'preferences'
             logging.debug(f'points = {points}')
             if points > 30000:
-                points = 30000  # future - allow this to be set in 'preferences''
+                points = 30000  # future - allow this to be set in 'preferences'
             if points < 100:
-                points = 100  # future - allow this to be set in 'preferences''
+                points = 100  # future - allow this to be set in 'preferences'
             ui.points_box.setValue(points)
 
     def clearBuffer(self):
@@ -651,7 +654,6 @@ def activeButtons(tF):
     ui.lna_box.setEnabled(tF and tinySA.tinySA4)
     ui.rbw_box.setEnabled(tF)
     ui.points_box.setEnabled(tF)
-    ui.points_auto.setEnabled(tF)
     ui.band_box.setEnabled(tF)
     ui.start_freq.setEnabled(tF)
     ui.stop_freq.setEnabled(tF)
