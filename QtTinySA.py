@@ -97,8 +97,10 @@ class analyser:
         # TinySA Ultra resolution bandwidth filters in kHz
         self.resBW = ['0.2', '1', '3', '10', '30', '100', '300', '600', '850']
 
+        # show hardware information in GUI
+        self.battery()  # send a command to the TinySA - appears to fix the 'cversion?' at startup issue
         hardware = self.version()
-        # hardware = 'basic'  # for testing
+        # hardware = 'basic'  # used for testing
         logging.info(f'version = {hardware}')
         if hardware[:7] == 'tinySA4':  # It's an Ultra
             self.tinySA4 = True
@@ -556,6 +558,7 @@ def band_changed():
     if index == 0:
         return
     else:
+        tinySA.setRBW()
         index -= 1
         start = tinySA.fBandStart[index]
         ui.start_freq.setValue(start)

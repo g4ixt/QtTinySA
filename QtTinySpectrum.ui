@@ -1507,6 +1507,12 @@
     </property>
     <addaction name="actionAbout_QtTinySA"/>
    </widget>
+   <widget class="QMenu" name="menuPreferences">
+    <property name="title">
+     <string>&amp;Preferences</string>
+    </property>
+   </widget>
+   <addaction name="menuPreferences"/>
    <addaction name="menu_Help"/>
   </widget>
   <action name="actionsetting">
