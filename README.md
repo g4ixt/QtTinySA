@@ -1,11 +1,10 @@
 # QtTinySA
 
-A Python TinySA Ultra GUI programme using Qt5 and PyQt5 designed to run in Linux.  Should also now work with the original TinySA.  
+A Python 'TinySA Ultra' (and original 'TinySA') GUI programme using Qt5 and PyQt5. Designed to run in Linux but also works in Windows and mac (I do not test it on Windows or mac).  
 See 'Wiki' for information about using the traces, markers, saving the spectrum, etc.  
 
 The code attempts to replicate some of the TinySA Ultra on-screen commands on the PC.  Generator control seemed pointless so I have not added it.
 Development took place on Kubuntu 22.04LTS with Python 3.9 and PyQt5 using Spyder in Anaconda.
-Not tested in any version of Windows or Mac but it should work on both.
 
 'TinySA' and 'TinySA Ultra' are trademarks of Erik Kaashoek and are used with his permission.
 
