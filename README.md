@@ -1,11 +1,11 @@
-# QtTinySA
+# QtTinySA  
+![autoRBW_20230908_170224](https://github.com/g4ixt/QtTinySA/assets/76836635/a6c471e5-5de0-4e9c-b2fa-87d4fa0484d5)
 
 A Python 'TinySA Ultra' (and original 'TinySA') GUI programme using Qt5 and PyQt5. Designed to run in Linux but also works in Windows and mac (I do not test it on Windows or mac).  
 
-See 'Wiki' for information about using the traces, markers, saving the spectrum, etc.  
-
 The code attempts to replicate some of the TinySA Ultra on-screen commands on the PC.  Generator control seemed pointless so I have not added it.
 Development took place on Kubuntu 22.04LTS with Python 3.9 and PyQt5 using Spyder in Anaconda.
+Not tested in any version of Windows or Mac but it should work on both.
 
 'TinySA' and 'TinySA Ultra' are trademarks of Erik Kaashoek and are used with his permission.
 
@@ -27,7 +27,7 @@ Working Features:
 Trace updates as tinySA scans  
 LNA on/off  
 SPUR auto/off  
-Scan points selectable between 100 and 3,500.  
+Scan points selectable between 20 and 30,000 set manually or automatically based on RBW    
 RBW control  
 4 different colour traces, all can be turned on/off and set to average, max hold or min hold  
 Selectable averaging  
