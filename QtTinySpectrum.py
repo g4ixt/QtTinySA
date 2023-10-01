@@ -448,7 +448,7 @@ class Ui_MainWindow(object):
         self.start_freq.setMaximum(6000.0)
         self.start_freq.setSingleStep(1.0)
         self.start_freq.setStepType(QtWidgets.QAbstractSpinBox.AdaptiveDecimalStepType)
-        self.start_freq.setProperty("value", 88.0)
+        self.start_freq.setProperty("value", 87.5)
         self.start_freq.setObjectName("start_freq")
         self.gridLayout_2.addWidget(self.start_freq, 1, 1, 1, 1)
         spacerItem1 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
