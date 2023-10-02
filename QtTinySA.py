@@ -64,6 +64,7 @@ class analyser:
         self.scale = 174
         self.scanMemory = 50
         self.scan3D = False
+        self.rbw = None
 
     @property
     def frequencies(self):
@@ -212,7 +213,7 @@ class analyser:
         self.serialSend(rbw_command)
 
     def setPoints(self):
-        if ui.points_auto.isChecked():
+        if ui.points_auto.isChecked() and self.rbw is not None :
             points = int((ui.span_freq.value()*1000)/(float(self.rbw)/2))  # values in kHz
             # future - (self.rbw)/3) for best power accuracy: allow this to be set in 'preferences'
             logging.debug(f'points = {points}')
