@@ -92,6 +92,7 @@ class analyser:
                 self.initialise()
             except serial.SerialException:
                 logging.info('serial port exception')
+        self.battery()
 
     def closePort(self):
         if self.usb:
@@ -260,6 +261,7 @@ class analyser:
 
     def measurement(self, f_low, f_high):  # runs in a separate thread
         self.threadrunning = True
+        firstSweep = True
         while self.sweeping:
             try:
                 self.usb.timeout = self.timeout
@@ -284,6 +286,10 @@ class analyser:
                     logging.debug(f'level = {dBm_power}dBm')
                 self.usb.read(2)  # discard the command prompt
                 self.signals.result3D.emit(self.sweepresults)  # update 3D only once per sweep, for performance reasons
+                if firstSweep:
+                    # populate entire scan memory with first sweep as starting point
+                    self.sweepresults = np.full((self.scanMemory, self.points), self.sweepresults[0], dtype=float)
+                    firstSweep = False
                 # results row 0 is now full: roll it down 1 row ready for the next sweep to be stored at row 0
                 self.sweepresults = np.roll(self.sweepresults, 1, axis=0)
             except serial.SerialException:
@@ -682,7 +688,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.7.4')
+app.setApplicationVersion(' v0.7.5')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
