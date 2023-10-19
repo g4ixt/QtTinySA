@@ -17,9 +17,6 @@
     <verstretch>0</verstretch>
    </sizepolicy>
   </property>
-  <property name="windowTitle">
-   <string>QtTinySA</string>
-  </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout_5">
     <item row="0" column="0">
@@ -32,6 +29,12 @@
       </property>
       <property name="autoFillBackground">
        <bool>false</bool>
+      </property>
+      <property name="tabPosition">
+       <enum>QTabWidget::North</enum>
+      </property>
+      <property name="tabShape">
+       <enum>QTabWidget::Rounded</enum>
       </property>
       <property name="currentIndex">
        <number>0</number>
@@ -446,7 +449,7 @@
              <string/>
             </property>
             <property name="minimum">
-             <number>20</number>
+             <number>1</number>
             </property>
             <property name="maximum">
              <number>30000</number>
@@ -848,7 +851,7 @@
              <enum>QAbstractSpinBox::AdaptiveDecimalStepType</enum>
             </property>
             <property name="value">
-             <double>88.000000000000000</double>
+             <double>87.500000000000000</double>
             </property>
            </widget>
           </item>

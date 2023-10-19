@@ -51,7 +51,8 @@ blue_dash = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
 class analyser:
     def __init__(self):
         # self.dev = getport()
-        self.dev = None
+        # self.dev = None
+        self.usb = None
         self._frequencies = None
         self.sweeping = False
         self.signals = WorkerSignals()
@@ -70,24 +71,35 @@ class analyser:
         # what does this do?
         return self._frequencies
 
-    def initialise(self, doPopUp=True):
-        # Get tinysa device automatically using hardware ID
+    def openPort(self):
+        self.dev = None
+        # Get tinysa device (port) automatically using hardware ID
         VID = 0x0483  # 1155
         PID = 0x5740  # 22336
-        try:
-            device_list = list_ports.comports()
-        except serial.SerialException:
-            logging.info('serial port exception')
+        device_list = list_ports.comports()
         for x in device_list:
             if x.vid == VID and x.pid == PID:
                 self.dev = x.device
+                logging.info(f'Found TinySA on {self.dev}')
         if self.dev is None:
             activeButtons(False)  # do not trigger serial commands
-            ui.version.setText('Not Connected')
-            if doPopUp:
-                popUp('TinySA not found', 'ok')
-            return
+            ui.version.setText('TinySA not found')
+            logging.info('TinySA not found')
+        if self.usb is None and self.dev:  # TinySA was found but serial comms not open
+            try:
+                self.usb = serial.Serial(self.dev)
+                logging.info('serial port opened')
+                self.initialise()
+            except serial.SerialException:
+                logging.info('serial port exception')
 
+    def closePort(self):
+        if self.usb:
+            self.usb.close()
+            logging.info('serial port closed')
+            self.usb = None
+
+    def initialise(self):
         # amateur frequency band values (plus VHF radio Band 2 and AO-100 LNB output)
         self.fBandStart = [1.8, 3.5, 7.0, 10.1, 14.0, 18.068, 21.0, 24.89, 28.0,
                            50.0, 70.0, 87.5, 144.0, 430.0, 739.4, 1240, 2300, 2390, 3300, 5650]
@@ -98,10 +110,9 @@ class analyser:
         self.resBW = ['0.2', '1', '3', '10', '30', '100', '300', '600', '850']
 
         # show hardware information in GUI
-        self.battery()  # send a command to the TinySA - appears to fix the 'cversion?' at startup issue
         hardware = self.version()
         # hardware = 'basic'  # used for testing
-        logging.info(f'version = {hardware}')
+        logging.info(f'{hardware}')
         if hardware[:7] == 'tinySA4':  # It's an Ultra
             self.tinySA4 = True
             ui.spur_box.setTristate(True)  # TinySA Ultra has 'auto', 'on' and 'off' setting for Spur
@@ -144,16 +155,15 @@ class analyser:
 
     def scan(self):
         self.scan3D = ui.Enabled3D.isChecked()
-        if self.dev is None:
-            self.initialise()
-        if self.dev is not None:
+        if self.usb is None:
+            self.openPort()
+        if self.usb is not None:
             if self.sweeping:  # if it's running, stop it
                 self.sweeping = False  # tells the measurement thread to stop once current scan complete
                 ui.scan_button.setEnabled(False)  # prevent repeat presses of 'stop'
                 ui.run3D.setEnabled(False)
             else:
                 try:  # start measurements
-                    self.pause()
                     startF = ui.start_freq.value()*1e6
                     stopF = ui.stop_freq.value()*1e6
                     points = ui.points_box.value()
@@ -166,7 +176,7 @@ class analyser:
                     self.startMeasurement(startF, stopF)  # runs measurement in separate thread
                 except serial.SerialException:
                     self.dev = None
-                    self.initialise()
+                    self.closePort()
 
     def startMeasurement(self, startF, stopF):
         self.sweep = Worker(self.measurement, startF, stopF)  # workers are auto-deleted when thread stops
@@ -178,22 +188,20 @@ class analyser:
 
     def serialSend(self, command):
         self.clearBuffer()
-        with serial.Serial(port=self.dev, baudrate=3000000) as SA:  # baudrate does nothing for USB cnx
-            SA.timeout = 1
-            logging.debug(command)
-            SA.write(command)
-            SA.read_until(b'ch> ')  # skip command echo and prompt
+        self.usb.timeout = 1
+        logging.debug(command)
+        self.usb.write(command)
+        self.usb.read_until(b'ch> ')  # skip command echo and prompt
 
     def serialQuery(self, command):
         self.clearBuffer()
-        with serial.Serial(port=self.dev, baudrate=3000000) as SA:  # baudrate does nothing for USB cnx
-            SA.timeout = 1
-            logging.debug(command)
-            SA.write(command)
-            SA.read_until(command + b'\n')  # skip command echo
-            response = SA.read_until(b'ch> ')
-            logging.debug(response)
-            return response[:-6].decode()  # remove prompt
+        self.usb.timeout = 1
+        logging.debug(command)
+        self.usb.write(command)
+        self.usb.read_until(command + b'\n')  # skip command echo
+        response = self.usb.read_until(b'ch> ')
+        logging.debug(response)
+        return response[:-6].decode()  # remove prompt
 
     def set_frequencies(self, startF, stopF, points):
         # creates a np array of equi-spaced freqs in Hz (but doesn't set it on the tinySA)
@@ -213,7 +221,7 @@ class analyser:
         rbw_command = f'rbw {self.rbw}\r'.encode()
         self.serialSend(rbw_command)
 
-    def setPoints(self):
+    def setPoints(self):  # what if span = 0?
         if ui.points_auto.isChecked():
             points = int((ui.span_freq.value()*1000)/(float(self.rbw)/2))  # values in kHz
             # future - (self.rbw)/3) for best power accuracy: allow this to be set in 'preferences'
@@ -225,11 +233,10 @@ class analyser:
             ui.points_box.setValue(points)
 
     def clearBuffer(self):
-        with serial.Serial(self.dev, baudrate=3000000) as serialPort:  # baudrate does nothing for USB cnx
-            serialPort.timeout = 1
-            while serialPort.inWaiting():
-                serialPort.read_all()  # keep the serial buffer clean
-                time.sleep(0.1)
+        self.usb.timeout = 1
+        while self.usb.inWaiting():
+            self.usb.read_all()  # keep the serial buffer clean
+            time.sleep(0.1)
 
     def sweepTimeout(self, f_low, f_high):  # freqs are in Hz
         if self.rbw == 'auto':
@@ -254,16 +261,16 @@ class analyser:
     def measurement(self, f_low, f_high):  # runs in a separate thread
         self.threadrunning = True
         while self.sweeping:
-            with serial.Serial(self.dev, baudrate=3000000) as serialPort:  # baudrate does nothing for USB cnx
-                serialPort.timeout = self.timeout
+            try:
+                self.usb.timeout = self.timeout
                 scan_command = f'scanraw {int(f_low)} {int(f_high)} {int(self.points)}\r'.encode()
-                serialPort.write(scan_command)
+                self.usb.write(scan_command)
                 index = 0
-                serialPort.read_until(scan_command + b'\n{')  # skip command echo
+                self.usb.read_until(scan_command + b'\n{')  # skip command echo
                 dataBlock = ''
                 self.sweepresults[0] = self.sweepresults[1]  # populate each sweep with previous sweep as starting point
                 while dataBlock != b'}ch':  # if dataBlock is '}ch' it's reached the end of the scan points
-                    dataBlock = (serialPort.read(3))  # read a block of 3 bytes of data
+                    dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
                     logging.debug(f'dataBlock: {dataBlock}\n')
                     if dataBlock != b'}ch':
                         logging.debug(f'index {index} elapsed time = {self.runTimer.nsecsElapsed()/1e6}')
@@ -275,11 +282,13 @@ class analyser:
                             self.signals.result.emit(self.sweepresults)
                         index += 1
                     logging.debug(f'level = {dBm_power}dBm')
-                serialPort.read(2)  # discard the command prompt
-            self.signals.result3D.emit(self.sweepresults)  # update 3D only once per sweep, for performance reasons
-
-            # results row 0 is now full: roll it down 1 row ready for the next sweep to be stored at row 0
-            self.sweepresults = np.roll(self.sweepresults, 1, axis=0)
+                self.usb.read(2)  # discard the command prompt
+                self.signals.result3D.emit(self.sweepresults)  # update 3D only once per sweep, for performance reasons
+                # results row 0 is now full: roll it down 1 row ready for the next sweep to be stored at row 0
+                self.sweepresults = np.roll(self.sweepresults, 1, axis=0)
+            except serial.SerialException:
+                logging.info('serial port exception')
+                self.sweeping = False
         self.signals.finished.emit()
 
     def threadEnds(self):
@@ -349,7 +358,7 @@ class analyser:
             ui.run3D.setStyleSheet('background-color: white')
             ui.scan_button.setEnabled(True)
             ui.run3D.setEnabled(True)
-            ui.battery.setText(self.battery())
+            # ui.battery.setText(self.battery())
 
     def pause(self):
         # pauses the sweeping in either input or output mode
@@ -508,7 +517,7 @@ class Worker(QRunnable):
 
 
 ###############################################################################
-# other methods
+# respond to GUI signals
 
 def start_freq_changed(loopy=False):
     ui.band_box.setCurrentIndex(0)
@@ -629,26 +638,8 @@ def memChanged():
     tinySA.scanMemory = depth
 
 
-def exit_handler():
-    if tinySA.dev is not None:
-        tinySA.sweeping = False
-        time.sleep(1)  # allow time for measurements to stop
-        tinySA.resume()
-    app.processEvents()
-    logging.info('Closed')
-
-
-def popUp(message, button):
-    msg = QMessageBox(parent=(window))
-    msg.setIcon(QMessageBox.Warning)
-    msg.setText(message)
-    msg.addButton(button, QMessageBox.ActionRole)
-    msg.exec_()
-
-
 ##############################################################################
-# respond to GUI signals
-
+# other methods
 
 def activeButtons(tF):
     # disable/enable buttons that send commands to TinySA (Because Comms are in use if scanning)
@@ -666,12 +657,32 @@ def activeButtons(tF):
     ui.Enabled3D.setEnabled(tF)
 
 
+def exit_handler():
+    if tinySA.dev is not None:
+        tinySA.sweeping = False
+        time.sleep(1)  # allow time for measurements to stop
+        tinySA.resume()
+        tinySA.closePort()
+    app.processEvents()
+    logging.info('QtTinySA Closed')
+
+
+def popUp(message, button):
+    msg = QMessageBox(parent=(window))
+    msg.setIcon(QMessageBox.Warning)
+    msg.setText(message)
+    msg.addButton(button, QMessageBox.ActionRole)
+    msg.exec_()
+
+
 ###############################################################################
 # Instantiate classes
 
 tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
+app.setApplicationName('QtTinySA')
+app.setApplicationVersion(' v0.7.4')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -701,7 +712,6 @@ S1.vline.label.setPosition(0.99)
 S2.vline.label.setPosition(0.95)
 S3.vline.label.setPosition(0.90)
 S4.vline.label.setPosition(0.85)
-
 
 ###############################################################################
 # Connect signals from buttons and sliders
@@ -749,6 +759,7 @@ ui.t4_type.currentTextChanged.connect(lambda: S4.tType(ui.t4_type))
 
 ui.memSlider.sliderMoved.connect(memChanged)
 
+
 ###############################################################################
 # set up the application
 
@@ -763,9 +774,11 @@ ui.m2_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 ui.m3_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 ui.m4_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 
-tinySA.initialise(False)  # try to init, ignore failure
+# tinySA.initialise(False)  # try to init, ignore failure
+tinySA.openPort()
 
 window.show()
+window.setWindowTitle(app.applicationName() + app.applicationVersion())
 
 ###############################################################################
 # run the application until the user closes it
