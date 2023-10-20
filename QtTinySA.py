@@ -50,8 +50,6 @@ blue_dash = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
 
 class analyser:
     def __init__(self):
-        # self.dev = getport()
-        # self.dev = None
         self.usb = None
         self._frequencies = None
         self.sweeping = False
@@ -60,7 +58,7 @@ class analyser:
         self.signals.result3D.connect(self.updateTimeSpectrum)
         self.signals.finished.connect(self.threadEnds)
         self.timeout = 1
-        self.scanCount = 0
+        self.scanCount = 1
         self.runTimer = QtCore.QElapsedTimer()
         self.scale = 174
         self.scanMemory = 50
@@ -92,7 +90,7 @@ class analyser:
                 self.initialise()
             except serial.SerialException:
                 logging.info('serial port exception')
-        self.battery()
+        self.clearBuffer()
 
     def closePort(self):
         if self.usb:
@@ -165,6 +163,7 @@ class analyser:
                 ui.run3D.setEnabled(False)
             else:
                 try:  # start measurements
+                    self.scanCount = 1
                     startF = ui.start_freq.value()*1e6
                     stopF = ui.stop_freq.value()*1e6
                     points = ui.points_box.value()
@@ -224,6 +223,7 @@ class analyser:
 
     def setPoints(self):  # what if span = 0?
         if ui.points_auto.isChecked():
+            self.rbw = ui.rbw_box.currentText()
             points = int((ui.span_freq.value()*1000)/(float(self.rbw)/2))  # values in kHz
             # future - (self.rbw)/3) for best power accuracy: allow this to be set in 'preferences'
             logging.debug(f'points = {points}')
@@ -292,6 +292,7 @@ class analyser:
                     firstSweep = False
                 # results row 0 is now full: roll it down 1 row ready for the next sweep to be stored at row 0
                 self.sweepresults = np.roll(self.sweepresults, 1, axis=0)
+                self.scanCount += 1
             except serial.SerialException:
                 logging.info('serial port exception')
                 self.sweeping = False
@@ -303,9 +304,14 @@ class analyser:
         activeButtons(True)
 
     def sigProcess(self, signaldBm):  # signaldBm is emitted from the worker thread
-        signalAvg = np.average(signaldBm[:ui.avgSlider.value(), ::], axis=0)
-        signalMax = np.amax(signaldBm[:100, ::], axis=0)
-        signalMin = np.amin(signaldBm[:100, ::], axis=0)
+        if ui.avgSlider.value() > self.scanCount:
+            signalAvg = np.average(signaldBm[:self.scanCount, ::], axis=0)
+            signalMax = np.amax(signaldBm[:self.scanCount, ::], axis=0)
+            signalMin = np.amin(signaldBm[:self.scanCount, ::], axis=0)
+        else:
+            signalAvg = np.average(signaldBm[:ui.avgSlider.value(), ::], axis=0)
+            signalMax = np.amax(signaldBm[:ui.avgSlider.value(), ::], axis=0)
+            signalMin = np.amin(signaldBm[:ui.avgSlider.value(), ::], axis=0)
         options = {'Normal': signaldBm[0], 'Average': signalAvg, 'Max': signalMax, 'Min': signalMin}
         S1.updateGUI(options.get(S1.traceType))
         S2.updateGUI(options.get(S2.traceType))
@@ -688,7 +694,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.7.5')
+app.setApplicationVersion(' v0.7.6')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
