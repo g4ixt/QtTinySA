@@ -63,6 +63,8 @@ class analyser:
         self.scale = 174
         self.scanMemory = 50
         self.scan3D = False
+        self.surface = None
+        self.vGrid = None
 
     @property
     def frequencies(self):
@@ -88,9 +90,9 @@ class analyser:
                 self.usb = serial.Serial(self.dev)
                 logging.info('serial port opened')
                 self.initialise()
+                self.clearBuffer()
             except serial.SerialException:
                 logging.info('serial port exception')
-        self.clearBuffer()
 
     def closePort(self):
         if self.usb:
@@ -99,11 +101,11 @@ class analyser:
             self.usb = None
 
     def initialise(self):
-        # amateur frequency band values (plus VHF radio Band 2 and AO-100 LNB output)
+        # amateur frequency band values (plus broadcast radio Band 2/3 and AO-100 LNB output)
         self.fBandStart = [1.8, 3.5, 7.0, 10.1, 14.0, 18.068, 21.0, 24.89, 28.0,
-                           50.0, 70.0, 87.5, 144.0, 430.0, 739.4, 1240, 2300, 2390, 3300, 5650]
+                           50.0, 70.0, 87.5, 144.0, 175, 430.0, 739.4, 1240, 2300, 2390, 3300, 5650]
         self.fBandStop = [2.0, 3.8, 7.1, 10.15, 14.35, 18.168, 21.45, 24.99, 29.7,
-                          52.0, 70.5, 108.0, 146.0, 440.0, 740.1, 1325, 2310, 2450, 3500, 5925]
+                          52.0, 70.5, 108.0, 146.0, 230, 440.0, 740.1, 1325, 2310, 2450, 3500, 5925]
 
         # TinySA Ultra resolution bandwidth filters in kHz
         self.resBW = ['0.2', '1', '3', '10', '30', '100', '300', '600', '850']
@@ -120,8 +122,8 @@ class analyser:
         else:
             self.tinySA4 = False
             self.scale = 128
-            self.fBandStart = self.fBandStart[:14]  # TinySA Basic has a smaller frequency band range
-            self.fBandStop = self.fBandStop[:14]
+            self.fBandStart = self.fBandStart[:16]  # TinySA Basic has a smaller frequency band range
+            self.fBandStop = self.fBandStop[:16]
             self.resBW = self.resBW[2:8]  # TinySA Basic has fewer resolution bandwidth filters
             ui.spur_box.setTristate(False)  # TinySA Basic has only 'on' and 'off' setting for Spur'
             ui.spur_box.setChecked(True)
@@ -323,6 +325,9 @@ class analyser:
         y = np.arange(start=0, stop=self.points)  # the frequency axis width
         z = self.sweepresults  # the measurement azis heights in dBm
         logging.debug(f'z = {z}')
+        if self.surface:  # if 3D spectrum exists, clear it
+            ui.openGLWidget.removeItem(self.surface)
+            # ui.openGLWidget.removeItem(self.vGrid)
         self.surface = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='heightColor',
                                                 computeNormals=ui.glNormals.isChecked(), smooth=ui.glSmooth.isChecked())
 
@@ -337,20 +342,41 @@ class analyser:
                                                       ui.bConst.value(),      # blue  [7]
                                                       ui.gExponent.value()])  # blue  [8]
 
-        self.surface.translate(-0.15*self.scanMemory, -self.points/2, -130)
-        self.surface.scale(self.points/1250, 0.05, 0.05, local=False)
+        # self.surface.translate(-0.15*self.scanMemory, -self.points/2, -130)
+        self.surface.translate(-15, -self.points/2, -self.points/4)
+        self.surface.scale(self.points/1250, 0.05, 0.1, local=False)
         self.surface.rotate(45, 0, 0, 1)
         ui.openGLWidget.addItem(self.surface)
 
-        # Add a vertical grid to the 3D view
-        vGrid = pyqtgl.GLGridItem()
-        vGrid.scale(self.points/400, 0.4, 0.2)
-        vGrid.rotate(90, 0, 1, 0)
-        vGrid.rotate(90, 1, 0, 0)
-        vGrid.rotate(45, 0, 0, 1)
-        vGrid.translate(-self.points/33, -self.points/33, -1)
-        vGrid.setSpacing(1, 1, 2)
-        ui.openGLWidget.addItem(vGrid)
+        # # Add a vertical grid to the 3D view
+        # self.vGrid = pyqtgl.GLGridItem()
+        # # self.vGrid.scale(-1, 1, 1)
+        # # self.vGrid.setSize(x=self.points/20, y=12, z=1)
+        # self.vGrid.setSize(x=12, y=16, z=1)
+        # self.vGrid.rotate(90, 0, 1, 0)
+        # # self.vGrid.rotate(90, 1, 0, 0)
+        # self.vGrid.rotate(-45, 0, 0, 1)
+        # # self.vGrid.translate(-self.points/33, -self.points/33, -1)
+        # self.vGrid.translate(-15, 0, 0)
+        # self.vGrid.setSpacing(1, 1, 2)
+        # ui.openGLWidget.addItem(self.vGrid)
+
+        # Test of horizontal lines instead of grid
+        xL = 0
+        yL = self.scanMemory
+        zL = 20
+        xR = 10
+        yR = yL
+        zR = zL
+
+        pL = (xL, yL, zL)
+        pR = (xR, yR, zR)
+        pts = np.array([pL, pR])
+        dBLine = pyqtgl.GLLinePlotItem(pos=pts, width=1, antialias=False)
+        dBLine.translate(-15, -self.points/2, -self.points/4)
+        dBLine.scale(self.points/1250, 0.05, 0.1, local=False)
+        dBLine.rotate(-45, 0, 0, 1)
+        ui.openGLWidget.addItem(dBLine)
 
     def updateTimeSpectrum(self, results):
         if ui.Enabled3D.isChecked():
