@@ -326,8 +326,9 @@ class analyser:
         z = self.sweepresults  # the measurement azis heights in dBm
         logging.debug(f'z = {z}')
         if self.surface:  # if 3D spectrum exists, clear it
+            ui.openGLWidget.reset()
             ui.openGLWidget.removeItem(self.surface)
-            # ui.openGLWidget.removeItem(self.vGrid)
+            ui.openGLWidget.removeItem(self.vGrid)
         self.surface = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='heightColor',
                                                 computeNormals=ui.glNormals.isChecked(), smooth=ui.glSmooth.isChecked())
 
@@ -342,47 +343,44 @@ class analyser:
                                                       ui.bConst.value(),      # blue  [7]
                                                       ui.gExponent.value()])  # blue  [8]
 
-        # self.surface.translate(-0.15*self.scanMemory, -self.points/2, -130)
-        self.surface.translate(-15, -self.points/2, -self.points/4)
-        self.surface.scale(self.points/1250, 0.05, 0.1, local=False)
-        self.surface.rotate(45, 0, 0, 1)
+        self.surface.translate(16, -self.points/40, -8)  # front/back, left/right, up/down
+        self.surface.scale(self.points/1250, 0.05, 0.1, local=True)
+        # self.surface.rotate(45, 0, 0, 1)
         ui.openGLWidget.addItem(self.surface)
 
-        # # Add a vertical grid to the 3D view
-        # self.vGrid = pyqtgl.GLGridItem()
-        # # self.vGrid.scale(-1, 1, 1)
-        # # self.vGrid.setSize(x=self.points/20, y=12, z=1)
-        # self.vGrid.setSize(x=12, y=16, z=1)
-        # self.vGrid.rotate(90, 0, 1, 0)
-        # # self.vGrid.rotate(90, 1, 0, 0)
-        # self.vGrid.rotate(-45, 0, 0, 1)
-        # # self.vGrid.translate(-self.points/33, -self.points/33, -1)
-        # self.vGrid.translate(-15, 0, 0)
-        # self.vGrid.setSpacing(1, 1, 2)
-        # ui.openGLWidget.addItem(self.vGrid)
-
-        # Test of horizontal lines instead of grid
-        xL = 0
-        yL = self.scanMemory
-        zL = 20
-        xR = 10
-        yR = yL
-        zR = zL
-
-        pL = (xL, yL, zL)
-        pR = (xR, yR, zR)
-        pts = np.array([pL, pR])
-        dBLine = pyqtgl.GLLinePlotItem(pos=pts, width=1, antialias=False)
-        dBLine.translate(-15, -self.points/2, -self.points/4)
-        dBLine.scale(self.points/1250, 0.05, 0.1, local=False)
-        dBLine.rotate(-45, 0, 0, 1)
-        ui.openGLWidget.addItem(dBLine)
+        # Add a vertical grid to the 3D view
+        self.vGrid = pyqtgl.GLGridItem(glOptions='translucent')
+        self.vGrid.setSize(x=12, y=self.points/20, z=1)
+        self.vGrid.rotate(90, 0, 1, 0)
+        self.vGrid.setSpacing(1, 1, 2)
+        self.vGrid.setColor('y')
+        if ui.grid.isChecked():
+            ui.openGLWidget.addItem(self.vGrid)
+        self.camera(135, 'X')
 
     def updateTimeSpectrum(self, results):
         if ui.Enabled3D.isChecked():
             z = results + 120  # Surface plot height shader needs positive numbers so convert from dBm to dBf
             logging.debug(f'z = {z}')
             self.surface.setData(z=z)
+
+    def camera(self, sign, azimuth=True):
+        degrees = ui.rotateBy.value()
+        if azimuth:
+            ui.openGLWidget.orbit(sign*degrees, 0)
+        else:
+            ui.openGLWidget.orbit(0, sign*degrees)
+
+    def centre(self, sign, axis):
+        pixels = ui.panBy.value()
+        options = {'X': (pixels*sign, 0, 0), 'Y': (0, pixels*sign, 0), 'Z': (0, 0, pixels*sign)}
+        s = options.get(axis)
+        ui.openGLWidget.pan(s[0], s[1], s[2], relative='global')
+
+    def grid(self, sign):
+        step = ui.rotateBy.value()
+        if ui.grid.isChecked():
+            self.vGrid.translate(step*sign, 0, 0)
 
     def runButton(self, action):
         # Update the Run/Stop buttons' text and colour
@@ -693,6 +691,7 @@ def activeButtons(tF):
     ui.span_freq.setEnabled(tF)
     ui.memSlider.setEnabled(tF)
     ui.Enabled3D.setEnabled(tF)
+    ui.grid.setEnabled(tF)
 
 
 def exit_handler():
@@ -720,7 +719,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.7.6')
+app.setApplicationVersion(' v0.7.7')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -797,6 +796,22 @@ ui.t4_type.currentTextChanged.connect(lambda: S4.tType(ui.t4_type))
 
 ui.memSlider.sliderMoved.connect(memChanged)
 
+ui.orbitL.clicked.connect(lambda: tinySA.camera(1, True))
+ui.orbitR.clicked.connect(lambda: tinySA.camera(-1, True))
+ui.orbitU.clicked.connect(lambda: tinySA.camera(-1, False))
+ui.orbitD.clicked.connect(lambda: tinySA.camera(1, False))
+
+ui.panL.clicked.connect(lambda: tinySA.centre(-1, 'X'))
+ui.panR.clicked.connect(lambda: tinySA.centre(1, 'X'))
+ui.panU.clicked.connect(lambda: tinySA.centre(1, 'Y'))
+ui.panD.clicked.connect(lambda: tinySA.centre(-1, 'Y'))
+ui.panI.clicked.connect(lambda: tinySA.centre(-1, 'Z'))
+ui.panO.clicked.connect(lambda: tinySA.centre(1, 'Z'))
+
+ui.gridF.clicked.connect(lambda: tinySA.grid(-1))
+ui.gridR.clicked.connect(lambda: tinySA.grid(1))
+
+ui.reset3D.clicked.connect(lambda: ui.openGLWidget.reset())
 
 ###############################################################################
 # set up the application
