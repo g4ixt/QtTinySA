@@ -17,11 +17,11 @@ The serial communication commands are based on the Python NanoVNA/TinySA Toolset
 https://github.com/Ho-Ro
 
 """
-
+import os
 import time
 import logging
 import numpy as np
-from PyQt5 import QtWidgets, QtCore
+from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import pyqtSlot, pyqtSignal, QRunnable, QObject, QThreadPool
 from PyQt5.QtWidgets import QMessageBox
 import pyqtgraph
@@ -35,6 +35,7 @@ import pyqtgraph.opengl as pyqtgl
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 threadpool = QThreadPool()
+basedir = os.path.dirname(__file__)
 
 # pyqtgraph pens
 red = pyqtgraph.mkPen(color='r', width=1.0)
@@ -186,6 +187,7 @@ class analyser:
         self.sweepresults = np.full((self.scanMemory, self.points), -100, dtype=float)  # to do - add row count to GUI
         if ui.Enabled3D.isChecked():
             tinySA.createTimeSpectrum()
+            self.reset3D()
         threadpool.start(self.sweep)
 
     def serialSend(self, command):
@@ -259,7 +261,7 @@ class analyser:
             timeout *= 2  # scan time doubles with spur on or spur auto above 800 MHz
         # transfer is done in blocks of 20 points, this is the timeout for one block
         self.timeout = timeout * 20 / self.points + 1  # minimum is 1 second
-        logging.info(f'sweepTimeout = {self.timeout:.2f} s')
+        logging.debug(f'sweepTimeout = {self.timeout:.2f} s')
 
     def measurement(self, f_low, f_high):  # runs in a separate thread
         self.threadrunning = True
@@ -326,7 +328,7 @@ class analyser:
         z = self.sweepresults  # the measurement azis heights in dBm
         logging.debug(f'z = {z}')
         if self.surface:  # if 3D spectrum exists, clear it
-            ui.openGLWidget.reset()
+            # ui.openGLWidget.reset()
             ui.openGLWidget.removeItem(self.surface)
             ui.openGLWidget.removeItem(self.vGrid)
         self.surface = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='heightColor',
@@ -356,31 +358,42 @@ class analyser:
         self.vGrid.setColor('y')
         if ui.grid.isChecked():
             ui.openGLWidget.addItem(self.vGrid)
-        self.camera(135, 'X')
 
     def updateTimeSpectrum(self, results):
         if ui.Enabled3D.isChecked():
             z = results + 120  # Surface plot height shader needs positive numbers so convert from dBm to dBf
             logging.debug(f'z = {z}')
             self.surface.setData(z=z)
+            params = ui.openGLWidget.cameraParams()
+            logging.debug(f'camera {params}')
 
-    def camera(self, sign, azimuth=True):
+    def orbit3D(self, sign, azimuth=True):
         degrees = ui.rotateBy.value()
         if azimuth:
             ui.openGLWidget.orbit(sign*degrees, 0)
         else:
             ui.openGLWidget.orbit(0, sign*degrees)
 
-    def centre(self, sign, axis):
+    def axes3D(self, sign, axis):
         pixels = ui.panBy.value()
         options = {'X': (pixels*sign, 0, 0), 'Y': (0, pixels*sign, 0), 'Z': (0, 0, pixels*sign)}
         s = options.get(axis)
         ui.openGLWidget.pan(s[0], s[1], s[2], relative='global')
 
+    def reset3D(self):
+        ui.openGLWidget.reset()
+        self.orbit3D(135, 'X')
+        ui.openGLWidget.pan(0, 0, -10, relative='global')
+        self.zoom3D()
+
     def grid(self, sign):
         step = ui.rotateBy.value()
         if ui.grid.isChecked():
             self.vGrid.translate(step*sign, 0, 0)
+
+    def zoom3D(self):
+        zoom = ui.zoom.value()
+        ui.openGLWidget.setCameraParams(distance=zoom)
 
     def runButton(self, action):
         # Update the Run/Stop buttons' text and colour
@@ -627,7 +640,6 @@ def attenuate_changed():
 
 def spur_box():
     boxState = ui.spur_box.checkState()
-    logging.debug(f'spur_box state = {boxState}')
     tinySA.spur(boxState)
 
 
@@ -719,7 +731,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.7.7')
+app.setApplicationVersion(' v0.7.8')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -796,25 +808,28 @@ ui.t4_type.currentTextChanged.connect(lambda: S4.tType(ui.t4_type))
 
 ui.memSlider.sliderMoved.connect(memChanged)
 
-ui.orbitL.clicked.connect(lambda: tinySA.camera(1, True))
-ui.orbitR.clicked.connect(lambda: tinySA.camera(-1, True))
-ui.orbitU.clicked.connect(lambda: tinySA.camera(-1, False))
-ui.orbitD.clicked.connect(lambda: tinySA.camera(1, False))
+ui.orbitL.clicked.connect(lambda: tinySA.orbit3D(1, True))
+ui.orbitR.clicked.connect(lambda: tinySA.orbit3D(-1, True))
+ui.orbitU.clicked.connect(lambda: tinySA.orbit3D(-1, False))
+ui.orbitD.clicked.connect(lambda: tinySA.orbit3D(1, False))
 
-ui.panL.clicked.connect(lambda: tinySA.centre(-1, 'X'))
-ui.panR.clicked.connect(lambda: tinySA.centre(1, 'X'))
-ui.panU.clicked.connect(lambda: tinySA.centre(1, 'Y'))
-ui.panD.clicked.connect(lambda: tinySA.centre(-1, 'Y'))
-ui.panI.clicked.connect(lambda: tinySA.centre(-1, 'Z'))
-ui.panO.clicked.connect(lambda: tinySA.centre(1, 'Z'))
+ui.timeF.clicked.connect(lambda: tinySA.axes3D(-1, 'X'))
+ui.timeR.clicked.connect(lambda: tinySA.axes3D(1, 'X'))
+ui.freqR.clicked.connect(lambda: tinySA.axes3D(-1, 'Y'))
+ui.freqL.clicked.connect(lambda: tinySA.axes3D(1, 'Y'))
+ui.signalUp.clicked.connect(lambda: tinySA.axes3D(-1, 'Z'))
+ui.signalDown.clicked.connect(lambda: tinySA.axes3D(1, 'Z'))
 
-ui.gridF.clicked.connect(lambda: tinySA.grid(-1))
-ui.gridR.clicked.connect(lambda: tinySA.grid(1))
+ui.gridF.clicked.connect(lambda: tinySA.grid(1))
+ui.gridR.clicked.connect(lambda: tinySA.grid(-1))
 
-ui.reset3D.clicked.connect(lambda: ui.openGLWidget.reset())
+ui.zoom.sliderMoved.connect(tinySA.zoom3D)
+
+ui.reset3D.clicked.connect(tinySA.reset3D)
 
 ###############################################################################
 # set up the application
+logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 
 ui.t1_type.addItems(['Normal', 'Average', 'Max', 'Min'])
 ui.t2_type.addItems(['Normal', 'Average', 'Max', 'Min'])
@@ -832,6 +847,7 @@ tinySA.openPort()
 
 window.show()
 window.setWindowTitle(app.applicationName() + app.applicationVersion())
+window.setWindowIcon(QtGui.QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 
 ###############################################################################
 # run the application until the user closes it
