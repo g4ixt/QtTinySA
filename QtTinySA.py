@@ -367,31 +367,31 @@ class analyser:
             params = ui.openGLWidget.cameraParams()
             logging.debug(f'camera {params}')
 
-    def orbit3D(self, sign, azimuth=True):
+    def orbit3D(self, sign, azimuth=True):  # orbits the camera around the 3D plot
         degrees = ui.rotateBy.value()
         if azimuth:
             ui.openGLWidget.orbit(sign*degrees, 0)
         else:
             ui.openGLWidget.orbit(0, sign*degrees)
 
-    def axes3D(self, sign, axis):
+    def axes3D(self, sign, axis):  # shifts the plot along one of its 3 axes - time, frequency, signal
         pixels = ui.panBy.value()
         options = {'X': (pixels*sign, 0, 0), 'Y': (0, pixels*sign, 0), 'Z': (0, 0, pixels*sign)}
         s = options.get(axis)
         ui.openGLWidget.pan(s[0], s[1], s[2], relative='global')
 
-    def reset3D(self):
+    def reset3D(self):  # sets the 3D view back to the starting point
         ui.openGLWidget.reset()
         self.orbit3D(135, 'X')
         ui.openGLWidget.pan(0, 0, -10, relative='global')
         self.zoom3D()
 
-    def grid(self, sign):
+    def grid(self, sign):  # moves the grid backwards and forwards on the time axis
         step = ui.rotateBy.value()
         if ui.grid.isChecked():
             self.vGrid.translate(step*sign, 0, 0)
 
-    def zoom3D(self):
+    def zoom3D(self):  # zooms the camera in and out
         zoom = ui.zoom.value()
         ui.openGLWidget.setCameraParams(distance=zoom)
 
