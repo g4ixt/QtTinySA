@@ -1797,12 +1797,13 @@
     </property>
     <addaction name="actionAbout_QtTinySA"/>
    </widget>
-   <widget class="QMenu" name="menuPreferences">
+   <widget class="QMenu" name="menuSettings">
     <property name="title">
-     <string>&amp;Preferences</string>
+     <string>&amp;Settings</string>
     </property>
+    <addaction name="actionPreferences"/>
    </widget>
-   <addaction name="menuPreferences"/>
+   <addaction name="menuSettings"/>
    <addaction name="menu_Help"/>
   </widget>
   <action name="actionsetting">
@@ -1815,14 +1816,14 @@
     <string>level</string>
    </property>
   </action>
-  <action name="actionanother">
-   <property name="text">
-    <string>another</string>
-   </property>
-  </action>
   <action name="actionAbout_QtTinySA">
    <property name="text">
     <string>About QtTinySA</string>
+   </property>
+  </action>
+  <action name="actionPreferences">
+   <property name="text">
+    <string>Preferences</string>
    </property>
   </action>
  </widget>

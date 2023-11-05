@@ -22,10 +22,12 @@ import time
 import logging
 import numpy as np
 from PyQt5 import QtWidgets, QtCore, QtGui
-from PyQt5.QtCore import pyqtSlot, pyqtSignal, QRunnable, QObject, QThreadPool
-from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtCore import pyqtSlot, pyqtSignal, QRunnable, QObject, QThreadPool, Qt
+from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper
+from PyQt5.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate
 import pyqtgraph
 import QtTinySpectrum  # the GUI
+import QtTSApreferences  # GUI preferences dialogue
 import struct
 import serial
 from serial.tools import list_ports
@@ -44,6 +46,12 @@ white = pyqtgraph.mkPen(color='w', width=1.0)
 cyan = pyqtgraph.mkPen(color='c', width=1.0)
 red_dash = pyqtgraph.mkPen(color='r', width=0.5, style=QtCore.Qt.DashLine)
 blue_dash = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
+
+config = QSqlDatabase.addDatabase('QSQLITE')
+config.setDatabaseName(os.path.join(basedir, 'QtTSAprefs.db'))
+logging.info('open config database')
+config.open()
+logging.info(f'  database is open: {config.isOpen()}')
 
 ###############################################################################
 # classes
@@ -214,9 +222,9 @@ class analyser:
         logging.debug(f'frequencies = {self._frequencies}')
 
     def setRBW(self):
-        if ui.rbw_box.currentIndex() == 0:
+        if ui.rbw_box.currentIndex() == 0:  # can't calculate Points because we don't know what the RBW will be
             self.rbw = 'auto'
-            ui.points_auto.setChecked(False)  # can't calculate Points because we don't know what the RBW will be
+            ui.points_auto.setChecked(False)
             ui.points_auto.setEnabled(False)
         else:
             self.rbw = ui.rbw_box.currentText()  # ui values are discrete ones in kHz
@@ -274,7 +282,7 @@ class analyser:
                 index = 0
                 self.usb.read_until(scan_command + b'\n{')  # skip command echo
                 dataBlock = ''
-                self.sweepresults[0] = self.sweepresults[1]  # populate each sweep with previous sweep as starting point
+                self.sweepresults[0] = self.sweepresults[1]  # populate each sweep with previous sweep as default
                 while dataBlock != b'}ch':  # if dataBlock is '}ch' it's reached the end of the scan points
                     dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
                     logging.debug(f'dataBlock: {dataBlock}\n')
@@ -291,7 +299,7 @@ class analyser:
                 self.usb.read(2)  # discard the command prompt
                 self.signals.result3D.emit(self.sweepresults)  # update 3D only once per sweep, for performance reasons
                 if firstSweep:
-                    # populate entire scan memory with first sweep as starting point
+                    # populate entire scan memory with first sweep as default starting point
                     self.sweepresults = np.full((self.scanMemory, self.points), self.sweepresults[0], dtype=float)
                     firstSweep = False
                 # results row 0 is now full: roll it down 1 row ready for the next sweep to be stored at row 0
@@ -308,7 +316,7 @@ class analyser:
         activeButtons(True)
 
     def sigProcess(self, signaldBm):  # signaldBm is emitted from the worker thread
-        if ui.avgSlider.value() > self.scanCount:
+        if ui.avgSlider.value() > self.scanCount:  # slice using use scanCount to stop default values swamping average
             signalAvg = np.average(signaldBm[:self.scanCount, ::], axis=0)
             signalMax = np.amax(signaldBm[:self.scanCount, ::], axis=0)
             signalMin = np.amin(signaldBm[:self.scanCount, ::], axis=0)
@@ -325,10 +333,9 @@ class analyser:
     def createTimeSpectrum(self):
         x = np.arange(start=0, stop=self.scanMemory, step=1)  # the time axis depth
         y = np.arange(start=0, stop=self.points)  # the frequency axis width
-        z = self.sweepresults  # the measurement azis heights in dBm
+        z = self.sweepresults  # the measurement axis heights in dBm
         logging.debug(f'z = {z}')
         if self.surface:  # if 3D spectrum exists, clear it
-            # ui.openGLWidget.reset()
             ui.openGLWidget.removeItem(self.surface)
             ui.openGLWidget.removeItem(self.vGrid)
         self.surface = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='heightColor',
@@ -347,7 +354,6 @@ class analyser:
 
         self.surface.translate(16, -self.points/40, -8)  # front/back, left/right, up/down
         self.surface.scale(self.points/1250, 0.05, 0.1, local=True)
-        # self.surface.rotate(45, 0, 0, 1)
         ui.openGLWidget.addItem(self.surface)
 
         # Add a vertical grid to the 3D view
@@ -370,7 +376,7 @@ class analyser:
     def orbit3D(self, sign, azimuth=True):  # orbits the camera around the 3D plot
         degrees = ui.rotateBy.value()
         if azimuth:
-            ui.openGLWidget.orbit(sign*degrees, 0)
+            ui.openGLWidget.orbit(sign*degrees, 0)  # sign controls direction and is +1 or -1
         else:
             ui.openGLWidget.orbit(0, sign*degrees)
 
@@ -527,7 +533,6 @@ class display:
         if self.fIndex > tinySA.points - 1:  # delta marker is now above sweep range
             self.fIndex = tinySA.points - 1
         self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
-        # S1.vline.setPen(color='g')
 
     def updateGUI(self, signal):
         self.trace.setData((tinySA.frequencies/1e6), signal)
@@ -565,8 +570,46 @@ class Worker(QRunnable):
         logging.info(f'{self.fn.__name__} thread stopped')
 
 
+class modelView():
+    '''set up and process data models bound to the GUI widgets'''
+
+    def __init__(self, tableName):
+        self.tableName = tableName
+        self.tm = QSqlRelationalTableModel()
+        self.dwm = QDataWidgetMapper()
+
+    def createTableModel(self):
+        # add exception handling?
+        self.tm.setTable(self.tableName)
+        self.dwm.setModel(self.tm)
+        self.dwm.setSubmitPolicy(QDataWidgetMapper.AutoSubmit)
+
+    # def insertData(self, AssetID, Freq, Loss):  # used by ImportS2P
+    #     record = self.tm.record()
+    #     if AssetID != '':
+    #         record.setValue('AssetID', AssetID)
+    #     if Freq != '':
+    #         record.setValue('FreqMHz', Freq)
+    #     if Loss != '':
+    #         record.setValue('ValuedB', Loss)
+    #     self.tm.insertRecord(-1, record)
+    #     self.updateModel()
+    #     self.dwm.submit()
+    #     app.processEvents()
+
+    def saveChanges(self):
+        self.dwm.submit()
+
+    # def deleteRow(self):
+    #     cI = self.dwm.currentIndex()
+    #     self.dwm.toPrevious()
+    #     self.tm.removeRow(cI)
+    #     self.tm.submit()
+    #     app.processEvents()
+
 ###############################################################################
 # respond to GUI signals
+
 
 def start_freq_changed(loopy=False):
     ui.band_box.setCurrentIndex(0)
@@ -575,7 +618,7 @@ def start_freq_changed(loopy=False):
     if start > stop:
         ui.stop_freq.setValue(start)
         stop = start
-        stop_freq_changed(loopy)
+        stop_freq_changed(loopy)  # call stop_freq_changed but prevent it from re-calling this Fn
     ui.graphWidget.setXRange(start, stop)
     if not loopy:
         ui.centre_freq.setValue(start + (stop - start) / 2)
@@ -593,7 +636,7 @@ def stop_freq_changed(loopy=False):
     if start > stop:
         ui.start_freq.setValue(stop)
         start = stop
-        start_freq_changed(loopy)
+        start_freq_changed(loopy)  # call start_freq_changed but prevent it from re-calling this Fn
     ui.graphWidget.setXRange(start, stop)
     if not loopy:
         ui.centre_freq.setValue(start + (stop - start) / 2)
@@ -709,10 +752,18 @@ def activeButtons(tF):
 def exit_handler():
     if tinySA.dev is not None:
         tinySA.sweeping = False
-        time.sleep(1)  # allow time for measurements to stop
+        time.sleep(1)  # allow time for measurements to stop  # use thread finished signal instead??
         tinySA.resume()
         tinySA.closePort()
-    app.processEvents()
+
+    logging.info('close database')  # can't find any way to make this work properly
+    bandsList.tm.submitAll()
+    del bandsList.tm
+    config.close()
+    logging.info(f'  database is open: {config.isOpen()}')
+    QSqlDatabase.removeDatabase('QSQLITE')
+
+    # app.processEvents()
     logging.info('QtTinySA Closed')
 
 
@@ -731,16 +782,25 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.7.8')
+app.setApplicationVersion(' v0.8.x')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
+
+pwindow = QtWidgets.QDialog()  # pwindow is the preferences dialogue box
+preferences = QtTSApreferences.Ui_Preferences()
+preferences.setupUi(pwindow)
 
 # Traces & markers
 S1 = display('1', yellow)
 S2 = display('2', red)
 S3 = display('3', cyan)
 S4 = display('4', white)
+
+# Data models for configuration settings
+bandsList = modelView('frequencies')
+checkboxes = modelView('checkboxes')
+numbers = modelView('numbers')
 
 ###############################################################################
 # GUI settings
@@ -750,9 +810,10 @@ ui.graphWidget.setYRange(-110, 5)
 ui.graphWidget.setXRange(87.5, 108)
 ui.graphWidget.setBackground('k')  # black
 ui.graphWidget.showGrid(x=True, y=True)
-ui.graphWidget.addLine(y=6, movable=False, pen=red, label='', labelOpts={'position':0.05, 'color':('r')})
-ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='max', labelOpts={'position':0.025, 'color':('r')})
-ui.graphWidget.addLine(y=-25, movable=False, pen=blue_dash, label='best', labelOpts={'position':0.025, 'color':('b')})
+if preferences.neg25Line.isChecked():  # test
+    ui.graphWidget.addLine(y=6, movable=False, pen=red, label='', labelOpts={'position':0.05, 'color':('r')})
+    ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='max', labelOpts={'position':0.025, 'color':('r')})
+    ui.graphWidget.addLine(y=-25, movable=False, pen=blue_dash, label='best', labelOpts={'position':0.025, 'color':('b')})
 ui.graphWidget.setLabel('left', 'Signal', 'dBm')
 ui.graphWidget.setLabel('bottom', 'Frequency MHz')
 
@@ -827,6 +888,10 @@ ui.zoom.sliderMoved.connect(tinySA.zoom3D)
 
 ui.reset3D.clicked.connect(tinySA.reset3D)
 
+ui.actionPreferences.triggered.connect(lambda: pwindow.show())  # open preferences dialogue when its menu is clicked
+pwindow.finished.connect(lambda: checkboxes.dwm.submit())  # update database checkboxes table on dialogue window close
+pwindow.finished.connect(lambda: numbers.dwm.submit())  # update database numbers table on dialogue window close
+
 ###############################################################################
 # set up the application
 logging.info(f'{app.applicationName()}{app.applicationVersion()}')
@@ -842,8 +907,36 @@ ui.m2_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 ui.m3_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 ui.m4_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 
-# tinySA.initialise(False)  # try to init, ignore failure
-tinySA.openPort()
+tinySA.openPort()  # try to open a USB connection to the TinySA hardware
+
+# table models gives read/write views of the configuration data
+bandsList.createTableModel()
+bandsList.tm.setSort(2, Qt.AscendingOrder)
+bandsList.tm.setRelation(4, QSqlRelation('boolean', 'ID', 'value'))
+bandsList.tm.setHeaderData(4, Qt.Horizontal, 'Show in list')
+delegate = QSqlRelationalDelegate(preferences.freqBands)  # set 'view' column true/false to be combo box on double click
+preferences.freqBands.setItemDelegate(delegate)
+header = preferences.freqBands.horizontalHeader()  # set the column width to suit contents
+header.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
+bandsList.tm.select()  # select the data to display in the widget
+preferences.freqBands.setModel(bandsList.tm)  # connect the preferences dialogue box freq band widget to the data model
+
+#  Map database tables to preferences dialogue box fields ** lines need to be in this order or mapping doesn't work **
+checkboxes.createTableModel()
+checkboxes.dwm.addMapping(preferences.bestPoints, 0)
+checkboxes.dwm.addMapping(preferences.neg25Line, 1)
+checkboxes.dwm.addMapping(preferences.zeroLine, 2)
+checkboxes.dwm.addMapping(preferences.plus6Line, 3)
+checkboxes.tm.select()
+checkboxes.dwm.setCurrentIndex(0)
+
+numbers.createTableModel()
+numbers.dwm.addMapping(preferences.minPoints, 0)
+numbers.dwm.addMapping(preferences.maxPoints, 1)
+# numbers.dwm.addMapping(preferences.startF, 2)  - future
+# numbers.dwm.addMapping(preferences.stopF, 3)  - future
+numbers.tm.select()
+numbers.dwm.setCurrentIndex(0)
 
 window.show()
 window.setWindowTitle(app.applicationName() + app.applicationVersion())
