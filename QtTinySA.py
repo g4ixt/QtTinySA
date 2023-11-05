@@ -236,8 +236,10 @@ class analyser:
     def setPoints(self):  # what if span = 0?
         if ui.points_auto.isChecked():
             self.rbw = ui.rbw_box.currentText()
-            points = int((ui.span_freq.value()*1000)/(float(self.rbw)/2))  # values in kHz
-            # future - (self.rbw)/3) for best power accuracy: allow this to be set in 'preferences'
+            if preferences.bestPoints.isChecked():
+                points = int((ui.span_freq.value()*1000)/(float(self.rbw)/3))  # best power accuracy; freq in kHz
+            else:
+                points = int((ui.span_freq.value()*1000)/(float(self.rbw)/2))  # normal power accuracy; freq in kHz
             logging.debug(f'points = {points}')
             if points > 30000:
                 points = 30000  # future - allow this to be set in 'preferences'
@@ -471,6 +473,8 @@ class display:
         self.markerType = 'Normal'  # Normal, Delta; Peak
         self.vline = ui.graphWidget.addLine(88, 90, movable=True, name=name, pen=pyqtgraph.mkPen('g', width=0.5, style=QtCore.Qt.DashLine), label="{value:.2f}")
         self.vline.hide()
+        self.hline = ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='', labelOpts={'position':0.025, 'color':('w')})
+        self.hline.hide()
         self.fIndex = 0  # index of current marker freq in frequencies array
         self.dIndex = 0  # the difference between this marker and reference marker 1
 
@@ -511,6 +515,12 @@ class display:
             self.vline.show()
         else:
             self.vline.hide()
+
+    def hEnable(self, limit):
+        if limit.isChecked():
+            self.hline.show()
+        else:
+            self.hline.hide()
 
     def tEnable(self, trace):
         if trace.isChecked():
@@ -810,10 +820,7 @@ ui.graphWidget.setYRange(-110, 5)
 ui.graphWidget.setXRange(87.5, 108)
 ui.graphWidget.setBackground('k')  # black
 ui.graphWidget.showGrid(x=True, y=True)
-if preferences.neg25Line.isChecked():  # test
-    ui.graphWidget.addLine(y=6, movable=False, pen=red, label='', labelOpts={'position':0.05, 'color':('r')})
-    ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='max', labelOpts={'position':0.025, 'color':('r')})
-    ui.graphWidget.addLine(y=-25, movable=False, pen=blue_dash, label='best', labelOpts={'position':0.025, 'color':('b')})
+
 ui.graphWidget.setLabel('left', 'Signal', 'dBm')
 ui.graphWidget.setLabel('bottom', 'Frequency MHz')
 
@@ -822,6 +829,13 @@ S1.vline.label.setPosition(0.99)
 S2.vline.label.setPosition(0.95)
 S3.vline.label.setPosition(0.90)
 S4.vline.label.setPosition(0.85)
+
+# signal limit lines
+S1.hline.setValue(-25)
+S1.hline.label.setText('best')
+S2.hline.label.setText('max')
+S3.hline.setValue(6)
+S3.hline.setPen('red')
 
 ###############################################################################
 # Connect signals from buttons and sliders
@@ -849,6 +863,11 @@ ui.marker1.stateChanged.connect(lambda: S1.mEnable(ui.marker1))
 ui.marker2.stateChanged.connect(lambda: S2.mEnable(ui.marker2))
 ui.marker3.stateChanged.connect(lambda: S3.mEnable(ui.marker3))
 ui.marker4.stateChanged.connect(lambda: S4.mEnable(ui.marker4))
+
+preferences.neg25Line.stateChanged.connect(lambda: S1.hEnable(preferences.neg25Line))
+preferences.zeroLine.stateChanged.connect(lambda: S2.hEnable(preferences.zeroLine))
+preferences.plus6Line.stateChanged.connect(lambda: S3.hEnable(preferences.plus6Line))
+
 
 ui.mkr_start.clicked.connect(markerToStart)
 ui.mkr_centre.clicked.connect(markerToCentre)
