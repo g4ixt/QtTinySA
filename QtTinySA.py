@@ -98,8 +98,8 @@ class analyser:
             try:
                 self.usb = serial.Serial(self.dev)
                 logging.info('serial port opened')
-                self.initialise()
                 self.clearBuffer()
+                self.initialise()
             except serial.SerialException:
                 logging.info('serial port exception')
 
@@ -111,10 +111,11 @@ class analyser:
 
     def initialise(self):
         # amateur frequency band values (plus broadcast radio Band 2/3 and AO-100 LNB output)
-        self.fBandStart = [1.8, 3.5, 7.0, 10.1, 14.0, 18.068, 21.0, 24.89, 28.0,
-                           50.0, 70.0, 87.5, 144.0, 175, 430.0, 739.4, 1240, 2300, 2390, 3300, 5650]
-        self.fBandStop = [2.0, 3.8, 7.1, 10.15, 14.35, 18.168, 21.45, 24.99, 29.7,
-                          52.0, 70.5, 108.0, 146.0, 230, 440.0, 740.1, 1325, 2310, 2450, 3500, 5925]
+        # self.fBandStart = [1.8, 3.5, 7.0, 10.1, 14.0, 18.068, 21.0, 24.89, 28.0,
+        #                    50.0, 70.0, 87.5, 144.0, 175, 430.0, 739.4, 1240, 2300, 2390, 3300, 5650]
+        # self.fBandStop = [2.0, 3.8, 7.1, 10.15, 14.35, 18.168, 21.45, 24.99, 29.7,
+        #                   52.0, 70.5, 108.0, 146.0, 230, 440.0, 740.1, 1325, 2310, 2450, 3500, 5925]
+
 
         # TinySA Ultra resolution bandwidth filters in kHz
         self.resBW = ['0.2', '1', '3', '10', '30', '100', '300', '600', '850']
@@ -131,8 +132,8 @@ class analyser:
         else:
             self.tinySA4 = False
             self.scale = 128
-            self.fBandStart = self.fBandStart[:16]  # TinySA Basic has a smaller frequency band range
-            self.fBandStop = self.fBandStop[:16]
+            # self.fBandStart = self.fBandStart[:16]  # TinySA Basic has a smaller frequency band range
+            # self.fBandStop = self.fBandStop[:16]
             self.resBW = self.resBW[2:8]  # TinySA Basic has fewer resolution bandwidth filters
             ui.spur_box.setTristate(False)  # TinySA Basic has only 'on' and 'off' setting for Spur'
             ui.spur_box.setChecked(True)
@@ -144,10 +145,9 @@ class analyser:
         ui.lna_box.setEnabled(self.tinySA4)
 
         # set the frequency band & rbw comboboxes to suit detected hardware
-        bands = list(map(str, self.fBandStart))  # convert start freq float list to string list for GUI combobox
-        bands = [freq for freq in bands]
-        bands.insert(0, 'Band')
-        ui.band_box.addItems(bands)
+        setPreferences()
+        setBands()
+
         self.resBW.insert(0, 'auto')
         ui.rbw_box.addItems(self.resBW)
         ui.rbw_box.setCurrentIndex(len(self.resBW)-4)
@@ -241,10 +241,10 @@ class analyser:
             else:
                 points = int((ui.span_freq.value()*1000)/(float(self.rbw)/2))  # normal power accuracy; freq in kHz
             logging.debug(f'points = {points}')
-            if points > 30000:
-                points = 30000  # future - allow this to be set in 'preferences'
-            if points < 100:
-                points = 100  # future - allow this to be set in 'preferences'
+            if points > preferences.maxPoints.value():
+                points = preferences.maxPoints.value()
+            if points < preferences.minPoints.value():
+                points = preferences.minPoints.value()
             ui.points_box.setValue(points)
 
     def clearBuffer(self):
@@ -594,17 +594,10 @@ class modelView():
         self.dwm.setModel(self.tm)
         self.dwm.setSubmitPolicy(QDataWidgetMapper.AutoSubmit)
 
-    # def insertData(self, AssetID, Freq, Loss):  # used by ImportS2P
-    #     record = self.tm.record()
-    #     if AssetID != '':
-    #         record.setValue('AssetID', AssetID)
-    #     if Freq != '':
-    #         record.setValue('FreqMHz', Freq)
-    #     if Loss != '':
-    #         record.setValue('ValuedB', Loss)
-    #     self.tm.insertRecord(-1, record)
-    #     self.updateModel()
-    #     self.dwm.submit()
+    def insertRow(self):
+        record = self.tm.record()
+        self.tm.insertRecord(-1, record)
+        self.tm.submit()
     #     app.processEvents()
 
     def saveChanges(self):
@@ -622,7 +615,7 @@ class modelView():
 
 
 def start_freq_changed(loopy=False):
-    ui.band_box.setCurrentIndex(0)
+    # ui.band_box.setCurrentIndex(0)
     start = ui.start_freq.value()
     stop = ui.stop_freq.value()
     if start > stop:
@@ -640,7 +633,7 @@ def start_freq_changed(loopy=False):
 
 
 def stop_freq_changed(loopy=False):
-    ui.band_box.setCurrentIndex(0)
+    # ui.band_box.setCurrentIndex(0)
     start = ui.start_freq.value()
     stop = ui.stop_freq.value()
     if start > stop:
@@ -664,19 +657,31 @@ def centre_freq_changed():
     stop_freq_changed(True)
 
 
+def setBands():
+    bands.tm.setFilter('visible = 1')
+    if tinySA.tinySA4 is False:  # It's a tinySA basic
+        bands.tm.setFilter('visible = 1 AND (startF <= 960 AND stopF <= 960)')
+    bands.tm.select()
+    ui.band_box.clear()
+    ui.band_box.addItem('Band')
+    for i in range(bands.tm.rowCount()):
+        record = bands.tm.record(i)
+        ui.band_box.addItem(record.value("name"))
+
+
 def band_changed():
     index = ui.band_box.currentIndex()
-    if index == 0:
+    if index < 1:
         return
     else:
-        tinySA.setRBW()
-        index -= 1
-        start = tinySA.fBandStart[index]
+        index -= 1  # index of the selected value in the 'bands' combobox
+        start = bands.tm.record(index).value('StartF')
+        stop = bands.tm.record(index).value('StopF')
         ui.start_freq.setValue(start)
-        start_freq_changed(False)
-        stop = tinySA.fBandStop[index]
+        start_freq_changed(False)  # not loopy
         ui.stop_freq.setValue(stop)
-        stop_freq_changed(False)
+        stop_freq_changed(False)  # not loopy
+        tinySA.setRBW()
 
 
 def attenuate_changed():
@@ -739,8 +744,21 @@ def memChanged():
     tinySA.scanMemory = depth
 
 
+def setPreferences():
+    checkboxes.dwm.submit()
+    numbers.dwm.submit()
+    bands.tm.submitAll()
+    setBands()
+
+
+def dialogPrefs():
+    bands.tm.setFilter('')  # remove filters
+    bands.tm.select()
+    pwindow.show()
+
 ##############################################################################
 # other methods
+
 
 def activeButtons(tF):
     # disable/enable buttons that send commands to TinySA (Because Comms are in use if scanning)
@@ -767,8 +785,8 @@ def exit_handler():
         tinySA.closePort()
 
     logging.info('close database')  # can't find any way to make this work properly
-    bandsList.tm.submitAll()
-    del bandsList.tm
+    bands.tm.submitAll()
+    del bands.tm
     config.close()
     logging.info(f'  database is open: {config.isOpen()}')
     QSqlDatabase.removeDatabase('QSQLITE')
@@ -808,7 +826,7 @@ S3 = display('3', cyan)
 S4 = display('4', white)
 
 # Data models for configuration settings
-bandsList = modelView('frequencies')
+bands = modelView('frequencies')
 checkboxes = modelView('checkboxes')
 numbers = modelView('numbers')
 
@@ -848,8 +866,9 @@ ui.start_freq.editingFinished.connect(lambda: start_freq_changed(False))
 ui.stop_freq.editingFinished.connect(lambda: stop_freq_changed(False))
 ui.spur_box.stateChanged.connect(spur_box)
 ui.lna_box.stateChanged.connect(tinySA.lna)
+# ui.band_box.activated.connect(band_clicked)
 ui.band_box.currentTextChanged.connect(band_changed)
-ui.points_auto.stateChanged.connect(tinySA.setPoints)
+# ui.points_auto.stateChanged.connect(tinySA.setPoints)
 
 ui.centre_freq.editingFinished.connect(centre_freq_changed)
 ui.span_freq.editingFinished.connect(centre_freq_changed)
@@ -867,7 +886,7 @@ ui.marker4.stateChanged.connect(lambda: S4.mEnable(ui.marker4))
 preferences.neg25Line.stateChanged.connect(lambda: S1.hEnable(preferences.neg25Line))
 preferences.zeroLine.stateChanged.connect(lambda: S2.hEnable(preferences.zeroLine))
 preferences.plus6Line.stateChanged.connect(lambda: S3.hEnable(preferences.plus6Line))
-
+preferences.addRow.clicked.connect(bands.tm.insertRow)
 
 ui.mkr_start.clicked.connect(markerToStart)
 ui.mkr_centre.clicked.connect(markerToCentre)
@@ -907,9 +926,9 @@ ui.zoom.sliderMoved.connect(tinySA.zoom3D)
 
 ui.reset3D.clicked.connect(tinySA.reset3D)
 
-ui.actionPreferences.triggered.connect(lambda: pwindow.show())  # open preferences dialogue when its menu is clicked
-pwindow.finished.connect(lambda: checkboxes.dwm.submit())  # update database checkboxes table on dialogue window close
-pwindow.finished.connect(lambda: numbers.dwm.submit())  # update database numbers table on dialogue window close
+ui.actionPreferences.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
+pwindow.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
+
 
 ###############################################################################
 # set up the application
@@ -926,19 +945,17 @@ ui.m2_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 ui.m3_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 ui.m4_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 
-tinySA.openPort()  # try to open a USB connection to the TinySA hardware
-
 # table models gives read/write views of the configuration data
-bandsList.createTableModel()
-bandsList.tm.setSort(2, Qt.AscendingOrder)
-bandsList.tm.setRelation(4, QSqlRelation('boolean', 'ID', 'value'))
-bandsList.tm.setHeaderData(4, Qt.Horizontal, 'Show in list')
-delegate = QSqlRelationalDelegate(preferences.freqBands)  # set 'view' column true/false to be combo box on double click
-preferences.freqBands.setItemDelegate(delegate)
+bands.createTableModel()
+bands.tm.setSort(2, Qt.AscendingOrder)
+bands.tm.setRelation(4, QSqlRelation('boolean', 'ID', 'value'))
+bands.tm.setHeaderData(4, Qt.Horizontal, 'Show in list')
+boolean = QSqlRelationalDelegate(preferences.freqBands)  # set 'view' column true/false to be combo box on double click
+preferences.freqBands.setItemDelegate(boolean)
 header = preferences.freqBands.horizontalHeader()  # set the column width to suit contents
 header.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
-bandsList.tm.select()  # select the data to display in the widget
-preferences.freqBands.setModel(bandsList.tm)  # connect the preferences dialogue box freq band widget to the data model
+bands.tm.select()  # initially select the data in the model
+preferences.freqBands.setModel(bands.tm)  # connect the preferences dialogue box freq band widget to the data model
 
 #  Map database tables to preferences dialogue box fields ** lines need to be in this order or mapping doesn't work **
 checkboxes.createTableModel()
@@ -956,6 +973,9 @@ numbers.dwm.addMapping(preferences.maxPoints, 1)
 # numbers.dwm.addMapping(preferences.stopF, 3)  - future
 numbers.tm.select()
 numbers.dwm.setCurrentIndex(0)
+
+# try to open a USB connection to the TinySA hardware
+tinySA.openPort()
 
 window.show()
 window.setWindowTitle(app.applicationName() + app.applicationVersion())
