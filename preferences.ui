@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>534</width>
-    <height>472</height>
+    <width>283</width>
+    <height>652</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -16,10 +16,10 @@
   <widget class="QGroupBox" name="autoPoints">
    <property name="geometry">
     <rect>
-     <x>270</x>
-     <y>320</y>
-     <width>251</width>
-     <height>131</height>
+     <x>10</x>
+     <y>520</y>
+     <width>261</width>
+     <height>121</height>
     </rect>
    </property>
    <property name="sizePolicy">
@@ -34,11 +34,14 @@
    <widget class="QSpinBox" name="minPoints">
     <property name="geometry">
      <rect>
-      <x>150</x>
+      <x>160</x>
       <y>60</y>
       <width>90</width>
       <height>27</height>
      </rect>
+    </property>
+    <property name="buttonSymbols">
+     <enum>QAbstractSpinBox::NoButtons</enum>
     </property>
     <property name="minimum">
      <number>25</number>
@@ -53,11 +56,14 @@
    <widget class="QSpinBox" name="maxPoints">
     <property name="geometry">
      <rect>
-      <x>150</x>
+      <x>160</x>
       <y>90</y>
       <width>90</width>
       <height>27</height>
      </rect>
+    </property>
+    <property name="buttonSymbols">
+     <enum>QAbstractSpinBox::NoButtons</enum>
     </property>
     <property name="minimum">
      <number>25</number>
@@ -116,9 +122,9 @@
    <property name="geometry">
     <rect>
      <x>10</x>
-     <y>320</y>
-     <width>251</width>
-     <height>131</height>
+     <y>400</y>
+     <width>261</width>
+     <height>121</height>
     </rect>
    </property>
    <property name="sizePolicy">
@@ -184,20 +190,20 @@
     <rect>
      <x>10</x>
      <y>10</y>
-     <width>511</width>
-     <height>301</height>
+     <width>261</width>
+     <height>291</height>
     </rect>
    </property>
    <property name="title">
-    <string>Frequency Bands and Defaults   </string>
+    <string>Frequency Bands  </string>
    </property>
    <widget class="QTableView" name="freqBands">
     <property name="geometry">
      <rect>
       <x>10</x>
       <y>30</y>
-      <width>381</width>
-      <height>251</height>
+      <width>241</width>
+      <height>181</height>
      </rect>
     </property>
     <property name="sizePolicy">
@@ -213,14 +219,14 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>410</x>
-      <y>210</y>
+      <x>160</x>
+      <y>220</y>
       <width>90</width>
       <height>26</height>
      </rect>
     </property>
     <property name="text">
-     <string>Add Row</string>
+     <string>Add</string>
     </property>
    </widget>
    <widget class="QPushButton" name="deleteRow">
@@ -229,46 +235,93 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>410</x>
+      <x>160</x>
       <y>250</y>
       <width>90</width>
       <height>26</height>
      </rect>
     </property>
     <property name="text">
-     <string>Delete Row</string>
+     <string>Delete</string>
     </property>
    </widget>
-   <widget class="QDoubleSpinBox" name="defaultStop">
+   <widget class="QToolButton" name="rowUp">
     <property name="geometry">
      <rect>
-      <x>410</x>
-      <y>160</y>
-      <width>90</width>
-      <height>27</height>
+      <x>10</x>
+      <y>220</y>
+      <width>25</width>
+      <height>25</height>
      </rect>
     </property>
-    <property name="decimals">
-     <number>6</number>
+    <property name="text">
+     <string>...</string>
     </property>
-    <property name="minimum">
-     <double>0.100000000000000</double>
-    </property>
-    <property name="maximum">
-     <double>6000.000000000000000</double>
-    </property>
-    <property name="value">
-     <double>108.000000000000000</double>
+    <property name="arrowType">
+     <enum>Qt::UpArrow</enum>
     </property>
    </widget>
+   <widget class="QToolButton" name="rowDown">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>250</y>
+      <width>25</width>
+      <height>25</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>...</string>
+    </property>
+    <property name="arrowType">
+     <enum>Qt::DownArrow</enum>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_5">
+    <property name="geometry">
+     <rect>
+      <x>50</x>
+      <y>210</y>
+      <width>91</width>
+      <height>71</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <italic>true</italic>
+     </font>
+    </property>
+    <property name="text">
+     <string>use arrows to select row for add/delete</string>
+    </property>
+    <property name="wordWrap">
+     <bool>true</bool>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QGroupBox" name="groupBox">
+   <property name="geometry">
+    <rect>
+     <x>10</x>
+     <y>300</y>
+     <width>261</width>
+     <height>101</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string>Frequencies at startup  </string>
+   </property>
    <widget class="QDoubleSpinBox" name="defaultStart">
     <property name="geometry">
      <rect>
-      <x>410</x>
-      <y>80</y>
+      <x>160</x>
+      <y>30</y>
       <width>90</width>
       <height>27</height>
      </rect>
+    </property>
+    <property name="buttonSymbols">
+     <enum>QAbstractSpinBox::NoButtons</enum>
     </property>
     <property name="decimals">
      <number>6</number>
@@ -283,13 +336,38 @@
      <double>87.500000000000000</double>
     </property>
    </widget>
+   <widget class="QDoubleSpinBox" name="defaultStop">
+    <property name="geometry">
+     <rect>
+      <x>160</x>
+      <y>60</y>
+      <width>90</width>
+      <height>27</height>
+     </rect>
+    </property>
+    <property name="buttonSymbols">
+     <enum>QAbstractSpinBox::NoButtons</enum>
+    </property>
+    <property name="decimals">
+     <number>6</number>
+    </property>
+    <property name="minimum">
+     <double>0.100000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>6000.000000000000000</double>
+    </property>
+    <property name="value">
+     <double>108.000000000000000</double>
+    </property>
+   </widget>
    <widget class="QLabel" name="label">
     <property name="geometry">
      <rect>
-      <x>410</x>
+      <x>20</x>
       <y>30</y>
-      <width>91</width>
-      <height>41</height>
+      <width>131</width>
+      <height>21</height>
      </rect>
     </property>
     <property name="text">
@@ -302,10 +380,10 @@
    <widget class="QLabel" name="label_2">
     <property name="geometry">
      <rect>
-      <x>410</x>
-      <y>110</y>
-      <width>91</width>
-      <height>41</height>
+      <x>20</x>
+      <y>60</y>
+      <width>121</width>
+      <height>21</height>
      </rect>
     </property>
     <property name="text">

@@ -110,13 +110,6 @@ class analyser:
             self.usb = None
 
     def initialise(self):
-        # amateur frequency band values (plus broadcast radio Band 2/3 and AO-100 LNB output)
-        # self.fBandStart = [1.8, 3.5, 7.0, 10.1, 14.0, 18.068, 21.0, 24.89, 28.0,
-        #                    50.0, 70.0, 87.5, 144.0, 175, 430.0, 739.4, 1240, 2300, 2390, 3300, 5650]
-        # self.fBandStop = [2.0, 3.8, 7.1, 10.15, 14.35, 18.168, 21.45, 24.99, 29.7,
-        #                   52.0, 70.5, 108.0, 146.0, 230, 440.0, 740.1, 1325, 2310, 2450, 3500, 5925]
-
-
         # TinySA Ultra resolution bandwidth filters in kHz
         self.resBW = ['0.2', '1', '3', '10', '30', '100', '300', '600', '850']
 
@@ -132,8 +125,6 @@ class analyser:
         else:
             self.tinySA4 = False
             self.scale = 128
-            # self.fBandStart = self.fBandStart[:16]  # TinySA Basic has a smaller frequency band range
-            # self.fBandStop = self.fBandStop[:16]
             self.resBW = self.resBW[2:8]  # TinySA Basic has fewer resolution bandwidth filters
             ui.spur_box.setTristate(False)  # TinySA Basic has only 'on' and 'off' setting for Spur'
             ui.spur_box.setChecked(True)
@@ -147,6 +138,9 @@ class analyser:
         # set the frequency band & rbw comboboxes to suit detected hardware
         setPreferences()
         setBands()
+        ui.start_freq.setValue(preferences.defaultStart.value())
+        ui.stop_freq.setValue(preferences.defaultStop.value())
+        ui.graphWidget.setXRange(preferences.defaultStart.value(), preferences.defaultStop.value())
 
         self.resBW.insert(0, 'auto')
         ui.rbw_box.addItems(self.resBW)
@@ -587,6 +581,7 @@ class modelView():
         self.tableName = tableName
         self.tm = QSqlRelationalTableModel()
         self.dwm = QDataWidgetMapper()
+        self.currentRow = 0
 
     def createTableModel(self):
         # add exception handling?
@@ -594,21 +589,30 @@ class modelView():
         self.dwm.setModel(self.tm)
         self.dwm.setSubmitPolicy(QDataWidgetMapper.AutoSubmit)
 
-    def insertRow(self):
-        record = self.tm.record()
-        self.tm.insertRecord(-1, record)
-        self.tm.submit()
-    #     app.processEvents()
+    def addRow(self):
+        self.tm.insertRow(self.currentRow + 1)
+        self.currentRow += 1
+        preferences.freqBands.selectRow(self.currentRow)
 
     def saveChanges(self):
         self.dwm.submit()
 
-    # def deleteRow(self):
-    #     cI = self.dwm.currentIndex()
-    #     self.dwm.toPrevious()
-    #     self.tm.removeRow(cI)
-    #     self.tm.submit()
-    #     app.processEvents()
+    def deleteRow(self):
+        self.tm.removeRow(self.currentRow)
+
+    def upRow(self):
+        if self.currentRow > 0:
+            self.currentRow -= 1
+            preferences.freqBands.selectRow(self.currentRow)
+        else:
+            return
+
+    def downRow(self):
+        if self.currentRow < self.tm.rowCount():
+            self.currentRow += 1
+            preferences.freqBands.selectRow(self.currentRow)
+        else:
+            return
 
 ###############################################################################
 # respond to GUI signals
@@ -754,7 +758,15 @@ def setPreferences():
 def dialogPrefs():
     bands.tm.setFilter('')  # remove filters
     bands.tm.select()
+    bands.currentRow = 0
+    preferences.freqBands.selectRow(bands.currentRow)
     pwindow.show()
+
+
+def about():
+    message = ('TinySA Ultra GUI programme using Qt5 and PyQt\nAuthor: Ian Jefferson G4IXT\n\nVersion {}'
+               .format(app.applicationVersion()))
+    popUp(message, 'Ok')
 
 ##############################################################################
 # other methods
@@ -784,7 +796,7 @@ def exit_handler():
         tinySA.resume()
         tinySA.closePort()
 
-    logging.info('close database')  # can't find any way to make this work properly
+    logging.info('close database')  # can't find any way to not leave connection open
     bands.tm.submitAll()
     del bands.tm
     config.close()
@@ -866,9 +878,7 @@ ui.start_freq.editingFinished.connect(lambda: start_freq_changed(False))
 ui.stop_freq.editingFinished.connect(lambda: stop_freq_changed(False))
 ui.spur_box.stateChanged.connect(spur_box)
 ui.lna_box.stateChanged.connect(tinySA.lna)
-# ui.band_box.activated.connect(band_clicked)
 ui.band_box.currentTextChanged.connect(band_changed)
-# ui.points_auto.stateChanged.connect(tinySA.setPoints)
 
 ui.centre_freq.editingFinished.connect(centre_freq_changed)
 ui.span_freq.editingFinished.connect(centre_freq_changed)
@@ -886,7 +896,10 @@ ui.marker4.stateChanged.connect(lambda: S4.mEnable(ui.marker4))
 preferences.neg25Line.stateChanged.connect(lambda: S1.hEnable(preferences.neg25Line))
 preferences.zeroLine.stateChanged.connect(lambda: S2.hEnable(preferences.zeroLine))
 preferences.plus6Line.stateChanged.connect(lambda: S3.hEnable(preferences.plus6Line))
-preferences.addRow.clicked.connect(bands.tm.insertRow)
+preferences.addRow.clicked.connect(bands.addRow)
+preferences.deleteRow.clicked.connect(bands.deleteRow)
+preferences.rowUp.clicked.connect(bands.upRow)
+preferences.rowDown.clicked.connect(bands.downRow)
 
 ui.mkr_start.clicked.connect(markerToStart)
 ui.mkr_centre.clicked.connect(markerToCentre)
@@ -927,6 +940,7 @@ ui.zoom.sliderMoved.connect(tinySA.zoom3D)
 ui.reset3D.clicked.connect(tinySA.reset3D)
 
 ui.actionPreferences.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
+ui.actionAbout_QtTinySA.triggered.connect(about)
 pwindow.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
 
 
@@ -949,13 +963,16 @@ ui.m4_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 bands.createTableModel()
 bands.tm.setSort(2, Qt.AscendingOrder)
 bands.tm.setRelation(4, QSqlRelation('boolean', 'ID', 'value'))
-bands.tm.setHeaderData(4, Qt.Horizontal, 'Show in list')
-boolean = QSqlRelationalDelegate(preferences.freqBands)  # set 'view' column true/false to be combo box on double click
+bands.tm.setHeaderData(4, Qt.Horizontal, 'Visible')
+boolean = QSqlRelationalDelegate(preferences.freqBands)  # set 'view' column true/false to be combo box
 preferences.freqBands.setItemDelegate(boolean)
-header = preferences.freqBands.horizontalHeader()  # set the column width to suit contents
-header.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
+colHeader = preferences.freqBands.horizontalHeader()
+colHeader.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
 bands.tm.select()  # initially select the data in the model
 preferences.freqBands.setModel(bands.tm)  # connect the preferences dialogue box freq band widget to the data model
+preferences.freqBands.hideColumn(0)  # ID
+rowHeader = preferences.freqBands.verticalHeader()
+rowHeader.hide()
 
 #  Map database tables to preferences dialogue box fields ** lines need to be in this order or mapping doesn't work **
 checkboxes.createTableModel()
@@ -969,8 +986,8 @@ checkboxes.dwm.setCurrentIndex(0)
 numbers.createTableModel()
 numbers.dwm.addMapping(preferences.minPoints, 0)
 numbers.dwm.addMapping(preferences.maxPoints, 1)
-# numbers.dwm.addMapping(preferences.startF, 2)  - future
-# numbers.dwm.addMapping(preferences.stopF, 3)  - future
+numbers.dwm.addMapping(preferences.defaultStart, 2)
+numbers.dwm.addMapping(preferences.defaultStop, 3)
 numbers.tm.select()
 numbers.dwm.setCurrentIndex(0)
 
