@@ -186,7 +186,7 @@ class analyser:
     def startMeasurement(self, startF, stopF):
         self.sweep = Worker(self.measurement, startF, stopF)  # workers are auto-deleted when thread stops
         self.sweeping = True
-        self.sweepresults = np.full((self.scanMemory, self.points), -100, dtype=float)  # to do - add row count to GUI
+        self.sweepresults = np.full((self.scanMemory, self.points), -100, dtype=float)
         if ui.Enabled3D.isChecked():
             tinySA.createTimeSpectrum()
             self.reset3D()
@@ -338,7 +338,7 @@ class analyser:
                                                 computeNormals=ui.glNormals.isChecked(), smooth=ui.glSmooth.isChecked())
 
         #  for each colour, map = pow(z * colorMap[0] + colorMap[1], colorMap[2])
-        self.surface.shader()['colorMap'] = np.array([ui.rMulti.value(),     # red   [0]
+        self.surface.shader()['colorMap'] = np.array([ui.rMulti.value(),      # red   [0]
                                                       ui.rConst.value(),      # red   [1]
                                                       ui.rExponent.value(),   # red   [2]
                                                       ui.gMulti.value(),      # green [3]
@@ -504,25 +504,25 @@ class display:
     def tType(self, uiBox):
         self.traceType = uiBox.currentText()
 
-    def mEnable(self, mkr):
+    def mEnable(self, mkr):  # show or hide a marker
         if mkr.isChecked():
             self.vline.show()
         else:
             self.vline.hide()
 
-    def hEnable(self, limit):
+    def hEnable(self, limit):  # show or hide the horizontal signal limit reminders
         if limit.isChecked():
             self.hline.show()
         else:
             self.hline.hide()
 
-    def tEnable(self, trace):
+    def tEnable(self, trace):  # show or hide a trace
         if trace.isChecked():
             self.trace.show()
         else:
             self.trace.hide()
 
-    def mPeak(self, signal):
+    def mPeak(self, signal):  # marker peak tracking
         peaks = np.argsort(-signal)  # finds the indices of the peaks in a copy of signal array; indices sorted desc
         if signal[peaks[0]] >= ui.mPeak.value():  # largest peak value is above the threshold set in GUI
             options = {'Peak1': peaks[0], 'Peak2': peaks[1], 'Peak3': peaks[2], 'Peak4': peaks[3]}
@@ -530,7 +530,7 @@ class display:
             self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
             logging.debug(f'peaks = {peaks[:4]}')
 
-    def mDelta(self):
+    def mDelta(self):  # delta marker locking to reference
         self.fIndex = S1.fIndex + self.dIndex
         if self.fIndex < 0:  # delta marker is now below sweep range
             self.fIndex = 0
@@ -589,7 +589,7 @@ class modelView():
         self.dwm.setModel(self.tm)
         self.dwm.setSubmitPolicy(QDataWidgetMapper.AutoSubmit)
 
-    def addRow(self):
+    def addRow(self):  # adds a blank row to the frequency bands table widget
         self.tm.insertRow(self.currentRow + 1)
         self.currentRow += 1
         preferences.freqBands.selectRow(self.currentRow)
@@ -597,7 +597,7 @@ class modelView():
     def saveChanges(self):
         self.dwm.submit()
 
-    def deleteRow(self):
+    def deleteRow(self):  # deletes row selected by the up/down arrows on the frequency bands table widget
         self.tm.removeRow(self.currentRow)
 
     def upRow(self):
