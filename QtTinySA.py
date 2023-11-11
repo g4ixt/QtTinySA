@@ -137,7 +137,6 @@ class analyser:
 
         # set the frequency band & rbw comboboxes to suit detected hardware
         setPreferences()
-        setBands()
         ui.start_freq.setValue(preferences.defaultStart.value())
         ui.stop_freq.setValue(preferences.defaultStop.value())
         ui.graphWidget.setXRange(preferences.defaultStart.value(), preferences.defaultStop.value())
@@ -614,6 +613,17 @@ class modelView():
         else:
             return
 
+    def show(self):
+        self.tm.setFilter('visible = 1')
+        if tinySA.tinySA4 is False:  # It's a tinySA basic
+            self.tm.setFilter('visible = 1 AND (startF <= 960 AND stopF <= 960)')
+        self.tm.select()
+        ui.band_box.clear()
+        ui.band_box.addItem('Band')
+        for i in range(self.tm.rowCount()):
+            record = self.tm.record(i)
+            ui.band_box.addItem(record.value("name"))
+
 ###############################################################################
 # respond to GUI signals
 
@@ -659,18 +669,6 @@ def centre_freq_changed():
     start_freq_changed(True)
     ui.stop_freq.setValue(ui.centre_freq.value()+ui.span_freq.value()/2)
     stop_freq_changed(True)
-
-
-def setBands():
-    bands.tm.setFilter('visible = 1')
-    if tinySA.tinySA4 is False:  # It's a tinySA basic
-        bands.tm.setFilter('visible = 1 AND (startF <= 960 AND stopF <= 960)')
-    bands.tm.select()
-    ui.band_box.clear()
-    ui.band_box.addItem('Band')
-    for i in range(bands.tm.rowCount()):
-        record = bands.tm.record(i)
-        ui.band_box.addItem(record.value("name"))
 
 
 def band_changed():
@@ -752,7 +750,8 @@ def setPreferences():
     checkboxes.dwm.submit()
     numbers.dwm.submit()
     bands.tm.submitAll()
-    setBands()
+    if tinySA.usb and tinySA.dev:
+        bands.show()
 
 
 def dialogPrefs():
