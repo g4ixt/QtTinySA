@@ -102,6 +102,7 @@ class analyser:
                 self.initialise()
             except serial.SerialException:
                 logging.info('serial port exception')
+                popUp('Serial Port Exception', 'OK', QMessageBox.Critical)
 
     def closePort(self):
         if self.usb:
@@ -181,6 +182,8 @@ class analyser:
                 except serial.SerialException:
                     self.dev = None
                     self.closePort()
+        else:
+            popUp('TinySA not found', 'OK', QMessageBox.Critical)
 
     def startMeasurement(self, startF, stopF):
         self.sweep = Worker(self.measurement, startF, stopF)  # workers are auto-deleted when thread stops
@@ -464,9 +467,12 @@ class display:
         self.trace.hide()
         self.traceType = 'Normal'  # Normal, Average, Max, Min
         self.markerType = 'Normal'  # Normal, Delta; Peak
-        self.vline = ui.graphWidget.addLine(88, 90, movable=True, name=name, pen=pyqtgraph.mkPen('g', width=0.5, style=QtCore.Qt.DashLine), label="{value:.2f}")
+        self.vline = ui.graphWidget.addLine(88, 90, movable=True, name=name,
+                                            pen=pyqtgraph.mkPen('g', width=0.5, style=QtCore.Qt.DashLine),
+                                            label="{value:.2f}")
         self.vline.hide()
-        self.hline = ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='', labelOpts={'position':0.025, 'color':('w')})
+        self.hline = ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='',
+                                            labelOpts={'position': 0.025, 'color': ('w')})
         self.hline.hide()
         self.fIndex = 0  # index of current marker freq in frequencies array
         self.dIndex = 0  # the difference between this marker and reference marker 1
@@ -613,16 +619,16 @@ class modelView():
         else:
             return
 
-    def show(self):
-        self.tm.setFilter('visible = 1')
+    def setCombo(self, box, default, column, f1, f2):
+        self.tm.setFilter(f1)
         if tinySA.tinySA4 is False:  # It's a tinySA basic
-            self.tm.setFilter('visible = 1 AND (startF <= 960 AND stopF <= 960)')
+            self.tm.setFilter(f2)
         self.tm.select()
-        ui.band_box.clear()
-        ui.band_box.addItem('Band')
+        box.clear()
+        box.addItem(default)
         for i in range(self.tm.rowCount()):
             record = self.tm.record(i)
-            ui.band_box.addItem(record.value("name"))
+            box.addItem(record.value(column))
 
 ###############################################################################
 # respond to GUI signals
@@ -751,7 +757,7 @@ def setPreferences():
     numbers.dwm.submit()
     bands.tm.submitAll()
     if tinySA.usb and tinySA.dev:
-        bands.show()
+        bands.setCombo(ui.band_box, 'Band', "name", 'visible = 1', 'visible = 1 AND (startF <= 960 AND stopF <= 960)')
 
 
 def dialogPrefs():
@@ -765,7 +771,7 @@ def dialogPrefs():
 def about():
     message = ('TinySA Ultra GUI programme using Qt5 and PyQt\nAuthor: Ian Jefferson G4IXT\n\nVersion {}'
                .format(app.applicationVersion()))
-    popUp(message, 'Ok')
+    popUp(message, 'Ok', QMessageBox.Information)
 
 ##############################################################################
 # other methods
@@ -806,9 +812,10 @@ def exit_handler():
     logging.info('QtTinySA Closed')
 
 
-def popUp(message, button):
+def popUp(message, button, icon):
+    # icon = QMessageBox.Warning, QMessageBox.Information, QMessageBox.Critical, QMessageBox.Question
     msg = QMessageBox(parent=(window))
-    msg.setIcon(QMessageBox.Warning)
+    msg.setIcon(icon)
     msg.setText(message)
     msg.addButton(button, QMessageBox.ActionRole)
     msg.exec_()
@@ -950,15 +957,15 @@ logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 ui.t1_type.addItems(['Normal', 'Average', 'Max', 'Min'])
 ui.t2_type.addItems(['Normal', 'Average', 'Max', 'Min'])
 ui.t3_type.addItems(['Normal', 'Average', 'Max', 'Min'])
-ui.t3_type.setCurrentIndex(1)
 ui.t4_type.addItems(['Normal', 'Average', 'Max', 'Min'])
+ui.t3_type.setCurrentIndex(1)
 ui.t4_type.setCurrentIndex(2)
 ui.m1_type.addItems(['Normal', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])  # Marker 1 is the reference for others
 ui.m2_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 ui.m3_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 ui.m4_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 
-# table models gives read/write views of the configuration data
+# table models give read/write views of the configuration data
 bands.createTableModel()
 bands.tm.setSort(2, Qt.AscendingOrder)
 bands.tm.setRelation(4, QSqlRelation('boolean', 'ID', 'value'))
