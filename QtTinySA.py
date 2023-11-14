@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Originally created on Tue 1 May 2023 @author: Ian Jefferson G4IXT
-TinySA Ultra GUI programme using Qt5 and PyQt.
+"""Created on Tue 1 May 2023 @author: Ian Jefferson G4IXT.  TinySA Ultra GUI programme using Qt5 and PyQt.
 
 This code attempts to replicate some of the TinySA Ultra on-screen commands and to provide PC control.
 Development took place on Kubuntu 22.04LTS with Python 3.9 and PyQt5 using Spyder in Anaconda.
-Not tested in any Windows version.
 
 TinySA and TinySA Ultra are trademarks of Erik Kaashoek and are used with permission.
 
-TinySA commands are based on Erik's Python examples:
-http://athome.kaashoek.com/tinySA/python/
+TinySA commands are based on Erik's Python examples: http://athome.kaashoek.com/tinySA/python/
 
 The serial communication commands are based on the Python NanoVNA/TinySA Toolset of Martin Ho-Ro:
 https://github.com/Ho-Ro
@@ -22,7 +19,7 @@ import time
 import logging
 import numpy as np
 from PyQt5 import QtWidgets, QtCore, QtGui
-from PyQt5.QtCore import pyqtSlot, pyqtSignal, QRunnable, QObject, QThreadPool, Qt
+from PyQt5.QtCore import pyqtSlot, pyqtSignal, QRunnable, QObject, QThreadPool, Qt, QTimer
 from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper
 from PyQt5.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate
 import pyqtgraph
@@ -74,6 +71,8 @@ class analyser:
         self.scan3D = False
         self.surface = None
         self.vGrid = None
+        self.checkUSB = QTimer()
+        self.checkUSB.timeout.connect(self.isConnected)
 
     @property
     def frequencies(self):
@@ -94,7 +93,7 @@ class analyser:
             activeButtons(False)  # do not trigger serial commands
             ui.version.setText('TinySA not found')
             logging.info('TinySA not found')
-        if self.usb is None and self.dev:  # TinySA was found but serial comms not open
+        if self.dev and self.usb is None:  # TinySA was found but serial comms not open
             try:
                 self.usb = serial.Serial(self.dev)
                 logging.info('serial port opened')
@@ -110,14 +109,25 @@ class analyser:
             logging.info('serial port closed')
             self.usb = None
 
+    def isConnected(self):
+        # triggered by self.checkUSB QTimer - if tinySA wasn't found checks repeatedly for device, i.e.'hotplug'
+        if self.dev is None:
+            self.openPort()
+        else:
+            self.checkUSB.stop()
+
     def initialise(self):
         # TinySA Ultra resolution bandwidth filters in kHz
         self.resBW = ['0.2', '1', '3', '10', '30', '100', '300', '600', '850']
 
         # show hardware information in GUI
-        hardware = self.version()
-        # hardware = 'basic'  # used for testing
-        logging.info(f'{hardware}')
+        i = 0
+        hardware = 'basic'  # used for testing
+        while hardware[:6] != 'tinySA' and i < 3:
+            hardware = self.version()
+            logging.info(f'{hardware}')
+            i += 1
+            time.sleep(0.1)
         if hardware[:7] == 'tinySA4':  # It's an Ultra
             self.tinySA4 = True
             ui.spur_box.setTristate(True)  # TinySA Ultra has 'auto', 'on' and 'off' setting for Spur
@@ -847,6 +857,7 @@ S4 = display('4', white)
 bands = modelView('frequencies')
 checkboxes = modelView('checkboxes')
 numbers = modelView('numbers')
+boxtext = modelView(('boxtext'))
 
 ###############################################################################
 # GUI settings
@@ -965,6 +976,8 @@ ui.m2_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 ui.m3_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 ui.m4_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
 
+boxes = [ui.m1_type, ui.m2_type, ui.m3_type, ui.m4_type]
+
 # table models give read/write views of the configuration data
 bands.createTableModel()
 bands.tm.setSort(2, Qt.AscendingOrder)
@@ -997,8 +1010,12 @@ numbers.dwm.addMapping(preferences.defaultStop, 3)
 numbers.tm.select()
 numbers.dwm.setCurrentIndex(0)
 
+boxtext.createTableModel()
+
 # try to open a USB connection to the TinySA hardware
 tinySA.openPort()
+if tinySA.dev is None:
+    tinySA.checkUSB.start(500)  # check again every 500mS
 
 window.show()
 window.setWindowTitle(app.applicationName() + app.applicationVersion())
