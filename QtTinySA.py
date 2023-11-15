@@ -92,7 +92,8 @@ class analyser:
         if self.dev is None:
             activeButtons(False)  # do not trigger serial commands
             ui.version.setText('TinySA not found')
-            logging.info('TinySA not found')
+            if not self.checkUSB.isActive():
+                logging.info('TinySA not found')
         if self.dev and self.usb is None:  # TinySA was found but serial comms not open
             try:
                 self.usb = serial.Serial(self.dev)
@@ -158,6 +159,7 @@ class analyser:
         ui.rbw_box.currentIndexChanged.connect(tinySA.setRBW)
 
         activeButtons(True)  # enable ui components that trigger serial commands
+
         if self.tinySA4:
             self.lna()  # LNA off at first run
 
