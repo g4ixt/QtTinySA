@@ -149,9 +149,6 @@ class analyser:
 
         # set the frequency band & rbw comboboxes to suit detected hardware
         setPreferences()
-        ui.start_freq.setValue(preferences.defaultStart.value())
-        ui.stop_freq.setValue(preferences.defaultStop.value())
-        ui.graphWidget.setXRange(preferences.defaultStart.value(), preferences.defaultStop.value())
 
         self.resBW.insert(0, 'auto')
         ui.rbw_box.addItems(self.resBW)
@@ -159,6 +156,10 @@ class analyser:
         ui.rbw_box.currentIndexChanged.connect(tinySA.setRBW)
 
         activeButtons(True)  # enable ui components that trigger serial commands
+
+        # update centre freq, span, auto points and graph for the start/stop freqs loaded from database
+        start_freq_changed()
+        ui.graphWidget.setXRange(ui.start_freq.value(), ui.stop_freq.value())
 
         if self.tinySA4:
             self.lna()  # LNA off at first run
@@ -517,15 +518,18 @@ class display:
         self.markerType = uiBox.currentText()
         self.dIndex = self.fIndex - S1.fIndex
         logging.debug(f'marker = type {self.markerType}')
+        checkboxes.dwm.submit()
 
     def tType(self, uiBox):
         self.traceType = uiBox.currentText()
+        checkboxes.dwm.submit()
 
     def mEnable(self, mkr):  # show or hide a marker
         if mkr.isChecked():
             self.vline.show()
         else:
             self.vline.hide()
+        checkboxes.dwm.submit()
 
     def hEnable(self, limit):  # show or hide the horizontal signal limit reminders
         if limit.isChecked():
@@ -538,6 +542,7 @@ class display:
             self.trace.show()
         else:
             self.trace.hide()
+        checkboxes.dwm.submit()
 
     def mPeak(self, signal):  # marker peak tracking
         peaks = np.argsort(-signal)  # finds the indices of the peaks in a copy of signal array; indices sorted desc
@@ -662,6 +667,7 @@ def start_freq_changed(loopy=False):
     command = f'sweep start {start * 1e6}\r'.encode()
     tinySA.serialSend(command)
     tinySA.setPoints()
+    numbers.dwm.submit()
 
 
 def stop_freq_changed(loopy=False):
@@ -680,7 +686,7 @@ def stop_freq_changed(loopy=False):
     command = f'sweep stop {stop * 1e6}\r'.encode()
     tinySA.serialSend(command)
     tinySA.setPoints()
-
+    numbers.dwm.submit()
 
 def centre_freq_changed():
     ui.start_freq.setValue(ui.centre_freq.value()-ui.span_freq.value()/2)
@@ -995,20 +1001,32 @@ preferences.freqBands.hideColumn(0)  # ID
 rowHeader = preferences.freqBands.verticalHeader()
 rowHeader.hide()
 
-#  Map database tables to preferences dialogue box fields ** lines need to be in this order or mapping doesn't work **
+#  Map database tables to preferences dialogue box fields and to main GUI
+#  ** lines need to be in this order or mapping doesn't work **
 checkboxes.createTableModel()
-checkboxes.dwm.addMapping(preferences.bestPoints, 0)
-checkboxes.dwm.addMapping(preferences.neg25Line, 1)
-checkboxes.dwm.addMapping(preferences.zeroLine, 2)
-checkboxes.dwm.addMapping(preferences.plus6Line, 3)
+checkboxes.dwm.addMapping(preferences.bestPoints, 2)
+checkboxes.dwm.addMapping(preferences.neg25Line, 3)
+checkboxes.dwm.addMapping(preferences.zeroLine, 4)
+checkboxes.dwm.addMapping(preferences.plus6Line, 5)
+checkboxes.dwm.addMapping(ui.trace1, 6)
+checkboxes.dwm.addMapping(ui.trace2, 7)
+checkboxes.dwm.addMapping(ui.trace3, 8)
+checkboxes.dwm.addMapping(ui.trace4, 9)
+checkboxes.dwm.addMapping(ui.marker1, 10)
+checkboxes.dwm.addMapping(ui.marker2, 11)
+checkboxes.dwm.addMapping(ui.marker3, 12)
+checkboxes.dwm.addMapping(ui.marker4, 13)
+
 checkboxes.tm.select()
 checkboxes.dwm.setCurrentIndex(0)
 
 numbers.createTableModel()
-numbers.dwm.addMapping(preferences.minPoints, 0)
-numbers.dwm.addMapping(preferences.maxPoints, 1)
-numbers.dwm.addMapping(preferences.defaultStart, 2)
-numbers.dwm.addMapping(preferences.defaultStop, 3)
+numbers.dwm.addMapping(preferences.minPoints, 2)
+numbers.dwm.addMapping(preferences.maxPoints, 3)
+
+numbers.dwm.addMapping(ui.start_freq, 4)
+numbers.dwm.addMapping(ui.stop_freq, 5)
+
 numbers.tm.select()
 numbers.dwm.setCurrentIndex(0)
 
