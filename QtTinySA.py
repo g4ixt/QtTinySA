@@ -44,12 +44,6 @@ cyan = pyqtgraph.mkPen(color='c', width=1.0)
 red_dash = pyqtgraph.mkPen(color='r', width=0.5, style=QtCore.Qt.DashLine)
 blue_dash = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
 
-config = QSqlDatabase.addDatabase('QSQLITE')
-config.setDatabaseName(os.path.join(basedir, 'QtTSAprefs.db'))
-logging.info('open config database')
-config.open()
-logging.info(f'  database is open: {config.isOpen()}')
-
 ###############################################################################
 # classes
 
@@ -97,7 +91,7 @@ class analyser:
         if self.dev and self.usb is None:  # TinySA was found but serial comms not open
             try:
                 self.usb = serial.Serial(self.dev)
-                logging.info('serial port opened')
+                logging.info(f'Serial port open: {self.usb.isOpen()}')
                 self.clearBuffer()
                 self.initialise()
             except serial.SerialException:
@@ -107,7 +101,7 @@ class analyser:
     def closePort(self):
         if self.usb:
             self.usb.close()
-            logging.info('serial port closed')
+            logging.info(f'Serial port open: {self.usb.isOpen()}')
             self.usb = None
 
     def isConnected(self):
@@ -120,7 +114,7 @@ class analyser:
     def initialise(self):
         # TinySA Ultra resolution bandwidth filters in kHz
         self.resBW = ['0.2', '1', '3', '10', '30', '100', '300', '600', '850']
-
+        self.set_frequencies()
         # show hardware information in GUI
         i = 0
         hardware = 'basic'  # used for testing
@@ -184,8 +178,9 @@ class analyser:
                     self.scanCount = 1
                     startF = ui.start_freq.value()*1e6
                     stopF = ui.stop_freq.value()*1e6
-                    points = ui.points_box.value()
-                    self.set_frequencies(startF, stopF, points)
+                    # points = ui.points_box.value()
+                    # self.set_frequencies(startF, stopF, points)
+                    self.set_frequencies()
                     self.clearBuffer()
                     self.setRBW()  # fetches rbw value from the GUI combobox and sends it to self
                     self.sweepTimeout(startF, stopF)
@@ -224,9 +219,11 @@ class analyser:
         logging.debug(response)
         return response[:-6].decode()  # remove prompt
 
-    def set_frequencies(self, startF, stopF, points):
-        # creates a np array of equi-spaced freqs in Hz (but doesn't set it on the tinySA)
-        self.points = points
+    def set_frequencies(self):
+        startF = ui.start_freq.value()*1e6
+        stopF = ui.stop_freq.value()*1e6
+        self.points = ui.points_box.value()
+        # creates a numpy array of equi-spaced freqs in Hz (but doesn't set it on the tinySA)
         self._frequencies = np.linspace(startF, stopF, self.points, dtype=int)
         logging.debug(f'frequencies = {self._frequencies}')
 
@@ -283,7 +280,7 @@ class analyser:
         logging.debug(f'sweepTimeout = {self.timeout:.2f} s')
 
     def measurement(self, f_low, f_high):  # runs in a separate thread
-        self.threadrunning = True
+        self.threadRunning = True
         firstSweep = True
         while self.sweeping:
             try:
@@ -319,10 +316,11 @@ class analyser:
             except serial.SerialException:
                 logging.info('serial port exception')
                 self.sweeping = False
+        self.threadRunning = False
         self.signals.finished.emit()
 
     def threadEnds(self):
-        self.threadrunning = False
+        # self.threadRunning = False
         self.runButton('Run')
         activeButtons(True)
 
@@ -476,6 +474,7 @@ class analyser:
 
 class display:
     def __init__(self, name, pen):
+        self.name = name
         self.trace = ui.graphWidget.plot([], [], name=name, pen=pen, width=1)
         self.trace.hide()
         self.traceType = 'Normal'  # Normal, Average, Max, Min
@@ -487,19 +486,19 @@ class display:
         self.hline = ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='',
                                             labelOpts={'position': 0.025, 'color': ('w')})
         self.hline.hide()
-        self.fIndex = 0  # index of current marker freq in frequencies array
-        self.dIndex = 0  # the difference between this marker and reference marker 1
+        self.fIndex = 0  # index of current marker freq in the frequencies array
+        self.dIndex = 0  # the difference between this marker and Reference Marker (M1)
 
     def setDiscrete(self):
-        # update marker to discrete freq point nearest, if it's within the sweep range
+        # set marker to the discrete freq near the posn it has been dragged to (if within the sweep range)
         if self.vline.value() >= ui.start_freq.value() and self.vline.value() <= ui.stop_freq.value():
             try:
                 for i in range(tinySA.points):
                     if tinySA.frequencies[i] / 1e6 >= self.vline.value():
                         self.vline.setValue(tinySA.frequencies[i] / 1e6)
-                        self.fIndex = i
+                        self.fIndex = i  # marker freq index is now set
                         if self.markerType == 'Delta':
-                            self.dIndex = self.fIndex - S1.fIndex
+                            self.dIndex = self.fIndex - S1.fIndex  # save delta index this marker vs Reference marker
                         return
             except AttributeError:
                 return
@@ -512,17 +511,57 @@ class display:
     def mCentre(self):
         # set marker to the sweep centre frequency
         self.fIndex = int(ui.points_box.value()/2)
-        self.vline.setValue(ui.centre_freq.value())
+        self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
 
     def mType(self, uiBox):
         self.markerType = uiBox.currentText()
-        self.dIndex = self.fIndex - S1.fIndex
-        logging.debug(f'marker = type {self.markerType}')
-        checkboxes.dwm.submit()
+        if self.markerType == 'Delta':
+            self.dIndex = self.fIndex - S1.fIndex
+        logging.debug(f'marker type = {self.markerType}')
+
+    def mPeak(self, signal):
+        # marker peak tracking
+        peaks = np.argsort(-signal)  # finds the indices of the peaks in a copy of signal array; indices sorted desc
+        if signal[peaks[0]] >= ui.mPeak.value():  # largest peak value is above the threshold set in GUI
+            options = {'Peak1': peaks[0], 'Peak2': peaks[1], 'Peak3': peaks[2], 'Peak4': peaks[3]}
+            self.fIndex = options.get(self.markerType)
+            self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
+            logging.debug(f'peaks = {peaks[:4]}')
+
+    def mDelta(self):  # delta marker locking to reference
+        self.fIndex = S1.fIndex + self.dIndex
+        if self.fIndex < 0:  # delta marker is now below sweep range
+            self.fIndex = 0
+        if self.fIndex > tinySA.points - 1:  # delta marker is now above sweep range
+            self.fIndex = tinySA.points - 1
+        self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
+
+    def mSave(self, setting):
+        # markers.tm.setFilter('display = "S1"')  # this is the syntax needed for setFilter
+        markers.tm.setFilter('display = ' + str(self.name) + ' AND setting = ' + str(setting))
+        markers.tm.select()
+        record = markers.tm.record(0)
+        record.setValue('frequency', float(self.vline.value()))
+        record.setValue('type', self.markerType)
+        record.setValue('dIndex', int(self.dIndex))
+        markers.tm.setRecord(0, record)
+        logging.debug(f'marker type = {self.markerType}')
+
+    def tSave(self, setting):
+        traces.tm.setFilter('display = ' + str(self.name) + ' AND setting = ' + str(setting))
+        traces.tm.select()
+        record = traces.tm.record(0)
+        record.setValue('type', self.traceType)
+        traces.tm.setRecord(0, record)
+        logging.info(f'trace type = {self.traceType}')
+
+    def dSave(self, setting):
+        self.mSave(setting)
+        self.tSave(setting)
 
     def tType(self, uiBox):
         self.traceType = uiBox.currentText()
-        checkboxes.dwm.submit()
+        # checkboxes.dwm.submit()
 
     def mEnable(self, mkr):  # show or hide a marker
         if mkr.isChecked():
@@ -543,22 +582,6 @@ class display:
         else:
             self.trace.hide()
         checkboxes.dwm.submit()
-
-    def mPeak(self, signal):  # marker peak tracking
-        peaks = np.argsort(-signal)  # finds the indices of the peaks in a copy of signal array; indices sorted desc
-        if signal[peaks[0]] >= ui.mPeak.value():  # largest peak value is above the threshold set in GUI
-            options = {'Peak1': peaks[0], 'Peak2': peaks[1], 'Peak3': peaks[2], 'Peak4': peaks[3]}
-            self.fIndex = options.get(self.markerType)
-            self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
-            logging.debug(f'peaks = {peaks[:4]}')
-
-    def mDelta(self):  # delta marker locking to reference
-        self.fIndex = S1.fIndex + self.dIndex
-        if self.fIndex < 0:  # delta marker is now below sweep range
-            self.fIndex = 0
-        if self.fIndex > tinySA.points - 1:  # delta marker is now above sweep range
-            self.fIndex = tinySA.points - 1
-        self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
 
     def updateGUI(self, signal):
         self.trace.setData((tinySA.frequencies/1e6), signal)
@@ -594,6 +617,30 @@ class Worker(QRunnable):
         logging.info(f'{self.fn.__name__} thread running')
         self.fn(*self.args)
         logging.info(f'{self.fn.__name__} thread stopped')
+
+
+class database():
+    '''configuration data are stored in a SQLite database'''
+
+    def __init__(self):
+        self.db = None
+
+    def connect(self):
+        self.db = QSqlDatabase.addDatabase('QSQLITE')
+        if QtCore.QFile.exists(os.path.join(basedir, 'QtTSAprefs.db')):
+            self.db.setDatabaseName(os.path.join(basedir, 'QtTSAprefs.db'))
+            self.db.open()
+            logging.info(f'Database open: {self.db.isOpen()}')
+            self.db.exec('PRAGMA foreign_keys = ON')
+        else:
+            logging.info('Database file missing')
+            popUp('Database file missing', 'OK', QMessageBox.Critical)
+
+    def disconnect(self):
+        # xyz.tm.submitAll()
+        self.db.close()
+        logging.info(f'Database open: {self.db.isOpen()}')
+        QSqlDatabase.removeDatabase(QSqlDatabase.database().connectionName())
 
 
 class modelView():
@@ -687,6 +734,7 @@ def stop_freq_changed(loopy=False):
     tinySA.serialSend(command)
     tinySA.setPoints()
     numbers.dwm.submit()
+
 
 def centre_freq_changed():
     ui.start_freq.setValue(ui.centre_freq.value()-ui.span_freq.value()/2)
@@ -814,19 +862,21 @@ def activeButtons(tF):
 
 def exit_handler():
     if tinySA.dev is not None:
-        tinySA.sweeping = False
-        time.sleep(1)  # allow time for measurements to stop  # use thread finished signal instead??
+        # save the current displayed marker and trace settings as the default
+        S1.dSave(1)
+        S2.dSave(1)
+        S3.dSave(1)
+        S4.dSave(1)
+        numbers.dwm.submit()
+        checkboxes.dwm.submit()
+        # stop sweeping
+        if tinySA.sweeping:
+            tinySA.sweeping = False  # tell the measurement thread to stop
+            while tinySA.threadRunning:
+                time.sleep(0.1)  # wait for measurements to stop
         tinySA.resume()
-        tinySA.closePort()
-
-    logging.info('close database')  # can't find any way to not leave connection open
-    bands.tm.submitAll()
-    del bands.tm
-    config.close()
-    logging.info(f'  database is open: {config.isOpen()}')
-    QSqlDatabase.removeDatabase('QSQLITE')
-
-    # app.processEvents()
+        tinySA.closePort()  # close USB connection
+    config.disconnect()  # close database
     logging.info('QtTinySA Closed')
 
 
@@ -862,10 +912,14 @@ S3 = display('3', cyan)
 S4 = display('4', white)
 
 # Data models for configuration settings
+config = database()
+config.connect()
+
 bands = modelView('frequencies')
 checkboxes = modelView('checkboxes')
 numbers = modelView('numbers')
-boxtext = modelView(('boxtext'))
+markers = modelView('marker')
+traces = modelView('trace')
 
 ###############################################################################
 # GUI settings
@@ -899,25 +953,68 @@ ui.scan_button.clicked.connect(tinySA.scan)
 ui.run3D.clicked.connect(tinySA.scan)
 ui.atten_box.valueChanged.connect(attenuate_changed)
 ui.atten_auto.clicked.connect(attenuate_changed)
-ui.start_freq.editingFinished.connect(lambda: start_freq_changed(False))
-ui.stop_freq.editingFinished.connect(lambda: stop_freq_changed(False))
 ui.spur_box.stateChanged.connect(spur_box)
 ui.lna_box.stateChanged.connect(tinySA.lna)
-ui.band_box.currentTextChanged.connect(band_changed)
+ui.memSlider.sliderMoved.connect(memChanged)
 
+# frequency controls
+ui.start_freq.editingFinished.connect(lambda: start_freq_changed(False))
+ui.stop_freq.editingFinished.connect(lambda: stop_freq_changed(False))
 ui.centre_freq.editingFinished.connect(centre_freq_changed)
 ui.span_freq.editingFinished.connect(centre_freq_changed)
+ui.band_box.currentTextChanged.connect(band_changed)
 
+# marker dragging
 S1.vline.sigPositionChanged.connect(mkr1_moved)
 S2.vline.sigPositionChanged.connect(S2.setDiscrete)
 S3.vline.sigPositionChanged.connect(S3.setDiscrete)
 S4.vline.sigPositionChanged.connect(S4.setDiscrete)
 
+# marker setting within span range
+ui.mkr_start.clicked.connect(markerToStart)
+ui.mkr_centre.clicked.connect(markerToCentre)
+
+# marker checkboxes
 ui.marker1.stateChanged.connect(lambda: S1.mEnable(ui.marker1))
 ui.marker2.stateChanged.connect(lambda: S2.mEnable(ui.marker2))
 ui.marker3.stateChanged.connect(lambda: S3.mEnable(ui.marker3))
 ui.marker4.stateChanged.connect(lambda: S4.mEnable(ui.marker4))
 
+# marker type changes
+ui.m1_type.currentTextChanged.connect(lambda: S1.mType(ui.m1_type))
+ui.m2_type.currentTextChanged.connect(lambda: S2.mType(ui.m2_type))
+ui.m3_type.currentTextChanged.connect(lambda: S3.mType(ui.m3_type))
+ui.m4_type.currentTextChanged.connect(lambda: S4.mType(ui.m4_type))
+
+# trace checkboxes
+ui.trace1.stateChanged.connect(lambda: S1.tEnable(ui.trace1))
+ui.trace2.stateChanged.connect(lambda: S2.tEnable(ui.trace2))
+ui.trace3.stateChanged.connect(lambda: S3.tEnable(ui.trace3))
+ui.trace4.stateChanged.connect(lambda: S4.tEnable(ui.trace4))
+
+# trace type changes
+ui.t1_type.currentTextChanged.connect(lambda: S1.tType(ui.t1_type))
+ui.t2_type.currentTextChanged.connect(lambda: S2.tType(ui.t2_type))
+ui.t3_type.currentTextChanged.connect(lambda: S3.tType(ui.t3_type))
+ui.t4_type.currentTextChanged.connect(lambda: S4.tType(ui.t4_type))
+
+# 3D graph controls
+ui.orbitL.clicked.connect(lambda: tinySA.orbit3D(1, True))
+ui.orbitR.clicked.connect(lambda: tinySA.orbit3D(-1, True))
+ui.orbitU.clicked.connect(lambda: tinySA.orbit3D(-1, False))
+ui.orbitD.clicked.connect(lambda: tinySA.orbit3D(1, False))
+ui.timeF.clicked.connect(lambda: tinySA.axes3D(-1, 'X'))
+ui.timeR.clicked.connect(lambda: tinySA.axes3D(1, 'X'))
+ui.freqR.clicked.connect(lambda: tinySA.axes3D(-1, 'Y'))
+ui.freqL.clicked.connect(lambda: tinySA.axes3D(1, 'Y'))
+ui.signalUp.clicked.connect(lambda: tinySA.axes3D(-1, 'Z'))
+ui.signalDown.clicked.connect(lambda: tinySA.axes3D(1, 'Z'))
+ui.gridF.clicked.connect(lambda: tinySA.grid(1))
+ui.gridR.clicked.connect(lambda: tinySA.grid(-1))
+ui.zoom.sliderMoved.connect(tinySA.zoom3D)
+ui.reset3D.clicked.connect(tinySA.reset3D)
+
+# preferences
 preferences.neg25Line.stateChanged.connect(lambda: S1.hEnable(preferences.neg25Line))
 preferences.zeroLine.stateChanged.connect(lambda: S2.hEnable(preferences.zeroLine))
 preferences.plus6Line.stateChanged.connect(lambda: S3.hEnable(preferences.plus6Line))
@@ -925,45 +1022,6 @@ preferences.addRow.clicked.connect(bands.addRow)
 preferences.deleteRow.clicked.connect(bands.deleteRow)
 preferences.rowUp.clicked.connect(bands.upRow)
 preferences.rowDown.clicked.connect(bands.downRow)
-
-ui.mkr_start.clicked.connect(markerToStart)
-ui.mkr_centre.clicked.connect(markerToCentre)
-ui.m1_type.currentTextChanged.connect(lambda: S1.mType(ui.m1_type))
-ui.m2_type.currentTextChanged.connect(lambda: S2.mType(ui.m2_type))
-ui.m3_type.currentTextChanged.connect(lambda: S3.mType(ui.m3_type))
-ui.m4_type.currentTextChanged.connect(lambda: S4.mType(ui.m4_type))
-
-ui.trace1.stateChanged.connect(lambda: S1.tEnable(ui.trace1))
-ui.trace2.stateChanged.connect(lambda: S2.tEnable(ui.trace2))
-ui.trace3.stateChanged.connect(lambda: S3.tEnable(ui.trace3))
-ui.trace4.stateChanged.connect(lambda: S4.tEnable(ui.trace4))
-
-ui.t1_type.currentTextChanged.connect(lambda: S1.tType(ui.t1_type))
-ui.t2_type.currentTextChanged.connect(lambda: S2.tType(ui.t2_type))
-ui.t3_type.currentTextChanged.connect(lambda: S3.tType(ui.t3_type))
-ui.t4_type.currentTextChanged.connect(lambda: S4.tType(ui.t4_type))
-
-ui.memSlider.sliderMoved.connect(memChanged)
-
-ui.orbitL.clicked.connect(lambda: tinySA.orbit3D(1, True))
-ui.orbitR.clicked.connect(lambda: tinySA.orbit3D(-1, True))
-ui.orbitU.clicked.connect(lambda: tinySA.orbit3D(-1, False))
-ui.orbitD.clicked.connect(lambda: tinySA.orbit3D(1, False))
-
-ui.timeF.clicked.connect(lambda: tinySA.axes3D(-1, 'X'))
-ui.timeR.clicked.connect(lambda: tinySA.axes3D(1, 'X'))
-ui.freqR.clicked.connect(lambda: tinySA.axes3D(-1, 'Y'))
-ui.freqL.clicked.connect(lambda: tinySA.axes3D(1, 'Y'))
-ui.signalUp.clicked.connect(lambda: tinySA.axes3D(-1, 'Z'))
-ui.signalDown.clicked.connect(lambda: tinySA.axes3D(1, 'Z'))
-
-ui.gridF.clicked.connect(lambda: tinySA.grid(1))
-ui.gridR.clicked.connect(lambda: tinySA.grid(-1))
-
-ui.zoom.sliderMoved.connect(tinySA.zoom3D)
-
-ui.reset3D.clicked.connect(tinySA.reset3D)
-
 ui.actionPreferences.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
 ui.actionAbout_QtTinySA.triggered.connect(about)
 pwindow.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
@@ -1002,7 +1060,7 @@ rowHeader = preferences.freqBands.verticalHeader()
 rowHeader.hide()
 
 #  Map database tables to preferences dialogue box fields and to main GUI
-#  ** lines need to be in this order or mapping doesn't work **
+#  ** lines need to be in this order and here or the mapping doesn't work **
 checkboxes.createTableModel()
 checkboxes.dwm.addMapping(preferences.bestPoints, 2)
 checkboxes.dwm.addMapping(preferences.neg25Line, 3)
@@ -1016,21 +1074,20 @@ checkboxes.dwm.addMapping(ui.marker1, 10)
 checkboxes.dwm.addMapping(ui.marker2, 11)
 checkboxes.dwm.addMapping(ui.marker3, 12)
 checkboxes.dwm.addMapping(ui.marker4, 13)
-
 checkboxes.tm.select()
 checkboxes.dwm.setCurrentIndex(0)
 
 numbers.createTableModel()
-numbers.dwm.addMapping(preferences.minPoints, 2)
-numbers.dwm.addMapping(preferences.maxPoints, 3)
-
-numbers.dwm.addMapping(ui.start_freq, 4)
-numbers.dwm.addMapping(ui.stop_freq, 5)
-
+numbers.dwm.addMapping(preferences.minPoints, 3)
+numbers.dwm.addMapping(preferences.maxPoints, 4)
+numbers.dwm.addMapping(ui.start_freq, 5)
+numbers.dwm.addMapping(ui.stop_freq, 6)
+numbers.dwm.addMapping(ui.mPeak, 7)
 numbers.tm.select()
 numbers.dwm.setCurrentIndex(0)
 
-boxtext.createTableModel()
+markers.createTableModel()
+traces.createTableModel()
 
 # try to open a USB connection to the TinySA hardware
 tinySA.openPort()
