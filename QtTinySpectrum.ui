@@ -166,6 +166,9 @@
               <pointsize>7</pointsize>
              </font>
             </property>
+            <property name="modelColumn">
+             <number>0</number>
+            </property>
            </widget>
           </item>
           <item row="10" column="1">
@@ -963,6 +966,12 @@
               <width>65</width>
               <height>16777215</height>
              </size>
+            </property>
+            <property name="currentText">
+             <string/>
+            </property>
+            <property name="insertPolicy">
+             <enum>QComboBox::InsertAtBottom</enum>
             </property>
            </widget>
           </item>

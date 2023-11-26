@@ -67,14 +67,15 @@ class analyser:
         self.vGrid = None
         self.checkUSB = QTimer()
         self.checkUSB.timeout.connect(self.isConnected)
+        self.resBW = ['0.2', '1', '3', '10', '30', '100', '300', '600', '850']
 
     @property
     def frequencies(self):
-        # what does this do?
         return self._frequencies
 
     def openPort(self):
         self.dev = None
+        # TinySA Ultra resolution bandwidth filters in kHz
         # Get tinysa device (port) automatically using hardware ID
         VID = 0x0483  # 1155
         PID = 0x5740  # 22336
@@ -92,11 +93,12 @@ class analyser:
             try:
                 self.usb = serial.Serial(self.dev)
                 logging.info(f'Serial port open: {self.usb.isOpen()}')
-                self.clearBuffer()
-                self.initialise()
             except serial.SerialException:
                 logging.info('serial port exception')
                 popUp('Serial Port Exception', 'OK', QMessageBox.Critical)
+        if self.dev and self.usb:
+            self.clearBuffer()
+            self.initialise()
 
     def closePort(self):
         if self.usb:
@@ -112,9 +114,6 @@ class analyser:
             self.checkUSB.stop()
 
     def initialise(self):
-        # TinySA Ultra resolution bandwidth filters in kHz
-        self.resBW = ['0.2', '1', '3', '10', '30', '100', '300', '600', '850']
-        self.set_frequencies()
         # show hardware information in GUI
         i = 0
         hardware = 'basic'  # used for testing
@@ -152,7 +151,8 @@ class analyser:
         activeButtons(True)  # enable ui components that trigger serial commands
 
         # update centre freq, span, auto points and graph for the start/stop freqs loaded from database
-        start_freq_changed()
+        # start_freq_changed()
+        self.freq_changed()
         ui.graphWidget.setXRange(ui.start_freq.value(), ui.stop_freq.value())
 
         if self.tinySA4:
@@ -164,10 +164,23 @@ class analyser:
 
         S1.trace.show()
 
-    def scan(self):
+        # update trace and marker settings from the database.  1 = last saved (default) settings
+        S1.dLoad(1)
+        S2.dLoad(1)
+        S3.dLoad(1)
+        S4.dLoad(1)
+
+        # connect the frequency boxes here or it causes startup index errors when they are populated
+        ui.start_freq.editingFinished.connect(lambda: self.freq_changed(False))
+        ui.stop_freq.editingFinished.connect(lambda: self.freq_changed(False))
+        ui.centre_freq.editingFinished.connect(lambda: self.freq_changed(True))
+        ui.span_freq.editingFinished.connect(lambda: self.freq_changed(True))
+        ui.band_box.activated.connect(band_changed)
+
+    def scan(self):  # called by 'run' button
         self.scan3D = ui.Enabled3D.isChecked()
-        if self.usb is None:
-            self.openPort()
+        # if self.usb is None:
+        #     self.openPort()
         if self.usb is not None:
             if self.sweeping:  # if it's running, stop it
                 self.sweeping = False  # tells the measurement thread to stop once current scan complete
@@ -182,7 +195,7 @@ class analyser:
                     # self.set_frequencies(startF, stopF, points)
                     self.set_frequencies()
                     self.clearBuffer()
-                    self.setRBW()  # fetches rbw value from the GUI combobox and sends it to self
+                    self.setRBW()  # fetches rbw value from the GUI combobox
                     self.sweepTimeout(startF, stopF)
                     activeButtons(False)
                     self.runButton('Stop')
@@ -220,12 +233,36 @@ class analyser:
         return response[:-6].decode()  # remove prompt
 
     def set_frequencies(self):
-        startF = ui.start_freq.value()*1e6
+        startF = ui.start_freq.value()*1e6  # freq in Hz
         stopF = ui.stop_freq.value()*1e6
         self.points = ui.points_box.value()
         # creates a numpy array of equi-spaced freqs in Hz (but doesn't set it on the tinySA)
         self._frequencies = np.linspace(startF, stopF, self.points, dtype=int)
         logging.debug(f'frequencies = {self._frequencies}')
+
+    def freq_changed(self, centre=False):
+        if centre:
+            startF = ui.centre_freq.value()-ui.span_freq.value()/2
+            stopF = ui.centre_freq.value()+ui.span_freq.value()/2
+            ui.start_freq.setValue(startF)
+            ui.stop_freq.setValue(stopF)
+        else:
+            startF = ui.start_freq.value()  # freq in MHz
+            stopF = ui.stop_freq.value()
+            if startF > stopF:
+                stopF = startF
+                ui.stop_freq.setValue(stopF)
+            ui.centre_freq.setValue(startF + (stopF - startF) / 2)
+            ui.span_freq.setValue(stopF - startF)
+        ui.graphWidget.setXRange(startF, stopF)
+        self.setPoints()
+        self.setRBW()
+        self.set_frequencies()
+        command = f'sweep start {startF * 1e6}\r'.encode()
+        self.serialSend(command)
+        command = f'sweep stop {stopF * 1e6}\r'.encode()
+        self.serialSend(command)
+        # do we need to submit dwm?
 
     def setRBW(self):
         if ui.rbw_box.currentIndex() == 0:  # can't calculate Points because we don't know what the RBW will be
@@ -234,6 +271,7 @@ class analyser:
             ui.points_auto.setEnabled(False)
         else:
             self.rbw = ui.rbw_box.currentText()  # ui values are discrete ones in kHz
+            logging.info(f'self rbw = {self.rbw}')
             self.setPoints()
             ui.points_auto.setEnabled(True)
         rbw_command = f'rbw {self.rbw}\r'.encode()
@@ -452,7 +490,7 @@ class analyser:
     def spur(self, sType=0):
         options = {0: 'spur off\r'.encode(), 1: 'spur auto\r'.encode(), 2: 'spur on\r'.encode()}
         command = options.get(sType)
-        tinySA.serialSend(command)
+        self.serialSend(command)
         if sType == 1:
             ui.spur_box.setText('Auto')
         else:
@@ -469,7 +507,7 @@ class analyser:
             command = 'lna off\r'.encode()
             ui.atten_auto.setEnabled(True)
             ui.atten_auto.setChecked(True)
-        tinySA.serialSend(command)
+        self.serialSend(command)
 
 
 class display:
@@ -513,11 +551,11 @@ class display:
         self.fIndex = int(ui.points_box.value()/2)
         self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
 
-    def mType(self, uiBox):
-        self.markerType = uiBox.currentText()
+    def mType(self):
+        self.markerType = self.guiRef(1).currentText()
         if self.markerType == 'Delta':
             self.dIndex = self.fIndex - S1.fIndex
-        logging.debug(f'marker type = {self.markerType}')
+        logging.info(f'marker type = {self.markerType}')
 
     def mPeak(self, signal):
         # marker peak tracking
@@ -536,35 +574,62 @@ class display:
             self.fIndex = tinySA.points - 1
         self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
 
-    def mSave(self, setting):
+    # The set of 4 functions below are needed until I understand how to make dataWidgetMapper work with comboboxes
+    def mData(self, setting, saving=True):
         # markers.tm.setFilter('display = "S1"')  # this is the syntax needed for setFilter
         markers.tm.setFilter('display = ' + str(self.name) + ' AND setting = ' + str(setting))
         markers.tm.select()
         record = markers.tm.record(0)
-        record.setValue('frequency', float(self.vline.value()))
-        record.setValue('type', self.markerType)
-        record.setValue('dIndex', int(self.dIndex))
-        markers.tm.setRecord(0, record)
-        logging.debug(f'marker type = {self.markerType}')
+        if saving:
+            record.setValue('frequency', float(self.vline.value()))
+            record.setValue('type', self.markerType)
+            record.setValue('dIndex', int(self.dIndex))  # this isn't going to work, needs to be freq not index
+            markers.tm.setRecord(0, record)
+        else:
+            self.vline.setValue(record.value('frequency'))
+            self.markerType = record.value('type')
+            self.guiRef(1).setCurrentText(self.markerType)
+            self.dIndex = record.value('dIndex')  # this isn't going to work, needs to be freq not index
+            logging.info(f'marker f = {record.value("frequency")}')
+            self.vline.label.setText(f'M{self.vline.name()} {tinySA.frequencies[self.fIndex]/1e6:.3f}MHz')
+            self.setDiscrete()
+            self.mEnable()
 
-    def tSave(self, setting):
+    def tData(self, setting, saving=True):
         traces.tm.setFilter('display = ' + str(self.name) + ' AND setting = ' + str(setting))
         traces.tm.select()
         record = traces.tm.record(0)
-        record.setValue('type', self.traceType)
-        traces.tm.setRecord(0, record)
-        logging.info(f'trace type = {self.traceType}')
+        if saving:
+            record.setValue('type', self.traceType)
+            traces.tm.setRecord(0, record)
+        else:
+            self.traceType = record.value('type')
+            self.guiRef(3).setCurrentText(self.traceType)
 
     def dSave(self, setting):
-        self.mSave(setting)
-        self.tSave(setting)
+        self.tData(setting, True)
+        self.mData(setting, True)  # true = saving
 
-    def tType(self, uiBox):
-        self.traceType = uiBox.currentText()
+    def dLoad(self, setting):
+        self.mData(setting, False)  # false = not saving but loading
+        self.tData(setting, False)
+    # The set of 4 functions above are needed until understand how to make dataWidgetMapper work with comboboxes
+
+    def guiRef(self, opt):
+        guiFields = ({'1': ui.marker1, '2': ui.marker2, '3': ui.marker3, '4': ui.marker4},
+                     {'1': ui.m1_type, '2': ui.m2_type, '3': ui.m3_type, '4': ui.m4_type},
+                     {'1': ui.trace1, '2': ui.trace2, '3': ui.trace3, '4': ui.trace4},
+                     {'1': ui.t1_type, '2': ui.t2_type, '3': ui.t3_type, '4': ui.t4_type})
+        Ref = guiFields[opt].get(self.name)
+        return Ref
+
+    def tType(self):
+        self.traceType = self.guiRef(3).currentText()
         # checkboxes.dwm.submit()
 
-    def mEnable(self, mkr):  # show or hide a marker
-        if mkr.isChecked():
+    def mEnable(self):  # show or hide a marker
+        # if mkr.isChecked():
+        if self.guiRef(0).isChecked():
             self.vline.show()
         else:
             self.vline.hide()
@@ -576,8 +641,8 @@ class display:
         else:
             self.hline.hide()
 
-    def tEnable(self, trace):  # show or hide a trace
-        if trace.isChecked():
+    def tEnable(self):  # show or hide a trace
+        if self.guiRef(2).isChecked():
             self.trace.show()
         else:
             self.trace.hide()
@@ -683,79 +748,19 @@ class modelView():
         else:
             return
 
-    def setCombo(self, box, default, column, f1, f2):
-        self.tm.setFilter(f1)
-        if tinySA.tinySA4 is False:  # It's a tinySA basic
-            self.tm.setFilter(f2)
-        self.tm.select()
-        box.clear()
-        box.addItem(default)
-        for i in range(self.tm.rowCount()):
-            record = self.tm.record(i)
-            box.addItem(record.value(column))
 
 ###############################################################################
 # respond to GUI signals
 
-
-def start_freq_changed(loopy=False):
-    # ui.band_box.setCurrentIndex(0)
-    start = ui.start_freq.value()
-    stop = ui.stop_freq.value()
-    if start > stop:
-        ui.stop_freq.setValue(start)
-        stop = start
-        stop_freq_changed(loopy)  # call stop_freq_changed but prevent it from re-calling this Fn
-    ui.graphWidget.setXRange(start, stop)
-    if not loopy:
-        ui.centre_freq.setValue(start + (stop - start) / 2)
-        ui.span_freq.setValue(stop - start)
-
-    command = f'sweep start {start * 1e6}\r'.encode()
-    tinySA.serialSend(command)
-    tinySA.setPoints()
-    numbers.dwm.submit()
-
-
-def stop_freq_changed(loopy=False):
-    # ui.band_box.setCurrentIndex(0)
-    start = ui.start_freq.value()
-    stop = ui.stop_freq.value()
-    if start > stop:
-        ui.start_freq.setValue(stop)
-        start = stop
-        start_freq_changed(loopy)  # call start_freq_changed but prevent it from re-calling this Fn
-    ui.graphWidget.setXRange(start, stop)
-    if not loopy:
-        ui.centre_freq.setValue(start + (stop - start) / 2)
-        ui.span_freq.setValue(stop - start)
-
-    command = f'sweep stop {stop * 1e6}\r'.encode()
-    tinySA.serialSend(command)
-    tinySA.setPoints()
-    numbers.dwm.submit()
-
-
-def centre_freq_changed():
-    ui.start_freq.setValue(ui.centre_freq.value()-ui.span_freq.value()/2)
-    start_freq_changed(True)
-    ui.stop_freq.setValue(ui.centre_freq.value()+ui.span_freq.value()/2)
-    stop_freq_changed(True)
-
-
 def band_changed():
     index = ui.band_box.currentIndex()
-    if index < 1:
+    if index == 0:
         return
-    else:
-        index -= 1  # index of the selected value in the 'bands' combobox
-        start = bands.tm.record(index).value('StartF')
-        stop = bands.tm.record(index).value('StopF')
-        ui.start_freq.setValue(start)
-        start_freq_changed(False)  # not loopy
-        ui.stop_freq.setValue(stop)
-        stop_freq_changed(False)  # not loopy
-        tinySA.setRBW()
+    startF = bands.tm.record(index).value('StartF')
+    stopF = bands.tm.record(index).value('StopF')
+    ui.start_freq.setValue(startF)
+    ui.stop_freq.setValue(stopF)
+    tinySA.freq_changed(False)
 
 
 def attenuate_changed():
@@ -823,11 +828,14 @@ def setPreferences():
     numbers.dwm.submit()
     bands.tm.submitAll()
     if tinySA.usb and tinySA.dev:
-        bands.setCombo(ui.band_box, 'Band', "name", 'visible = 1', 'visible = 1 AND (startF <= 960 AND stopF <= 960)')
+        if tinySA.tinySA4:  # It's a tinySA Ultra
+            bands.tm.setFilter('visible = "1"')
+        else:
+            bands.tm.setFilter('visible = "1" AND (startF <= 960 AND stopF <= 960)')
 
 
 def dialogPrefs():
-    bands.tm.setFilter('')  # remove filters
+    bands.tm.setFilter('name != "Band"')  # remove filters
     bands.tm.select()
     bands.currentRow = 0
     preferences.freqBands.selectRow(bands.currentRow)
@@ -914,12 +922,13 @@ S4 = display('4', white)
 # Data models for configuration settings
 config = database()
 config.connect()
-
 bands = modelView('frequencies')
 checkboxes = modelView('checkboxes')
 numbers = modelView('numbers')
 markers = modelView('marker')
 traces = modelView('trace')
+tracetext = modelView('combo')
+markertext = modelView('combo')
 
 ###############################################################################
 # GUI settings
@@ -953,16 +962,9 @@ ui.scan_button.clicked.connect(tinySA.scan)
 ui.run3D.clicked.connect(tinySA.scan)
 ui.atten_box.valueChanged.connect(attenuate_changed)
 ui.atten_auto.clicked.connect(attenuate_changed)
-ui.spur_box.stateChanged.connect(spur_box)
-ui.lna_box.stateChanged.connect(tinySA.lna)
+ui.spur_box.clicked.connect(spur_box)
+ui.lna_box.clicked.connect(tinySA.lna)
 ui.memSlider.sliderMoved.connect(memChanged)
-
-# frequency controls
-ui.start_freq.editingFinished.connect(lambda: start_freq_changed(False))
-ui.stop_freq.editingFinished.connect(lambda: stop_freq_changed(False))
-ui.centre_freq.editingFinished.connect(centre_freq_changed)
-ui.span_freq.editingFinished.connect(centre_freq_changed)
-ui.band_box.currentTextChanged.connect(band_changed)
 
 # marker dragging
 S1.vline.sigPositionChanged.connect(mkr1_moved)
@@ -975,28 +977,28 @@ ui.mkr_start.clicked.connect(markerToStart)
 ui.mkr_centre.clicked.connect(markerToCentre)
 
 # marker checkboxes
-ui.marker1.stateChanged.connect(lambda: S1.mEnable(ui.marker1))
-ui.marker2.stateChanged.connect(lambda: S2.mEnable(ui.marker2))
-ui.marker3.stateChanged.connect(lambda: S3.mEnable(ui.marker3))
-ui.marker4.stateChanged.connect(lambda: S4.mEnable(ui.marker4))
+ui.marker1.clicked.connect(S1.mEnable)
+ui.marker2.clicked.connect(S2.mEnable)
+ui.marker3.clicked.connect(S3.mEnable)
+ui.marker4.clicked.connect(S4.mEnable)
 
 # marker type changes
-ui.m1_type.currentTextChanged.connect(lambda: S1.mType(ui.m1_type))
-ui.m2_type.currentTextChanged.connect(lambda: S2.mType(ui.m2_type))
-ui.m3_type.currentTextChanged.connect(lambda: S3.mType(ui.m3_type))
-ui.m4_type.currentTextChanged.connect(lambda: S4.mType(ui.m4_type))
+ui.m1_type.activated.connect(S1.mType)
+ui.m2_type.activated.connect(S2.mType)
+ui.m3_type.activated.connect(S3.mType)
+ui.m4_type.activated.connect(S4.mType)
 
 # trace checkboxes
-ui.trace1.stateChanged.connect(lambda: S1.tEnable(ui.trace1))
-ui.trace2.stateChanged.connect(lambda: S2.tEnable(ui.trace2))
-ui.trace3.stateChanged.connect(lambda: S3.tEnable(ui.trace3))
-ui.trace4.stateChanged.connect(lambda: S4.tEnable(ui.trace4))
+ui.trace1.stateChanged.connect(S1.tEnable)
+ui.trace2.stateChanged.connect(S2.tEnable)
+ui.trace3.stateChanged.connect(S3.tEnable)
+ui.trace4.stateChanged.connect(S4.tEnable)
 
 # trace type changes
-ui.t1_type.currentTextChanged.connect(lambda: S1.tType(ui.t1_type))
-ui.t2_type.currentTextChanged.connect(lambda: S2.tType(ui.t2_type))
-ui.t3_type.currentTextChanged.connect(lambda: S3.tType(ui.t3_type))
-ui.t4_type.currentTextChanged.connect(lambda: S4.tType(ui.t4_type))
+ui.t1_type.activated.connect(S1.tType)
+ui.t2_type.activated.connect(S2.tType)
+ui.t3_type.activated.connect(S3.tType)
+ui.t4_type.activated.connect(S4.tType)
 
 # 3D graph controls
 ui.orbitL.clicked.connect(lambda: tinySA.orbit3D(1, True))
@@ -1031,20 +1033,7 @@ pwindow.finished.connect(setPreferences)  # update database checkboxes table on 
 # set up the application
 logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 
-ui.t1_type.addItems(['Normal', 'Average', 'Max', 'Min'])
-ui.t2_type.addItems(['Normal', 'Average', 'Max', 'Min'])
-ui.t3_type.addItems(['Normal', 'Average', 'Max', 'Min'])
-ui.t4_type.addItems(['Normal', 'Average', 'Max', 'Min'])
-ui.t3_type.setCurrentIndex(1)
-ui.t4_type.setCurrentIndex(2)
-ui.m1_type.addItems(['Normal', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])  # Marker 1 is the reference for others
-ui.m2_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
-ui.m3_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
-ui.m4_type.addItems(['Normal', 'Delta', 'Peak1', 'Peak2', 'Peak3', 'Peak4'])
-
-boxes = [ui.m1_type, ui.m2_type, ui.m3_type, ui.m4_type]
-
-# table models give read/write views of the configuration data
+# table models - read/write views of the configuration data
 bands.createTableModel()
 bands.tm.setSort(2, Qt.AscendingOrder)
 bands.tm.setRelation(4, QSqlRelation('boolean', 'ID', 'value'))
@@ -1053,8 +1042,15 @@ boolean = QSqlRelationalDelegate(preferences.freqBands)  # set 'view' column tru
 preferences.freqBands.setItemDelegate(boolean)
 colHeader = preferences.freqBands.horizontalHeader()
 colHeader.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
+
+# populate the bands combobox
+ui.band_box.setModel(bands.tm)
+ui.band_box.setModelColumn(1)
+bands.tm.setFilter('visible = "1"')
 bands.tm.select()  # initially select the data in the model
-preferences.freqBands.setModel(bands.tm)  # connect the preferences dialogue box freq band widget to the data model
+
+# connect the preferences dialogue box freq band widget to the data model
+preferences.freqBands.setModel(bands.tm)
 preferences.freqBands.hideColumn(0)  # ID
 rowHeader = preferences.freqBands.verticalHeader()
 rowHeader.hide()
@@ -1062,21 +1058,24 @@ rowHeader.hide()
 #  Map database tables to preferences dialogue box fields and to main GUI
 #  ** lines need to be in this order and here or the mapping doesn't work **
 checkboxes.createTableModel()
-checkboxes.dwm.addMapping(preferences.bestPoints, 2)
-checkboxes.dwm.addMapping(preferences.neg25Line, 3)
-checkboxes.dwm.addMapping(preferences.zeroLine, 4)
-checkboxes.dwm.addMapping(preferences.plus6Line, 5)
-checkboxes.dwm.addMapping(ui.trace1, 6)
-checkboxes.dwm.addMapping(ui.trace2, 7)
-checkboxes.dwm.addMapping(ui.trace3, 8)
-checkboxes.dwm.addMapping(ui.trace4, 9)
-checkboxes.dwm.addMapping(ui.marker1, 10)
-checkboxes.dwm.addMapping(ui.marker2, 11)
-checkboxes.dwm.addMapping(ui.marker3, 12)
-checkboxes.dwm.addMapping(ui.marker4, 13)
+checkboxes.dwm.addMapping(preferences.bestPoints, 3)
+checkboxes.dwm.addMapping(preferences.neg25Line, 4)
+checkboxes.dwm.addMapping(preferences.zeroLine, 5)
+checkboxes.dwm.addMapping(preferences.plus6Line, 6)
+checkboxes.dwm.addMapping(ui.trace1, 7)
+checkboxes.dwm.addMapping(ui.trace2, 8)
+checkboxes.dwm.addMapping(ui.trace3, 9)
+checkboxes.dwm.addMapping(ui.trace4, 10)
+checkboxes.dwm.addMapping(ui.marker1, 11)
+checkboxes.dwm.addMapping(ui.marker2, 12)
+checkboxes.dwm.addMapping(ui.marker3, 13)
+checkboxes.dwm.addMapping(ui.marker4, 14)
+checkboxes.dwm.addMapping(ui.lna_box, 15)
+checkboxes.dwm.addMapping(ui.points_auto, 16)
 checkboxes.tm.select()
-checkboxes.dwm.setCurrentIndex(0)
+checkboxes.dwm.setCurrentIndex(0)  # 0 = (last used) default settings
 
+# The models for saving number, marker and trace settings
 numbers.createTableModel()
 numbers.dwm.addMapping(preferences.minPoints, 3)
 numbers.dwm.addMapping(preferences.maxPoints, 4)
@@ -1085,9 +1084,29 @@ numbers.dwm.addMapping(ui.stop_freq, 6)
 numbers.dwm.addMapping(ui.mPeak, 7)
 numbers.tm.select()
 numbers.dwm.setCurrentIndex(0)
-
 markers.createTableModel()
 traces.createTableModel()
+traces.tm.select()
+
+# populate the trace comboboxes
+tracetext.createTableModel()
+tracetext.tm.setFilter('type = "trace"')
+ui.t1_type.setModel(tracetext.tm)
+ui.t2_type.setModel(tracetext.tm)
+ui.t3_type.setModel(tracetext.tm)
+ui.t4_type.setModel(tracetext.tm)
+tracetext.tm.select()
+
+# populate the marker comboboxes
+markertext.createTableModel()
+markertext.tm.setFilter('type = "marker"')
+ui.m1_type.setModel(markertext.tm)
+ui.m2_type.setModel(markertext.tm)
+ui.m3_type.setModel(markertext.tm)
+ui.m4_type.setModel(markertext.tm)
+markertext.tm.select()
+
+tinySA.set_frequencies()  # set the initial frequency array
 
 # try to open a USB connection to the TinySA hardware
 tinySA.openPort()
