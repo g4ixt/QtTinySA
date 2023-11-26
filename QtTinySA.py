@@ -179,8 +179,6 @@ class analyser:
 
     def scan(self):  # called by 'run' button
         self.scan3D = ui.Enabled3D.isChecked()
-        # if self.usb is None:
-        #     self.openPort()
         if self.usb is not None:
             if self.sweeping:  # if it's running, stop it
                 self.sweeping = False  # tells the measurement thread to stop once current scan complete
@@ -191,8 +189,6 @@ class analyser:
                     self.scanCount = 1
                     startF = ui.start_freq.value()*1e6
                     stopF = ui.stop_freq.value()*1e6
-                    # points = ui.points_box.value()
-                    # self.set_frequencies(startF, stopF, points)
                     self.set_frequencies()
                     self.clearBuffer()
                     self.setRBW()  # fetches rbw value from the GUI combobox
@@ -271,7 +267,7 @@ class analyser:
             ui.points_auto.setEnabled(False)
         else:
             self.rbw = ui.rbw_box.currentText()  # ui values are discrete ones in kHz
-            logging.info(f'self rbw = {self.rbw}')
+            logging.debug(f'self rbw = {self.rbw}')
             self.setPoints()
             ui.points_auto.setEnabled(True)
         rbw_command = f'rbw {self.rbw}\r'.encode()
@@ -358,7 +354,6 @@ class analyser:
         self.signals.finished.emit()
 
     def threadEnds(self):
-        # self.threadRunning = False
         self.runButton('Run')
         activeButtons(True)
 
@@ -566,13 +561,15 @@ class display:
             self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
             logging.debug(f'peaks = {peaks[:4]}')
 
-    def mDelta(self):  # delta marker locking to reference
-        self.fIndex = S1.fIndex + self.dIndex
-        if self.fIndex < 0:  # delta marker is now below sweep range
-            self.fIndex = 0
-        if self.fIndex > tinySA.points - 1:  # delta marker is now above sweep range
-            self.fIndex = tinySA.points - 1
-        self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
+    def mDelta(self):  # delta marker locking to reference marker S1
+        if self.markerType == 'Delta':
+            self.fIndex = S1.fIndex + self.dIndex
+            S1.vline.setPen(color='g', width=1.0)
+            if self.fIndex < 0:  # delta marker is now below sweep range
+                self.fIndex = 0
+            if self.fIndex > tinySA.points - 1:  # delta marker is now above sweep range
+                self.fIndex = tinySA.points - 1
+            self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
 
     # The set of 4 functions below are needed until I understand how to make dataWidgetMapper work with comboboxes
     def mData(self, setting, saving=True):
@@ -583,14 +580,12 @@ class display:
         if saving:
             record.setValue('frequency', float(self.vline.value()))
             record.setValue('type', self.markerType)
-            record.setValue('dIndex', int(self.dIndex))  # this isn't going to work, needs to be freq not index
             markers.tm.setRecord(0, record)
         else:
             self.vline.setValue(record.value('frequency'))
             self.markerType = record.value('type')
             self.guiRef(1).setCurrentText(self.markerType)
-            self.dIndex = record.value('dIndex')  # this isn't going to work, needs to be freq not index
-            logging.info(f'marker f = {record.value("frequency")}')
+            logging.debug(f'marker f = {record.value("frequency")}')
             self.vline.label.setText(f'M{self.vline.name()} {tinySA.frequencies[self.fIndex]/1e6:.3f}MHz')
             self.setDiscrete()
             self.mEnable()
@@ -652,7 +647,8 @@ class display:
         self.trace.setData((tinySA.frequencies/1e6), signal)
         if self.markerType != 'Normal' and self.markerType != 'Delta':  # then it must be a peak marker
             self.mPeak(signal)
-        self.vline.label.setText(f'M{self.vline.name()} {tinySA.frequencies[self.fIndex]/1e6:.3f}MHz  {signal[self.fIndex]:.1f}dBm')
+        if self.vline.value() >= ui.start_freq.value() and self.vline.value() <= ui.stop_freq.value():
+            self.vline.label.setText(f'M{self.vline.name()} {tinySA.frequencies[self.fIndex]/1e6:.3f}MHz  {signal[self.fIndex]:.1f}dBm')
         if not tinySA.sweeping:  # measurement thread is stopping
             ui.scan_button.setText('Stopping ...')
             ui.scan_button.setStyleSheet('background-color: orange')
@@ -804,15 +800,11 @@ def markerToCentre():
 
 def mkr1_moved():
     S1.setDiscrete()
-    if S2.markerType == 'Delta' or S3.markerType == 'Delta' or S4.markerType == 'Delta':
-        S1.vline.setPen(color='g', width=0.5)
-    else:
+    if S2.markerType != 'Delta' and S3.markerType != 'Delta' and S4.markerType != 'Delta':
         S1.vline.setPen(color='g', width=0.5, style=QtCore.Qt.DashLine)
-    if S2.markerType == 'Delta':
+    else:
         S2.mDelta()
-    if S3.markerType == 'Delta':
         S3.mDelta()
-    if S4.markerType == 'Delta':
         S4.mDelta()
 
 
@@ -904,7 +896,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.8.x')
+app.setApplicationVersion(' v0.8.0')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
