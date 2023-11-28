@@ -146,12 +146,10 @@ class analyser:
         self.resBW.insert(0, 'auto')
         ui.rbw_box.addItems(self.resBW)
         ui.rbw_box.setCurrentIndex(len(self.resBW)-4)
-        ui.rbw_box.currentIndexChanged.connect(tinySA.setRBW)
 
         activeButtons(True)  # enable ui components that trigger serial commands
 
         # update centre freq, span, auto points and graph for the start/stop freqs loaded from database
-        # start_freq_changed()
         self.freq_changed()
         ui.graphWidget.setXRange(ui.start_freq.value(), ui.stop_freq.value())
 
@@ -170,7 +168,8 @@ class analyser:
         S3.dLoad(1)
         S4.dLoad(1)
 
-        # connect the frequency boxes here or it causes startup index errors when they are populated
+        # connect the rbw & frequency boxes here or it causes startup index errors when they are populated
+        ui.rbw_box.currentIndexChanged.connect(tinySA.setRBW)
         ui.start_freq.editingFinished.connect(lambda: self.freq_changed(False))
         ui.stop_freq.editingFinished.connect(lambda: self.freq_changed(False))
         ui.centre_freq.editingFinished.connect(lambda: self.freq_changed(True))
@@ -286,6 +285,12 @@ class analyser:
             if points < preferences.minPoints.value():
                 points = preferences.minPoints.value()
             ui.points_box.setValue(points)
+        # number of points changed so must repopulate the frequencies array & set the marker freq indexes to suit
+        self.set_frequencies()
+        S1.setDiscrete()
+        S2.setDiscrete()
+        S3.setDiscrete()
+        S4.setDiscrete()
 
     def clearBuffer(self):
         self.usb.timeout = 1
@@ -378,8 +383,7 @@ class analyser:
         z = self.sweepresults  # the measurement axis heights in dBm
         logging.debug(f'z = {z}')
         if self.surface:  # if 3D spectrum exists, clear it
-            ui.openGLWidget.removeItem(self.surface)
-            ui.openGLWidget.removeItem(self.vGrid)
+            ui.openGLWidget.clear()
         self.surface = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='heightColor',
                                                 computeNormals=ui.glNormals.isChecked(), smooth=ui.glSmooth.isChecked())
 
@@ -550,7 +554,7 @@ class display:
         self.markerType = self.guiRef(1).currentText()
         if self.markerType == 'Delta':
             self.dIndex = self.fIndex - S1.fIndex
-        logging.info(f'marker type = {self.markerType}')
+        logging.debug(f'marker type = {self.markerType}')
 
     def mPeak(self, signal):
         # marker peak tracking
@@ -948,7 +952,7 @@ S3.hline.setValue(6)
 S3.hline.setPen('red')
 
 ###############################################################################
-# Connect signals from buttons and sliders
+# Connect signals from buttons and sliders.  Connections for freq and rbw boxes are in 'initialise' Fn
 
 ui.scan_button.clicked.connect(tinySA.scan)
 ui.run3D.clicked.connect(tinySA.scan)

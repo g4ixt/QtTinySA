@@ -1201,7 +1201,7 @@
              </font>
             </property>
             <property name="text">
-             <string>P+</string>
+             <string>Up</string>
             </property>
             <property name="arrowType">
              <enum>Qt::NoArrow</enum>
@@ -1280,7 +1280,7 @@
              </font>
             </property>
             <property name="text">
-             <string>T+</string>
+             <string>F</string>
             </property>
             <property name="arrowType">
              <enum>Qt::NoArrow</enum>
@@ -1346,7 +1346,7 @@
              </font>
             </property>
             <property name="text">
-             <string>T-</string>
+             <string>B</string>
             </property>
             <property name="arrowType">
              <enum>Qt::NoArrow</enum>
@@ -1376,7 +1376,7 @@
              </font>
             </property>
             <property name="text">
-             <string>F+</string>
+             <string>R</string>
             </property>
             <property name="arrowType">
              <enum>Qt::NoArrow</enum>
@@ -1436,7 +1436,7 @@
              </font>
             </property>
             <property name="text">
-             <string>P-</string>
+             <string>Dn</string>
             </property>
             <property name="arrowType">
              <enum>Qt::NoArrow</enum>
@@ -1517,7 +1517,7 @@
              </font>
             </property>
             <property name="text">
-             <string>F-</string>
+             <string>L</string>
             </property>
             <property name="arrowType">
              <enum>Qt::NoArrow</enum>
