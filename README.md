@@ -22,7 +22,7 @@ The GUI was originally designed for a 7" 1024 x 600 screen but should maximise p
 
 There is limited error trapping.  The 3D spectrum can sometimes crash the Application, but this only happens if it's enabled.  
 
-Working Features:  
+Working Features (v0.8 onwards):  
 
 Trace updates as tinySA scans.  
 LNA on/off.  
