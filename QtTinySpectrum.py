@@ -904,7 +904,6 @@ class Ui_MainWindow(object):
         self.actionSweeps.setObjectName("actionSweeps")
         self.menu_Help.addAction(self.actionAbout_QtTinySA)
         self.menuSettings.addAction(self.actionPreferences)
-        self.menuSettings.addAction(self.actionSweeps)
         self.menuBar.addAction(self.menuSettings.menuAction())
         self.menuBar.addAction(self.menu_Help.menuAction())
 

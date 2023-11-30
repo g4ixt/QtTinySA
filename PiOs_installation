@@ -9,7 +9,7 @@ the following dependencies will probably already be installed as part of the sta
 
 sudo apt install python3-numpy
 sudo apt install python3-opengl
-sudo apt install 3-pyqt5
+sudo apt install python3-pyqt5
 sudo apt install python3-serial
 
 From the desktop, open a Terminal, cd to the QtTinySA directory and run the programme by entering

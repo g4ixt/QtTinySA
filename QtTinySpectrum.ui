@@ -1811,7 +1811,6 @@
      <string>&amp;Settings</string>
     </property>
     <addaction name="actionPreferences"/>
-    <addaction name="actionSweeps"/>
    </widget>
    <addaction name="menuSettings"/>
    <addaction name="menu_Help"/>

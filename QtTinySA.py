@@ -40,6 +40,7 @@ basedir = os.path.dirname(__file__)
 red = pyqtgraph.mkPen(color='r', width=1.0)
 yellow = pyqtgraph.mkPen(color='y', width=1.0)
 white = pyqtgraph.mkPen(color='w', width=1.0)
+magenta = pyqtgraph.mkPen(color='m', width=1.0)
 cyan = pyqtgraph.mkPen(color='c', width=1.0)
 red_dash = pyqtgraph.mkPen(color='r', width=0.5, style=QtCore.Qt.DashLine)
 blue_dash = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
@@ -116,12 +117,13 @@ class analyser:
     def initialise(self):
         # show hardware information in GUI
         i = 0
-        hardware = 'basic'  # used for testing
+        hardware = ''
         while hardware[:6] != 'tinySA' and i < 3:
             hardware = self.version()
             logging.info(f'{hardware}')
             i += 1
             time.sleep(0.1)
+        # hardware = 'basic'  # used for testing
         if hardware[:7] == 'tinySA4':  # It's an Ultra
             self.tinySA4 = True
             ui.spur_box.setTristate(True)  # TinySA Ultra has 'auto', 'on' and 'off' setting for Spur
@@ -160,13 +162,19 @@ class analyser:
         ui.battery.setText(self.battery())
         ui.version.setText(hardware)
 
-        S1.trace.show()
-
         # update trace and marker settings from the database.  1 = last saved (default) settings
         S1.dLoad(1)
         S2.dLoad(1)
         S3.dLoad(1)
         S4.dLoad(1)
+
+        #  set each marker to a different colour
+        S2.vline.setPen(color='m', width=0.75, style=QtCore.Qt.DashLine)
+        S2.vline.label.setColor('m')
+        S3.vline.setPen(color='c', width=0.75, style=QtCore.Qt.DashLine)
+        S3.vline.label.setColor('c')
+        S4.vline.setPen(color='w', width=0.75, style=QtCore.Qt.DashLine)
+        S4.vline.label.setColor('w')
 
         # connect the rbw & frequency boxes here or it causes startup index errors when they are populated
         ui.rbw_box.currentIndexChanged.connect(tinySA.setRBW)
@@ -330,7 +338,7 @@ class analyser:
                 self.usb.read_until(scan_command + b'\n{')  # skip command echo
                 dataBlock = ''
                 self.sweepresults[0] = self.sweepresults[1]  # populate each sweep with previous sweep as default
-                while dataBlock != b'}ch':  # if dataBlock is '}ch' it's reached the end of the scan points
+                while dataBlock != b'}ch' and index < self.points:  # if dataBlock is '}ch' it's reached the end of the scan points
                     dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
                     logging.debug(f'dataBlock: {dataBlock}\n')
                     if dataBlock != b'}ch':
@@ -365,12 +373,10 @@ class analyser:
     def sigProcess(self, signaldBm):  # signaldBm is emitted from the worker thread
         if ui.avgSlider.value() > self.scanCount:  # slice using use scanCount to stop default values swamping average
             signalAvg = np.average(signaldBm[:self.scanCount, ::], axis=0)
-            signalMax = np.amax(signaldBm[:self.scanCount, ::], axis=0)
-            signalMin = np.amin(signaldBm[:self.scanCount, ::], axis=0)
         else:
             signalAvg = np.average(signaldBm[:ui.avgSlider.value(), ::], axis=0)
-            signalMax = np.amax(signaldBm[:ui.avgSlider.value(), ::], axis=0)
-            signalMin = np.amin(signaldBm[:ui.avgSlider.value(), ::], axis=0)
+        signalMax = np.amax(signaldBm[:self.scanMemory, ::], axis=0)
+        signalMin = np.amin(signaldBm[:self.scanMemory, ::], axis=0)
         options = {'Normal': signaldBm[0], 'Average': signalAvg, 'Max': signalMax, 'Min': signalMin}
         S1.updateGUI(options.get(S1.traceType))
         S2.updateGUI(options.get(S2.traceType))
@@ -513,16 +519,14 @@ class display:
     def __init__(self, name, pen):
         self.name = name
         self.trace = ui.graphWidget.plot([], [], name=name, pen=pen, width=1)
-        self.trace.hide()
+        # self.trace.hide()
         self.traceType = 'Normal'  # Normal, Average, Max, Min
         self.markerType = 'Normal'  # Normal, Delta; Peak
         self.vline = ui.graphWidget.addLine(88, 90, movable=True, name=name,
-                                            pen=pyqtgraph.mkPen('g', width=0.5, style=QtCore.Qt.DashLine),
+                                            pen=pyqtgraph.mkPen('y', width=0.5, style=QtCore.Qt.DashLine),
                                             label="{value:.2f}")
-        self.vline.hide()
         self.hline = ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='',
                                             labelOpts={'position': 0.025, 'color': ('w')})
-        self.hline.hide()
         self.fIndex = 0  # index of current marker freq in the frequencies array
         self.dIndex = 0  # the difference between this marker and Reference Marker (M1)
 
@@ -542,13 +546,15 @@ class display:
 
     def mStart(self):
         # set marker to the sweep start frequency
-        self.fIndex = 0
-        self.vline.setValue(ui.start_freq.value())
+        if self.guiRef(0).isChecked():
+            self.fIndex = 0
+            self.vline.setValue(ui.start_freq.value())
 
-    def mCentre(self):
-        # set marker to the sweep centre frequency
-        self.fIndex = int(ui.points_box.value()/2)
-        self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
+    def mSpread(self):
+        # spread markers equally across scan range
+        if self.guiRef(0).isChecked():
+            self.fIndex = int(0.2 * int(self.name) * ui.points_box.value())
+            self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
 
     def mType(self):
         self.markerType = self.guiRef(1).currentText()
@@ -568,7 +574,7 @@ class display:
     def mDelta(self):  # delta marker locking to reference marker S1
         if self.markerType == 'Delta':
             self.fIndex = S1.fIndex + self.dIndex
-            S1.vline.setPen(color='g', width=1.0)
+            S1.vline.setPen(color='y', width=1.0)
             if self.fIndex < 0:  # delta marker is now below sweep range
                 self.fIndex = 0
             if self.fIndex > tinySA.points - 1:  # delta marker is now above sweep range
@@ -590,7 +596,8 @@ class display:
             self.markerType = record.value('type')
             self.guiRef(1).setCurrentText(self.markerType)
             logging.debug(f'marker f = {record.value("frequency")}')
-            self.vline.label.setText(f'M{self.vline.name()} {tinySA.frequencies[self.fIndex]/1e6:.3f}MHz')
+            self.vline.label.setText(f'M{self.vline.name()} {tinySA.frequencies[self.fIndex]/1e6:.3f}MHz', color='y')
+            self.vline.label.setMovable(True)
             self.setDiscrete()
             self.mEnable()
 
@@ -612,6 +619,7 @@ class display:
     def dLoad(self, setting):
         self.mData(setting, False)  # false = not saving but loading
         self.tData(setting, False)
+        self.tEnable()
     # The set of 4 functions above are needed until understand how to make dataWidgetMapper work with comboboxes
 
     def guiRef(self, opt):
@@ -624,7 +632,6 @@ class display:
 
     def tType(self):
         self.traceType = self.guiRef(3).currentText()
-        # checkboxes.dwm.submit()
 
     def mEnable(self):  # show or hide a marker
         # if mkr.isChecked():
@@ -781,31 +788,23 @@ def spur_box():
 
 
 def markerToStart():
-    if ui.marker1.isChecked():
-        S1.mStart()
-    if ui.marker2.isChecked():
-        S2.mStart()
-    if ui.marker3.isChecked():
-        S3.mStart()
-    if ui.marker4.isChecked():
-        S4.mStart()
+    S1.mStart()
+    S2.mStart()
+    S3.mStart()
+    S4.mStart()
 
 
 def markerToCentre():
-    if ui.marker1.isChecked():
-        S1.mCentre()
-    if ui.marker2.isChecked():
-        S2.mCentre()
-    if ui.marker3.isChecked():
-        S3.mCentre()
-    if ui.marker4.isChecked():
-        S4.mCentre()
+    S1.mSpread()
+    S2.mSpread()
+    S3.mSpread()
+    S4.mSpread()
 
 
 def mkr1_moved():
     S1.setDiscrete()
     if S2.markerType != 'Delta' and S3.markerType != 'Delta' and S4.markerType != 'Delta':
-        S1.vline.setPen(color='g', width=0.5, style=QtCore.Qt.DashLine)
+        S1.vline.setPen(color='y', width=0.75, style=QtCore.Qt.DashLine)
     else:
         S2.mDelta()
         S3.mDelta()
@@ -911,7 +910,7 @@ preferences.setupUi(pwindow)
 
 # Traces & markers
 S1 = display('1', yellow)
-S2 = display('2', red)
+S2 = display('2', magenta)
 S3 = display('3', cyan)
 S4 = display('4', white)
 
