@@ -1,0 +1,20 @@
+Running the Python programme QtTinySA on a fresh installation of Pi OS 12 'bookworm'.  Python3 is installed by default with the OS.
+
+It is necessary to install 'python3-pyqtgraph' and 'python3-pyqt5.qtsql' using the package manager or at the command line:
+
+sudo apt install python3-pyqtgraph
+sudo apt install python3-pyqt5.qtsql
+
+the following dependencies will probably already be installed as part of the standard OS:
+
+sudo apt install python3-numpy
+sudo apt install python3-opengl
+sudo apt install python3-pyqt5
+sudo apt install python3-serial
+
+From the desktop, open a Terminal, cd to the QtTinySA directory and run the programme by entering
+
+python3 QtTinySA.py
+
+The 3D graph doesn't work across a X11 remote desktop session such as X2Go.  Not yet tested with WayVNC.
+
