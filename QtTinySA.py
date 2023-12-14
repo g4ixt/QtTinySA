@@ -151,8 +151,6 @@ class analyser:
         ui.rbw_box.addItems(self.resBW)
         ui.rbw_box.setCurrentIndex(len(self.resBW)-4)
 
-        # activeButtons(True)  # enable ui components that trigger serial commands
-
         # update centre freq, span, auto points and graph for the start/stop freqs loaded from database
         self.freq_changed(False)  # start/stop mode
         ui.graphWidget.setXRange(ui.start_freq.value(), ui.stop_freq.value())
@@ -187,7 +185,6 @@ class analyser:
 
     def scan(self):  # called by 'run' button
         self.scan3D = ui.Enabled3D.isChecked()
-        # self.usbThread = Worker(self.usbSend)  # workers are auto-deleted when thread stops
         if self.usb is not None:
             if self.sweeping:  # if it's running, stop it
                 self.sweeping = False  # tells the measurement thread to stop once current scan complete
@@ -196,18 +193,10 @@ class analyser:
             else:
                 try:  # start measurements
                     self.scanCount = 1
-                    # startF = ui.start_freq.value()*1e6
-                    # stopF = ui.stop_freq.value()*1e6
                     # self.clearBuffer()
                     self.setRBW()
-                    #self.setPoints()
-                    #self.set_frequencies()
-                    #self.sweepTimeout(startF, stopF)
-                    # self.sweepTimeout()
-                    # activeButtons(False)
                     self.runButton('Stop')
                     self.usbSend()
-                    #self.startMeasurement(startF, stopF, self.points)  # runs measurement in separate thread
                     self.startMeasurement()  # runs measurement in separate thread
                 except serial.SerialException:
                     self.dev = None
@@ -215,18 +204,14 @@ class analyser:
         else:
             popUp('TinySA not found', 'OK', QMessageBox.Critical)
 
-    #def startMeasurement(self, startF, stopF, points):
     def startMeasurement(self):
-        # startF = self.frequencies[0]
-        # stopF = self.frequencies[self.points-1]
         frequencies = self.set_frequencies()
         points = np.size(frequencies)
         self.sweepresults = np.full((self.scanMemory, points), -100, dtype=float)
-        # self.sweep = Worker(self.measurement, startF, stopF, self.points)  # workers are auto-deleted when thread stops
         self.sweep = Worker(self.measurement, frequencies, self.sweepresults)  # workers are auto-deleted when thread stops
         self.sweeping = True
         if ui.Enabled3D.isChecked():
-            tinySA.createTimeSpectrum()
+            tinySA.createTimeSpectrum(frequencies)
             self.reset3D()
         threadpool.start(self.sweep)
 
@@ -255,7 +240,6 @@ class analyser:
         startF = ui.start_freq.value()*1e6  # freq in Hz
         stopF = ui.stop_freq.value()*1e6
         points = self.setPoints()
-        # self._frequencies = np.linspace(startF, stopF, self.points, dtype=int)
         frequencies = np.linspace(startF, stopF, points, dtype=int)
         command = f'sweep start {startF}\r'.encode()
         self.fifo.put(command)  # only needed so that the measurement thread spots something in the queue
@@ -281,12 +265,8 @@ class analyser:
         ui.graphWidget.setXRange(startF, stopF)
 
     def setRBW(self):  # may be called by thread
-        # if ui.rbw_box.currentIndex() == 0:  # can't auto-calculate Points because we don't know what the RBW will be
-        #     self.rbw = 'auto'
-        # else:
         rbw = ui.rbw_box.currentText()  # ui values are discrete ones in kHz
         logging.debug(f'rbw = {rbw}')
-        # self.setPoints()  # if RBW has changed, frequencies and points must change
         command = f'rbw {rbw}\r'.encode()
         self.fifo.put(command)
 
@@ -302,22 +282,15 @@ class analyser:
             points = np.clip(points, preferences.minPoints.value(), preferences.maxPoints.value())  # limits
         else:
             points = ui.points_box.value()
-        logging.debug(f'setPoints: points = {points}')
-        # number of points changed so must repopulate the frequencies array & set the marker freq indices to suit
-        # S1.setDiscrete()
-        # S2.setDiscrete()
-        # S3.setDiscrete()
-        # S4.setDiscrete()
+            logging.info(f'setPoints: points = {points}')
         return points
 
     def clearBuffer(self):
         self.usb.timeout = 1
         while self.usb.inWaiting():
             self.usb.read_all()  # keep the serial buffer clean
-            # time.sleep(0.1)
             time.sleep(0.01)
 
-    #def sweepTimeout(self, startF, stopF):  # freqs are in Hz
     def sweepTimeout(self, frequencies):  # freqs are in Hz
         startF = frequencies[0]
         stopF = frequencies[-1]
@@ -386,7 +359,6 @@ class analyser:
                 if self.fifo.qsize() > 0:
                     logging.info(f'measurement: fifo queue size = {self.fifo.qsize()}')
                     self.setRBW()
-                    # self.set_frequencies()
                     frequencies = self.set_frequencies()
                     points = np.size(frequencies)
                     readings = np.full((self.scanMemory, points), -100, dtype=float)
@@ -404,22 +376,23 @@ class analyser:
     def threadEnds(self):
         self.runButton('Run')
 
-    def sigProcess(self, frequencies, signal):  # signal is emitted from the worker thread
+    def sigProcess(self, frequencies, readings):  # readings is emitted from the worker thread
         if ui.avgSlider.value() > self.scanCount:  # slice using use scanCount to stop default values swamping average
-            signalAvg = np.average(signal[:self.scanCount, ::], axis=0)
+            readingsAvg = np.average(readings[:self.scanCount, ::], axis=0)
         else:
-            signalAvg = np.average(signal[:ui.avgSlider.value(), ::], axis=0)
-        signalMax = np.amax(signal[:self.scanMemory, ::], axis=0)
-        signalMin = np.amin(signal[:self.scanMemory, ::], axis=0)
-        options = {'Normal': signal[0], 'Average': signalAvg, 'Max': signalMax, 'Min': signalMin}
+            readingsAvg = np.average(readings[:ui.avgSlider.value(), ::], axis=0)
+        readingsMax = np.amax(readings[:self.scanMemory, ::], axis=0)
+        readingsMin = np.amin(readings[:self.scanMemory, ::], axis=0)
+        options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': readingsMax, 'Min': readingsMin}
         S1.updateTrace(frequencies, options.get(S1.traceType))
         S2.updateTrace(frequencies, options.get(S2.traceType))
         S3.updateTrace(frequencies, options.get(S3.traceType))
         S4.updateTrace(frequencies, options.get(S4.traceType))
 
-    def createTimeSpectrum(self):
+    def createTimeSpectrum(self, frequencies):
+        points = np.size(frequencies)
         x = np.arange(start=0, stop=self.scanMemory, step=1)  # the time axis depth
-        y = np.arange(start=0, stop=self.points)  # the frequency axis width
+        y = np.arange(start=0, stop=points)  # the frequency axis width
         z = self.sweepresults  # the measurement axis heights in dBm
         logging.debug(f'z = {z}')
         if self.surface:  # if 3D spectrum exists, clear it
@@ -438,55 +411,53 @@ class analyser:
                                                       ui.bConst.value(),      # blue  [7]
                                                       ui.gExponent.value()])  # blue  [8]
 
-        self.surface.translate(16, -self.points/40, -8)  # front/back, left/right, up/down
-        self.surface.scale(self.points/1250, 0.05, 0.1, local=True)
+        self.surface.translate(16, -points/40, -8)  # front/back, left/right, up/down
+        self.surface.scale(points/1250, 0.05, 0.1, local=True)
         ui.openGLWidget.addItem(self.surface)
 
         # Add a vertical grid to the 3D view
         self.vGrid = pyqtgl.GLGridItem(glOptions='translucent')
-        self.vGrid.setSize(x=12, y=self.points/20, z=1)
+        self.vGrid.setSize(x=12, y=points/20, z=1)
         self.vGrid.rotate(90, 0, 1, 0)
         self.vGrid.setSpacing(1, 1, 2)
         self.vGrid.setColor('y')
         if ui.grid.isChecked():
             ui.openGLWidget.addItem(self.vGrid)
 
-    def updateGUI(self, frequencies, results):
+    def updateGUI(self, frequencies, readings):
         points = np.size(frequencies)
         logging.debug(f'updateGUI: points = {points}')
         ui.points_box.setValue(points)
         # update 3D tab
         if ui.Enabled3D.isChecked():
-            z = results + 120  # Surface plot height shader needs positive numbers so convert from dBm to dBf
+            z = readings + 120  # Surface plot height shader needs positive numbers so convert from dBm to dBf
             logging.debug(f'z = {z}')
             self.surface.setData(z=z)
             params = ui.openGLWidget.cameraParams()
             logging.debug(f'camera {params}')
 
-        # update signal peak values once per scan for markers
-        if ui.avgSlider.value() > tinySA.scanCount:  # average across scanCount to stop default values swamping average
-            signalAvg = np.average(results[:tinySA.scanCount, ::], axis=0)
+        # update peak values for markers only once per scan (for performance) and use averaged readings
+        if ui.avgSlider.value() > tinySA.scanCount:
+            readingsAvg = np.average(readings[:tinySA.scanCount, ::], axis=0)
         else:
-            signalAvg = np.average(results[:ui.avgSlider.value(), ::], axis=0)
-        peaksort = np.argsort(-signalAvg)  # finds indices of the peaks in averaged signal array; indices sorted desc
+            readingsAvg = np.average(readings[:ui.avgSlider.value(), ::], axis=0)
+        peaksort = np.argsort(-readingsAvg)  # finds indices of peaks in averaged readings array; indices sorted desc
+        Peaks = []
         self.Peaks = []
         logging.debug(f'updategui: self.Peaks = {self.Peaks}')
-        if signalAvg[peaksort[0]] >= ui.mPeak.value():  # largest peak value is above the threshold set in GUI
+        if readingsAvg[peaksort[0]] >= ui.mPeak.value():  # largest peak value is above the threshold set in GUI
             for i in range(points):
                 match = False
                 for k in range(-4, 4):
-                    if peaksort[i] + k in self.Peaks:  # ignore values within 3 x RBW of peak
+                    if peaksort[i] + k in Peaks:  # ignore values within 3 x RBW of peak
                         match = True
                         logging.debug(f'updategui: match i {i} k {k} peaksort i = {peaksort[i]}')
                 if not match:
-                    self.Peaks.append(peaksort[i])
-                    if len(self.Peaks) > 3:  # the 4 highest peaks have been found
+                    Peaks.append(peaksort[i])
+                    self.Peaks.append(frequencies[peaksort[i]] / 1e6)
+                    if len(Peaks) > 3:  # the 4 highest peaks have been found
                         logging.debug(f'updategui: Peaks = {self.Peaks}')
                         break
-        S1.updateMarker(frequencies, signalAvg)
-        S2.updateMarker(frequencies, signalAvg)
-        S3.updateMarker(frequencies, signalAvg)
-        S4.updateMarker(frequencies, signalAvg)
 
     def orbit3D(self, sign, azimuth=True):  # orbits the camera around the 3D plot
         degrees = ui.rotateBy.value()
@@ -591,21 +562,7 @@ class display:
         self.hline = ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='',
                                             labelOpts={'position': 0.025, 'color': ('w')})
         self.fIndex = 0  # index of current marker freq in the frequencies array
-        self.dIndex = 0  # the difference between this marker and Reference Marker (M1)
-
-    # def setDiscrete(self):
-    #     # set marker to the discrete freq near the posn it has been dragged to (if within the sweep range)
-    #     if self.vline.value() >= ui.start_freq.value() and self.vline.value() <= ui.stop_freq.value():
-    #         try:
-    #             for i in range(tinySA.points):
-    #                 if tinySA.frequencies[i] / 1e6 >= self.vline.value():
-    #                     self.vline.setValue(tinySA.frequencies[i] / 1e6)
-    #                     self.fIndex = i  # marker freq index is now set
-    #                     if self.markerType == 'Delta':
-    #                         self.dIndex = self.fIndex - S1.fIndex  # save delta index this marker vs Reference marker
-    #                     return
-    #         except AttributeError:
-    #             return
+        self.deltaF = 0  # the difference between this marker and Reference Marker (M1)
 
     def mStart(self):
         # set marker to the sweep start frequency
@@ -616,32 +573,24 @@ class display:
     def mSpread(self):
         # spread markers equally across scan range
         if self.guiRef(0).isChecked():
-            # self.fIndex = int(0.2 * int(self.name) * tinySA.points)
-            # self.vline.setValue(tinySA.frequencies[self.fIndex] / 1e6)
             self.vline.setValue(ui.start_freq.value() + (0.2 * int(self.name) * ui.span_freq.value()))
 
     def mType(self):
         self.markerType = self.guiRef(1).currentText()
         if self.markerType == 'Delta':
-            self.dIndex = self.fIndex - S1.fIndex
-        logging.debug(f'marker type = {self.markerType}')
+            self.deltaF = self.vline.value() - S1.vline.value()
 
-    def mPeak(self, frequencies):
+    def mPeak(self, frequencies):  # marker peak tracking
         logging.debug(f'mPeak: Peak signal indices = {tinySA.Peaks}')
         options = {'Peak1': tinySA.Peaks[0], 'Peak2': tinySA.Peaks[1], 'Peak3': tinySA.Peaks[2], 'Peak4': tinySA.Peaks[3]}
-        self.fIndex = options.get(self.markerType)
-        self.vline.setValue(frequencies[self.fIndex] / 1e6)
+        markerF = options.get(self.markerType)
+        logging.debug(f'mPeak: markerF = {markerF}')
+        self.vline.setValue(markerF)
 
-    def mDelta(self, frequencies):  # delta marker locking to reference marker S1
-        points = np.size(frequencies)
+    def mDelta(self):  # delta marker locking to reference marker S1
         if self.markerType == 'Delta':
-            self.fIndex = S1.fIndex + self.dIndex
+            self.vline.setValue(S1.vline.value() + self.deltaF)
             S1.vline.setPen(color='y', width=1.0)
-            if self.fIndex < 0:  # delta marker is now below sweep range
-                self.fIndex = 0
-            if self.fIndex > points - 1:  # delta marker is now above sweep range
-                self.fIndex = points - 1
-            # self.vline.setValue(frequencies[self.fIndex] / 1e6)
 
     # The set of 4 functions below are needed until I understand how to make dataWidgetMapper work with comboboxes
     def mData(self, setting, saving=True):
@@ -658,9 +607,7 @@ class display:
             self.markerType = record.value('type')
             self.guiRef(1).setCurrentText(self.markerType)
             logging.debug(f'marker f = {record.value("frequency")}')
-            #self.vline.label.setText(f'M{self.vline.name()} {tinySA.frequencies[self.fIndex]/1e6:.3f}MHz', color='y')
             self.vline.label.setMovable(True)
-            #self.setDiscrete()
             self.mEnable()
 
     def tData(self, setting, saving=True):
@@ -716,15 +663,17 @@ class display:
             self.trace.hide()
         checkboxes.dwm.submit()
 
-    def updateTrace(self, frequencies, signal):
-        self.trace.setData((frequencies/1e6), signal)
+    def updateTrace(self, frequencies, readings):
+        self.trace.setData((frequencies/1e6), readings)
+        self.updateMarker(frequencies, readings)
+
         if not tinySA.sweeping:  # measurement thread is stopping
             ui.scan_button.setText('Stopping ...')
             ui.scan_button.setStyleSheet('background-color: orange')
             ui.run3D.setText('Stopping ...')
             ui.run3D.setStyleSheet('background-color: orange')
 
-    def updateMarker(self, frequencies, signal):
+    def updateMarker(self, frequencies, readings):
         if self.markerType != 'Normal' and self.markerType != 'Delta' and tinySA.Peaks != []:
             self.mPeak(frequencies)
         if self.vline.value() >= ui.start_freq.value() and self.vline.value() <= ui.stop_freq.value():
@@ -736,16 +685,11 @@ class display:
                             self.vline.setValue(frequencies[i] / 1e6)
                             self.fIndex = i  # marker freq index is now set correctly
                             if self.markerType == 'Delta':
-                                self.dIndex = self.fIndex - S1.fIndex  # save delta index this marker vs Reference marker
+                                self.deltaF = self.vline.value() - S1.vline.value()  # save delta Freq vs Ref marker S1
                             return
                 except AttributeError:
                     pass
-            self.vline.label.setText(f'M{self.vline.name()} {frequencies[self.fIndex]/1e6:.3f}MHz  {signal[self.fIndex]:.1f}dBm')
-
-        # if self.markerType != 'Normal' and self.markerType != 'Delta':  # then it must be a peak marker
-        #     self.mPeak()
-        # if self.vline.value() >= ui.start_freq.value() and self.vline.value() <= ui.stop_freq.value():
-        #     self.vline.label.setText(f'M{self.vline.name()} {frequencies[self.fIndex]/1e6:.3f}MHz  {signal[self.fIndex]:.1f}dBm')
+            self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz  {readings[self.fIndex]:.1f}dBm')
 
 
 class WorkerSignals(QObject):
@@ -860,7 +804,6 @@ def attenuate_changed():
         if not ui.lna_box.isChecked():  # attenuator and lna are switched so mutually exclusive
             ui.atten_box.setEnabled(True)
     command = f'attenuate {str(atten)}\r'.encode()
-    # tinySA.serialSend(command)
     tinySA.fifo.put(command)
 
 
@@ -904,13 +847,12 @@ def markerToCentre():
 
 
 def mkr1_moved():
-    #S1.setDiscrete()
     if S2.markerType != 'Delta' and S3.markerType != 'Delta' and S4.markerType != 'Delta':
         S1.vline.setPen(color='y', width=0.75, style=QtCore.Qt.DashLine)
-    #else:
-        # S2.mDelta()
-        # S3.mDelta()
-        # S4.mDelta()
+    else:
+        S2.mDelta()
+        S3.mDelta()
+        S4.mDelta()
 
 
 def memChanged():
@@ -1046,12 +988,10 @@ ui.spur_box.clicked.connect(tinySA.spur)
 ui.lna_box.clicked.connect(tinySA.lna)
 ui.memSlider.sliderMoved.connect(memChanged)
 ui.points_auto.stateChanged.connect(pointsChanged)
+ui.points_box.editingFinished.connect(pointsChanged)
 
 # marker dragging
 S1.vline.sigPositionChanged.connect(mkr1_moved)
-# S2.vline.sigPositionChanged.connect(S2.setDiscrete)
-# S3.vline.sigPositionChanged.connect(S3.setDiscrete)
-# S4.vline.sigPositionChanged.connect(S4.setDiscrete)
 
 # marker setting within span range
 ui.mkr_start.clicked.connect(markerToStart)
