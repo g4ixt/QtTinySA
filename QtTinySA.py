@@ -55,30 +55,25 @@ blue_dash = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
 class analyser:
     def __init__(self):
         self.usb = None
-        self._frequencies = None
+        # self._frequencies = None
         self.sweeping = False
         self.signals = WorkerSignals()
         self.signals.result.connect(self.sigProcess)
         self.signals.result3D.connect(self.updateGUI)
         self.signals.finished.connect(self.threadEnds)
-        # self.timeout = 1
-        self.points = 400
-        # self.scanCount = 1
-        self.Peaks = []
-        self.runTimer = QtCore.QElapsedTimer()
+        self.fPeaks = []
+        self.runTimer = QtCore.QElapsedTimer()  # debug
         self.scale = 174
         self.scanMemory = 50
         self.scan3D = False
         self.surface = None
         self.vGrid = None
-        self.checkUSB = QTimer()
-        self.checkUSB.timeout.connect(self.isConnected)
+        self.usbCheck = QTimer()
+        self.usbCheck.timeout.connect(self.isConnected)
         self.fifo = queue.SimpleQueue()
+        self.fifoTimer = QTimer()
+        self.fifoTimer.timeout.connect(self.usbSend)
         self.resBW = ['0.2', '1', '3', '10', '30', '100', '300', '600', '850']
-
-    @property
-    def frequencies(self):
-        return self._frequencies
 
     def openPort(self):
         self.dev = None
@@ -91,9 +86,8 @@ class analyser:
                 self.dev = x.device
                 logging.info(f'Found TinySA on {self.dev}')
         if self.dev is None:
-            # activeButtons(False)  # do not trigger serial commands
             ui.version.setText('TinySA not found')
-            if not self.checkUSB.isActive():
+            if not self.usbCheck.isActive():
                 logging.info('TinySA not found')
         if self.dev and self.usb is None:  # TinySA was found but serial comms not open
             try:
@@ -103,7 +97,6 @@ class analyser:
                 logging.info('serial port exception')
                 popUp('Serial Port Exception', 'OK', QMessageBox.Critical)
         if self.dev and self.usb:
-            self.clearBuffer()
             self.initialise()
 
     def closePort(self):
@@ -113,11 +106,11 @@ class analyser:
             self.usb = None
 
     def isConnected(self):
-        # triggered by self.checkUSB QTimer - if tinySA wasn't found checks repeatedly for device, i.e.'hotplug'
+        # triggered by self.usbCheck QTimer - if tinySA wasn't found checks repeatedly for device, i.e.'hotplug'
         if self.dev is None:
             self.openPort()
         else:
-            self.checkUSB.stop()
+            self.usbCheck.stop()
 
     def initialise(self):
         i = 0
@@ -153,6 +146,7 @@ class analyser:
 
         # update centre freq, span, auto points and graph for the start/stop freqs loaded from database
         self.freq_changed(False)  # start/stop mode
+        pointsChanged()
         ui.graphWidget.setXRange(ui.start_freq.value(), ui.stop_freq.value())
 
         # show hardware information in GUI
@@ -180,8 +174,8 @@ class analyser:
         ui.centre_freq.editingFinished.connect(lambda: self.freq_changed(True))  # centre/span mode
         ui.span_freq.editingFinished.connect(lambda: self.freq_changed(True))  # centre/span mode
         ui.band_box.activated.connect(band_changed)
-        # ui.points_auto.stateChanged.connect(pointsChanged)
-        # ui.points_box.editingFinished.connect(pointsChanged)
+
+        self.fifoTimer.start(500)  # calls self.usbSend() every 500mS to execute serial commands whilst not scanning
 
     def scan(self):  # called by 'run' button
         self.scan3D = ui.Enabled3D.isChecked()
@@ -192,13 +186,15 @@ class analyser:
                 ui.run3D.setEnabled(False)
             else:
                 try:  # start measurements
+                    self.fifoTimer.stop()
                     self.scanCount = 1
-                    # self.clearBuffer()
+                    self.clearBuffer()
                     self.setRBW()
                     self.runButton('Stop')
                     self.usbSend()
                     self.startMeasurement()  # runs measurement in separate thread
                 except serial.SerialException:
+                    logging.info('serial port exception')
                     self.dev = None
                     self.closePort()
         else:
@@ -206,20 +202,18 @@ class analyser:
 
     def startMeasurement(self):
         frequencies = self.set_frequencies()
+        self.usbSend()
         points = np.size(frequencies)
-        self.sweepresults = np.full((self.scanMemory, points), -100, dtype=float)
-        self.sweep = Worker(self.measurement, frequencies, self.sweepresults)  # workers are auto-deleted when thread stops
+        readings = np.full((self.scanMemory, points), -100, dtype=float)
+        self.sweep = Worker(self.measurement, frequencies, readings)  # workers are auto-deleted when thread stops
         self.sweeping = True
-        if ui.Enabled3D.isChecked():
-            tinySA.createTimeSpectrum(frequencies)
-            self.reset3D()
+        self.createTimeSpectrum(frequencies, readings)
+        self.reset3D()
         threadpool.start(self.sweep)
 
     def usbSend(self):
         self.usb.timeout = 1
-        while self.usb.inWaiting():  # this is ClearBuffer()
-            self.usb.read_all()  # keep the serial buffer clean
-            time.sleep(0.01)
+        # self.clearBuffer()
         while self.fifo.qsize() > 0:
             command = self.fifo.get(block=True, timeout=None)
             logging.debug(command)
@@ -227,7 +221,7 @@ class analyser:
             self.usb.read_until(b'ch> ')  # skip command echo and prompt
 
     def serialQuery(self, command):
-        self.clearBuffer()
+        # self.clearBuffer()
         self.usb.timeout = 1
         logging.debug(command)
         self.usb.write(command)
@@ -236,16 +230,12 @@ class analyser:
         logging.debug(response)
         return response[:-6].decode()  # remove prompt
 
-    def set_frequencies(self):  # creates a numpy array of equi-spaced freqs in Hz
+    def set_frequencies(self):  # creates a numpy array of equi-spaced freqs in Hz. Also called by measurement thread.
         startF = ui.start_freq.value()*1e6  # freq in Hz
         stopF = ui.stop_freq.value()*1e6
         points = self.setPoints()
         frequencies = np.linspace(startF, stopF, points, dtype=int)
-        command = f'sweep start {startF}\r'.encode()
-        self.fifo.put(command)  # only needed so that the measurement thread spots something in the queue
-        command = f'sweep stop {stopF}\r'.encode()
-        self.fifo.put(command)
-        logging.debug(f'frequencies = {self._frequencies}')
+        logging.debug(f'frequencies = {frequencies}')
         return frequencies
 
     def freq_changed(self, centre=False):
@@ -263,14 +253,15 @@ class analyser:
             ui.centre_freq.setValue(startF + (stopF - startF) / 2)
             ui.span_freq.setValue(stopF - startF)
         ui.graphWidget.setXRange(startF, stopF)
+        self.resume()
 
-    def setRBW(self):  # may be called by thread
+    def setRBW(self):  # may be called by measurement thread as well as normally
         rbw = ui.rbw_box.currentText()  # ui values are discrete ones in kHz
         logging.debug(f'rbw = {rbw}')
         command = f'rbw {rbw}\r'.encode()
         self.fifo.put(command)
 
-    def setPoints(self):  # may be called by thread
+    def setPoints(self):  # may be called by measurement thread as well as normally
         if ui.points_auto.isChecked():
             logging.debug(f'ui.rbw = {ui.rbw_box.currentText()}')
             rbw = float(ui.rbw_box.currentText())
@@ -282,7 +273,7 @@ class analyser:
             points = np.clip(points, preferences.minPoints.value(), preferences.maxPoints.value())  # limits
         else:
             points = ui.points_box.value()
-            logging.info(f'setPoints: points = {points}')
+            logging.info(f'setPoints: points = {ui.points_box.value()}')
         return points
 
     def clearBuffer(self):
@@ -313,18 +304,16 @@ class analyser:
 
     def measurement(self, frequencies, readings):  # runs in a separate thread
         points = np.size(readings, 1)
-        startF = frequencies[0]
-        stopF = frequencies[points-1]
         self.threadRunning = True
         firstSweep = True
         self.scanCount = 1
         while self.sweeping:
             try:
                 self.usb.timeout = self.sweepTimeout(frequencies)
-                command = f'scanraw {int(startF)} {int(stopF)} {int(points)}\r'.encode()
+                command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)}\r'.encode()
                 self.usb.write(command)
                 index = 0
-                self.runTimer.start()  # block test
+                # self.runTimer.start()  # debug
                 self.usb.read_until(command + b'\n{')  # skip command echo
                 dataBlock = ''
                 while dataBlock != b'}ch' and index < points:  # if '}ch' it's reached the end of the scan points
@@ -334,47 +323,42 @@ class analyser:
                         logging.debug(f'measurement: index {index} elapsed time = {self.runTimer.nsecsElapsed()/1e6}')
                         c, data = struct.unpack('<' + 'cH', dataBlock)
                         logging.debug(f'measurement: dataBlock: {dataBlock} data: {data}\n')
-                        dBm_power = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
-                        readings[0, index] = dBm_power
+                        readings[0, index] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
                         if index // 20 == index / 20 or index == (points - 1):  # update traces every 20 readings
                             self.signals.result.emit(frequencies, readings)  # send readings to sigProcess()
                         index += 1
-                    logging.debug(f'measurement: level = {dBm_power}dBm')
+                    logging.debug(f'measurement: level = {(data / 32) - self.scale}dBm')
                 self.usb.read(2)  # discard the command prompt
-
                 if firstSweep:
                     readings = np.full((self.scanMemory, points), readings[0], dtype=float)
-                    # self.signals.result.emit(frequencies, readings)  # send readings to sigProcess()
                     firstSweep = False
-
-                # readings row 0 is now full: roll it down 1 row ready for the next sweep to be stored at row 0
-                readings = np.roll(readings, 1, axis=0)
-                readings[0] = readings[1]  # populate each sweep with previous sweep as default
                 self.scanCount += 1
-                self.signals.result3D.emit(frequencies, readings)  # To updateGUI() only once per sweep, for performance
-                logging.debug(f'measurement: sweepresults = {readings}')
-                # logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6}')  # block test
+                self.signals.result3D.emit(frequencies, readings)  # updateGUI() only once per sweep (for performance)
+                readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
+                readings[0] = readings[1]  # populate each sweep with previous sweep as default
+                logging.debug(f'measurement: readings = {readings}')
+                # logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6}')  # debug
                 logging.debug(f'measurement: fifo size = {self.fifo.qsize()}')
-
-                if self.fifo.qsize() > 0:
-                    logging.info(f'measurement: fifo queue size = {self.fifo.qsize()}')
+                if self.fifo.qsize() > 0:  # a setting has changed
+                    logging.debug(f'measurement: fifo queue size = {self.fifo.qsize()}')
                     self.setRBW()
                     frequencies = self.set_frequencies()
                     points = np.size(frequencies)
                     readings = np.full((self.scanMemory, points), -100, dtype=float)
                     firstSweep = True
+                    self.createTimeSpectrum(frequencies, readings)
                     self.scanCount = 1
+                    self.fPeaks = []
                     self.usbSend()
-
             except serial.SerialException:
                 logging.info('serial port exception')
                 self.sweeping = False
-
         self.threadRunning = False
         self.signals.finished.emit()
 
     def threadEnds(self):
         self.runButton('Run')
+        self.fifoTimer.start(500)
 
     def sigProcess(self, frequencies, readings):  # readings is emitted from the worker thread
         if ui.avgSlider.value() > self.scanCount:  # slice using use scanCount to stop default values swamping average
@@ -389,11 +373,11 @@ class analyser:
         S3.updateTrace(frequencies, options.get(S3.traceType))
         S4.updateTrace(frequencies, options.get(S4.traceType))
 
-    def createTimeSpectrum(self, frequencies):
+    def createTimeSpectrum(self, frequencies, readings):
         points = np.size(frequencies)
         x = np.arange(start=0, stop=self.scanMemory, step=1)  # the time axis depth
         y = np.arange(start=0, stop=points)  # the frequency axis width
-        z = self.sweepresults  # the measurement axis heights in dBm
+        z = readings  # the measurement axis heights in dBm
         logging.debug(f'z = {z}')
         if self.surface:  # if 3D spectrum exists, clear it
             ui.openGLWidget.clear()
@@ -416,47 +400,47 @@ class analyser:
         ui.openGLWidget.addItem(self.surface)
 
         # Add a vertical grid to the 3D view
-        self.vGrid = pyqtgl.GLGridItem(glOptions='translucent')
+        self.vGrid = pyqtgl.GLGridItem(glOptions='translucent', color=(255, 255, 255, 70))
         self.vGrid.setSize(x=12, y=points/20, z=1)
         self.vGrid.rotate(90, 0, 1, 0)
         self.vGrid.setSpacing(1, 1, 2)
-        self.vGrid.setColor('y')
+        ui.openGLWidget.addItem(self.vGrid)
         if ui.grid.isChecked():
-            ui.openGLWidget.addItem(self.vGrid)
+            self.vGrid.show()
+        else:
+            self.vGrid.hide()
 
     def updateGUI(self, frequencies, readings):
         points = np.size(frequencies)
         logging.debug(f'updateGUI: points = {points}')
-        ui.points_box.setValue(points)
-        # update 3D tab
+        # ui.points_box.setValue(points)
         if ui.Enabled3D.isChecked():
             z = readings + 120  # Surface plot height shader needs positive numbers so convert from dBm to dBf
             logging.debug(f'z = {z}')
-            self.surface.setData(z=z)
+            self.surface.setData(z=z)  # update 3D graph
             params = ui.openGLWidget.cameraParams()
             logging.debug(f'camera {params}')
-
         # update peak values for markers only once per scan (for performance) and use averaged readings
         if ui.avgSlider.value() > tinySA.scanCount:
             readingsAvg = np.average(readings[:tinySA.scanCount, ::], axis=0)
         else:
             readingsAvg = np.average(readings[:ui.avgSlider.value(), ::], axis=0)
-        peaksort = np.argsort(-readingsAvg)  # finds indices of peaks in averaged readings array; indices sorted desc
+        peaksort = np.argsort(-readingsAvg)  # finds indices of peaks in array, sorted by descending signal amplitude
         Peaks = []
-        self.Peaks = []
-        logging.debug(f'updategui: self.Peaks = {self.Peaks}')
+        self.fPeaks = []
+        logging.debug(f'updategui: self.fPeaks = {self.fPeaks}')
         if readingsAvg[peaksort[0]] >= ui.mPeak.value():  # largest peak value is above the threshold set in GUI
             for i in range(points):
                 match = False
                 for k in range(-4, 4):
-                    if peaksort[i] + k in Peaks:  # ignore values within 3 x RBW of peak
+                    if peaksort[i] + k in Peaks:  # search for values within 3 x RBW of peak
                         match = True
                         logging.debug(f'updategui: match i {i} k {k} peaksort i = {peaksort[i]}')
                 if not match:
                     Peaks.append(peaksort[i])
-                    self.Peaks.append(frequencies[peaksort[i]] / 1e6)
-                    if len(Peaks) > 3:  # the 4 highest peaks have been found
-                        logging.debug(f'updategui: Peaks = {self.Peaks}')
+                    self.fPeaks.append(frequencies[peaksort[i]] / 1e6)   # the freq corresponding to the peak index
+                    if len(Peaks) > 3:  # the 4 highest peaks have been found so stop looking
+                        logging.debug(f'updategui: Peaks = {self.fPeaks}')
                         break
 
     def orbit3D(self, sign, azimuth=True):  # orbits the camera around the 3D plot
@@ -499,7 +483,6 @@ class analyser:
             ui.run3D.setStyleSheet('background-color: white')
             ui.scan_button.setEnabled(True)
             ui.run3D.setEnabled(True)
-            # ui.battery.setText(self.battery())
 
     def pause(self):
         # pauses the sweeping in either input or output mode
@@ -564,6 +547,7 @@ class display:
         self.fIndex = 0  # index of current marker freq in the frequencies array
         self.deltaF = 0  # the difference between this marker and Reference Marker (M1)
 
+
     def mStart(self):
         # set marker to the sweep start frequency
         if self.guiRef(0).isChecked():
@@ -581,8 +565,8 @@ class display:
             self.deltaF = self.vline.value() - S1.vline.value()
 
     def mPeak(self, frequencies):  # marker peak tracking
-        logging.debug(f'mPeak: Peak signal indices = {tinySA.Peaks}')
-        options = {'Peak1': tinySA.Peaks[0], 'Peak2': tinySA.Peaks[1], 'Peak3': tinySA.Peaks[2], 'Peak4': tinySA.Peaks[3]}
+        logging.debug(f'mPeak: Peak signal indices = {tinySA.fPeaks}')
+        options = {'Peak1': tinySA.fPeaks[0], 'Peak2': tinySA.fPeaks[1], 'Peak3': tinySA.fPeaks[2], 'Peak4': tinySA.fPeaks[3]}
         markerF = options.get(self.markerType)
         logging.debug(f'mPeak: markerF = {markerF}')
         self.vline.setValue(markerF)
@@ -594,7 +578,6 @@ class display:
 
     # The set of 4 functions below are needed until I understand how to make dataWidgetMapper work with comboboxes
     def mData(self, setting, saving=True):
-        # markers.tm.setFilter('display = "S1"')  # this is the syntax needed for setFilter
         markers.tm.setFilter('display = ' + str(self.name) + ' AND setting = ' + str(setting))
         markers.tm.select()
         record = markers.tm.record(0)
@@ -643,7 +626,6 @@ class display:
         self.traceType = self.guiRef(3).currentText()
 
     def mEnable(self):  # show or hide a marker
-        # if mkr.isChecked():
         if self.guiRef(0).isChecked():
             self.vline.show()
         else:
@@ -666,7 +648,10 @@ class display:
     def updateTrace(self, frequencies, readings):
         self.trace.setData((frequencies/1e6), readings)
         self.updateMarker(frequencies, readings)
-
+        if ui.grid.isChecked():
+            tinySA.vGrid.show()
+        else:
+            tinySA.vGrid.hide()
         if not tinySA.sweeping:  # measurement thread is stopping
             ui.scan_button.setText('Stopping ...')
             ui.scan_button.setStyleSheet('background-color: orange')
@@ -674,7 +659,7 @@ class display:
             ui.run3D.setStyleSheet('background-color: orange')
 
     def updateMarker(self, frequencies, readings):
-        if self.markerType != 'Normal' and self.markerType != 'Delta' and tinySA.Peaks != []:
+        if self.markerType != 'Normal' and self.markerType != 'Delta' and tinySA.fPeaks != []:
             self.mPeak(frequencies)
         if self.vline.value() >= ui.start_freq.value() and self.vline.value() <= ui.stop_freq.value():
             if self.vline.value() not in frequencies / 1e6:
@@ -689,7 +674,12 @@ class display:
                             return
                 except AttributeError:
                     pass
-            self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz  {readings[self.fIndex]:.1f}dBm')
+            logging.debug(f'frequencies start {frequencies[0]} stop {frequencies[-1]}')
+            try:
+                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz {readings[self.fIndex]:.1f}dBm')
+            except IndexError:
+                logging.info(f'updateMarker: temporary marker index error {self.fIndex} in {np.size(frequencies)}')
+                pass
 
 
 class WorkerSignals(QObject):
@@ -822,14 +812,7 @@ def pointsChanged():
         ui.points_box.setEnabled(False)
     else:
         ui.points_box.setEnabled(True)
-    #tinySA.setPoints()
-    # tinySA.set_frequencies()
-        #ui.points_box.setValue(points)  # thread
-    # number of points changed so must repopulate the frequencies array & set the marker freq indices to suit
-    # S1.setDiscrete()
-    # S2.setDiscrete()
-    # S3.setDiscrete()
-    # S4.setDiscrete()
+        tinySA.resume()
 
 
 def markerToStart():
@@ -926,7 +909,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.9.x')
+app.setApplicationVersion(' v0.9.0')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1127,12 +1110,10 @@ ui.m3_type.setModel(markertext.tm)
 ui.m4_type.setModel(markertext.tm)
 markertext.tm.select()
 
-#tinySA.set_frequencies()  # set the initial frequency array
-
 # try to open a USB connection to the TinySA hardware
 tinySA.openPort()
 if tinySA.dev is None:
-    tinySA.checkUSB.start(500)  # check again every 500mS
+    tinySA.usbCheck.start(500)  # check again every 500mS
 
 window.show()
 window.setWindowTitle(app.applicationName() + app.applicationVersion())
