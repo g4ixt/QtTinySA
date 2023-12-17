@@ -266,9 +266,9 @@ class analyser:
             logging.debug(f'ui.rbw = {ui.rbw_box.currentText()}')
             rbw = float(ui.rbw_box.currentText())
             if preferences.bestPoints.isChecked():
-                points = int((ui.span_freq.value()*1000)/(rbw/3))  # best power accuracy; freq in kHz
+                points = 3 * int((ui.span_freq.value()*1000)/(rbw))  # best power accuracy; freq in kHz
             else:
-                points = int((ui.span_freq.value()*1000)/(rbw/2))  # normal power accuracy; freq in kHz
+                points = 2 * int((ui.span_freq.value()*1000)/(rbw))  # normal power accuracy; freq in kHz
             logging.debug(f'setPoints: before clip points = {points}')
             points = np.clip(points, preferences.minPoints.value(), preferences.maxPoints.value())  # limits
         else:
@@ -412,6 +412,7 @@ class analyser:
 
     def updateGUI(self, frequencies, readings):
         points = np.size(frequencies)
+        span = (frequencies[-1] - frequencies[0]) / 1e3
         logging.debug(f'updateGUI: points = {points}')
         # ui.points_box.setValue(points)
         if ui.Enabled3D.isChecked():
@@ -420,6 +421,7 @@ class analyser:
             self.surface.setData(z=z)  # update 3D graph
             params = ui.openGLWidget.cameraParams()
             logging.debug(f'camera {params}')
+
         # update peak values for markers only once per scan (for performance) and use averaged readings
         if ui.avgSlider.value() > tinySA.scanCount:
             readingsAvg = np.average(readings[:tinySA.scanCount, ::], axis=0)
@@ -430,10 +432,16 @@ class analyser:
         self.fPeaks = []
         logging.debug(f'updategui: self.fPeaks = {self.fPeaks}')
         if readingsAvg[peaksort[0]] >= ui.mPeak.value():  # largest peak value is above the threshold set in GUI
+            if ui.rbw_box.currentText() == 'auto':
+                rbwFactor = 850
+            else:
+                rbwFactor = float(ui.rbw_box.currentText())
+            j = int(2 * points * rbwFactor / span)
+            logging.info(f'updateGUI: rbw = {rbwFactor}  j = {j}')
             for i in range(points):
                 match = False
-                for k in range(-4, 4):
-                    if peaksort[i] + k in Peaks:  # search for values within 3 x RBW of peak
+                for k in range(-j, j):
+                    if peaksort[i] + k in Peaks:  # search for values within (j x RBW) kHz of peak and ignore them
                         match = True
                         logging.debug(f'updategui: match i {i} k {k} peaksort i = {peaksort[i]}')
                 if not match:
@@ -672,14 +680,10 @@ class display:
                             if self.markerType == 'Delta':
                                 self.deltaF = self.vline.value() - S1.vline.value()  # save delta Freq vs Ref marker S1
                             return
+                    logging.info(f'updateMarker: freq[i] = {frequencies[i]}  vline value = {self.vline.value()}')
                 except AttributeError:
                     pass
-            logging.debug(f'frequencies start {frequencies[0]} stop {frequencies[-1]}')
-            try:
-                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz {readings[self.fIndex]:.1f}dBm')
-            except IndexError:
-                logging.info(f'updateMarker: temporary marker index error {self.fIndex} in {np.size(frequencies)}')
-                pass
+        self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz {readings[self.fIndex]:.1f}dBm')
 
 
 class WorkerSignals(QObject):
