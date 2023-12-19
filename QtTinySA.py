@@ -348,7 +348,7 @@ class analyser:
                     firstSweep = True
                     self.createTimeSpectrum(frequencies, readings)
                     self.scanCount = 1
-                    self.fPeaks = []
+                    # self.fPeaks = []
                     self.usbSend()
             except serial.SerialException:
                 logging.info('serial port exception')
@@ -360,7 +360,7 @@ class analyser:
         self.runButton('Run')
         self.fifoTimer.start(500)
 
-    def sigProcess(self, frequencies, readings):  # readings is emitted from the worker thread
+    def sigProcess(self, frequencies, readings):  # readings is emitted from the worker thread every 20 measurements
         if ui.avgSlider.value() > self.scanCount:  # slice using use scanCount to stop default values swamping average
             readingsAvg = np.average(readings[:self.scanCount, ::], axis=0)
         else:
@@ -411,9 +411,6 @@ class analyser:
             self.vGrid.hide()
 
     def updateGUI(self, frequencies, readings):
-        points = np.size(frequencies)
-        span = (frequencies[-1] - frequencies[0]) / 1e3
-        logging.debug(f'updateGUI: points = {points}')
         # ui.points_box.setValue(points)
         if ui.Enabled3D.isChecked():
             z = readings + 120  # Surface plot height shader needs positive numbers so convert from dBm to dBf
@@ -421,35 +418,32 @@ class analyser:
             self.surface.setData(z=z)  # update 3D graph
             params = ui.openGLWidget.cameraParams()
             logging.debug(f'camera {params}')
+        self.fPeaks = self.peakDetect(frequencies, readings)
 
+    def peakDetect(self, frequencies, readings):
         # update peak values for markers only once per scan (for performance) and use averaged readings
         if ui.avgSlider.value() > tinySA.scanCount:
             readingsAvg = np.average(readings[:tinySA.scanCount, ::], axis=0)
         else:
             readingsAvg = np.average(readings[:ui.avgSlider.value(), ::], axis=0)
+        if ui.rbw_box.currentText() == 'auto':
+            fWidth = 2 * self.resBW[-1] * 1e3
+        else:
+            fWidth = 2 * float(ui.rbw_box.currentText()) * 1e3
         peaksort = np.argsort(-readingsAvg)  # finds indices of peaks in array, sorted by descending signal amplitude
-        Peaks = []
-        self.fPeaks = []
-        logging.debug(f'updategui: self.fPeaks = {self.fPeaks}')
-        if readingsAvg[peaksort[0]] >= ui.mPeak.value():  # largest peak value is above the threshold set in GUI
-            if ui.rbw_box.currentText() == 'auto':
-                rbwFactor = 850
-            else:
-                rbwFactor = float(ui.rbw_box.currentText())
-            j = int(2 * points * rbwFactor / span)
-            logging.info(f'updateGUI: rbw = {rbwFactor}  j = {j}')
-            for i in range(points):
-                match = False
-                for k in range(-j, j):
-                    if peaksort[i] + k in Peaks:  # search for values within (j x RBW) kHz of peak and ignore them
-                        match = True
-                        logging.debug(f'updategui: match i {i} k {k} peaksort i = {peaksort[i]}')
-                if not match:
-                    Peaks.append(peaksort[i])
-                    self.fPeaks.append(frequencies[peaksort[i]] / 1e6)   # the freq corresponding to the peak index
-                    if len(Peaks) > 3:  # the 4 highest peaks have been found so stop looking
-                        logging.debug(f'updategui: Peaks = {self.fPeaks}')
-                        break
+        peakfreq = np.take(frequencies, peaksort)
+        peaks = [peakfreq[0]]
+        k = 1
+        for j in range(4):
+            for i in range(k, np.size(frequencies)):
+                if peakfreq[i] < (peaks[-1] - fWidth) or peakfreq[i] > (peaks[-1] + fWidth):
+                    # peakfreq[i] is > 2 RBW from previously found peak
+                    peaks.append(peakfreq[i])
+                    logging.debug(f'peakfreq[i] = {peakfreq[i]}')
+                    k = i
+                    break
+                logging.debug(f'peakdetect: peaks = {peaks}')
+        return peaks
 
     def orbit3D(self, sign, azimuth=True):  # orbits the camera around the 3D plot
         degrees = ui.rotateBy.value()
@@ -575,7 +569,7 @@ class display:
     def mPeak(self, frequencies):  # marker peak tracking
         logging.debug(f'mPeak: Peak signal indices = {tinySA.fPeaks}')
         options = {'Peak1': tinySA.fPeaks[0], 'Peak2': tinySA.fPeaks[1], 'Peak3': tinySA.fPeaks[2], 'Peak4': tinySA.fPeaks[3]}
-        markerF = options.get(self.markerType)
+        markerF = options.get(self.markerType) / 1e6
         logging.debug(f'mPeak: markerF = {markerF}')
         self.vline.setValue(markerF)
 
@@ -653,7 +647,7 @@ class display:
             self.trace.hide()
         checkboxes.dwm.submit()
 
-    def updateTrace(self, frequencies, readings):
+    def updateTrace(self, frequencies, readings):  # called by sigProcess() for every trace every 20 points
         self.trace.setData((frequencies/1e6), readings)
         self.updateMarker(frequencies, readings)
         if ui.grid.isChecked():
@@ -671,7 +665,7 @@ class display:
             self.mPeak(frequencies)
         if self.vline.value() >= ui.start_freq.value() and self.vline.value() <= ui.stop_freq.value():
             if self.vline.value() not in frequencies / 1e6:
-                # set marker to the discrete freq near the posn it is at (if within the sweep range)
+            # set marker to the discrete freq near the posn it is at (if within the sweep range)
                 try:
                     for i in range(np.size(frequencies)):
                         if frequencies[i] / 1e6 >= self.vline.value():
