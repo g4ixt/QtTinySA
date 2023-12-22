@@ -640,9 +640,6 @@
             <property name="correctionMode">
              <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
             </property>
-            <property name="prefix">
-             <string/>
-            </property>
             <property name="suffix">
              <string>MHz</string>
             </property>

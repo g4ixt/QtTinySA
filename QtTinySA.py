@@ -416,7 +416,7 @@ class analyser:
             self.surface.setData(z=z)  # update 3D graph
             params = ui.openGLWidget.cameraParams()
             logging.debug(f'camera {params}')
-        self.fPeaks = self.peakDetect(frequencies, readings)
+        self.fPeaks = self.nppeakDetect(frequencies, readings)
 
     def peakDetect(self, frequencies, readings):
         # update peak values for markers only once per scan (for performance) and use averaged readings
@@ -429,7 +429,7 @@ class analyser:
         peakfreq = np.take(frequencies, peaksort)
         peaks = [peakfreq[0]]
         k = 1
-        for j in range(4):
+        for j in range(3):
             for i in range(k, np.size(frequencies)):
                 if peakfreq[i] < (peaks[-1] - fWidth) or peakfreq[i] > (peaks[-1] + fWidth):
                     # peakfreq[i] is > 2 RBW from previously found peak
@@ -441,8 +441,17 @@ class analyser:
         return peaks
 
     def nppeakDetect(self, frequencies, readings):
-        # update peak values for markers using numpy masked arrays
-        work = "in progress"
+        # update peak values for markers using numpy masked array
+        Avg = np.average(readings[:ui.avgSlider.value(), ::], axis=0)
+        if ui.rbw_box.currentText() == 'auto':
+            fWidth = preferences.rbw_x.value() * self.resBW[-1] * 1e3
+        else:
+            fWidth = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3
+        peaks = [np.argmax(Avg)]
+        for i in range(3):
+            Avg = np.ma.masked_where(np.abs(frequencies[peaks[-1]] - frequencies) < fWidth, Avg)
+            peaks.append(np.argmax(Avg))
+        return list(frequencies[peaks])
 
     def orbit3D(self, sign, azimuth=True):  # orbits the camera around the 3D plot
         degrees = ui.rotateBy.value()
@@ -508,6 +517,9 @@ class analyser:
     def version(self):
         command = 'version\r'.encode()
         version = self.serialQuery(command)
+        ver1, ver2, _ = version.split('v')[1].split('-') # 1.4, 115, g2939d1b
+        self.verNum = int( 1e4 * float( ver1 ) + int( ver2 ) ) # -> 14115
+        logging.info(f'Firmware version: {self.verNum}' )
         return version
 
     def spur(self):
