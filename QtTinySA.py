@@ -171,8 +171,8 @@ class analyser:
         ui.rbw_box.currentIndexChanged.connect(rbwChanged)
         ui.start_freq.editingFinished.connect(self.freq_changed)
         ui.stop_freq.editingFinished.connect(self.freq_changed)
-        ui.centre_freq.editingFinished.connect(lambda: self.freq_changed(True))  # centre/span mode
-        ui.span_freq.editingFinished.connect(lambda: self.freq_changed(True))  # centre/span mode
+        ui.centre_freq.valueChanged.connect(lambda: self.freq_changed(True))  # centre/span mode
+        ui.span_freq.valueChanged.connect(lambda: self.freq_changed(True))  # centre/span mode
         ui.band_box.activated.connect(band_changed)
 
         self.fifoTimer.start(500)  # calls self.usbSend() every 500mS to execute serial commands whilst not scanning
@@ -265,10 +265,7 @@ class analyser:
         if ui.points_auto.isChecked():
             logging.debug(f'ui.rbw = {ui.rbw_box.currentText()}')
             rbw = float(ui.rbw_box.currentText())
-            if preferences.bestPoints.isChecked():
-                points = 3 * int((ui.span_freq.value()*1000)/(rbw))  # best power accuracy; freq in kHz
-            else:
-                points = 2 * int((ui.span_freq.value()*1000)/(rbw))  # normal power accuracy; freq in kHz
+            points = preferences.rbw_x.value() * int((ui.span_freq.value()*1000)/(rbw))  # RBW multiplier * freq in kHz
             logging.debug(f'setPoints: before clip points = {points}')
             points = np.clip(points, preferences.minPoints.value(), preferences.maxPoints.value())  # limits
         else:
@@ -411,7 +408,8 @@ class analyser:
             self.vGrid.hide()
 
     def updateGUI(self, frequencies, readings):
-        # ui.points_box.setValue(points)
+        if ui.points_auto.isChecked():
+            ui.points_box.setValue(np.size(frequencies))
         if ui.Enabled3D.isChecked():
             z = readings + 120  # Surface plot height shader needs positive numbers so convert from dBm to dBf
             logging.debug(f'z = {z}')
@@ -422,15 +420,12 @@ class analyser:
 
     def peakDetect(self, frequencies, readings):
         # update peak values for markers only once per scan (for performance) and use averaged readings
-        if ui.avgSlider.value() > tinySA.scanCount:
-            readingsAvg = np.average(readings[:tinySA.scanCount, ::], axis=0)
-        else:
-            readingsAvg = np.average(readings[:ui.avgSlider.value(), ::], axis=0)
+        Avg = np.average(readings[:ui.avgSlider.value(), ::], axis=0)
         if ui.rbw_box.currentText() == 'auto':
-            fWidth = 2 * self.resBW[-1] * 1e3
+            fWidth = preferences.rbw_x.value() * self.resBW[-1] * 1e3
         else:
-            fWidth = 2 * float(ui.rbw_box.currentText()) * 1e3
-        peaksort = np.argsort(-readingsAvg)  # finds indices of peaks in array, sorted by descending signal amplitude
+            fWidth = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3
+        peaksort = np.argsort(-Avg)  # finds indices of peaks in array, sorted in descending signal amplitude
         peakfreq = np.take(frequencies, peaksort)
         peaks = [peakfreq[0]]
         k = 1
@@ -440,10 +435,14 @@ class analyser:
                     # peakfreq[i] is > 2 RBW from previously found peak
                     peaks.append(peakfreq[i])
                     logging.debug(f'peakfreq[i] = {peakfreq[i]}')
-                    k = i
+                    k = i + 1
                     break
                 logging.debug(f'peakdetect: peaks = {peaks}')
         return peaks
+
+    def nppeakDetect(self, frequencies, readings):
+        # update peak values for markers using numpy masked arrays
+        work = "in progress"
 
     def orbit3D(self, sign, azimuth=True):  # orbits the camera around the 3D plot
         degrees = ui.rotateBy.value()
@@ -548,7 +547,6 @@ class display:
                                             labelOpts={'position': 0.025, 'color': ('w')})
         self.fIndex = 0  # index of current marker freq in the frequencies array
         self.deltaF = 0  # the difference between this marker and Reference Marker (M1)
-
 
     def mStart(self):
         # set marker to the sweep start frequency
@@ -663,20 +661,6 @@ class display:
     def updateMarker(self, frequencies, readings):
         if self.markerType != 'Normal' and self.markerType != 'Delta' and tinySA.fPeaks != []:
             self.mPeak(frequencies)
-        if self.vline.value() >= ui.start_freq.value() and self.vline.value() <= ui.stop_freq.value():
-            if self.vline.value() not in frequencies / 1e6:
-            # set marker to the discrete freq near the posn it is at (if within the sweep range)
-                try:
-                    for i in range(np.size(frequencies)):
-                        if frequencies[i] / 1e6 >= self.vline.value():
-                            self.vline.setValue(frequencies[i] / 1e6)
-                            self.fIndex = i  # marker freq index is now set correctly
-                            if self.markerType == 'Delta':
-                                self.deltaF = self.vline.value() - S1.vline.value()  # save delta Freq vs Ref marker S1
-                            return
-                    logging.info(f'updateMarker: freq[i] = {frequencies[i]}  vline value = {self.vline.value()}')
-                except AttributeError:
-                    pass
         self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz {readings[self.fIndex]:.1f}dBm')
 
 
@@ -810,7 +794,7 @@ def pointsChanged():
         ui.points_box.setEnabled(False)
     else:
         ui.points_box.setEnabled(True)
-        tinySA.resume()
+    tinySA.resume()
 
 
 def markerToStart():
@@ -1060,7 +1044,7 @@ rowHeader.hide()
 #  Map database tables to preferences dialogue box fields and to main GUI
 #  ** lines need to be in this order and here or the mapping doesn't work **
 checkboxes.createTableModel()
-checkboxes.dwm.addMapping(preferences.bestPoints, 3)
+checkboxes.dwm.addMapping(preferences.rbw_x, 3)
 checkboxes.dwm.addMapping(preferences.neg25Line, 4)
 checkboxes.dwm.addMapping(preferences.zeroLine, 5)
 checkboxes.dwm.addMapping(preferences.plus6Line, 6)
