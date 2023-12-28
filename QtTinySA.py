@@ -55,13 +55,11 @@ blue_dash = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
 class analyser:
     def __init__(self):
         self.usb = None
-        # self._frequencies = None
         self.sweeping = False
         self.signals = WorkerSignals()
         self.signals.result.connect(self.sigProcess)
-        self.signals.result3D.connect(self.updateGUI)
+        self.signals.fullSweep.connect(self.updateGUI)
         self.signals.finished.connect(self.threadEnds)
-        self.fPeaks = []
         self.runTimer = QtCore.QElapsedTimer()  # debug
         self.scale = 174
         self.scanMemory = 50
@@ -117,9 +115,9 @@ class analyser:
         hardware = ''
         while hardware[:6] != 'tinySA' and i < 3:
             hardware = self.version()
-            logging.info(f'{hardware}')
+            logging.info(f'{hardware[:16]}')
             i += 1
-            time.sleep(0.1)
+            time.sleep(0.5)
         #  hardware = 'basic'  # used for testing
         if hardware[:7] == 'tinySA4':  # It's an Ultra
             self.tinySA4 = True
@@ -151,7 +149,7 @@ class analyser:
 
         # show hardware information in GUI
         ui.battery.setText(self.battery())
-        ui.version.setText(hardware)
+        ui.version.setText(hardware[:16])
 
         # update trace and marker settings from the database.  1 = last saved (default) settings
         S1.dLoad(1)
@@ -213,7 +211,6 @@ class analyser:
 
     def usbSend(self):
         self.usb.timeout = 1
-        # self.clearBuffer()
         while self.fifo.qsize() > 0:
             command = self.fifo.get(block=True, timeout=None)
             logging.debug(command)
@@ -221,7 +218,6 @@ class analyser:
             self.usb.read_until(b'ch> ')  # skip command echo and prompt
 
     def serialQuery(self, command):
-        # self.clearBuffer()
         self.usb.timeout = 1
         logging.debug(command)
         self.usb.write(command)
@@ -263,14 +259,12 @@ class analyser:
 
     def setPoints(self):  # may be called by measurement thread as well as normally
         if ui.points_auto.isChecked():
-            logging.debug(f'ui.rbw = {ui.rbw_box.currentText()}')
             rbw = float(ui.rbw_box.currentText())
             points = preferences.rbw_x.value() * int((ui.span_freq.value()*1000)/(rbw))  # RBW multiplier * freq in kHz
-            logging.debug(f'setPoints: before clip points = {points}')
-            points = np.clip(points, preferences.minPoints.value(), preferences.maxPoints.value())  # limits
+            points = np.clip(points, preferences.minPoints.value(), preferences.maxPoints.value())  # limit points
         else:
             points = ui.points_box.value()
-            logging.info(f'setPoints: points = {ui.points_box.value()}')
+            logging.debug(f'setPoints: points = {ui.points_box.value()}')
         return points
 
     def clearBuffer(self):
@@ -317,7 +311,7 @@ class analyser:
                     dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
                     logging.debug(f'dataBlock: {dataBlock}\n')
                     if dataBlock != b'}ch':
-                        logging.debug(f'measurement: index {index} elapsed time = {self.runTimer.nsecsElapsed()/1e6}')
+                        # logging.debug(f'measurement: index {index} elapsed time = {self.runTimer.nsecsElapsed()/1e6}')
                         c, data = struct.unpack('<' + 'cH', dataBlock)
                         logging.debug(f'measurement: dataBlock: {dataBlock} data: {data}\n')
                         readings[0, index] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
@@ -330,14 +324,11 @@ class analyser:
                     readings = np.full((self.scanMemory, points), readings[0], dtype=float)
                     firstSweep = False
                 self.scanCount += 1
-                self.signals.result3D.emit(frequencies, readings)  # updateGUI() only once per sweep (for performance)
+                self.signals.fullSweep.emit(frequencies, readings)  # updateGUI() only once per sweep (performance)
                 readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
                 readings[0] = readings[1]  # populate each sweep with previous sweep as default
-                logging.debug(f'measurement: readings = {readings}')
                 # logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6}')  # debug
-                logging.debug(f'measurement: fifo size = {self.fifo.qsize()}')
                 if self.fifo.qsize() > 0:  # a setting has changed
-                    logging.debug(f'measurement: fifo queue size = {self.fifo.qsize()}')
                     self.setRBW()
                     frequencies = self.set_frequencies()
                     points = np.size(frequencies)
@@ -345,7 +336,6 @@ class analyser:
                     firstSweep = True
                     self.createTimeSpectrum(frequencies, readings)
                     self.scanCount = 1
-                    # self.fPeaks = []
                     self.usbSend()
             except serial.SerialException:
                 logging.info('serial port exception')
@@ -357,7 +347,7 @@ class analyser:
         self.runButton('Run')
         self.fifoTimer.start(500)
 
-    def sigProcess(self, frequencies, readings):  # readings is emitted from the worker thread every 20 measurements
+    def sigProcess(self, frequencies, readings):  # readings from the worker thread result signal every 20 measurements
         if ui.avgSlider.value() > self.scanCount:  # slice using use scanCount to stop default values swamping average
             readingsAvg = np.average(readings[:self.scanCount, ::], axis=0)
         else:
@@ -407,7 +397,7 @@ class analyser:
         else:
             self.vGrid.hide()
 
-    def updateGUI(self, frequencies, readings):
+    def updateGUI(self, frequencies, readings):  # called once per scan by fullSweep signal from measurement() thread
         if ui.points_auto.isChecked():
             ui.points_box.setValue(np.size(frequencies))
         if ui.Enabled3D.isChecked():
@@ -416,39 +406,23 @@ class analyser:
             self.surface.setData(z=z)  # update 3D graph
             params = ui.openGLWidget.cameraParams()
             logging.debug(f'camera {params}')
-        self.fPeaks = self.nppeakDetect(frequencies, readings)
+        fPeaks = self.peakDetect(frequencies, readings)
+        S1.updateMarker(frequencies, readings[0, :], fPeaks)
+        S2.updateMarker(frequencies, readings[0, :], fPeaks)
+        S3.updateMarker(frequencies, readings[0, :], fPeaks)
+        S4.updateMarker(frequencies, readings[0, :], fPeaks)
 
     def peakDetect(self, frequencies, readings):
-        # update peak values for markers only once per scan (for performance) and use averaged readings
+        # find the signal peak values for setting peak markers
         Avg = np.average(readings[:ui.avgSlider.value(), ::], axis=0)
+        # calculate a frequency width factor to use to mask readings above and below each peak frequency
         if ui.rbw_box.currentText() == 'auto':
-            fWidth = preferences.rbw_x.value() * self.resBW[-1] * 1e3
+            fWidth = preferences.rbw_x.value() * float(self.resBW[-1]) * 1e3
         else:
             fWidth = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3
-        peaksort = np.argsort(-Avg)  # finds indices of peaks in array, sorted in descending signal amplitude
-        peakfreq = np.take(frequencies, peaksort)
-        peaks = [peakfreq[0]]
-        k = 1
-        for j in range(3):
-            for i in range(k, np.size(frequencies)):
-                if peakfreq[i] < (peaks[-1] - fWidth) or peakfreq[i] > (peaks[-1] + fWidth):
-                    # peakfreq[i] is > 2 RBW from previously found peak
-                    peaks.append(peakfreq[i])
-                    logging.debug(f'peakfreq[i] = {peakfreq[i]}')
-                    k = i + 1
-                    break
-                logging.debug(f'peakdetect: peaks = {peaks}')
-        return peaks
-
-    def nppeakDetect(self, frequencies, readings):
-        # update peak values for markers using numpy masked array
-        Avg = np.average(readings[:ui.avgSlider.value(), ::], axis=0)
-        if ui.rbw_box.currentText() == 'auto':
-            fWidth = preferences.rbw_x.value() * self.resBW[-1] * 1e3
-        else:
-            fWidth = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3
-        peaks = [np.argmax(Avg)]
+        peaks = [np.argmax(Avg)]  # the index of the highest peak in the averaged readings array
         for i in range(3):
+            # mask frequencies around detected peaks and find the next 3 highest peaks
             Avg = np.ma.masked_where(np.abs(frequencies[peaks[-1]] - frequencies) < fWidth, Avg)
             peaks.append(np.argmax(Avg))
         return list(frequencies[peaks])
@@ -517,9 +491,6 @@ class analyser:
     def version(self):
         command = 'version\r'.encode()
         version = self.serialQuery(command)
-        ver1, ver2, _ = version.split('v')[1].split('-') # 1.4, 115, g2939d1b
-        self.verNum = int( 1e4 * float( ver1 ) + int( ver2 ) ) # -> 14115
-        logging.info(f'Firmware version: {self.verNum}' )
         return version
 
     def spur(self):
@@ -557,31 +528,25 @@ class display:
                                             label="{value:.2f}")
         self.hline = ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='',
                                             labelOpts={'position': 0.025, 'color': ('w')})
-        self.fIndex = 0  # index of current marker freq in the frequencies array
-        self.deltaF = 0  # the difference between this marker and Reference Marker (M1)
+        self.deltaF = 0  # the difference between this marker and Reference Marker (1)
 
     def mStart(self):
         # set marker to the sweep start frequency
         if self.guiRef(0).isChecked():
-            self.fIndex = 0
             self.vline.setValue(ui.start_freq.value())
+            self.mType()
 
     def mSpread(self):
         # spread markers equally across scan range
         if self.guiRef(0).isChecked():
             self.vline.setValue(ui.start_freq.value() + (0.2 * int(self.name) * ui.span_freq.value()))
+            self.mType()
 
     def mType(self):
         self.markerType = self.guiRef(1).currentText()
         if self.markerType == 'Delta':
             self.deltaF = self.vline.value() - S1.vline.value()
-
-    def mPeak(self, frequencies):  # marker peak tracking
-        logging.debug(f'mPeak: Peak signal indices = {tinySA.fPeaks}')
-        options = {'Peak1': tinySA.fPeaks[0], 'Peak2': tinySA.fPeaks[1], 'Peak3': tinySA.fPeaks[2], 'Peak4': tinySA.fPeaks[3]}
-        markerF = options.get(self.markerType) / 1e6
-        logging.debug(f'mPeak: markerF = {markerF}')
-        self.vline.setValue(markerF)
+            self.vline.label.setText(f'D{self.vline.name()} {self.deltaF:.3f}MHz')
 
     def mDelta(self):  # delta marker locking to reference marker S1
         if self.markerType == 'Delta':
@@ -604,6 +569,7 @@ class display:
             logging.debug(f'marker f = {record.value("frequency")}')
             self.vline.label.setMovable(True)
             self.mEnable()
+            self.mType()
 
     def tData(self, setting, saving=True):
         traces.tm.setFilter('display = ' + str(self.name) + ' AND setting = ' + str(setting))
@@ -615,6 +581,9 @@ class display:
         else:
             self.traceType = record.value('type')
             self.guiRef(3).setCurrentText(self.traceType)
+            S1.hEnable(preferences.neg25Line)
+            S2.hEnable(preferences.zeroLine)
+            S3.hEnable(preferences.plus6Line)
 
     def dSave(self, setting):
         self.tData(setting, True)
@@ -635,10 +604,10 @@ class display:
         return Ref
 
     def tType(self):
-        self.traceType = self.guiRef(3).currentText()
+        self.traceType = self.guiRef(3).currentText()  # 3 selects trace type comboboxes
 
     def mEnable(self):  # show or hide a marker
-        if self.guiRef(0).isChecked():
+        if self.guiRef(0).isChecked():  # 0 selects marker checkboxes
             self.vline.show()
         else:
             self.vline.hide()
@@ -651,7 +620,7 @@ class display:
             self.hline.hide()
 
     def tEnable(self):  # show or hide a trace
-        if self.guiRef(2).isChecked():
+        if self.guiRef(2).isChecked():  # 2 selects trace checkboxes
             self.trace.show()
         else:
             self.trace.hide()
@@ -659,7 +628,6 @@ class display:
 
     def updateTrace(self, frequencies, readings):  # called by sigProcess() for every trace every 20 points
         self.trace.setData((frequencies/1e6), readings)
-        self.updateMarker(frequencies, readings)
         if ui.grid.isChecked():
             tinySA.vGrid.show()
         else:
@@ -670,16 +638,27 @@ class display:
             ui.run3D.setText('Stopping ...')
             ui.run3D.setStyleSheet('background-color: orange')
 
-    def updateMarker(self, frequencies, readings):
-        if self.markerType != 'Normal' and self.markerType != 'Delta' and tinySA.fPeaks != []:
-            self.mPeak(frequencies)
-        self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz {readings[self.fIndex]:.1f}dBm')
+    def updateMarker(self, frequencies, readings, fPeaks):  # called by updateGUI()
+        options = {'Peak1': fPeaks[0]/1e6, 'Peak2': fPeaks[1]/1e6, 'Peak3': fPeaks[2]/1e6,
+                   'Peak4': fPeaks[3]/1e6, 'Normal': self.vline.value(), 'Delta': self.vline.value()}
+        markerF = options.get(self.markerType)
+        self.vline.setValue(markerF)
+        if self.vline.value() * 1e6 < np.min(frequencies) or self.vline.value() * 1e6 > np.max(frequencies):
+            self.vline.label.setText(f'{self.vline.name()}{self.markerType[:1]} {markerF:.3f}MHz')
+        else:
+            fIndex = np.argmin(np.abs(frequencies - (self.vline.value() * 1e6)))  # the closest value in frequencies[]
+            self.vline.setValue(frequencies[fIndex] / 1e6)  # set to the discrete value from frequencies[]
+            dBm = readings[fIndex]
+            if self.markerType == 'Delta':
+                self.vline.label.setText(f'{self.vline.name()}{self.markerType[:1]} {self.deltaF:.3f}MHz {dBm:.1f}dBm')
+            else:
+                self.vline.label.setText(f'{self.vline.name()}{self.markerType[:1]} {markerF:.3f}MHz {dBm:.1f}dBm')
 
 
 class WorkerSignals(QObject):
     error = pyqtSignal(str)
     result = pyqtSignal(np.ndarray, np.ndarray)
-    result3D = pyqtSignal(np.ndarray, np.ndarray)
+    fullSweep = pyqtSignal(np.ndarray, np.ndarray)
     finished = pyqtSignal()
 
 
@@ -718,7 +697,6 @@ class database():
             popUp('Database file missing', 'OK', QMessageBox.Critical)
 
     def disconnect(self):
-        # xyz.tm.submitAll()
         self.db.close()
         logging.info(f'Database open: {self.db.isOpen()}')
         QSqlDatabase.removeDatabase(QSqlDatabase.database().connectionName())
@@ -797,8 +775,7 @@ def rbwChanged():
         ui.points_auto.setEnabled(False)
     else:
         ui.points_auto.setEnabled(True)
-    # if measurement thread is running, calling setRBW() will force it to update scan parameters
-    tinySA.setRBW()
+    tinySA.setRBW()  # if measurement thread is running, calling setRBW() will force it to update scan parameters
 
 
 def pointsChanged():
@@ -933,6 +910,7 @@ markertext = modelView('combo')
 # GUI settings
 
 # pyqtgraph settings for spectrum display
+ui.graphWidget.disableAutoRange()  # supposed to make pyqtgraph plot faster
 ui.graphWidget.setYRange(-110, 5)
 ui.graphWidget.setXRange(87.5, 108)
 ui.graphWidget.setBackground('k')  # black
@@ -969,6 +947,9 @@ ui.points_box.editingFinished.connect(pointsChanged)
 
 # marker dragging
 S1.vline.sigPositionChanged.connect(mkr1_moved)
+S2.vline.sigPositionChanged.connect(S2.mType)
+S3.vline.sigPositionChanged.connect(S3.mType)
+S4.vline.sigPositionChanged.connect(S4.mType)
 
 # marker setting within span range
 ui.mkr_start.clicked.connect(markerToStart)
@@ -1079,7 +1060,7 @@ numbers.dwm.addMapping(preferences.minPoints, 3)
 numbers.dwm.addMapping(preferences.maxPoints, 4)
 numbers.dwm.addMapping(ui.start_freq, 5)
 numbers.dwm.addMapping(ui.stop_freq, 6)
-numbers.dwm.addMapping(ui.mPeak, 7)
+numbers.dwm.addMapping(ui.peakThreshold, 7)
 numbers.tm.select()
 numbers.dwm.setCurrentIndex(0)
 markers.createTableModel()

@@ -7,7 +7,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1024</width>
+    <width>1040</width>
     <height>600</height>
    </rect>
   </property>
@@ -594,7 +594,7 @@
            </widget>
           </item>
           <item row="2" column="8">
-           <widget class="QSpinBox" name="mPeak">
+           <widget class="QSpinBox" name="peakThreshold">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -632,7 +632,7 @@
           <item row="2" column="1">
            <widget class="QDoubleSpinBox" name="centre_freq">
             <property name="alignment">
-             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
             </property>
             <property name="buttonSymbols">
              <enum>QAbstractSpinBox::PlusMinus</enum>
@@ -640,11 +640,14 @@
             <property name="correctionMode">
              <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
             </property>
+            <property name="prefix">
+             <string>Centre </string>
+            </property>
             <property name="suffix">
              <string>MHz</string>
             </property>
             <property name="decimals">
-             <number>6</number>
+             <number>3</number>
             </property>
             <property name="minimum">
              <double>0.100000000000000</double>
@@ -771,7 +774,7 @@
           <item row="2" column="10">
            <widget class="QDoubleSpinBox" name="span_freq">
             <property name="alignment">
-             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
             </property>
             <property name="buttonSymbols">
              <enum>QAbstractSpinBox::PlusMinus</enum>
@@ -1796,7 +1799,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1024</width>
+     <width>1040</width>
      <height>23</height>
     </rect>
    </property>
