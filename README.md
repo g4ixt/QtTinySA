@@ -15,7 +15,9 @@ http://athome.kaashoek.com/tinySA/python/
 The serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset
 https://github.com/Ho-Ro
 
-Dependencies: Install from the repository - numpy, pyqtgraph, pyopengl, pyqt5, pyserial.
+Dependencies: Install from your repository - numpy, pyqtgraph, pyopengl, pyqt5, pyserial.  
+You may need to add the Qt5 SQLite 3 database driver (libqt5sql5-sqlite) and Python3 bindings for QT5's SQL Module.  
+If you get a serial exception on startup, add your username to the 'dialout' group.  
 The 3D (time) spectrum requires OpenGL
 
 The GUI was originally designed for a 7" 1024 x 600 screen but should maximise properly.  The GUI appearence may change significantly due to development.
