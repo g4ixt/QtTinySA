@@ -230,7 +230,7 @@ class analyser:
         startF = ui.start_freq.value()*1e6  # freq in Hz
         stopF = ui.stop_freq.value()*1e6
         points = self.setPoints()
-        frequencies = np.linspace(startF, stopF, points, dtype=int)
+        frequencies = np.linspace(startF, stopF, points, dtype=np.int64)
         logging.debug(f'frequencies = {frequencies}')
         return frequencies
 
@@ -880,7 +880,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.9.0')
+app.setApplicationVersion(' v0.9.1')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
