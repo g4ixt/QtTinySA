@@ -930,7 +930,12 @@ S1.hline.setValue(-25)
 S1.hline.label.setText('best')
 S2.hline.label.setText('max')
 S3.hline.setValue(6)
-S3.hline.setPen('red')
+S3.hline.setPen('r')
+
+S4.hline.setValue(ui.peakThreshold.value())
+S4.hline.setPen('g')
+# S4.hline.label.setPosition(0.9)
+S4.hline.label.setText('M Pk')
 
 ###############################################################################
 # Connect signals from buttons and sliders.  Connections for freq and rbw boxes are in 'initialise' Fn
