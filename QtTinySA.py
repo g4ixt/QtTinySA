@@ -527,7 +527,7 @@ class display:
                                             pen=pyqtgraph.mkPen('y', width=0.5, style=QtCore.Qt.DashLine),
                                             label="{value:.2f}")
         self.hline = ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='',
-                                            labelOpts={'position': 0.025, 'color': ('w')})
+                                            labelOpts={'position': 0.025, 'color': ('r')})
         self.deltaF = 0  # the difference between this marker and Reference Marker (1)
 
     def mStart(self):
@@ -543,10 +543,14 @@ class display:
             self.mType()
 
     def mType(self):
-        self.markerType = self.guiRef(1).currentText()
+        self.markerType = self.guiRef(1).currentText()  # current combobox value from appropriate GUI field
         if self.markerType == 'Delta':
             self.deltaF = self.vline.value() - S1.vline.value()
-            self.vline.label.setText(f'D{self.vline.name()} {self.deltaF:.3f}MHz')
+            self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.3f}MHz')
+        if 'Peak' in (S1.markerType[:4], S2.markerType[:4], S3.markerType[:4], S4.markerType[:4]):
+            S4.hline.show()  # the peak detection threshold line
+        else:
+            S4.hline.hide()
 
     def mDelta(self):  # delta marker locking to reference marker S1
         if self.markerType == 'Delta':
@@ -642,17 +646,19 @@ class display:
         options = {'Peak1': fPeaks[0]/1e6, 'Peak2': fPeaks[1]/1e6, 'Peak3': fPeaks[2]/1e6,
                    'Peak4': fPeaks[3]/1e6, 'Normal': self.vline.value(), 'Delta': self.vline.value()}
         markerF = options.get(self.markerType)
-        self.vline.setValue(markerF)
-        if self.vline.value() * 1e6 < np.min(frequencies) or self.vline.value() * 1e6 > np.max(frequencies):
-            self.vline.label.setText(f'{self.vline.name()}{self.markerType[:1]} {markerF:.3f}MHz')
+        if markerF * 1e6 < np.min(frequencies) or markerF * 1e6 > np.max(frequencies):
+            # marker is out of scan range so just show its frequency
+            self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz')
         else:
-            fIndex = np.argmin(np.abs(frequencies - (self.vline.value() * 1e6)))  # the closest value in frequencies[]
-            self.vline.setValue(frequencies[fIndex] / 1e6)  # set to the discrete value from frequencies[]
+            # marker is in scan range
+            fIndex = np.argmin(np.abs(frequencies - (markerF * 1e6)))  # find closest value in freq array
             dBm = readings[fIndex]
+            if dBm > S4.hline.value() or self.markerType[:4] != 'Peak':
+                self.vline.setValue(frequencies[fIndex] / 1e6)  # set to the discrete value from frequencies[]
             if self.markerType == 'Delta':
-                self.vline.label.setText(f'{self.vline.name()}{self.markerType[:1]} {self.deltaF:.3f}MHz {dBm:.1f}dBm')
+                self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.3f}MHz {dBm:.1f}dBm')
             else:
-                self.vline.label.setText(f'{self.vline.name()}{self.markerType[:1]} {markerF:.3f}MHz {dBm:.1f}dBm')
+                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz {dBm:.1f}dBm')
 
 
 class WorkerSignals(QObject):
@@ -786,6 +792,13 @@ def pointsChanged():
     tinySA.resume()
 
 
+def memChanged():
+    depth = ui.memSlider.value()
+    if depth < ui.avgSlider.value():
+        ui.avgSlider.setValue(depth)
+    tinySA.scanMemory = depth
+
+
 def markerToStart():
     S1.mStart()
     S2.mStart()
@@ -809,17 +822,11 @@ def mkr1_moved():
         S4.mDelta()
 
 
-def memChanged():
-    depth = ui.memSlider.value()
-    if depth < ui.avgSlider.value():
-        ui.avgSlider.setValue(depth)
-    tinySA.scanMemory = depth
-
-
 def setPreferences():
     checkboxes.dwm.submit()
     numbers.dwm.submit()
     bands.tm.submitAll()
+    S4.hline.setValue(preferences.peakThreshold.value())
     if tinySA.usb and tinySA.dev:
         if tinySA.tinySA4:  # It's a tinySA Ultra
             bands.tm.setFilter('visible = "1"')
@@ -880,7 +887,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.9.1')
+app.setApplicationVersion(' v0.9.x')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -932,10 +939,12 @@ S2.hline.label.setText('max')
 S3.hline.setValue(6)
 S3.hline.setPen('r')
 
-S4.hline.setValue(ui.peakThreshold.value())
-S4.hline.setPen('g')
-# S4.hline.label.setPosition(0.9)
-S4.hline.label.setText('M Pk')
+# marker peak threshold line
+S4.hline.setPen(red_dash, width=0.5)
+S4.hline.setMovable(True)
+S4.hline.label.setFormat("{value:.1f}")
+# S4.hline.setValue(ui.peakThreshold.value())
+# S4.hline.hide()
 
 ###############################################################################
 # Connect signals from buttons and sliders.  Connections for freq and rbw boxes are in 'initialise' Fn
@@ -1065,7 +1074,7 @@ numbers.dwm.addMapping(preferences.minPoints, 3)
 numbers.dwm.addMapping(preferences.maxPoints, 4)
 numbers.dwm.addMapping(ui.start_freq, 5)
 numbers.dwm.addMapping(ui.stop_freq, 6)
-numbers.dwm.addMapping(ui.peakThreshold, 7)
+numbers.dwm.addMapping(preferences.peakThreshold, 7)
 numbers.tm.select()
 numbers.dwm.setCurrentIndex(0)
 markers.createTableModel()
