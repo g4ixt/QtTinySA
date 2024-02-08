@@ -19,6 +19,8 @@ import time
 import logging
 import numpy as np
 import queue
+import shutil
+from platform import system
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import pyqtSlot, pyqtSignal, QRunnable, QObject, QThreadPool, Qt, QTimer
 from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper
@@ -684,11 +686,60 @@ class database():
 
     def __init__(self):
         self.db = None
+        self.DbName="QtTSAprefs.db"
+
+        #Python 3.10++!
+        match system():
+            case "Linux":
+                self.globalConfigDir = "/usr/share/qttinysa/"
+                self.personalDir = os.path.join(os.path.expanduser('~'), ".config/qttinySA")
+                logging.info(f'Linux system')
+            case "Darwin":
+                self.globalConfigDir = "nonexistent"
+                self.personalDir = ""
+            case "Windows":
+                self.globalConfigDir = "nonexistent"
+                self.personalDir = ""
+        self.dbpath = self._getPersonalizedPath()
+        self.readWrite = True
+
+    def _getPersonalizedPath(self):
+        # ceck if file exists in ~/.config/qttinysa/
+        returnpath = ""
+        if  os.path.exists(os.path.join(self.personalDir, self.DbName)):
+            returnpath = os.path.join(self.personalDir, self.DbName)
+            logging.info(f'Personalized Configuration exists already.')
+        elif os.path.exists(os.path.join(self.globalConfigDir, self.DbName)):
+            os.makedirs(self.personalDir, exist_ok=True)
+            shutil.copy(os.path.join(self.globalConfigDir, self.DbName), self.personalDir)
+            logging.info(f'Copy over from global configuration')
+            if os.path.exists(os.path.join(self.personalDir, self.DbName)):
+                returnpath = os.path.join(self.personalDir, self.DbName)
+                logging.info(f'Success - Personalized Configuration exists now')
+
+        #We have no returnpath yet - so no personalized Configuration file is available
+        if not returnpath:
+            logging.info('No returnpath is set - try database in current folder')
+            #First try a global one in the globalConfigDir - this could succeed if the copy failed above
+            if os.path.exists(os.path.join(os.getcwd(), self.DbName)):
+                logging.info(f'Use file within current directory as preferences')
+                returnpath = os.path.join(os.getcwd(), self.DbName)
+            elif os.path.exists(os.path.join(self.globalConfigDir, self.DbName)):
+                logging.info(f'Last resort fallback to a global configuration file which is opened readonly.')
+                returnpath = os.path.join(self.globalConfigDir, self.DbName)
+                self.readWrite = False
+            #Try a file within the current directory (old solution as fallback):
+            else:
+                raise FileNotFoundError("Something went wrong while personalizing the QtTinySA Preferences!")
+        return returnpath
+
 
     def connect(self):
         self.db = QSqlDatabase.addDatabase('QSQLITE')
-        if QtCore.QFile.exists(os.path.join(basedir, 'QtTSAprefs.db')):
-            self.db.setDatabaseName(os.path.join(basedir, 'QtTSAprefs.db'))
+        if QtCore.QFile.exists(self.dbpath):
+            self.db.setDatabaseName(self.dbpath)
+            if not self.readWrite:
+                self.db.setConnectOptions("QSQLITE_OPEN_READONLY")
             self.db.open()
             logging.info(f'Database open: {self.db.isOpen()}')
             self.db.exec('PRAGMA foreign_keys = ON')
