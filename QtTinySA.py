@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Created on Tue 1 May 2023 @author: Ian Jefferson G4IXT.  TinySA Ultra GUI programme using Qt5 and PyQt.
+# Copyright 2024 Ian Jefferson G4IXT
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""TinySA Ultra GUI programme using Qt5 and PyQt.
 
 This code attempts to replicate some of the TinySA Ultra on-screen commands and to provide PC control.
 Development took place on Kubuntu 22.04LTS with Python 3.9 and PyQt5 using Spyder in Anaconda.
@@ -10,7 +13,7 @@ TinySA and TinySA Ultra are trademarks of Erik Kaashoek and are used with permis
 
 TinySA commands are based on Erik's Python examples: http://athome.kaashoek.com/tinySA/python/
 
-The serial communication commands are based on the Python NanoVNA/TinySA Toolset of Martin Ho-Ro:
+Serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset:
 https://github.com/Ho-Ro
 
 """
@@ -158,6 +161,7 @@ class analyser:
         S4.dLoad(1)
 
         #  set each marker to a different colour
+        S1.vline.label.setColor('y')
         S2.vline.setPen(color='m', width=0.75, style=QtCore.Qt.DashLine)
         S2.vline.label.setColor('m')
         S3.vline.setPen(color='c', width=0.75, style=QtCore.Qt.DashLine)
@@ -943,8 +947,6 @@ S3.hline.setPen('r')
 S4.hline.setPen(red_dash, width=0.5)
 S4.hline.setMovable(True)
 S4.hline.label.setFormat("{value:.1f}")
-# S4.hline.setValue(ui.peakThreshold.value())
-# S4.hline.hide()
 
 ###############################################################################
 # Connect signals from buttons and sliders.  Connections for freq and rbw boxes are in 'initialise' Fn
