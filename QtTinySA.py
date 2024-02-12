@@ -533,6 +533,7 @@ class display:
         self.hline = ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='',
                                             labelOpts={'position': 0.025, 'color': ('r')})
         self.deltaF = 0  # the difference between this marker and Reference Marker (1)
+        self.fifo = queue.SimpleQueue()
 
     def mStart(self):
         # set marker to the sweep start frequency
@@ -663,6 +664,17 @@ class display:
                 self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.3f}MHz {dBm:.1f}dBm')
             else:
                 self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz {dBm:.1f}dBm')
+
+    def addFreqMarker(self, freq):
+        # adds a simple frequency marker line without the functionality of the other markers
+        marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen('g', width=0.5, style=QtCore.Qt.DashLine))
+        # store the marker object in a queue
+        self.fifo.put(marker)
+
+    def delFreqMarkers(self):
+        for i in range(0, self.fifo.qsize()):
+            # remove the marker and its corresponding object in the queue
+            ui.graphWidget.removeItem(self.fifo.get())
 
 
 class WorkerSignals(QObject):
@@ -836,6 +848,10 @@ def setPreferences():
             bands.tm.setFilter('visible = "1"')
         else:
             bands.tm.setFilter('visible = "1" AND (startF <= 960 AND stopF <= 960)')
+    if ui.markBands.isChecked():
+        S1.delFreqMarkers()
+        S2.delFreqMarkers()
+        freqMarkers()
 
 
 def dialogPrefs():
@@ -883,6 +899,17 @@ def popUp(message, button, icon):
     msg.addButton(button, QMessageBox.ActionRole)
     msg.exec_()
 
+
+def freqMarkers():
+    if ui.markBands.isChecked():
+        for i in range(0, bands.tm.rowCount()):
+            startF = bands.tm.record(i).value('StartF')
+            S1.addFreqMarker(startF)
+            stopF = bands.tm.record(i).value('StopF')
+            S2.addFreqMarker(stopF)
+    else:
+        S1.delFreqMarkers()
+        S2.delFreqMarkers()
 
 ###############################################################################
 # Instantiate classes
@@ -982,6 +1009,9 @@ ui.m1_type.activated.connect(S1.mType)
 ui.m2_type.activated.connect(S2.mType)
 ui.m3_type.activated.connect(S3.mType)
 ui.m4_type.activated.connect(S4.mType)
+
+# frequency band markers
+ui.markBands.stateChanged.connect(freqMarkers)
 
 # trace checkboxes
 ui.trace1.stateChanged.connect(S1.tEnable)
