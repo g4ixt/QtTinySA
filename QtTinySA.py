@@ -121,7 +121,7 @@ class analyser:
             logging.info(f'{hardware[:16]}')
             i += 1
             time.sleep(0.5)
-        #  hardware = 'basic'  # used for testing
+        # hardware = 'tinySA'  # used for testing
         if hardware[:7] == 'tinySA4':  # It's an Ultra
             self.tinySA4 = True
             ui.spur_box.setTristate(True)  # TinySA Ultra has 'auto', 'on' and 'off' setting for Spur
@@ -163,6 +163,7 @@ class analyser:
         #  set each marker to a different colour
         S1.vline.label.setColor('y')
         S2.vline.setPen(color='m', width=0.75, style=QtCore.Qt.DashLine)
+        # S2.vline.setPen(color=QtGui.QColor('darkgreen'), width=0.75, style=QtCore.Qt.DashLine)
         S2.vline.label.setColor('m')
         S3.vline.setPen(color='c', width=0.75, style=QtCore.Qt.DashLine)
         S3.vline.label.setColor('c')
@@ -665,16 +666,18 @@ class display:
             else:
                 self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz {dBm:.1f}dBm')
 
-    def addFreqMarker(self, freq):
-        # adds a simple frequency marker line without the functionality of the other markers
-        marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen('g', width=0.5, style=QtCore.Qt.DashLine))
-        # store the marker object in a queue
-        self.fifo.put(marker)
+    def addFreqMarker(self, freq, colour, name):  # adds simple frequency marker without full marker capability
+        if ui.presetLabel.isChecked():
+            marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5, style=QtCore.Qt.DashLine),
+                                        label=name, labelOpts={'position': 0.05, 'color': (colour)})
+        else:
+            marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5, style=QtCore.Qt.DashLine))
+
+        self.fifo.put(marker)  # store the marker object in a queue
 
     def delFreqMarkers(self):
         for i in range(0, self.fifo.qsize()):
-            # remove the marker and its corresponding object in the queue
-            ui.graphWidget.removeItem(self.fifo.get())
+            ui.graphWidget.removeItem(self.fifo.get())  # remove the marker and its corresponding object in the queue
 
 
 class WorkerSignals(QObject):
@@ -749,20 +752,42 @@ class modelView():
 
     def deleteRow(self):  # deletes row selected by the up/down arrows on the frequency bands table widget
         self.tm.removeRow(self.currentRow)
+        self.tm.select()
+        self.tm.layoutChanged.emit()
+        self.dwm.submit()
 
-    def upRow(self):
-        if self.currentRow > 0:
-            self.currentRow -= 1
-            preferences.freqBands.selectRow(self.currentRow)
-        else:
-            return
+    def tableClicked(self):
+        self.currentRow = preferences.freqBands.currentIndex().row()  # the row index from the QModelIndexObject
+        logging.debug(f'row {self.currentRow} clicked')
 
-    def downRow(self):
-        if self.currentRow < self.tm.rowCount():
-            self.currentRow += 1
-            preferences.freqBands.selectRow(self.currentRow)
+    def insertData(self, name, startF, stopF):
+        record = self.tm.record()
+        record.setValue('name', name)
+        record.setValue('startF', f'{startF:.6f}')
+        record.setValue('stopF', f'{stopF:.6f}')
+        self.tm.insertRecord(-1, record)
+        self.tm.select()
+        self.tm.layoutChanged.emit()
+        self.dwm.submit()
+
+    def buttonFilter(self, tF):
+        pressed = preferences.listSelect.checkedButton().objectName()
+        if tF:
+            options = {'band': 'preset = "band"',
+                       'beacon': 'preset = "beacon"',
+                       'interest': 'preset = "interest"',
+                       'all': ''}
         else:
-            return
+            options = {'band': 'visible = "1" AND preset = "band"',
+                       'beacon': 'visible = "1" AND preset = "beacon"',
+                       'interest': 'visible = "1" AND preset = "interest"',
+                       'all': 'visible = "1"'}
+        if tinySA.usb and tinySA.dev:
+            if tinySA.tinySA4:  # It's a tinySA Ultra
+                bands.tm.setFilter(options.get(pressed))
+            else:
+                f = options.get(pressed) + ' AND (startF <= "960" AND stopF <= "960")'
+                bands.tm.setFilter(f)
 
 
 ###############################################################################
@@ -770,13 +795,30 @@ class modelView():
 
 def band_changed():
     index = ui.band_box.currentIndex()
-    if index == 0:
-        return
-    startF = bands.tm.record(index).value('StartF')
-    stopF = bands.tm.record(index).value('StopF')
-    ui.start_freq.setValue(startF)
-    ui.stop_freq.setValue(stopF)
-    tinySA.freq_changed(False)  # start/stop mode
+    if bands.tm.record(index).value('preset') == 'band':
+        startF = bands.tm.record(index).value('StartF')
+        stopF = bands.tm.record(index).value('StopF')
+        ui.start_freq.setValue(startF)
+        ui.stop_freq.setValue(stopF)
+        tinySA.freq_changed(False)  # start/stop mode
+    else:
+        centreF = bands.tm.record(index).value('StartF')
+        ui.centre_freq.setValue(centreF)
+        ui.span_freq.setValue(1)
+        tinySA.freq_changed(True)  # centre mode
+
+
+def addBandPressed():
+    if ui.marker1.isChecked() and ui.marker2.isChecked():
+        if S1.vline.value() >= S2.vline.value():
+            message = 'M1 frequency >= M2 frequency'
+            popUp(message, 'Ok', QMessageBox.Information)
+            return
+        name = 'M' + str(round(S1.vline.value(), 6))
+        bands.insertData(name, S1.vline.value(), S2.vline.value())
+    else:
+        message = 'M1 and M2 must both be enabled to add a new Band'
+        popUp(message, 'Ok', QMessageBox.Information)
 
 
 def attenuate_changed():
@@ -843,19 +885,16 @@ def setPreferences():
     numbers.dwm.submit()
     bands.tm.submitAll()
     S4.hline.setValue(preferences.peakThreshold.value())
-    if tinySA.usb and tinySA.dev:
-        if tinySA.tinySA4:  # It's a tinySA Ultra
-            bands.tm.setFilter('visible = "1"')
-        else:
-            bands.tm.setFilter('visible = "1" AND (startF <= 960 AND stopF <= 960)')
-    if ui.markBands.isChecked():
+    bands.buttonFilter(False)
+    if ui.presetMarker.isChecked():
         S1.delFreqMarkers()
         S2.delFreqMarkers()
         freqMarkers()
 
 
 def dialogPrefs():
-    bands.tm.setFilter('name != "Band"')  # remove filters
+    # bands.tm.setFilter('name != "Band"')  # remove filters
+    bands.buttonFilter(True)
     bands.tm.select()
     bands.currentRow = 0
     preferences.freqBands.selectRow(bands.currentRow)
@@ -901,15 +940,25 @@ def popUp(message, button, icon):
 
 
 def freqMarkers():
-    if ui.markBands.isChecked():
+    if ui.presetMarker.isChecked():
         for i in range(0, bands.tm.rowCount()):
             startF = bands.tm.record(i).value('StartF')
-            S1.addFreqMarker(startF)
+            colour = bands.tm.record(i).value('colour')
+            name = bands.tm.record(i).value('name')
+            S1.addFreqMarker(startF, colour, name)
             stopF = bands.tm.record(i).value('StopF')
-            S2.addFreqMarker(stopF)
+            if bands.tm.record(i).value('preset') == 'band':
+                S2.addFreqMarker(stopF, colour, '')
     else:
         S1.delFreqMarkers()
         S2.delFreqMarkers()
+
+
+def freqMarkerLabel():
+    S1.delFreqMarkers()
+    S2.delFreqMarkers()
+    freqMarkers()
+
 
 ###############################################################################
 # Instantiate classes
@@ -918,7 +967,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.9.x')
+app.setApplicationVersion(' v0.9.2.beta')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1011,7 +1060,9 @@ ui.m3_type.activated.connect(S3.mType)
 ui.m4_type.activated.connect(S4.mType)
 
 # frequency band markers
-ui.markBands.stateChanged.connect(freqMarkers)
+ui.presetMarker.stateChanged.connect(freqMarkers)
+ui.presetLabel.stateChanged.connect(freqMarkerLabel)
+ui.mToBand.clicked.connect(addBandPressed)
 
 # trace checkboxes
 ui.trace1.stateChanged.connect(S1.tEnable)
@@ -1047,8 +1098,8 @@ preferences.zeroLine.stateChanged.connect(lambda: S2.hEnable(preferences.zeroLin
 preferences.plus6Line.stateChanged.connect(lambda: S3.hEnable(preferences.plus6Line))
 preferences.addRow.clicked.connect(bands.addRow)
 preferences.deleteRow.clicked.connect(bands.deleteRow)
-preferences.rowUp.clicked.connect(bands.upRow)
-preferences.rowDown.clicked.connect(bands.downRow)
+preferences.freqBands.clicked.connect(bands.tableClicked)
+preferences.listSelect.buttonClicked.connect(lambda: bands.buttonFilter(True))
 ui.actionPreferences.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
 ui.actionAbout_QtTinySA.triggered.connect(about)
 pwindow.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
@@ -1059,26 +1110,30 @@ pwindow.finished.connect(setPreferences)  # update database checkboxes table on 
 logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 
 # table models - read/write views of the configuration data
-bands.createTableModel()
-bands.tm.setSort(2, Qt.AscendingOrder)
-bands.tm.setRelation(4, QSqlRelation('boolean', 'ID', 'value'))
-bands.tm.setHeaderData(4, Qt.Horizontal, 'Visible')
-boolean = QSqlRelationalDelegate(preferences.freqBands)  # set 'view' column true/false to be combo box
+bands.createTableModel()  # relational
+bands.tm.setSort(3, Qt.AscendingOrder)
+bands.tm.setRelation(5, QSqlRelation('boolean', 'ID', 'value'))  # set 'view' column to a True/False choice combo box
+bands.tm.setHeaderData(5, Qt.Horizontal, 'visible')
+boolean = QSqlRelationalDelegate(preferences.freqBands)
 preferences.freqBands.setItemDelegate(boolean)
+bands.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))  # set 'marker' column to a colours choice combo box
+colour = QSqlRelationalDelegate(preferences.freqBands)
+preferences.freqBands.setItemDelegate(colour)
+bands.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))  # set 'type' column to a freq type choice combo box
+fType = QSqlRelationalDelegate(preferences.freqBands)
+preferences.freqBands.setItemDelegate(fType)
 colHeader = preferences.freqBands.horizontalHeader()
 colHeader.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
 
-# populate the bands combobox
+# populate the presets combobox
 ui.band_box.setModel(bands.tm)
 ui.band_box.setModelColumn(1)
-bands.tm.setFilter('visible = "1"')
 bands.tm.select()  # initially select the data in the model
 
 # connect the preferences dialogue box freq band widget to the data model
 preferences.freqBands.setModel(bands.tm)
 preferences.freqBands.hideColumn(0)  # ID
 rowHeader = preferences.freqBands.verticalHeader()
-rowHeader.hide()
 
 #  Map database tables to preferences dialogue box fields and to main GUI
 #  ** lines need to be in this order and here or the mapping doesn't work **
@@ -1097,6 +1152,10 @@ checkboxes.dwm.addMapping(ui.marker3, 13)
 checkboxes.dwm.addMapping(ui.marker4, 14)
 checkboxes.dwm.addMapping(ui.lna_box, 15)
 checkboxes.dwm.addMapping(ui.points_auto, 16)
+checkboxes.dwm.addMapping(preferences.band, 17)
+checkboxes.dwm.addMapping(preferences.beacon, 18)
+checkboxes.dwm.addMapping(preferences.interest, 19)
+checkboxes.dwm.addMapping(preferences.all, 20)
 checkboxes.tm.select()
 checkboxes.dwm.setCurrentIndex(0)  # 0 = (last used) default settings
 
