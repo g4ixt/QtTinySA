@@ -48,7 +48,7 @@ if system() == "Linux":
 
 #AppName and AppAuthor for usage within the appdirs module (user_data_dir and site_data_dir)
 #The Author is just relevant on Windows and will be ignored on OSX and Linux.
-appname = "QtTinySA"
+appname = "qttinysa"
 appauthor = "Ian Jefferson"
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
