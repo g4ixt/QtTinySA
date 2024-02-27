@@ -10,7 +10,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['pandas','setuptools', 'tk', 'wheel', 'zipp', 'pyyaml', 'packaging', 'altgraph'],
+    excludes=['pandas','setuptools', 'tk', 'wheel', 'zipp', 'pyyaml', 'packaging', 'altgraph', 'mkl', 'fortran', 'matlab'],
     noarchive=False,
 )
 pyz = PYZ(a.pure)
