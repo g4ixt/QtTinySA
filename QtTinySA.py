@@ -44,9 +44,6 @@ if system() == "Linux":
     os.environ['XDG_CONFIG_DIRS'] = '/etc:/usr/local/etc'
     os.environ['XDG_DATA_DIRS'] = '/usr/share:/usr/local/share'
 
-# appauthor is only relevant for Windows and will be ignored on OSX and Linux.
-appauthor = "Ian Jefferson"
-
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 threadpool = QtCore.QThreadPool()
 basedir = os.path.dirname(__file__)
@@ -736,9 +733,8 @@ class database():
     def __init__(self):
         self.db = None
         self.dbName = "QtTSAprefs.db"
-        self.personalDir = platformdirs.user_config_dir(appname=app.applicationName(),
-                                                        appauthor=appauthor, ensure_exists=True)
-        self.globalDir = platformdirs.site_config_dir(appname=app.applicationName(), appauthor=appauthor)
+        self.personalDir = platformdirs.user_config_dir(appname=app.applicationName(), ensure_exists=True)
+        self.globalDir = platformdirs.site_config_dir(appname=app.applicationName())
         self.workingDir = os.getcwd()
         self.dbpath = self._getPersonalisedPath()
 
@@ -825,15 +821,12 @@ class modelView():
         record.setValue('name', name)
         record.setValue('startF', f'{startF:.6f}')
         record.setValue('stopF', f'{stopF:.6f}')
-
         bandstype.tm.setFilter('preset = "' + typeF + '"')  # using relation directly doesn't seem to work
         bandstype.tm.select()
         record.setValue('preset', bandstype.tm.record(0).value('ID'))
-
         colours.tm.setFilter('colour = "' + colour + '"')  # using relation directly doesn't seem to work
         colours.tm.select()
         record.setValue('colour', colours.tm.record(0).value('ID'))
-
         self.tm.insertRecord(-1, record)
         self.tm.select()
         self.tm.layoutChanged.emit()
@@ -860,13 +853,14 @@ class modelView():
             for row in csv.reader(fileInput):
                 if not header:
                     header = row
+                    logging.debug(f'header = {header}')
                     indx = self.findCols(header)
                     continue
-                if len(indx) == 7:  # (name, preset, typeF, startF, stopF, value, colour)
-                    bands.insertData(row[indx[0]], row[indx[2]], float(row[indx[3]]), float(row[indx[4]]), row[indx[6]])
+                if len(indx) == 6:  # (name, preset(=type), startF, stopF, value(=visible), colour)
+                    bands.insertData(row[indx[0]], row[indx[1]], float(row[indx[2]]), float(row[indx[3]]), row[indx[5]])
                 elif len(indx) == 3:
                     bands.insertData(row[indx[0]], 'RF mic', float(row[indx[1]]) / 1e3, 0, row[indx[2]].lower())
-                    logging.info(f'colour = {row[indx[2]].lower()}')
+                    logging.debug(f'colour = {row[indx[2]].lower()}')
 
     def writeCSV(self, fileName):
         header = []
@@ -883,8 +877,9 @@ class modelView():
     def findCols(self, header):
         indx = []
         try:
-            for i in range(1, self.tm.columnCount()):
+            for i in range(1, self.tm.columnCount()):  # start at 1 - don't include ID column
                 indx.append(header.index(self.tm.record().fieldName(i)))  # Match to QtTinySA CSV export format
+                logging.debug(f'i = {i} indx = {indx}')
         except ValueError:
             indx = []
             try:
@@ -1008,7 +1003,7 @@ def dialogPrefs():
 
 
 def about():
-    message = ('TinySA Ultra GUI programme using Qt5 and PyQt\nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nDatabase Path: {}'
+    message = ('TinySA Ultra GUI programme using Qt5 and PyQt\nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
                .format(app.applicationVersion(), config.dbpath))
     popUp(message, QMessageBox.Ok, QMessageBox.Information)
 
@@ -1087,7 +1082,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.0')
+app.setApplicationVersion(' v0.10.1')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
