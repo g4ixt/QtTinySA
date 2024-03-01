@@ -735,7 +735,7 @@ class database():
         self.dbName = "QtTSAprefs.db"
         self.personalDir = platformdirs.user_config_dir(appname=app.applicationName(), ensure_exists=True)
         self.globalDir = platformdirs.site_config_dir(appname=app.applicationName())
-        self.workingDir = os.getcwd()
+        self.workingDirs = [os.path.dirname(__file__), os.path.dirname(os.path.realpath(__file__)), os.getcwd()]
         self.dbpath = self._getPersonalisedPath()
 
     def _getPersonalisedPath(self):
@@ -754,10 +754,12 @@ class database():
         if returnpath is None:
             # no config database file found in personal or global directories
             logging.info(f'No configuration database file exists in {self.personalDir} or {self.globalDir}')
-            # Look for one in the current working folder
-            if os.path.exists(os.path.join(self.workingDir, self.dbName)):
-                logging.info(f'Copying configuration database from {self.workingDir}')
-                c = shutil.copy(os.path.join(self.workingDir, self.dbName), self.personalDir)
+            # Look for one in the current working folder and in the folder where the python file is stored (or linked to):
+            # In case QtTinySA is called from outside the stored folder.
+            for workingDir in self.workingDirs:
+                if os.path.exists(os.path.join(workingDir, self.dbName)):
+                    logging.info(f'Copying configuration database from {self.workingDir}')
+                    c = shutil.copy(os.path.join(self.workingDir, self.dbName), self.personalDir)
             if os.path.exists(os.path.join(self.personalDir, self.dbName)):
                 returnpath = self.personalDir
                 logging.info(f'Personal configuration database created at {c}')
