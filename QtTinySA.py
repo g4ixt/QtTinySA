@@ -758,8 +758,8 @@ class database():
             # In case QtTinySA is called from outside the stored folder.
             for workingDir in self.workingDirs:
                 if os.path.exists(os.path.join(workingDir, self.dbName)):
-                    logging.info(f'Copying configuration database from {self.workingDir}')
-                    c = shutil.copy(os.path.join(self.workingDir, self.dbName), self.personalDir)
+                    logging.info(f'Copying configuration database from {workingDir}')
+                    c = shutil.copy(os.path.join(workingDir, self.dbName), self.personalDir)
             if os.path.exists(os.path.join(self.personalDir, self.dbName)):
                 returnpath = self.personalDir
                 logging.info(f'Personal configuration database created at {c}')
