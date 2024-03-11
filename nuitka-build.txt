@@ -1,0 +1,42 @@
+(base) ian@Study:~$ source tinySA/bin/activate
+(tinySA) (base) ian@Study:~$ cd Documents/GitHub/QtTinySA
+(tinySA) (base) ian@Study:~/Documents/GitHub/QtTinySA$ python -m nuitka --standalone QtTinySA.py
+Nuitka-Options: Used command line options: --standalone QtTinySA.py
+Nuitka: Starting Python compilation with Nuitka '2.1' on Python '3.11' commercial grade 'not installed'.
+Nuitka-Plugins:WARNING: Use '--enable-plugin=pyqt5' for: Inclusion of Qt plugins.
+Nuitka-Plugins:WARNING: anti-bloat: Undesirable import of 'pytest' in 'bottleneck._pytesttester' (at  
+Nuitka-Plugins:WARNING: '/home/ian/anaconda3/lib/python3.11/site-packages/bottleneck/_pytesttester.py:34') encountered. It may slow down compilation.
+Nuitka-Plugins:WARNING:     Complex topic! More information can be found at https://nuitka.net/info/unwanted-module.html
+Nuitka-Plugins:anti-bloat: Not including '_bisect' automatically in order to avoid bloat, but this may cause: may slow down by using fallback
+Nuitka-Plugins:anti-bloat: implementation.
+Nuitka-Plugins:anti-bloat: Not including '_json' automatically in order to avoid bloat, but this may cause: may slow down by using fallback implementation.
+Nuitka-Plugins:anti-bloat: Not including 'PIL.ImageQt' automatically in order to avoid bloat, but this may cause: PIL will not be able to create Qt image
+Nuitka-Plugins:anti-bloat: objects.
+Nuitka-Plugins:matplotlib: Using configuration file or default backend 'QtAgg'.
+Nuitka: Completed Python level compilation and optimization.
+Nuitka: Generating source code for C backend compiler.
+Nuitka: Running data composer tool for optimal constant value handling.                                                    
+Nuitka: Running C compilation via Scons.
+Nuitka-Scons: Backend C compiler: gcc (gcc 11).
+Nuitka-Scons: Backend linking program with 1126 files (no progress information available for this stage).
+Nuitka-Scons: Compiled 1125 C files using ccache.
+Nuitka-Scons: Cached C files (using ccache) with result 'cache miss': 1125
+Nuitka-Plugins:data-files: Included data file 'PyQt5/Qt5/.keep_dir.txt' due to empty dir needed for 'PyQt5'.
+Nuitka-Plugins:data-files: Included data file 'PyQt5/Qt/.keep_dir.txt' due to empty dir needed for 'PyQt5'.
+Nuitka-Plugins:data-files: Included data file 'certifi/cacert.pem' due to package data for 'certifi'.
+Nuitka-Plugins:matplotlib: Included 182 data files due to package data for 'matplotlib.
+Nuitka-Plugins:matplotlib: Included data file 'matplotlib/mpl-data/matplotlibrc' due to updated matplotlib config file with backend to use.
+Nuitka-Plugins:data-files: Included 72 data files due to package data directory 'colors' for 'pyqtgraph'.
+Nuitka-Plugins:data-files: Included data file 'pyqtgraph/icons/auto.png' due to package data directory 'icons' for 'pyqtgraph'.
+Nuitka-Plugins:data-files: Included data file 'pyqtgraph/icons/ctrl.png' due to package data directory 'icons' for 'pyqtgraph'.
+Nuitka-Plugins:data-files: Included data file 'pyqtgraph/icons/default.png' due to package data directory 'icons' for 'pyqtgraph'.
+Nuitka-Plugins:data-files: Included data file 'pyqtgraph/icons/icons.svg' due to package data directory 'icons' for 'pyqtgraph'.
+Nuitka-Plugins:data-files: Included data file 'pyqtgraph/icons/invisibleEye.svg' due to package data directory 'icons' for 'pyqtgraph'.
+Nuitka-Plugins:data-files: Included data file 'pyqtgraph/icons/lock.png' due to package data directory 'icons' for 'pyqtgraph'.
+Nuitka-Plugins:data-files: Included data file 'scipy/stats/_sobol_direction_numbers.npz' due to package data for 'scipy'.
+Nuitka-Plugins:dll-files: Found 1 file DLLs from kiwisolver installation.
+Nuitka-Plugins:WARNING: dll-files: DLL configuration by filename code for 'numpy' did not give a result. Either conditions are missing, or this version of
+Nuitka-Plugins:WARNING: the module needs treatment added.
+Nuitka: Keeping build directory 'QtTinySA.build'.                                                              
+Nuitka: Successfully created 'QtTinySA.dist/QtTinySA.bin'.
+(tinySA) (base) ian@Study:~/Documents/GitHub/QtTinySA$ 

@@ -26,7 +26,7 @@ import csv
 from platform import system
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog
-from PyQt5.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate
+from PyQt5.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
 import pyqtgraph
 import QtTinySpectrum  # the GUI
 import QtTSApreferences  # the GUI preferences window
@@ -37,7 +37,7 @@ from serial.tools import list_ports
 #  For 3D
 import pyqtgraph.opengl as pyqtgl
 
-os.environ['PYOPENGL_PLATFORM'] = 'egl'
+# os.environ['PYOPENGL_PLATFORM'] = 'egl'
 
 # Defaults to non local configuration/data dirs - needed for packaging
 if system() == "Linux":
@@ -774,7 +774,7 @@ class database():
             self.db.setDatabaseName(os.path.join(self.dbpath, self.dbName))
             self.db.open()
             logging.info(f'Database open: {self.db.isOpen()}')
-            self.db.exec('PRAGMA foreign_keys = ON')  # exec() is deprecated #
+            self.db.exec('PRAGMA foreign_keys = ON;')
         else:
             logging.info('Database file is missing')
             popUp('Database file is missing', QMessageBox.Ok, QMessageBox.Critical)
@@ -808,8 +808,12 @@ class modelView():
     def saveChanges(self):
         self.dwm.submit()
 
-    def deleteRow(self):  # deletes row selected by the up/down arrows on the frequency bands table widget
-        self.tm.removeRow(self.currentRow)
+    def deleteRow(self, single=True):  # deletes rows in the frequency bands table widget
+        if single:
+            self.tm.removeRow(self.currentRow)
+        else:
+            for i in range(0, self.tm.rowCount()):
+                self.tm.removeRow(i)
         self.tm.select()
         self.tm.layoutChanged.emit()
         self.dwm.submit()
@@ -830,6 +834,7 @@ class modelView():
         colours.tm.select()
         record.setValue('colour', colours.tm.record(0).value('ID'))
         self.tm.insertRecord(-1, record)
+        bandstype.tm.setFilter('')
         self.tm.select()
         self.tm.layoutChanged.emit()
         self.dwm.submit()
@@ -1084,7 +1089,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.1')
+app.setApplicationVersion(' v0.10.2')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1217,7 +1222,8 @@ preferences.neg25Line.stateChanged.connect(lambda: S1.hEnable(preferences.neg25L
 preferences.zeroLine.stateChanged.connect(lambda: S2.hEnable(preferences.zeroLine))
 preferences.plus6Line.stateChanged.connect(lambda: S3.hEnable(preferences.plus6Line))
 preferences.addRow.clicked.connect(bands.addRow)
-preferences.deleteRow.clicked.connect(bands.deleteRow)
+preferences.deleteRow.clicked.connect(lambda: bands.deleteRow(True))
+preferences.deleteAll.clicked.connect(lambda: bands.deleteRow(False))
 preferences.freqBands.clicked.connect(bands.tableClicked)
 preferences.filterBox.currentTextChanged.connect(lambda: bands.filterType(True))
 ui.actionPreferences.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
@@ -1334,7 +1340,7 @@ if tinySA.dev is None:
 
 window.show()
 window.setWindowTitle(app.applicationName() + app.applicationVersion())
-window.setWindowIcon(QtGui.QIcon(os.path.join(basedir, 'tinySAsmall.png')))
+# window.setWindowIcon(QtGui.QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 
 ###############################################################################
 # run the application until the user closes it
