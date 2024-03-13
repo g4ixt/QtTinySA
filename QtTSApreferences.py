@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'preferences-l.ui'
+# Form implementation generated from reading ui file 'preferences.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.10
 #
@@ -93,7 +93,7 @@ class Ui_Preferences(object):
         self.importButton.setObjectName("importButton")
         self.gridLayout.addWidget(self.importButton, 4, 0, 1, 1)
         self.layoutWidget1 = QtWidgets.QWidget(Preferences)
-        self.layoutWidget1.setGeometry(QtCore.QRect(440, 10, 351, 571))
+        self.layoutWidget1.setGeometry(QtCore.QRect(440, 10, 356, 571))
         self.layoutWidget1.setObjectName("layoutWidget1")
         self.gridLayout_2 = QtWidgets.QGridLayout(self.layoutWidget1)
         self.gridLayout_2.setContentsMargins(0, 0, 0, 0)
@@ -233,7 +233,7 @@ class Ui_Preferences(object):
         self.importButton.setText(_translate("Preferences", "Import"))
         self.zeroLine.setText(_translate("Preferences", " 0dBm"))
         self.label.setText(_translate("Preferences", "Points / Resolution Bandwidth"))
-        self.label_14.setText(_translate("Preferences", "Frequency Offset "))
+        self.label_14.setText(_translate("Preferences", "External Mixer / LNB"))
         self.peakThreshold.setSuffix(_translate("Preferences", "dBm"))
         self.freqLO.setSuffix(_translate("Preferences", "MHz"))
         self.label_4.setText(_translate("Preferences", "Auto maximum points"))
@@ -242,11 +242,11 @@ class Ui_Preferences(object):
         self.neg25Line.setText(_translate("Preferences", "-25dBm"))
         self.label_11.setText(_translate("Preferences", "Absolute maximum"))
         self.label_9.setText(_translate("Preferences", "Max for best accuracy"))
-        self.label_15.setText(_translate("Preferences", "External LO above IF"))
+        self.label_15.setText(_translate("Preferences", "LO above displayed Freq"))
         self.plus6Line.setText(_translate("Preferences", "+6dBm"))
         self.label_2.setText(_translate("Preferences", "Detection Threshold"))
         self.label_10.setText(_translate("Preferences", "Max with auto attenuator"))
         self.label_7.setText(_translate("Preferences", "Peak Marker Settings"))
         self.label_3.setText(_translate("Preferences", "Auto minimum points"))
-        self.label_16.setText(_translate("Preferences", "External LO Frequency"))
+        self.label_16.setText(_translate("Preferences", "LO Frequency"))
         self.highLO.setText(_translate("Preferences", "True"))

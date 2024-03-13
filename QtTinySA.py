@@ -271,6 +271,17 @@ class analyser:
         ui.graphWidget.setXRange(startF, stopF)
         self.resume()
 
+    def freqOffset(self, frequency):  # for mixers or LNBs external to TinySA
+        if preferences.highLO.isChecked() and preferences.freqLO != 0:
+            f = preferences.freqLO.value() * 1e6 - frequency
+        else:
+            f = frequency - preferences.freqLO.value() * 1e6
+        if f <= 0:
+            self.sweeping = False
+            f = 30000000
+            logging.info(f'frequency offset error, check preferences')
+        return f
+
     def setRBW(self):  # may be called by measurement thread as well as normally
         rbw = ui.rbw_box.currentText()  # ui values are discrete ones in kHz
         logging.debug(f'rbw = {rbw}')
@@ -321,7 +332,13 @@ class analyser:
         while self.sweeping:
             try:
                 self.usb.timeout = self.sweepTimeout(frequencies)
-                command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)}\r'.encode()
+                if preferences.freqLO != 0:
+                    startF = self.freqOffset(frequencies[0])
+                    stopF = self.freqOffset(frequencies[-1])
+                    command = f'scanraw {int(startF)} {int(stopF)} {int(points)}\r'.encode()
+                else:
+                    command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)}\r'.encode()
+                logging.debug(f'measurement: command = {command}')
                 self.usb.write(command)
                 index = 0
                 # self.runTimer.start()  # debug
@@ -695,12 +712,12 @@ class display:
         for i in range(0, self.fifo.qsize()):
             ui.graphWidget.removeItem(self.fifo.get())  # remove the marker and its corresponding object in the queue
 
-    def freqOffset(self, frequencies):  # for mixers external to TinySA # future feature
-        if preferences.highLO.isChecked() and preferences.freqLO != 0:
-            f = preferences.freqLO.value() - frequencies
-        else:
-            f = preferences.freqLO.value() + frequencies
-        return f
+    # def freqOffset(self, frequencies):  # for mixers external to TinySA # future feature
+    #     if preferences.highLO.isChecked() and preferences.freqLO != 0:
+    #         f = preferences.freqLO.value() - frequencies
+    #     else:
+    #         f = preferences.freqLO.value() + frequencies
+    #     return f
 
 
 class WorkerSignals(QtCore.QObject):
@@ -904,7 +921,11 @@ class modelView():
 
 def band_changed():
     index = ui.band_box.currentIndex()
-    if bands.tm.record(index).value('preset') == 'band':
+    # if bands.tm.record(index).value('preset') == 'Mixer / LNB':
+    #     ui.mixer.setChecked(True)
+    # else:
+    #     ui.mixer.setChecked(False)
+    if bands.tm.record(index).value('preset') == 'band' or bands.tm.record(index).value('preset') == 'Mixer / LNB':
         startF = bands.tm.record(index).value('StartF')
         stopF = bands.tm.record(index).value('StopF')
         ui.start_freq.setValue(startF)
@@ -999,6 +1020,7 @@ def setPreferences():
         S1.delFreqMarkers()
         S2.delFreqMarkers()
         freqMarkers()
+    isMixerMode()
 
 
 def dialogPrefs():
@@ -1082,6 +1104,19 @@ def importData():
         bands.readCSV(filename[0])
 
 
+def isMixerMode():
+        if preferences.freqLO.value() == 0:
+            ui.mixerMode.setVisible(False)
+            ui.start_freq.setStyleSheet('background-color:None')
+            ui.stop_freq.setStyleSheet('background-color:None')
+            ui.centre_freq.setStyleSheet('background-color:None')
+        else:
+            ui.mixerMode.setVisible(True)
+            ui.start_freq.setStyleSheet('background-color:lightGreen')
+            ui.stop_freq.setStyleSheet('background-color:lightGreen')
+            ui.centre_freq.setStyleSheet('background-color:lightGreen')
+            bands.tm.setFilter('preset = "Mixer / LNB"')
+
 ###############################################################################
 # Instantiate classes
 
@@ -1148,6 +1183,8 @@ S3.hline.setPen('r')
 S4.hline.setPen(red_dash, width=0.5)
 S4.hline.setMovable(True)
 S4.hline.label.setFormat("{value:.1f}")
+
+# ui.mixerMode.setStyleSheet('background-color:lightGreen')
 
 ###############################################################################
 # Connect signals from buttons and sliders.  Connections for freq and rbw boxes are in 'initialise' Fn
@@ -1296,6 +1333,7 @@ checkboxes.dwm.addMapping(ui.marker3, 13)
 checkboxes.dwm.addMapping(ui.marker4, 14)
 checkboxes.dwm.addMapping(ui.lna_box, 15)
 checkboxes.dwm.addMapping(ui.points_auto, 16)
+checkboxes.dwm.addMapping(preferences.highLO, 17)
 checkboxes.tm.select()
 checkboxes.dwm.setCurrentIndex(0)  # 0 = (last used) default settings
 
@@ -1306,6 +1344,7 @@ numbers.dwm.addMapping(preferences.maxPoints, 4)
 numbers.dwm.addMapping(ui.start_freq, 5)
 numbers.dwm.addMapping(ui.stop_freq, 6)
 numbers.dwm.addMapping(preferences.peakThreshold, 7)
+numbers.dwm.addMapping(preferences.freqLO, 8)
 numbers.tm.select()
 numbers.dwm.setCurrentIndex(0)
 markers.createTableModel()
