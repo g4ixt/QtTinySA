@@ -286,7 +286,7 @@ class analyser:
         if min(scanF) <= 0:
             self.sweeping = False
             scanF = (88 * 1e6, 108 * 1e6)
-            logging.info(f'frequency offset error, check preferences')
+            logging.info('frequency offset error, check preferences')
         return scanF
 
     def setRBW(self):  # may be called by measurement thread as well as normally
@@ -855,17 +855,32 @@ class modelView():
         self.tm.layoutChanged.emit()
         self.dwm.submit()
 
-    def filterType(self, prefsDialog):
-        sql = 'preset = "' + preferences.filterBox.currentText() + '"'
+    # def filterType(self, prefsDialog):
+    #     sql = 'preset = "' + preferences.filterBox.currentText() + '"'
+    #     if prefsDialog:
+    #         if preferences.filterBox.currentText() == 'show all':
+    #             sql = ''
+    #     else:
+    #         sql = 'visible = "1" AND preset = "' + preferences.filterBox.currentText() + '"'
+    #         if preferences.filterBox.currentText() == 'show all':
+    #             sql = 'visible = "1"'
+    #         # if preferences.freqLO.value() != 0:
+    #         #     sql = sql + ' AND LO = "1"'
+    #         if tinySA.tinySA4 is False:  # It's a tinySA basic with limited frequency range
+    #             sql = sql + ' AND startF <= "960"'
+    #     bands.tm.setFilter(sql)
+
+    def filterType(self, prefsDialog, boxText):
+        sql = 'preset = "' + boxText + '"'
         if prefsDialog:
-            if preferences.filterBox.currentText() == 'show all':
+            if boxText == 'show all':
                 sql = ''
         else:
-            sql = 'visible = "1" AND preset = "' + preferences.filterBox.currentText() + '"'
-            if preferences.filterBox.currentText() == 'show all':
+            sql = 'visible = "1" AND preset = "' + boxText + '"'
+            if boxText == 'show all':
                 sql = 'visible = "1"'
-            if preferences.freqLO.value() != 0:
-                sql = sql + ' AND LO = "1"'
+            # if preferences.freqLO.value() != 0:
+            #     sql = sql + ' AND LO = "1"'
             if tinySA.tinySA4 is False:  # It's a tinySA basic with limited frequency range
                 sql = sql + ' AND startF <= "960"'
         bands.tm.setFilter(sql)
@@ -921,7 +936,8 @@ class modelView():
 
 def band_changed():
     index = ui.band_box.currentIndex()
-    if bands.tm.record(index).value('preset') == 'band':
+    # if bands.tm.record(index).value('preset') == 'band':
+    if 'band' in bands.tm.record(index).value('preset'):
         startF = bands.tm.record(index).value('StartF')
         stopF = bands.tm.record(index).value('StopF')
         ui.start_freq.setValue(startF)
@@ -1011,7 +1027,7 @@ def setPreferences():
     numbers.dwm.submit()
     bands.tm.submitAll()
     S4.hline.setValue(preferences.peakThreshold.value())
-    bands.filterType(False)
+    bands.filterType(False, ui.filterBox.currentText())
     if ui.presetMarker.isChecked():
         S1.delFreqMarkers()
         S2.delFreqMarkers()
@@ -1020,7 +1036,7 @@ def setPreferences():
 
 
 def dialogPrefs():
-    bands.filterType(True)
+    bands.filterType(True, preferences.filterBox.currentText())
     bands.tm.select()
     bands.currentRow = 0
     preferences.freqBands.selectRow(bands.currentRow)
@@ -1185,7 +1201,6 @@ S4.hline.setPen(red_dash, width=0.5)
 S4.hline.setMovable(True)
 S4.hline.label.setFormat("{value:.1f}")
 
-# ui.mixerMode.setStyleSheet('background-color:lightGreen')
 
 ###############################################################################
 # Connect signals from buttons and sliders.  Connections for freq and rbw boxes are in 'initialise' Fn
@@ -1263,7 +1278,8 @@ preferences.addRow.clicked.connect(bands.addRow)
 preferences.deleteRow.clicked.connect(lambda: bands.deleteRow(True))
 preferences.deleteAll.clicked.connect(lambda: bands.deleteRow(False))
 preferences.freqBands.clicked.connect(bands.tableClicked)
-preferences.filterBox.currentTextChanged.connect(lambda: bands.filterType(True))
+preferences.filterBox.currentTextChanged.connect(lambda: bands.filterType(True, preferences.filterBox.currentText()))
+ui.filterBox.currentTextChanged.connect(lambda: bands.filterType(False, ui.filterBox.currentText()))
 ui.actionPreferences.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
 ui.actionAbout_QtTinySA.triggered.connect(about)
 pwindow.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
@@ -1293,9 +1309,9 @@ bands.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))  # set 'type' 
 fType = QSqlRelationalDelegate(preferences.freqBands)
 preferences.freqBands.setItemDelegate(fType)
 
-bands.tm.setRelation(7, QSqlRelation('boolean', 'ID', 'value'))  # set 'mix/LNB' column to a True/False choice combo box
-mixer = QSqlRelationalDelegate(preferences.freqBands)
-preferences.freqBands.setItemDelegate(mixer)
+# bands.tm.setRelation(7, QSqlRelation('boolean', 'ID', 'value'))  # set 'mix/LNB' column to a True/False choice combo box
+# mixer = QSqlRelationalDelegate(preferences.freqBands)
+# preferences.freqBands.setItemDelegate(mixer)
 
 colHeader = preferences.freqBands.horizontalHeader()
 colHeader.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
@@ -1315,6 +1331,9 @@ bands.tm.select()  # initially select the data in the model
 preferences.filterBox.setModel(bandstype.tm)
 preferences.filterBox.setModelColumn(1)
 bandstype.dwm.addMapping(preferences.filterBox, 1)
+ui.filterBox.setModel(bandstype.tm)
+ui.filterBox.setModelColumn(1)
+bandstype.dwm.addMapping(ui.filterBox, 1)
 bandstype.tm.select()
 
 # connect the preferences dialogue box freq band widget to the data model

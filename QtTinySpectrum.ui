@@ -7,7 +7,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1027</width>
+    <width>1000</width>
     <height>600</height>
    </rect>
   </property>
@@ -576,119 +576,73 @@
             </property>
            </widget>
           </item>
-         </layout>
-        </item>
-        <item row="0" column="1">
-         <layout class="QGridLayout" name="gridLayout_2">
-          <item row="1" column="13">
-           <widget class="QLabel" name="label_15">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Stop / Span MHz</string>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="6">
-           <widget class="QToolButton" name="mkr_centre">
-            <property name="toolTip">
-             <string extracomment="Marker to Start">Set markers in range</string>
-            </property>
-            <property name="toolTipDuration">
-             <number>1</number>
-            </property>
-            <property name="text">
-             <string>...</string>
-            </property>
-            <property name="arrowType">
-             <enum>Qt::UpArrow</enum>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="6" colspan="2">
-           <widget class="QLabel" name="label_19">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Markers</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="11">
-           <widget class="QCheckBox" name="presetMarker">
-            <property name="toolTip">
-             <string>Mark preset freqs</string>
-            </property>
-            <property name="text">
-             <string>Presets</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="13">
-           <widget class="QDoubleSpinBox" name="stop_freq">
+          <item row="17" column="0">
+           <widget class="QLabel" name="mixerMode">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
-            <property name="alignment">
-             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+            <property name="baseSize">
+             <size>
+              <width>0</width>
+              <height>0</height>
+             </size>
             </property>
-            <property name="correctionMode">
-             <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
-            </property>
-            <property name="prefix">
-             <string/>
-            </property>
-            <property name="suffix">
-             <string/>
-            </property>
-            <property name="decimals">
-             <number>6</number>
-            </property>
-            <property name="minimum">
-             <double>0.100000000000000</double>
-            </property>
-            <property name="maximum">
-             <double>100000.000000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>1.000000000000000</double>
-            </property>
-            <property name="stepType">
-             <enum>QAbstractSpinBox::AdaptiveDecimalStepType</enum>
-            </property>
-            <property name="value">
-             <double>108.000000000000000</double>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="1" colspan="2">
-           <widget class="QLabel" name="label_16">
             <property name="font">
              <font>
               <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
              </font>
             </property>
+            <property name="autoFillBackground">
+             <bool>false</bool>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">background-color:lightGreen</string>
+            </property>
+            <property name="frameShape">
+             <enum>QFrame::NoFrame</enum>
+            </property>
+            <property name="frameShadow">
+             <enum>QFrame::Plain</enum>
+            </property>
+            <property name="midLineWidth">
+             <number>0</number>
+            </property>
             <property name="text">
-             <string>Preset freq</string>
+             <string>Mixer/LNB mode</string>
+            </property>
+            <property name="scaledContents">
+             <bool>false</bool>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
             </property>
            </widget>
           </item>
-          <item row="3" column="3">
+         </layout>
+        </item>
+        <item row="0" column="1">
+         <layout class="QGridLayout" name="gridLayout_2">
+          <item row="2" column="6">
+           <widget class="QCheckBox" name="marker3">
+            <property name="text">
+             <string>M3</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="8">
+           <widget class="QCheckBox" name="presetLabel">
+            <property name="toolTip">
+             <string>Label preset freqs</string>
+            </property>
+            <property name="text">
+             <string>Labels</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="2">
            <widget class="QDoubleSpinBox" name="centre_freq">
             <property name="alignment">
              <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -712,7 +666,7 @@
              <double>0.100000000000000</double>
             </property>
             <property name="maximum">
-             <double>100000.000000000000000</double>
+             <double>6000.000000000000000</double>
             </property>
             <property name="stepType">
              <enum>QAbstractSpinBox::AdaptiveDecimalStepType</enum>
@@ -722,55 +676,7 @@
             </property>
            </widget>
           </item>
-          <item row="2" column="9">
-           <widget class="QCheckBox" name="marker3">
-            <property name="text">
-             <string>M3</string>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="7">
-           <widget class="QComboBox" name="m1_type">
-            <property name="maximumSize">
-             <size>
-              <width>55</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <family>Sans Serif</family>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Marker type</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="10">
-           <widget class="QCheckBox" name="marker4">
-            <property name="text">
-             <string>M4</string>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="10">
-           <widget class="QComboBox" name="m4_type">
-            <property name="maximumSize">
-             <size>
-              <width>55</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="7">
+          <item row="2" column="4">
            <widget class="QCheckBox" name="marker1">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -783,147 +689,7 @@
             </property>
            </widget>
           </item>
-          <item row="3" column="9">
-           <widget class="QComboBox" name="m3_type">
-            <property name="maximumSize">
-             <size>
-              <width>55</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Marker type</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="5">
-           <spacer name="horizontalSpacer">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="2" column="8">
-           <widget class="QCheckBox" name="marker2">
-            <property name="autoFillBackground">
-             <bool>false</bool>
-            </property>
-            <property name="text">
-             <string>M2</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="3">
-           <widget class="QLabel" name="label_9">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Start / Centre MHz</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="12">
-           <spacer name="horizontalSpacer_2">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="3" column="13">
-           <widget class="QDoubleSpinBox" name="span_freq">
-            <property name="alignment">
-             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-            </property>
-            <property name="buttonSymbols">
-             <enum>QAbstractSpinBox::PlusMinus</enum>
-            </property>
-            <property name="correctionMode">
-             <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
-            </property>
-            <property name="prefix">
-             <string/>
-            </property>
-            <property name="suffix">
-             <string/>
-            </property>
-            <property name="decimals">
-             <number>3</number>
-            </property>
-            <property name="maximum">
-             <double>100000.000000000000000</double>
-            </property>
-            <property name="stepType">
-             <enum>QAbstractSpinBox::AdaptiveDecimalStepType</enum>
-            </property>
-            <property name="value">
-             <double>20.000000000000000</double>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="1">
-           <widget class="QToolButton" name="mToBand">
-            <property name="toolTip">
-             <string>Add Band preset from M1 and M2</string>
-            </property>
-            <property name="text">
-             <string>+</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="2">
-           <widget class="QComboBox" name="band_box">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>90</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="toolTip">
-             <string>Set Frequency Band</string>
-            </property>
-            <property name="editable">
-             <bool>false</bool>
-            </property>
-            <property name="currentText">
-             <string/>
-            </property>
-            <property name="insertPolicy">
-             <enum>QComboBox::InsertAtBottom</enum>
-            </property>
-            <property name="modelColumn">
-             <number>1</number>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="8">
+          <item row="3" column="5">
            <widget class="QComboBox" name="m2_type">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -962,30 +728,58 @@
             </property>
            </widget>
           </item>
-          <item row="3" column="11">
-           <widget class="QCheckBox" name="presetLabel">
-            <property name="toolTip">
-             <string>Label preset freqs</string>
+          <item row="3" column="9">
+           <widget class="QDoubleSpinBox" name="span_freq">
+            <property name="alignment">
+             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
             </property>
-            <property name="text">
-             <string>Labels</string>
+            <property name="buttonSymbols">
+             <enum>QAbstractSpinBox::PlusMinus</enum>
+            </property>
+            <property name="correctionMode">
+             <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
+            </property>
+            <property name="prefix">
+             <string/>
+            </property>
+            <property name="suffix">
+             <string/>
+            </property>
+            <property name="decimals">
+             <number>3</number>
+            </property>
+            <property name="maximum">
+             <double>100000.000000000000000</double>
+            </property>
+            <property name="stepType">
+             <enum>QAbstractSpinBox::AdaptiveDecimalStepType</enum>
+            </property>
+            <property name="value">
+             <double>20.000000000000000</double>
             </property>
            </widget>
           </item>
-          <item row="2" column="6">
-           <widget class="QToolButton" name="mkr_start">
-            <property name="toolTip">
-             <string extracomment="Marker to Start">Set markers to start frequency</string>
+          <item row="2" column="5">
+           <widget class="QCheckBox" name="marker2">
+            <property name="autoFillBackground">
+             <bool>false</bool>
             </property>
             <property name="text">
-             <string>...</string>
-            </property>
-            <property name="arrowType">
-             <enum>Qt::LeftArrow</enum>
+             <string>M2</string>
             </property>
            </widget>
           </item>
-          <item row="2" column="14">
+          <item row="2" column="8">
+           <widget class="QCheckBox" name="presetMarker">
+            <property name="toolTip">
+             <string>Mark preset freqs</string>
+            </property>
+            <property name="text">
+             <string>Presets</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="10">
            <widget class="QPushButton" name="scan_button">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -1004,7 +798,90 @@
             </property>
            </widget>
           </item>
-          <item row="2" column="3">
+          <item row="3" column="6">
+           <widget class="QComboBox" name="m3_type">
+            <property name="maximumSize">
+             <size>
+              <width>55</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Marker type</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="9">
+           <widget class="QDoubleSpinBox" name="stop_freq">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+            </property>
+            <property name="correctionMode">
+             <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
+            </property>
+            <property name="prefix">
+             <string/>
+            </property>
+            <property name="suffix">
+             <string/>
+            </property>
+            <property name="decimals">
+             <number>6</number>
+            </property>
+            <property name="minimum">
+             <double>0.100000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>6000.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>1.000000000000000</double>
+            </property>
+            <property name="stepType">
+             <enum>QAbstractSpinBox::AdaptiveDecimalStepType</enum>
+            </property>
+            <property name="value">
+             <double>108.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QToolButton" name="mToBand">
+            <property name="toolTip">
+             <string>Add Band preset from M1 and M2</string>
+            </property>
+            <property name="text">
+             <string>+</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="7">
+           <widget class="QComboBox" name="m4_type">
+            <property name="maximumSize">
+             <size>
+              <width>55</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="2">
            <widget class="QDoubleSpinBox" name="start_freq">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -1031,7 +908,7 @@
              <double>0.100000000000000</double>
             </property>
             <property name="maximum">
-             <double>100000.000000000000000</double>
+             <double>6000.000000000000000</double>
             </property>
             <property name="singleStep">
              <double>1.000000000000000</double>
@@ -1044,7 +921,142 @@
             </property>
            </widget>
           </item>
-          <item row="0" column="1" colspan="14">
+          <item row="2" column="7">
+           <widget class="QCheckBox" name="marker4">
+            <property name="text">
+             <string>M4</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0" colspan="2">
+           <widget class="QLabel" name="label_16">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Presets / Filter</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="3">
+           <widget class="QToolButton" name="mkr_centre">
+            <property name="toolTip">
+             <string extracomment="Marker to Start">Set markers in range</string>
+            </property>
+            <property name="toolTipDuration">
+             <number>1</number>
+            </property>
+            <property name="text">
+             <string>...</string>
+            </property>
+            <property name="arrowType">
+             <enum>Qt::UpArrow</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="3" colspan="2">
+           <widget class="QLabel" name="label_19">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Markers</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QComboBox" name="band_box">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>90</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="toolTip">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Preset Frequency list&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+            <property name="editable">
+             <bool>false</bool>
+            </property>
+            <property name="currentText">
+             <string/>
+            </property>
+            <property name="insertPolicy">
+             <enum>QComboBox::InsertAtBottom</enum>
+            </property>
+            <property name="modelColumn">
+             <number>1</number>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="2">
+           <widget class="QLabel" name="label_9">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Start / Centre MHz</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="3">
+           <widget class="QToolButton" name="mkr_start">
+            <property name="toolTip">
+             <string extracomment="Marker to Start">Set markers to start frequency</string>
+            </property>
+            <property name="text">
+             <string>...</string>
+            </property>
+            <property name="arrowType">
+             <enum>Qt::LeftArrow</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QComboBox" name="filterBox">
+            <property name="toolTip">
+             <string>Filter preset list</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="4">
+           <widget class="QComboBox" name="m1_type">
+            <property name="maximumSize">
+             <size>
+              <width>55</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <family>Sans Serif</family>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Marker type</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0" colspan="11">
            <widget class="PlotWidget" name="graphWidget" native="true">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
@@ -1060,43 +1072,17 @@
             </property>
            </widget>
           </item>
-          <item row="3" column="14">
-           <widget class="QLabel" name="mixerMode">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="baseSize">
-             <size>
-              <width>0</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="autoFillBackground">
-             <bool>false</bool>
-            </property>
-            <property name="styleSheet">
-             <string notr="true">background-color:lightGreen</string>
-            </property>
-            <property name="frameShape">
-             <enum>QFrame::NoFrame</enum>
-            </property>
-            <property name="frameShadow">
-             <enum>QFrame::Plain</enum>
-            </property>
-            <property name="midLineWidth">
-             <number>0</number>
+          <item row="1" column="9">
+           <widget class="QLabel" name="label_15">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
             </property>
             <property name="text">
-             <string>Mixer/LNB</string>
-            </property>
-            <property name="scaledContents">
-             <bool>false</bool>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignCenter</set>
+             <string>Stop / Span MHz</string>
             </property>
            </widget>
           </item>
@@ -1914,7 +1900,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1027</width>
+     <width>1000</width>
      <height>23</height>
     </rect>
    </property>
