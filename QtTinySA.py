@@ -81,6 +81,7 @@ class analyser:
         self.fifoTimer = QtCore.QTimer()
         self.fifoTimer.timeout.connect(self.usbSend)
         self.tinySA4 = None
+        self.maxF = 6000
         self.resBW = ['0.2', '1', '3', '10', '30', '100', '300', '600', '850']
 
     def openPort(self):
@@ -131,10 +132,13 @@ class analyser:
         # hardware = 'tinySA'  # used for testing
         if hardware[:7] == 'tinySA4':  # It's an Ultra
             self.tinySA4 = True
+            self.maxF = 6000
+            self.scale = 174
             ui.spur_box.setTristate(True)  # TinySA Ultra has 'auto', 'on' and 'off' setting for Spur
             ui.spur_box.setCheckState(QtCore.Qt.PartiallyChecked)  # auto
         else:
             self.tinySA4 = False
+            self.maxF = 960
             self.scale = 128
             self.resBW = self.resBW[2:8]  # TinySA Basic has fewer resolution bandwidth filters
             ui.spur_box.setTristate(False)  # TinySA Basic has only 'on' and 'off' setting for Spur'
@@ -271,16 +275,19 @@ class analyser:
         ui.graphWidget.setXRange(startF, stopF)
         self.resume()
 
-    def freqOffset(self, frequency):  # for mixers or LNBs external to TinySA
+    def freqOffset(self, frequencies):  # for mixers or LNBs external to TinySA
+        startF = frequencies[0]
+        spanF = frequencies[-1] - startF
+        loF = preferences.freqLO.value() * 1e6
         if preferences.highLO.isChecked() and preferences.freqLO != 0:
-            f = preferences.freqLO.value() * 1e6 - frequency
+            scanF = (loF - startF, loF - startF + spanF)
         else:
-            f = frequency - preferences.freqLO.value() * 1e6
-        if f <= 0:
+            scanF = (startF - loF, startF - loF + spanF)
+        if min(scanF) <= 0:
             self.sweeping = False
-            f = 30000000
+            scanF = (88 * 1e6, 108 * 1e6)
             logging.info(f'frequency offset error, check preferences')
-        return f
+        return scanF
 
     def setRBW(self):  # may be called by measurement thread as well as normally
         rbw = ui.rbw_box.currentText()  # ui values are discrete ones in kHz
@@ -333,8 +340,7 @@ class analyser:
             try:
                 self.usb.timeout = self.sweepTimeout(frequencies)
                 if preferences.freqLO != 0:
-                    startF = self.freqOffset(frequencies[0])
-                    stopF = self.freqOffset(frequencies[-1])
+                    startF, stopF = self.freqOffset(frequencies)
                     command = f'scanraw {int(startF)} {int(stopF)} {int(points)}\r'.encode()
                 else:
                     command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)}\r'.encode()
@@ -705,19 +711,11 @@ class display:
             marker.label.setMovable(True)
         else:
             marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5, style=QtCore.Qt.DashLine))
-
         self.fifo.put(marker)  # store the marker object in a queue
 
     def delFreqMarkers(self):
         for i in range(0, self.fifo.qsize()):
             ui.graphWidget.removeItem(self.fifo.get())  # remove the marker and its corresponding object in the queue
-
-    # def freqOffset(self, frequencies):  # for mixers external to TinySA # future feature
-    #     if preferences.highLO.isChecked() and preferences.freqLO != 0:
-    #         f = preferences.freqLO.value() - frequencies
-    #     else:
-    #         f = preferences.freqLO.value() + frequencies
-    #     return f
 
 
 class WorkerSignals(QtCore.QObject):
@@ -844,6 +842,7 @@ class modelView():
         record.setValue('name', name)
         record.setValue('startF', f'{startF:.6f}')
         record.setValue('stopF', f'{stopF:.6f}')
+        # record.setValue('LO', f'{LO}')
         bandstype.tm.setFilter('preset = "' + typeF + '"')  # using relation directly doesn't seem to work
         bandstype.tm.select()
         record.setValue('preset', bandstype.tm.record(0).value('ID'))
@@ -857,19 +856,19 @@ class modelView():
         self.dwm.submit()
 
     def filterType(self, prefsDialog):
+        sql = 'preset = "' + preferences.filterBox.currentText() + '"'
         if prefsDialog:
             if preferences.filterBox.currentText() == 'show all':
-                bands.tm.setFilter('')
-            else:
-                bands.tm.setFilter('preset = "' + preferences.filterBox.currentText() + '"')  # SQL syntax
+                sql = ''
         else:
+            sql = 'visible = "1" AND preset = "' + preferences.filterBox.currentText() + '"'
             if preferences.filterBox.currentText() == 'show all':
-                bands.tm.setFilter('visible = "1"')
-            else:
-                bands.tm.setFilter('visible = "1" AND preset = "' + preferences.filterBox.currentText() + '"')
-
-        if tinySA.tinySA4 is False:  # It's a tinySA basic with limited frequency range
-            bands.tm.setFilter('preset = "' + preferences.filterBox.currentText() + '" AND startF <= "960"')
+                sql = 'visible = "1"'
+            if preferences.freqLO.value() != 0:
+                sql = sql + ' AND LO = "1"'
+            if tinySA.tinySA4 is False:  # It's a tinySA basic with limited frequency range
+                sql = sql + ' AND startF <= "960"'
+        bands.tm.setFilter(sql)
 
     def readCSV(self, fileName):
         with open(fileName, "r") as fileInput:
@@ -877,10 +876,11 @@ class modelView():
             for row in csv.reader(fileInput):
                 if not header:
                     header = row
-                    logging.debug(f'header = {header}')
+                    logging.info(f'header = {header}')
                     indx = self.findCols(header)
                     continue
-                if len(indx) == 6:  # (name, preset(=type), startF, stopF, value(=visible), colour)
+                if len(indx) == 7:  # (name, preset(=type), startF, stopF, value(=visible), colour, LO)
+                    logging.info(f'row = {row}')
                     bands.insertData(row[indx[0]], row[indx[1]], float(row[indx[2]]), float(row[indx[3]]), row[indx[5]])
                 elif len(indx) == 3:
                     bands.insertData(row[indx[0]], 'RF mic', float(row[indx[1]]) / 1e3, 0, row[indx[2]].lower())
@@ -895,7 +895,7 @@ class modelView():
             output.writerow(header)
             for rowNumber in range(self.tm.rowCount()):
                 fields = [self.tm.data(self.tm.index(rowNumber, columnNumber))
-                          for columnNumber in range(1, 7)]
+                          for columnNumber in range(1, 8)]
                 output.writerow(fields)
 
     def findCols(self, header):
@@ -903,7 +903,7 @@ class modelView():
         try:
             for i in range(1, self.tm.columnCount()):  # start at 1 - don't include ID column
                 indx.append(header.index(self.tm.record().fieldName(i)))  # Match to QtTinySA CSV export format
-                logging.debug(f'i = {i} indx = {indx}')
+                logging.info(f'i = {i} indx = {indx}')
         except ValueError:
             indx = []
             try:
@@ -921,11 +921,7 @@ class modelView():
 
 def band_changed():
     index = ui.band_box.currentIndex()
-    # if bands.tm.record(index).value('preset') == 'Mixer / LNB':
-    #     ui.mixer.setChecked(True)
-    # else:
-    #     ui.mixer.setChecked(False)
-    if bands.tm.record(index).value('preset') == 'band' or bands.tm.record(index).value('preset') == 'Mixer / LNB':
+    if bands.tm.record(index).value('preset') == 'band':
         startF = bands.tm.record(index).value('StartF')
         stopF = bands.tm.record(index).value('StopF')
         ui.start_freq.setValue(startF)
@@ -1110,12 +1106,17 @@ def isMixerMode():
             ui.start_freq.setStyleSheet('background-color:None')
             ui.stop_freq.setStyleSheet('background-color:None')
             ui.centre_freq.setStyleSheet('background-color:None')
+            ui.start_freq.setMaximum(tinySA.maxF)
+            ui.centre_freq.setMaximum(tinySA.maxF)
+            ui.stop_freq.setMaximum(tinySA.maxF)
         else:
             ui.mixerMode.setVisible(True)
             ui.start_freq.setStyleSheet('background-color:lightGreen')
             ui.stop_freq.setStyleSheet('background-color:lightGreen')
             ui.centre_freq.setStyleSheet('background-color:lightGreen')
-            bands.tm.setFilter('preset = "Mixer / LNB"')
+            ui.start_freq.setMaximum(100000)
+            ui.centre_freq.setMaximum(100000)
+            ui.stop_freq.setMaximum(100000)
 
 ###############################################################################
 # Instantiate classes
@@ -1278,6 +1279,7 @@ logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 bands.createTableModel()  # relational
 bands.tm.setSort(3, QtCore.Qt.AscendingOrder)
 bands.tm.setHeaderData(5, QtCore.Qt.Horizontal, 'visible')
+bands.tm.setHeaderData(7, QtCore.Qt.Horizontal, 'LO')
 
 bands.tm.setRelation(5, QSqlRelation('boolean', 'ID', 'value'))  # set 'view' column to a True/False choice combo box
 boolean = QSqlRelationalDelegate(preferences.freqBands)
@@ -1290,6 +1292,10 @@ preferences.freqBands.setItemDelegate(colour)
 bands.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))  # set 'type' column to a freq type choice combo box
 fType = QSqlRelationalDelegate(preferences.freqBands)
 preferences.freqBands.setItemDelegate(fType)
+
+bands.tm.setRelation(7, QSqlRelation('boolean', 'ID', 'value'))  # set 'mix/LNB' column to a True/False choice combo box
+mixer = QSqlRelationalDelegate(preferences.freqBands)
+preferences.freqBands.setItemDelegate(mixer)
 
 colHeader = preferences.freqBands.horizontalHeader()
 colHeader.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
@@ -1334,6 +1340,8 @@ checkboxes.dwm.addMapping(ui.marker4, 14)
 checkboxes.dwm.addMapping(ui.lna_box, 15)
 checkboxes.dwm.addMapping(ui.points_auto, 16)
 checkboxes.dwm.addMapping(preferences.highLO, 17)
+checkboxes.dwm.addMapping(ui.presetMarker, 18)
+checkboxes.dwm.addMapping(ui.presetLabel, 19)
 checkboxes.tm.select()
 checkboxes.dwm.setCurrentIndex(0)  # 0 = (last used) default settings
 
