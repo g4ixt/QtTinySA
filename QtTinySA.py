@@ -617,6 +617,7 @@ class display:
         self.vline.label.setMovable(True)
         self.mEnable()
         self.mType()
+        self.tType()
         self.tEnable()
         S1.hEnable(preferences.neg25Line)
         S2.hEnable(preferences.zeroLine)
