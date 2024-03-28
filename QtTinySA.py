@@ -72,7 +72,7 @@ class analyser:
         self.runTimer = QtCore.QElapsedTimer()  # debug
         self.scale = 174
         self.scanMemory = 50
-        self.scan3D = False
+        #self.scan3D = False
         self.surface = None
         self.vGrid = None
         self.usbCheck = QtCore.QTimer()
@@ -134,7 +134,7 @@ class analyser:
             self.maxF = 6000
             self.scale = 174
             ui.spur_box.setTristate(True)  # TinySA Ultra has 'auto', 'on' and 'off' setting for Spur
-            ui.spur_box.setCheckState(QtCore.Qt.PartiallyChecked)  # auto
+            ui.spur_box.setCheckState(checkboxes.tm.record(0).value("spur"))
         else:
             self.tinySA4 = False
             self.maxF = 960
@@ -151,7 +151,7 @@ class analyser:
 
         # show hardware information in GUI
         ui.battery.setText(self.battery())
-        ui.version.setText(hardware[:16])
+        ui.version.setText(hardware[8:16])
 
         # connect the rbw & frequency boxes here or it causes startup index errors when they are populated
         ui.rbw_box.currentIndexChanged.connect(rbwChanged)
@@ -193,7 +193,7 @@ class analyser:
         setPreferences()
 
     def scan(self):  # called by 'run' button
-        self.scan3D = ui.Enabled3D.isChecked()
+        # self.scan3D = ui.Enabled3D.isChecked()
         if self.usb is not None:
             if self.sweeping:  # if it's running, stop it
                 self.sweeping = False  # tells the measurement thread to stop once current scan complete
@@ -457,7 +457,8 @@ class analyser:
             np.fliplr(readings)
         if ui.points_auto.isChecked():
             ui.points_box.setValue(np.size(frequencies))
-        if ui.Enabled3D.isChecked():
+        #if ui.Enabled3D.isChecked():
+        if ui.stackedWidget.currentWidget() == ui.View3D:
             z = readings + 120  # Surface plot height shader needs positive numbers so convert from dBm to dBf
             logging.debug(f'z = {z}')
             self.surface.setData(z=z)  # update 3D graph
@@ -552,7 +553,7 @@ class analyser:
 
     def spur(self):
         sType = ui.spur_box.checkState()
-        options = {0: 'Spur removal off', 1: 'Spur removal auto', 2: 'Spur removal on'}
+        options = {0: 'Spur Off', 1: 'Spur Auto', 2: 'Spur On'}
         ui.spur_box.setText(options.get(sType))
         options = {0: 'spur off\r'.encode(), 1: 'spur auto\r'.encode(), 2: 'spur on\r'.encode()}
         command = options.get(sType)
@@ -1229,6 +1230,8 @@ ui.gridF.clicked.connect(lambda: tinySA.grid(1))
 ui.gridR.clicked.connect(lambda: tinySA.grid(-1))
 ui.zoom.sliderMoved.connect(tinySA.zoom3D)
 ui.reset3D.clicked.connect(tinySA.reset3D)
+ui.timeSpectrum.clicked.connect(lambda: ui.stackedWidget.setCurrentWidget(ui.View3D))
+ui.analyser.clicked.connect(lambda: ui.stackedWidget.setCurrentWidget(ui.ViewNormal))
 
 # preferences
 preferences.neg25Line.stateChanged.connect(lambda: S1.hEnable(preferences.neg25Line))
