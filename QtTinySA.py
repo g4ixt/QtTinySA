@@ -72,7 +72,7 @@ class analyser:
         self.runTimer = QtCore.QElapsedTimer()  # debug
         self.scale = 174
         self.scanMemory = 50
-        #self.scan3D = False
+        # self.scan3D = False
         self.surface = None
         self.vGrid = None
         self.usbCheck = QtCore.QTimer()
@@ -457,7 +457,7 @@ class analyser:
             np.fliplr(readings)
         if ui.points_auto.isChecked():
             ui.points_box.setValue(np.size(frequencies))
-        #if ui.Enabled3D.isChecked():
+        # if ui.Enabled3D.isChecked():
         if ui.stackedWidget.currentWidget() == ui.View3D:
             z = readings + 120  # Surface plot height shader needs positive numbers so convert from dBm to dBf
             logging.debug(f'z = {z}')
@@ -927,7 +927,7 @@ def addBandPressed():
             popUp(message, QMessageBox.Ok, QMessageBox.Information)
             return
         name = 'M' + str(round(S1.vline.value(), 6))
-        bands.insertData(name, S1.vline.value(), S2.vline.value(), '')
+        bands.insertData(name, ui.filterBox.currentText(), S1.vline.value(), S2.vline.value(), 'aliceblue', None)
     else:
         message = 'M1 and M2 must both be enabled to add a new Band'
         popUp(message, QMessageBox.Ok, QMessageBox.Information)
@@ -1274,6 +1274,7 @@ bands.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))  # set 'type' 
 fType = QSqlRelationalDelegate(preferences.freqBands)
 preferences.freqBands.setItemDelegate(fType)
 
+
 colHeader = preferences.freqBands.horizontalHeader()
 colHeader.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
 
@@ -1296,7 +1297,7 @@ bandstype.tm.select()
 # connect the preferences dialogue box freq band table widget to the data model
 preferences.freqBands.setModel(bands.tm)
 preferences.freqBands.hideColumn(0)  # ID
-rowHeader = preferences.freqBands.verticalHeader()
+preferences.freqBands.verticalHeader().setVisible(False)
 
 # Map database tables to preferences/GUI fields * lines need to be in this order and here or the mapping doesn't work *
 checkboxes.createTableModel()
