@@ -169,6 +169,7 @@ class analyser:
         self.freq_changed(False)  # start/stop mode
         pointsChanged()
         ui.graphWidget.setXRange(ui.start_freq.value(), ui.stop_freq.value())
+        logging.info(f'restoreSettings(): band = {numbers.tm.record(0).value("band")}')
 
         # update trace and marker settings from the database.  1 = last saved (default) settings
         S1.dLoad(1)
@@ -179,11 +180,9 @@ class analyser:
         S2.vline.setValue(numbers.tm.record(0).value('m2f'))
         S3.vline.setValue(numbers.tm.record(0).value('m3f'))
         S4.vline.setValue(numbers.tm.record(0).value('m4f'))
-
         #  set each marker to a different colour
         S1.vline.label.setColor('y')
         S2.vline.setPen(color='m', width=0.75, style=QtCore.Qt.DashLine)
-        # S2.vline.setPen(color=QtGui.QColor('darkgreen'), width=0.75, style=QtCore.Qt.DashLine)
         S2.vline.label.setColor('m')
         S3.vline.setPen(color='c', width=0.75, style=QtCore.Qt.DashLine)
         S3.vline.label.setColor('c')
@@ -191,9 +190,10 @@ class analyser:
         S4.vline.label.setColor('w')
 
         setPreferences()
+        ui.band_box.setCurrentText(numbers.tm.record(0).value("band"))
+        band_changed()
 
     def scan(self):  # called by 'run' button
-        # self.scan3D = ui.Enabled3D.isChecked()
         if self.usb is not None:
             if self.sweeping:  # if it's running, stop it
                 self.sweeping = False  # tells the measurement thread to stop once current scan complete
@@ -457,7 +457,6 @@ class analyser:
             np.fliplr(readings)
         if ui.points_auto.isChecked():
             ui.points_box.setValue(np.size(frequencies))
-        # if ui.Enabled3D.isChecked():
         if ui.stackedWidget.currentWidget() == ui.View3D:
             z = readings + 120  # Surface plot height shader needs positive numbers so convert from dBm to dBf
             logging.debug(f'z = {z}')
@@ -1021,6 +1020,14 @@ def about():
 
 def exit_handler():
     if tinySA.dev is not None:
+        # save the marker frequencies
+        record = numbers.tm.record(0)
+        record.setValue('m1f', float(S1.vline.value()))
+        record.setValue('m2f', float(S2.vline.value()))
+        record.setValue('m3f', float(S3.vline.value()))
+        record.setValue('m4f', float(S4.vline.value()))
+        numbers.tm.setRecord(0, record)
+        # save the gui field values and checkbox states
         numbers.dwm.submit()
         checkboxes.dwm.submit()
         if tinySA.sweeping:
