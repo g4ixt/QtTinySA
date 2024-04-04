@@ -1,5 +1,5 @@
 # QtTinySA  
-![Markers](https://github.com/g4ixt/QtTinySA/assets/76836635/cd2b9ee6-08e6-4c02-a7c2-6e2146e24ebf)
+![Screenshot_20240404_143416](https://github.com/g4ixt/QtTinySA/assets/76836635/47d9e6e9-daeb-4ae3-8e9c-91b5f041f6ff)
 
 A Python 'TinySA Ultra' (and original 'TinySA') GUI programme using Qt5 and PyQt5. Designed to run in Linux but works in Windows (minimal testing) and mac (no testing).  
 The Windows executable does not work on Windows versions < 10. 
@@ -15,35 +15,11 @@ http://athome.kaashoek.com/tinySA/python/
 The serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset
 https://github.com/Ho-Ro
 
-Dependencies: Install from your repository - numpy, pyqtgraph, pyopengl, pyqt5, pyserial.  
-You may need to add the Qt5 SQLite 3 database driver (libqt5sql5-sqlite) and Python3 bindings for QT5's SQL Module.  
+Dependencies: Install from your repository - numpy, pyqtgraph, pyopengl, pyqt5, pyserial, platformdirs.  
+You may need to add the Qt5 SQLite 3 database driver (libqt5sql5-sqlite) and Python3 bindings for QT5's SQL Module.  You may need to update 'platformdirs'.
 If you get a serial exception on startup, add your username to the 'dialout' group.  
 The 3D (time) spectrum requires OpenGL
 
 The GUI was originally designed for a 7" 1024 x 600 screen but should maximise properly.  The GUI appearence may change significantly due to development.
 
-There is limited error trapping.  The 3D spectrum can sometimes crash the Application, but this only happens if it's enabled.  
-
-Working Features (v0.8 onwards):  
-
-Trace updates as tinySA scans.  
-LNA on/off.  
-SPUR auto/off.  
-Scan points selectable between 20 and 30,000 set manually or automatically based on RBW.    
-RBW control.  
-4 different colour traces, all can be turned on/off and set to average, max hold or min hold.  
-Selectable averaging.  
-Selectable memory depth.  
-Band frequency selection.  
-Start/stop frequency selection.  
-4 different colour markers.  Each trace has 1 marker associated with it. Markers can be set to normal, delta, or one of the four largest peaks
-with a selectable threshold.  
-The selected marker(s) can be set to sweep start frequency with a button, or can be draggged to any desired frequency.  
-All standard pyqtgraph features, selectable by right-click on the graph display, including:  
-    Export as CSV, HDF5, Image file of various types, Matplotlib window, SVG  
-3D spectrum with measurements over time represented as a surface plot.  Can be clicked/zoomed/dragged/rotated using the mouse
-and with the control buttons.  
-The 3D spectrum can be enabled/disabled on its tab page.  Disabled by default.  
-Trace and marker settings are saved when the programme is closed and restored when opened.  
-The 'band' frequencies can be edited and made visible or hidden in the preferences menu.  
-The signal level reminder lines can be made visible or hidden in the preferences menu.  
+There is limited error trapping.
