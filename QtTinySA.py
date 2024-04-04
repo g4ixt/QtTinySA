@@ -817,12 +817,12 @@ class modelView():
         self.currentRow = preferences.freqBands.currentIndex().row()  # the row index from the QModelIndexObject
         logging.debug(f'row {self.currentRow} clicked')
 
-    def insertData(self, name, typeF, startF, stopF, colour, visible):
+    def insertData(self, name, typeF, startF, stopF, visible, colour):
         record = self.tm.record()
+        record.setValue('value', int(eval(visible)))  # converts string(visible) 'True' 'False' to 1 or 0
         record.setValue('name', name)
         record.setValue('startF', f'{startF:.6f}')
         record.setValue('stopF', f'{stopF:.6f}')
-        # record.setValue('LO', f'{LO}')
         bandstype.tm.setFilter('preset = "' + typeF + '"')  # using relation directly doesn't seem to work
         bandstype.tm.select()
         record.setValue('preset', bandstype.tm.record(0).value('ID'))
@@ -857,7 +857,7 @@ class modelView():
                     logging.info(f'header = {header}')
                     indx = self.findCols(header)
                     continue
-                if len(indx) == 6:  # (name, preset(=type), startF, stopF, value(=visible), colour)
+                if len(indx) == 6:  # (name, preset(=type), startF, stopF, visible, colour)
                     logging.info(f'row = {row}')
                     bands.insertData(row[indx[0]], row[indx[1]], float(row[indx[2]]), float(row[indx[3]]), row[indx[4]], row[indx[5]])
                 elif len(indx) == 3:
@@ -927,7 +927,7 @@ def addBandPressed():
             popUp(message, QMessageBox.Ok, QMessageBox.Information)
             return
         name = 'M' + str(round(S1.vline.value(), 6))
-        bands.insertData(name, ui.filterBox.currentText(), S1.vline.value(), S2.vline.value(), 'aliceblue', None)
+        bands.insertData(name, ui.filterBox.currentText(), S1.vline.value(), S2.vline.value(), 'True', 'aliceblue')
     else:
         message = 'M1 and M2 must both be enabled to add a new Band'
         popUp(message, QMessageBox.Ok, QMessageBox.Information)
