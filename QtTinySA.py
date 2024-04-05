@@ -190,7 +190,7 @@ class analyser:
         S4.vline.label.setColor('w')
 
         setPreferences()
-        ui.band_box.setCurrentText(numbers.tm.record(0).value("band"))
+        ui.band_box.setCurrentText(numbers.tm.record(0).value("band"))  # this shouldn't be needed but it is
         band_changed()
 
     def scan(self):  # called by 'run' button
