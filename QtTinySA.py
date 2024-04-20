@@ -816,20 +816,11 @@ class modelView():
         self.currentRow = preferences.freqBands.currentIndex().row()  # the row index from the QModelIndexObject
         logging.debug(f'row {self.currentRow} clicked')
 
-    def insertData(self, name, typeF, startF, stopF, visible, colour):
+    def insertData(self, **data):
         record = self.tm.record()
-        record.setValue('value', int(eval(visible)))  # converts string(visible) 'True' 'False' to 1 or 0
-        record.setValue('name', name)
-        record.setValue('startF', f'{startF:.6f}')
-        record.setValue('stopF', f'{stopF:.6f}')
-        bandstype.tm.setFilter('preset = "' + typeF + '"')  # using relation directly doesn't seem to work
-        bandstype.tm.select()
-        record.setValue('preset', bandstype.tm.record(0).value('ID'))
-        colours.tm.setFilter('colour = "' + colour + '"')  # using relation directly doesn't seem to work
-        colours.tm.select()
-        record.setValue('colour', colours.tm.record(0).value('ID'))
+        for key, value in data.items():
+            record.setValue(str(key), value)
         self.tm.insertRecord(-1, record)
-        bandstype.tm.setFilter('')
         self.tm.select()
         self.tm.layoutChanged.emit()
         self.dwm.submit()
@@ -849,19 +840,26 @@ class modelView():
 
     def readCSV(self, fileName):
         with open(fileName, "r") as fileInput:
-            header = None
-            for row in csv.reader(fileInput):
-                if not header:
-                    header = row
-                    logging.info(f'header = {header}')
-                    indx = self.findCols(header)
-                    continue
-                if len(indx) == 6:  # (name, preset(=type), startF, stopF, visible, colour)
-                    logging.info(f'row = {row}')
-                    bands.insertData(row[indx[0]], row[indx[1]], float(row[indx[2]]), float(row[indx[3]]), row[indx[4]], row[indx[5]])
-                elif len(indx) == 3:
-                    bands.insertData(row[indx[0]], 'RF mic', float(row[indx[1]]) / 1e3, 0, row[indx[2]].lower())
-                    logging.debug(f'colour = {row[indx[2]].lower()}')
+            reader = csv.DictReader(fileInput)
+            for row in reader:
+                record = self.tm.record()
+                for key, value in row.items():
+                    if key == 'preset':  # because relational mapping doesn't work for this field
+                        value = presetID(value)
+                    if key == 'value':
+                        value = int(eval(value))  # because relational mapping doesn't work for this field
+                    if key == 'Frequency':  # to match RF mic CSV files
+                        key = 'startF'
+                        value = str(float(value) / 1e3)
+                    if key != 'ID':  # ID is the table primary key and is auto-populated
+                        record.setValue(str(key), value)
+                logging.info(f'record.val = {record.value("value")}')
+                if record.value('value') not in (0, 1):  # because it's not present in RF mic CSV files
+                    record.setValue('value', 1)
+                self.tm.insertRecord(-1, record)
+        self.tm.select()
+        self.tm.layoutChanged.emit()
+        self.dwm.submit()
 
     def writeCSV(self, fileName):
         header = []
@@ -874,23 +872,6 @@ class modelView():
                 fields = [self.tm.data(self.tm.index(rowNumber, columnNumber))
                           for columnNumber in range(1, 8)]
                 output.writerow(fields)
-
-    def findCols(self, header):
-        indx = []
-        try:
-            for i in range(1, self.tm.columnCount()):  # start at 1 - don't include ID column
-                indx.append(header.index(self.tm.record().fieldName(i)))  # Match to QtTinySA CSV export format
-                logging.info(f'i = {i} indx = {indx}')
-        except ValueError:
-            indx = []
-            try:
-                indx.append(header.index('Name'))  # Match to RF mic export format
-                indx.append(header.index('Frequency'))
-                indx.append(header.index('Colour'))
-            except ValueError:
-                popUp('CSV Import failed: Field headers were not identified', QMessageBox.Ok, QMessageBox.Critical)
-                return
-        return indx
 
     def mapWidget(self, modelName):  # maps the widget combo-box fields to the database tables, using the mapping table
         maps.tm.setFilter('model = "' + modelName + '"')
@@ -925,8 +906,11 @@ def addBandPressed():
             message = 'M1 frequency >= M2 frequency'
             popUp(message, QMessageBox.Ok, QMessageBox.Information)
             return
-        name = 'M' + str(round(S1.vline.value(), 6))
-        bands.insertData(name, ui.filterBox.currentText(), S1.vline.value(), S2.vline.value(), 'True', 'aliceblue')
+        bandName = 'M' + str(round(S1.vline.value(), 6))
+        # bands.insertData(name, ui.filterBox.currentText(), S1.vline.value(), S2.vline.value(), 'True', 'aliceblue')
+        ID = presetID(str(ui.filterBox.currentText()))
+        bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value():.6f}',
+                         stopF=f'{S2.vline.value():.6f}', value=1, colour="aliceblue")
     else:
         message = 'M1 and M2 must both be enabled to add a new Band'
         popUp(message, QMessageBox.Ok, QMessageBox.Information)
@@ -1054,13 +1038,16 @@ def freqMarkers():
     S2.delFreqMarkers()
     if ui.presetMarker.isChecked():
         for i in range(0, bands.tm.rowCount()):
-            startF = bands.tm.record(i).value('StartF')
-            colour = bands.tm.record(i).value('colour')
-            name = bands.tm.record(i).value('name')
-            S1.addFreqMarker(startF, colour, name)
-            stopF = bands.tm.record(i).value('StopF')
-            if bandstype.tm.record(ui.filterBox.currentIndex()).value('type') == 'band':
-                S2.addFreqMarker(stopF, colour, '')
+            try:
+                startF = bands.tm.record(i).value('StartF')
+                colour = bands.tm.record(i).value('colour')
+                name = bands.tm.record(i).value('name')
+                S1.addFreqMarker(startF, colour, name)
+                stopF = bands.tm.record(i).value('StopF')
+                if bandstype.tm.record(ui.filterBox.currentIndex()).value('type') == 'band':
+                    S2.addFreqMarker(stopF, colour, '')
+            except ValueError:
+                continue
 
 
 def freqMarkerLabel():
@@ -1099,6 +1086,14 @@ def isMixerMode():
         ui.centre_freq.setMaximum(100000)
         ui.stop_freq.setMaximum(100000)
 
+def presetID(typeF):  # using the QSQLRelation directly doesn't work for preset.  Can't see why.
+    for i in range(0, bandstype.tm.rowCount()):
+        preset = bandstype.tm.record(i).value('preset')
+        if preset == typeF:
+            ID = bandstype.tm.record(i).value('ID')
+            break
+    return ID
+
 ###############################################################################
 # Instantiate classes
 
@@ -1107,7 +1102,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.2')
+app.setApplicationVersion(' v0.10.3')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1278,9 +1273,8 @@ colour = QSqlRelationalDelegate(preferences.freqBands)
 preferences.freqBands.setItemDelegate(colour)
 
 bands.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))  # set 'type' column to a freq type choice combo box
-fType = QSqlRelationalDelegate(preferences.freqBands)
-preferences.freqBands.setItemDelegate(fType)
-
+preset = QSqlRelationalDelegate(preferences.freqBands)
+preferences.freqBands.setItemDelegate(preset)
 
 colHeader = preferences.freqBands.horizontalHeader()
 colHeader.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
