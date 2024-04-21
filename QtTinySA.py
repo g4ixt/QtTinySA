@@ -844,18 +844,22 @@ class modelView():
             for row in reader:
                 record = self.tm.record()
                 for key, value in row.items():
-                    if key == 'preset':  # because relational mapping doesn't work for this field
+                    # relational mapping doesn't work for these fields
+                    if key == 'preset':
                         value = presetID(value)
+                    if key.lower() == 'colour':
+                        value = colourID(value)
                     if key == 'value':
-                        value = int(eval(value))  # because relational mapping doesn't work for this field
+                        value = int(eval(value))
                     if key == 'Frequency':  # to match RF mic CSV files
                         key = 'startF'
                         value = str(float(value) / 1e3)
                     if key != 'ID':  # ID is the table primary key and is auto-populated
                         record.setValue(str(key), value)
-                logging.info(f'record.val = {record.value("value")}')
                 if record.value('value') not in (0, 1):  # because it's not present in RF mic CSV files
                     record.setValue('value', 1)
+                if record.value('preset') == '':  # preset missing so use current preferences filterbox text
+                    record.setValue('preset', presetID(preferences.filterBox.currentText()))
                 self.tm.insertRecord(-1, record)
         self.tm.select()
         self.tm.layoutChanged.emit()
@@ -1056,14 +1060,14 @@ def freqMarkerLabel():
 
 def exportData():
     filename = QFileDialog.getSaveFileName(caption="Save As", filter="Comma Separated Values (*.csv)")
-    logging.info(f'filename {filename}')
+    logging.info(f'export filename is {filename[0]}')
     if filename[0] != '':
         bands.writeCSV(filename[0])
 
 
 def importData():
     filename = QFileDialog.getOpenFileName(caption="Select File to Import", filter="Comma Separated Values (*.csv)")
-    logging.info(f'filename {filename}')
+    logging.info(f'import filename is {filename[0]}')
     if filename[0] != '':
         bands.readCSV(filename[0])
 
@@ -1086,13 +1090,24 @@ def isMixerMode():
         ui.centre_freq.setMaximum(100000)
         ui.stop_freq.setMaximum(100000)
 
+
 def presetID(typeF):  # using the QSQLRelation directly doesn't work for preset.  Can't see why.
     for i in range(0, bandstype.tm.rowCount()):
         preset = bandstype.tm.record(i).value('preset')
         if preset == typeF:
             ID = bandstype.tm.record(i).value('ID')
-            break
-    return ID
+            return ID
+    return 1
+
+
+def colourID(shade):  # using the QSQLRelation directly doesn't work for colour.  Can't see why.
+    for i in range(0, colours.tm.rowCount()):
+        colour = colours.tm.record(i).value('colour')
+        if colour == shade.lower():
+            ID = colours.tm.record(i).value('ID')
+            return ID
+    return 1
+
 
 ###############################################################################
 # Instantiate classes
