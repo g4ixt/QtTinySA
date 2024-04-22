@@ -169,7 +169,7 @@ class analyser:
         self.freq_changed(False)  # start/stop mode
         pointsChanged()
         ui.graphWidget.setXRange(ui.start_freq.value(), ui.stop_freq.value())
-        logging.info(f'restoreSettings(): band = {numbers.tm.record(0).value("band")}')
+        logging.debug(f'restoreSettings(): band = {numbers.tm.record(0).value("band")}')
 
         # update trace and marker settings from the database.  1 = last saved (default) settings
         S1.dLoad(1)
@@ -794,9 +794,11 @@ class modelView():
         self.dwm.setModel(self.tm)
         self.dwm.setSubmitPolicy(QDataWidgetMapper.AutoSubmit)
 
-    def addRow(self):  # adds a blank row to the frequency bands table widget
-        self.tm.insertRow(self.currentRow + 1)
-        self.currentRow += 1
+    def addRow(self):  # adds a blank row to the frequency bands table widget above current row
+        if self.currentRow == 0:
+            self.tm.insertRow(0)
+        else:
+            self.tm.insertRow(self.currentRow)
         preferences.freqBands.selectRow(self.currentRow)
 
     def saveChanges(self):
@@ -851,7 +853,8 @@ class modelView():
                         value = colourID(value)
                     if key == 'value':
                         value = int(eval(value))
-                    if key == 'Frequency':  # to match RF mic CSV files
+                    # to match RF mic CSV files
+                    if key == 'Frequency':
                         key = 'startF'
                         value = str(float(value) / 1e3)
                     if key != 'ID':  # ID is the table primary key and is auto-populated
@@ -911,7 +914,6 @@ def addBandPressed():
             popUp(message, QMessageBox.Ok, QMessageBox.Information)
             return
         bandName = 'M' + str(round(S1.vline.value(), 6))
-        # bands.insertData(name, ui.filterBox.currentText(), S1.vline.value(), S2.vline.value(), 'True', 'aliceblue')
         ID = presetID(str(ui.filterBox.currentText()))
         bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value():.6f}',
                          stopF=f'{S2.vline.value():.6f}', value=1, colour="aliceblue")
