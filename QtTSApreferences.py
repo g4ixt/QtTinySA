@@ -72,6 +72,7 @@ class Ui_Preferences(object):
         self.label_12.setObjectName("label_12")
         self.gridLayout.addWidget(self.label_12, 3, 0, 1, 1)
         self.filterBox = QtWidgets.QComboBox(self.layoutWidget)
+        self.filterBox.setEditable(False)
         self.filterBox.setObjectName("filterBox")
         self.gridLayout.addWidget(self.filterBox, 3, 1, 1, 1)
         self.exportButton = QtWidgets.QPushButton(self.layoutWidget)

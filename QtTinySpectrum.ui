@@ -848,7 +848,7 @@
              </font>
             </property>
             <property name="toolTip">
-             <string>Mark preset freqs</string>
+             <string>Show markers for preset freqs</string>
             </property>
             <property name="text">
              <string>Presets</string>
@@ -1065,10 +1065,13 @@
              </font>
             </property>
             <property name="toolTip">
-             <string>Label preset freqs</string>
+             <string>Show/hide/rotate preset marker labels</string>
             </property>
             <property name="text">
-             <string>Labels</string>
+             <string>Label</string>
+            </property>
+            <property name="tristate">
+             <bool>true</bool>
             </property>
            </widget>
           </item>

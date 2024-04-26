@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'QtTinySpectrum_small.ui'
+# Form implementation generated from reading ui file 'QtTinySpectrum.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.10
 #
@@ -500,6 +500,7 @@ class Ui_MainWindow(object):
         font = QtGui.QFont()
         font.setPointSize(8)
         self.presetLabel.setFont(font)
+        self.presetLabel.setTristate(True)
         self.presetLabel.setObjectName("presetLabel")
         self.gridLayout_2.addWidget(self.presetLabel, 2, 10, 1, 1)
         self.marker3 = QtWidgets.QCheckBox(self.ViewNormal)
@@ -976,7 +977,7 @@ class Ui_MainWindow(object):
         self.filterBox.setToolTip(_translate("MainWindow", "Filter preset list"))
         self.centre_freq.setToolTip(_translate("MainWindow", "Sweep Centre"))
         self.scan_button.setText(_translate("MainWindow", "Run"))
-        self.presetMarker.setToolTip(_translate("MainWindow", "Mark preset freqs"))
+        self.presetMarker.setToolTip(_translate("MainWindow", "Show markers for preset freqs"))
         self.presetMarker.setText(_translate("MainWindow", "Presets"))
         self.band_box.setToolTip(_translate("MainWindow", "<html><head/><body><p>Preset Frequency list</p></body></html>"))
         self.m4_type.setToolTip(_translate("MainWindow", "Marker Type"))
@@ -985,8 +986,8 @@ class Ui_MainWindow(object):
         self.m3_type.setToolTip(_translate("MainWindow", "Marker type"))
         self.marker4.setText(_translate("MainWindow", "M4"))
         self.start_freq.setToolTip(_translate("MainWindow", "Sweep Start"))
-        self.presetLabel.setToolTip(_translate("MainWindow", "Label preset freqs"))
-        self.presetLabel.setText(_translate("MainWindow", "Labels"))
+        self.presetLabel.setToolTip(_translate("MainWindow", "Show/hide/rotate preset marker labels"))
+        self.presetLabel.setText(_translate("MainWindow", "Label"))
         self.marker3.setText(_translate("MainWindow", "M3"))
         self.timeSpectrum.setToolTip(_translate("MainWindow", "3D spectrum"))
         self.timeSpectrum.setText(_translate("MainWindow", "3D"))
