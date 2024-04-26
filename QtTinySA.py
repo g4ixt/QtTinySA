@@ -684,14 +684,14 @@ class display:
             else:
                 self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz {dBm:.1f}dBm')
 
-    def addFreqMarker(self, freq, colour, name):  # adds simple frequency marker without full marker capability
+    def addFreqMarker(self, freq, colour, name, position):  # adds simple freq marker without full marker capability
         if ui.presetLabel.isChecked():
-            marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5, style=QtCore.Qt.DashLine),
-                                            label=name, labelOpts={'position': 0.05, 'color': (colour)})
-            marker.label.setMovable(True)
+            self.marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5, style=QtCore.Qt.DashLine),
+                                            label=name, labelOpts={'position': position, 'color': (colour)})
+            self.marker.label.setMovable(True)
         else:
-            marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5, style=QtCore.Qt.DashLine))
-        self.fifo.put(marker)  # store the marker object in a queue
+            self.marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5, style=QtCore.Qt.DashLine))
+        self.fifo.put(self.marker)  # store the marker object in a queue
 
     def delFreqMarkers(self):
         for i in range(0, self.fifo.qsize()):
@@ -846,7 +846,7 @@ class modelView():
             for row in reader:
                 record = self.tm.record()
                 for key, value in row.items():
-                    # relational mapping doesn't work for these fields
+                    # don't understand how to make relation work for these fields
                     if key == 'preset':
                         value = presetID(value)
                     if key.lower() == 'colour':
@@ -1040,20 +1040,25 @@ def popUp(message, button, icon):
 
 
 def freqMarkers():
+    presetmarker.tm.select()
     S1.delFreqMarkers()
     S2.delFreqMarkers()
-    if ui.presetMarker.isChecked():
-        for i in range(0, bands.tm.rowCount()):
-            try:
-                startF = bands.tm.record(i).value('StartF')
-                colour = bands.tm.record(i).value('colour')
-                name = bands.tm.record(i).value('name')
-                S1.addFreqMarker(startF, colour, name)
-                stopF = bands.tm.record(i).value('StopF')
-                if bandstype.tm.record(ui.filterBox.currentIndex()).value('type') == 'band':
-                    S2.addFreqMarker(stopF, colour, '')
-            except ValueError:
-                continue
+    for i in range(0, presetmarker.tm.rowCount()):
+        try:
+            startF = presetmarker.tm.record(i).value('StartF')
+            colour = presetmarker.tm.record(i).value('colour')
+            name = presetmarker.tm.record(i).value('name')
+            if ui.presetMarker.isChecked() and presetmarker.tm.record(i).value('visible')\
+                    and presetmarker.tm.record(i).value('type') != 'band':
+                S1.addFreqMarker(startF, colour, name, 0.05)
+                if ui.presetLabel.isChecked() and ui.presetLabel.checkState() == 2:
+                    S1.marker.label.setAngle(90)
+            if presetmarker.tm.record(i).value('type') == 'band':
+                stopF = presetmarker.tm.record(i).value('StopF')
+                S1.addFreqMarker(startF, colour, name, 0.98)
+                S2.addFreqMarker(stopF, colour, name, 0.98)
+        except ValueError:
+            continue
 
 
 def freqMarkerLabel():
@@ -1114,7 +1119,6 @@ def colourID(shade):  # using the QSQLRelation directly doesn't work for colour.
 ###############################################################################
 # Instantiate classes
 
-
 tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
@@ -1149,6 +1153,7 @@ bandstype = modelView('freqtype')
 colours = modelView('SVGColour')
 maps = modelView('mapping')
 
+presetmarker = modelView(('frequencies'))
 
 ###############################################################################
 # GUI settings
@@ -1180,7 +1185,6 @@ S3.hline.setPen('r')
 S4.hline.setPen(red_dash, width=0.5)
 S4.hline.setMovable(True)
 S4.hline.label.setFormat("{value:.1f}")
-
 
 ###############################################################################
 # Connect signals from buttons and sliders.  Connections for freq and rbw boxes are in 'initialise' Fn
@@ -1218,9 +1222,10 @@ ui.m3_type.activated.connect(S3.mType)
 ui.m4_type.activated.connect(S4.mType)
 
 # frequency band markers
-ui.presetMarker.stateChanged.connect(freqMarkers)
+ui.presetMarker.clicked.connect(freqMarkers)
 ui.presetLabel.stateChanged.connect(freqMarkerLabel)
 ui.mToBand.clicked.connect(addBandPressed)
+ui.filterBox.currentTextChanged.connect(freqMarkers)
 
 # trace checkboxes
 ui.trace1.stateChanged.connect(S1.tEnable)
@@ -1276,29 +1281,31 @@ logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 # table models - read/write views of the configuration data
 maps.createTableModel()
 maps.tm.select()
-bands.createTableModel()  # relational
+
+bands.createTableModel()
 bands.tm.setSort(3, QtCore.Qt.AscendingOrder)
 bands.tm.setHeaderData(5, QtCore.Qt.Horizontal, 'visible')
 bands.tm.setHeaderData(7, QtCore.Qt.Horizontal, 'LO')
-
-bands.tm.setRelation(5, QSqlRelation('boolean', 'ID', 'value'))  # set 'view' column to a True/False choice combo box
-boolean = QSqlRelationalDelegate(preferences.freqBands)
-preferences.freqBands.setItemDelegate(boolean)
-
-bands.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))  # set 'marker' column to a colours choice combo box
-colour = QSqlRelationalDelegate(preferences.freqBands)
-preferences.freqBands.setItemDelegate(colour)
-
+bands.tm.setEditStrategy(QSqlRelationalTableModel.OnFieldChange)
 bands.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))  # set 'type' column to a freq type choice combo box
-preset = QSqlRelationalDelegate(preferences.freqBands)
-preferences.freqBands.setItemDelegate(preset)
+bands.tm.setRelation(5, QSqlRelation('boolean', 'ID', 'value'))  # set 'view' column to a True/False choice combo box
+bands.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))  # set 'marker' column to a colours choice combo box
 
+presets = QSqlRelationalDelegate(preferences.freqBands)
+preferences.freqBands.setItemDelegate(presets)
 colHeader = preferences.freqBands.horizontalHeader()
 colHeader.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
 
 bandstype.createTableModel()
+bandstype.tm.select()
+
 colours.createTableModel()
 colours.tm.select()
+
+presetmarker.createTableModel()
+presetmarker.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))
+presetmarker.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'type'))
+presetmarker.tm.select()
 
 # populate the band presets combo box
 ui.band_box.setModel(bands.tm)
@@ -1310,7 +1317,6 @@ preferences.filterBox.setModel(bandstype.tm)
 preferences.filterBox.setModelColumn(1)
 ui.filterBox.setModel(bandstype.tm)
 ui.filterBox.setModelColumn(1)
-bandstype.tm.select()
 
 # connect the preferences dialogue box freq band table widget to the data model
 preferences.freqBands.setModel(bands.tm)
