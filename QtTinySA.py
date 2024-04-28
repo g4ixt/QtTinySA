@@ -893,7 +893,7 @@ class modelView():
 
 def band_changed():
     index = ui.band_box.currentIndex()
-    if bandstype.tm.record(ui.filterBox.currentIndex()).value('type') == 'band':
+    if bands.tm.record(index).value('stopF') != '':
         startF = bands.tm.record(index).value('StartF')
         stopF = bands.tm.record(index).value('StopF')
         ui.start_freq.setValue(startF)
@@ -1058,11 +1058,11 @@ def freqMarkers():
             colour = presetmarker.tm.record(i).value('colour')
             name = presetmarker.tm.record(i).value('name')
             if ui.presetMarker.isChecked() and presetmarker.tm.record(i).value('visible')\
-                    and presetmarker.tm.record(i).value('type') != 'band':
+                    and presetmarker.tm.record(i).value('stopF') == '':
                 S1.addFreqMarker(startF, colour, name, 0.05)
                 if ui.presetLabel.isChecked() and ui.presetLabel.checkState() == 2:
                     S1.marker.label.setAngle(90)
-            if presetmarker.tm.record(i).value('type') == 'band':
+            if presetmarker.tm.record(i).value('stopF') != '':
                 stopF = presetmarker.tm.record(i).value('StopF')
                 S1.addFreqMarker(startF, colour, name, 0.98)
                 S2.addFreqMarker(stopF, colour, name, 0.98)
