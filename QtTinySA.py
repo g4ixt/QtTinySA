@@ -25,7 +25,7 @@ import platformdirs
 import csv
 from platform import system
 from PyQt5 import QtWidgets, QtCore
-from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog
+from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit
 from PyQt5.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate
 import pyqtgraph
 import QtTinySpectrum  # the GUI
@@ -849,7 +849,7 @@ class modelView():
                     # don't understand how to make relation work for these fields
                     if key == 'preset':
                         value = presetID(value)
-                    if key.lower() == 'colour':
+                    if key == 'colour':
                         value = colourID(value)
                     if key == 'value':
                         value = int(eval(value))
@@ -908,18 +908,27 @@ def band_changed():
 
 
 def addBandPressed():
-    if ui.marker1.isChecked() and ui.marker2.isChecked():
+    if not ui.marker1.isChecked():
+        message = 'Please enable Marker 1'
+        popUp(message, QMessageBox.Ok, QMessageBox.Information)
+        return
+    if ui.marker1.isChecked() and ui.marker2.isChecked(): # Two markers are to set the band limits of a new band
         if S1.vline.value() >= S2.vline.value():
             message = 'M1 frequency >= M2 frequency'
             popUp(message, QMessageBox.Ok, QMessageBox.Information)
             return
-        bandName = 'M' + str(round(S1.vline.value(), 6))
         ID = presetID(str(ui.filterBox.currentText()))
+        title = "New Frequency Band"
+        message = "Input the name of your new band."
+        bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal,"")
         bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value():.6f}',
-                         stopF=f'{S2.vline.value():.6f}', value=1, colour="aliceblue")
-    else:
-        message = 'M1 and M2 must both be enabled to add a new Band'
-        popUp(message, QMessageBox.Ok, QMessageBox.Information)
+                         stopF=f'{S2.vline.value():.6f}', value=1, colour= colourID('green'))  # colourID(value)
+    else:  # If only Marker 1 is enabled then this creates a spot Frequency marker
+        title = "New Spot Frequency"
+        message = "Input the Name for your Spot Frequency"
+        spotName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
+        bands.insertData(name=spotName, preset="12", startF=f'{S1.vline.value():.6f}',
+                         stopF='', value=1, colour= colourID('orange')) # preset 12 is Marker (spot frequency).
 
 
 def attenuate_changed():
@@ -1123,7 +1132,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.3')
+app.setApplicationVersion(' v0.10.4')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)

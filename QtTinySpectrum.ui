@@ -7,8 +7,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1000</width>
-    <height>603</height>
+    <width>1024</width>
+    <height>617</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -742,7 +742,7 @@
              </font>
             </property>
             <property name="toolTip">
-             <string>Add Band preset from M1 and M2</string>
+             <string>Use M1 to add Marker, or M1 and M2 to add Band</string>
             </property>
             <property name="text">
              <string>+</string>
@@ -1930,8 +1930,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1000</width>
-     <height>23</height>
+     <width>1024</width>
+     <height>30</height>
     </rect>
    </property>
    <widget class="QMenu" name="menu_Help">
