@@ -14,7 +14,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(1000, 603)
+        MainWindow.resize(1024, 617)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -901,7 +901,7 @@ class Ui_MainWindow(object):
         self.statusbar.setObjectName("statusbar")
         MainWindow.setStatusBar(self.statusbar)
         self.menuBar = QtWidgets.QMenuBar(MainWindow)
-        self.menuBar.setGeometry(QtCore.QRect(0, 0, 1000, 23))
+        self.menuBar.setGeometry(QtCore.QRect(0, 0, 1024, 30))
         self.menuBar.setObjectName("menuBar")
         self.menu_Help = QtWidgets.QMenu(self.menuBar)
         self.menu_Help.setObjectName("menu_Help")
@@ -972,7 +972,7 @@ class Ui_MainWindow(object):
         self.mkr_centre.setToolTip(_translate("MainWindow", "Set markers in range"))
         self.mkr_centre.setText(_translate("MainWindow", "..."))
         self.avgSlider.setToolTip(_translate("MainWindow", "Averaging"))
-        self.mToBand.setToolTip(_translate("MainWindow", "Add Band preset from M1 and M2"))
+        self.mToBand.setToolTip(_translate("MainWindow", "Use M1 to add Marker, or M1 and M2 to add Band"))
         self.mToBand.setText(_translate("MainWindow", "+"))
         self.filterBox.setToolTip(_translate("MainWindow", "Filter preset list"))
         self.centre_freq.setToolTip(_translate("MainWindow", "Sweep Centre"))
