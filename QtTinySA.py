@@ -164,7 +164,6 @@ class analyser:
        # ui.band_box.activated.connect(band_changed)
         ui.band_box.currentIndexChanged.connect(band_changed)
         ui.band_box.activated.connect(band_changed)
-        logging.info(f'groups: {os.getgroups()}')
         self.fifoTimer.start(500)  # calls self.usbSend() every 500mS to execute serial commands whilst not scanning
 
     def restoreSettings(self):
@@ -1184,15 +1183,16 @@ bandstype = modelView('freqtype')
 colours = modelView('SVGColour')
 maps = modelView('mapping')
 
-presetmarker = modelView(('frequencies'))
+presetmarker = modelView('frequencies')
 
 ###############################################################################
 # GUI settings
 
 # pyqtgraph settings for spectrum display
 ui.graphWidget.disableAutoRange()  # supposed to make pyqtgraph plot faster
+#
 ui.graphWidget.setYRange(-110, 5)
-ui.graphWidget.setXRange(87.5, 108)
+# ui.graphWidget.setXRange(87.5, 108)
 ui.graphWidget.setBackground('k')  # black
 ui.graphWidget.showGrid(x=True, y=True)
 
