@@ -162,7 +162,10 @@ class analyser:
         ui.centre_freq.valueChanged.connect(lambda: self.freq_changed(True))  # centre/span mode
         ui.span_freq.valueChanged.connect(lambda: self.freq_changed(True))  # centre/span mode
         ui.band_box.activated.connect(band_changed)
+<<<<<<< HEAD
 
+=======
+>>>>>>> development
         self.fifoTimer.start(500)  # calls self.usbSend() every 500mS to execute serial commands whilst not scanning
 
     def restoreSettings(self):
@@ -1177,15 +1180,16 @@ bandstype = modelView('freqtype')
 colours = modelView('SVGColour')
 maps = modelView('mapping')
 
-presetmarker = modelView(('frequencies'))
+presetmarker = modelView('frequencies')
 
 ###############################################################################
 # GUI settings
 
 # pyqtgraph settings for spectrum display
 ui.graphWidget.disableAutoRange()  # supposed to make pyqtgraph plot faster
+#
 ui.graphWidget.setYRange(-110, 5)
-ui.graphWidget.setXRange(87.5, 108)
+# ui.graphWidget.setXRange(87.5, 108)
 ui.graphWidget.setBackground('k')  # black
 ui.graphWidget.showGrid(x=True, y=True)
 
