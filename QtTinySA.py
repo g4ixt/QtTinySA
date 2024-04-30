@@ -17,6 +17,7 @@ Serial communication commands are based on Martin's Python NanoVNA/TinySA Toolse
 
 import os
 import time
+import math
 import logging
 import numpy as np
 import queue
@@ -102,8 +103,7 @@ class analyser:
                 self.usb = serial.Serial(self.dev, baudrate=576000)
                 logging.info(f'Serial port open: {self.usb.isOpen()}')
             except serial.SerialException:
-                logging.info('Serial port exception.  Is your username in the "dialout" group?')
-                logging.info(f'groups: {os.getgroups()}')
+                logging.info('serial port exception')
                 popUp('Serial Port Exception', QMessageBox.Ok, QMessageBox.Critical)
         if self.dev and self.usb:
             self.initialise()
@@ -161,10 +161,8 @@ class analyser:
         ui.stop_freq.editingFinished.connect(self.freq_changed)
         ui.centre_freq.valueChanged.connect(lambda: self.freq_changed(True))  # centre/span mode
         ui.span_freq.valueChanged.connect(lambda: self.freq_changed(True))  # centre/span mode
-       # ui.band_box.activated.connect(band_changed)
-        ui.band_box.currentIndexChanged.connect(band_changed)
         ui.band_box.activated.connect(band_changed)
-        logging.info(f'groups: {os.getgroups()}')
+
         self.fifoTimer.start(500)  # calls self.usbSend() every 500mS to execute serial commands whilst not scanning
 
     def restoreSettings(self):
@@ -228,6 +226,7 @@ class analyser:
         self.createTimeSpectrum(frequencies, readings)
         self.reset3D()
         threadpool.start(self.sweep)
+        self.frequencies = frequencies
 
     def usbSend(self):
         try:
@@ -573,7 +572,13 @@ class analyser:
             ui.atten_auto.setEnabled(True)
             ui.atten_auto.setChecked(True)
         self.fifo.put(command)
-
+        
+    def FPrecision(self):  # sets the marker and band precision based on scan width(meaningless acuracy)
+        ScanWidth = (ui.stop_freq.value()*1e6 - ui.start_freq.value()*1e6)
+        res = int(math.log10(ScanWidth))
+        self.dp = (8 - res) # number of decicimal places required
+        if self.dp < 0:
+            self.dp = 0
 
 class display:
     def __init__(self, name, pen):
@@ -668,7 +673,7 @@ class display:
             ui.scan_button.setStyleSheet('background-color: orange')
             ui.run3D.setText('Stopping ...')
             ui.run3D.setStyleSheet('background-color: orange')
-
+        
     def updateMarker(self, frequencies, readings, fPeaks):  # called by updateGUI()
         options = {'Peak1': fPeaks[0]/1e6, 'Peak2': fPeaks[1]/1e6, 'Peak3': fPeaks[2]/1e6,
                    'Peak4': fPeaks[3]/1e6, 'Normal': self.vline.value(), 'Delta': self.vline.value()}
@@ -677,15 +682,17 @@ class display:
             # marker is out of scan range so just show its frequency
             self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz')
         else:
-            # marker is in scan range
+            a = analyser() #  get the required precision of the frequency
+            a.FPrecision()
+            dp = a.dp
             fIndex = np.argmin(np.abs(frequencies - (markerF * 1e6)))  # find closest value in freq array
             dBm = readings[fIndex]
             if dBm > S4.hline.value() or self.markerType[:4] != 'Peak':
                 self.vline.setValue(frequencies[fIndex] / 1e6)  # set to the discrete value from frequencies[]
             if self.markerType == 'Delta':
-                self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.3f}MHz {dBm:.1f}dBm')
+                self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.{dp}f}MHz {dBm:.1f}dBm')
             else:
-                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz {dBm:.1f}dBm')
+                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.{dp}f}MHz {dBm:.1f}dBm')
 
     def addFreqMarker(self, freq, colour, name, position):  # adds simple freq marker without full marker capability
         if ui.presetLabel.isChecked():
@@ -791,7 +798,6 @@ class modelView():
         self.tm = QSqlRelationalTableModel()
         self.dwm = QDataWidgetMapper()
         self.currentRow = 0
-        self.currentBand = 0
 
     def createTableModel(self):
         self.tm.setTable(self.tableName)
@@ -827,7 +833,7 @@ class modelView():
         for key, value in data.items():
             record.setValue(str(key), value)
         self.tm.insertRecord(-1, record)
-        # self.tm.select()
+        self.tm.select()
         self.tm.layoutChanged.emit()
         self.dwm.submit()
 
@@ -836,16 +842,13 @@ class modelView():
         if prefsDialog:
             if boxText == 'show all':
                 sql = ''
-            self.tm.setFilter(sql)
         else:
             sql = 'visible = "1" AND preset = "' + boxText + '"'
             if boxText == 'show all':
                 sql = 'visible = "1"'
             if tinySA.tinySA4 is False:  # It's a tinySA basic with limited frequency range
                 sql = sql + ' AND startF <= "960"'
-            index = ui.band_box.currentIndex()
-            self.tm.setFilter(sql)
-            ui.band_box.setCurrentIndex(index)
+        bands.tm.setFilter(sql)
 
     def readCSV(self, fileName):
         with open(fileName, "r") as fileInput:
@@ -897,43 +900,29 @@ class modelView():
 ###############################################################################
 # respond to GUI signals
 
-
-# def band_changed():
-#     index = ui.band_box.currentIndex()
-#     if bands.tm.record(index).value('stopF') != '':
-#         startF = bands.tm.record(index).value('StartF')
-#         stopF = bands.tm.record(index).value('StopF')
-#         ui.start_freq.setValue(startF)
-#         ui.stop_freq.setValue(stopF)
-#         tinySA.freq_changed(False)  # start/stop mode
-#     else:
-#         centreF = bands.tm.record(index).value('StartF')
-#         ui.centre_freq.setValue(centreF)
-#         ui.span_freq.setValue(1)
-#         tinySA.freq_changed(True)  # centre mode
-#     freqMarkers()
-
 def band_changed():
     index = ui.band_box.currentIndex()
-    if presetmarker.tm.record(index).value('stopF') != '':
-        startF = presetmarker.tm.record(index).value('StartF')
-        stopF = presetmarker.tm.record(index).value('StopF')
+    if bandstype.tm.record(ui.filterBox.currentIndex()).value('type') == 'band':
+        startF = bands.tm.record(index).value('StartF')
+        stopF = bands.tm.record(index).value('StopF')
         ui.start_freq.setValue(startF)
         ui.stop_freq.setValue(stopF)
         tinySA.freq_changed(False)  # start/stop mode
     else:
-        centreF = presetmarker.tm.record(index).value('StartF')
+        centreF = bands.tm.record(index).value('StartF')
         ui.centre_freq.setValue(centreF)
         ui.span_freq.setValue(1)
         tinySA.freq_changed(True)  # centre mode
     freqMarkers()
 
-
 def addBandPressed():
     if not ui.marker1.isChecked():
         message = 'Please enable Marker 1'
-        popUp(message, QMessageBox.Ok, QMessageBox.Information)
+        popUp(message, QMessageBox.Ok, QMessageBox.Warning)
         return
+    a = analyser() #  get the required precision of the frequency
+    a.FPrecision()
+    dp = a.dp
     if ui.marker1.isChecked() and ui.marker2.isChecked(): # Two markers are to set the band limits of a new band
         if S1.vline.value() >= S2.vline.value():
             message = 'M1 frequency >= M2 frequency'
@@ -943,13 +932,17 @@ def addBandPressed():
         title = "New Frequency Band"
         message = "Input the name of your new band."
         bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal,"")
-        bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value():.6f}',
-                         stopF=f'{S2.vline.value():.6f}', value=1, colour= colourID('green'))  # colourID(value)
+        if bandName =='':
+            bandName = 'M' + str(round(S1.vline.value(), 3))
+        bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value():.{dp}f}',
+                         stopF=f'{S2.vline.value():.{dp}f}', value=1, colour= colourID('green'))  # colourID(value)
     else:  # If only Marker 1 is enabled then this creates a spot Frequency marker
         title = "New Spot Frequency"
         message = "Input the Name for your Spot Frequency"
         spotName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=spotName, preset="12", startF=f'{S1.vline.value():.6f}',
+        if spotName =='':
+            spotName = 'M' + str(round(S1.vline.value(), 5))
+        bands.insertData(name=spotName, preset="12", startF=f'{S1.vline.value():.{dp}f}',
                          stopF='', value=1, colour= colourID('orange')) # preset 12 is Marker (spot frequency).
 
 
@@ -1016,7 +1009,7 @@ def setPreferences():
     checkboxes.dwm.submit()
     bands.tm.submitAll()
     S4.hline.setValue(preferences.peakThreshold.value())
-    presetmarker.filterType(False, ui.filterBox.currentText())
+    bands.filterType(False, ui.filterBox.currentText())
     if ui.presetMarker.isChecked():
         freqMarkers()
     isMixerMode()
@@ -1071,7 +1064,7 @@ def popUp(message, button, icon):
 
 
 def freqMarkers():
-    # presetmarker.tm.select()
+    presetmarker.tm.select()
     S1.delFreqMarkers()
     S2.delFreqMarkers()
     for i in range(0, presetmarker.tm.rowCount()):
@@ -1080,11 +1073,11 @@ def freqMarkers():
             colour = presetmarker.tm.record(i).value('colour')
             name = presetmarker.tm.record(i).value('name')
             if ui.presetMarker.isChecked() and presetmarker.tm.record(i).value('visible')\
-                    and presetmarker.tm.record(i).value('stopF') == '':
+                    and presetmarker.tm.record(i).value('type') != 'band':
                 S1.addFreqMarker(startF, colour, name, 0.05)
                 if ui.presetLabel.isChecked() and ui.presetLabel.checkState() == 2:
                     S1.marker.label.setAngle(90)
-            if presetmarker.tm.record(i).value('stopF') != '':
+            if presetmarker.tm.record(i).value('type') == 'band':
                 stopF = presetmarker.tm.record(i).value('StopF')
                 S1.addFreqMarker(startF, colour, name, 0.98)
                 S2.addFreqMarker(stopF, colour, name, 0.98)
@@ -1254,7 +1247,7 @@ ui.m4_type.activated.connect(S4.mType)
 
 # frequency band markers
 ui.presetMarker.clicked.connect(freqMarkers)
-ui.presetLabel.clicked.connect(freqMarkerLabel)
+ui.presetLabel.stateChanged.connect(freqMarkerLabel)
 ui.mToBand.clicked.connect(addBandPressed)
 ui.filterBox.currentTextChanged.connect(freqMarkers)
 
@@ -1297,7 +1290,7 @@ preferences.deleteRow.clicked.connect(lambda: bands.deleteRow(True))
 preferences.deleteAll.clicked.connect(lambda: bands.deleteRow(False))
 preferences.freqBands.clicked.connect(bands.tableClicked)
 preferences.filterBox.currentTextChanged.connect(lambda: bands.filterType(True, preferences.filterBox.currentText()))
-ui.filterBox.currentTextChanged.connect(lambda: presetmarker.filterType(False, ui.filterBox.currentText()))
+ui.filterBox.currentTextChanged.connect(lambda: bands.filterType(False, ui.filterBox.currentText()))
 ui.actionPreferences.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
 ui.actionAbout_QtTinySA.triggered.connect(about)
 pwindow.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
@@ -1336,18 +1329,12 @@ colours.tm.select()
 presetmarker.createTableModel()
 presetmarker.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))
 presetmarker.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'type'))
-presetmarker.tm.setSort(3, QtCore.Qt.AscendingOrder)
 presetmarker.tm.select()
 
 # populate the band presets combo box
-# ui.band_box.setModel(bands.tm)
-# ui.band_box.setModelColumn(1)
-# bands.tm.select()  # initially select the data in the model
-
-ui.band_box.setModel(presetmarker.tm)
+ui.band_box.setModel(bands.tm)
 ui.band_box.setModelColumn(1)
-# bands.tm.select()  # initially select the data in the model
-
+bands.tm.select()  # initially select the data in the model
 
 # populate the preferences and main GUI filter combo boxes
 preferences.filterBox.setModel(bandstype.tm)
