@@ -23,6 +23,7 @@ import queue
 import shutil
 import platformdirs
 import csv
+import math
 from platform import system
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit
@@ -573,6 +574,12 @@ class analyser:
             ui.atten_auto.setChecked(True)
         self.fifo.put(command)
 
+    def FPrecision(self):  # sets the marker and band precision based on scan width(meaningless acuracy)
+        ScanWidth = (ui.stop_freq.value()*1e6 - ui.start_freq.value()*1e6)
+        res = int(math.log10(ScanWidth))
+        self.dp = (8 - res) # number of decicimal places required
+        if self.dp < 0:
+            self.dp = 0
 
 class display:
     def __init__(self, name, pen):
@@ -677,14 +684,17 @@ class display:
             self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz')
         else:
             # marker is in scan range
+            a = analyser() #  get the required precision of the frequency
+            a.FPrecision()
+            dp = a.dp
             fIndex = np.argmin(np.abs(frequencies - (markerF * 1e6)))  # find closest value in freq array
             dBm = readings[fIndex]
             if dBm > S4.hline.value() or self.markerType[:4] != 'Peak':
                 self.vline.setValue(frequencies[fIndex] / 1e6)  # set to the discrete value from frequencies[]
             if self.markerType == 'Delta':
-                self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.3f}MHz {dBm:.1f}dBm')
+                self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.{dp}f}MHz {dBm:.1f}dBm')
             else:
-                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz {dBm:.1f}dBm')
+                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.{dp}f}MHz {dBm:.1f}dBm')
 
     def addFreqMarker(self, freq, colour, name, position):  # adds simple freq marker without full marker capability
         if ui.presetLabel.isChecked():
@@ -933,6 +943,9 @@ def addBandPressed():
         message = 'Please enable Marker 1'
         popUp(message, QMessageBox.Ok, QMessageBox.Information)
         return
+    a = analyser() #  get the required precision of the frequency
+    a.FPrecision()
+    dp = a.dp
     if ui.marker1.isChecked() and ui.marker2.isChecked(): # Two markers are to set the band limits of a new band
         if S1.vline.value() >= S2.vline.value():
             message = 'M1 frequency >= M2 frequency'
@@ -942,13 +955,13 @@ def addBandPressed():
         title = "New Frequency Band"
         message = "Input the name of your new band."
         bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal,"")
-        bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value():.6f}',
-                         stopF=f'{S2.vline.value():.6f}', value=1, colour= colourID('green'))  # colourID(value)
+        bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value():.{dp}f}',
+                         stopF=f'{S2.vline.value():.{dp}f}', value=1, colour= colourID('green'))  # colourID(value)
     else:  # If only Marker 1 is enabled then this creates a spot Frequency marker
         title = "New Spot Frequency"
         message = "Input the Name for your Spot Frequency"
         spotName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=spotName, preset="12", startF=f'{S1.vline.value():.6f}',
+        bands.insertData(name=spotName, preset="12", startF=f'{S1.vline.value():.{dp}f}',
                          stopF='', value=1, colour= colourID('orange')) # preset 12 is Marker (spot frequency).
 
 
