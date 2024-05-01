@@ -161,6 +161,7 @@ class analyser:
         ui.stop_freq.editingFinished.connect(self.freq_changed)
         ui.centre_freq.valueChanged.connect(lambda: self.freq_changed(True))  # centre/span mode
         ui.span_freq.valueChanged.connect(lambda: self.freq_changed(True))  # centre/span mode
+        # ui.band_box.activated.connect(band_changed)
         ui.band_box.currentIndexChanged.connect(band_changed)
         ui.band_box.activated.connect(band_changed)
         self.fifoTimer.start(500)  # calls self.usbSend() every 500mS to execute serial commands whilst not scanning
@@ -572,6 +573,15 @@ class analyser:
             ui.atten_auto.setChecked(True)
         self.fifo.put(command)
 
+    def FPrecision(self):
+        # sets the marker and band precision based on scan width to remove meaningless accuracy
+        ScanWidth = np.ptp(tinySA.set_frequencies())
+        res = int(np.log10(ScanWidth))
+        self.dp = (8 - res)  # dp is number of decicimal places suggested
+        if self.dp < 0:
+            self.dp = 0
+        return self.dp
+
 
 class display:
     def __init__(self, name, pen):
@@ -676,14 +686,15 @@ class display:
             self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz')
         else:
             # marker is in scan range
+            dp = tinySA.FPrecision()  # get the required precision of the frequency
             fIndex = np.argmin(np.abs(frequencies - (markerF * 1e6)))  # find closest value in freq array
             dBm = readings[fIndex]
             if dBm > S4.hline.value() or self.markerType[:4] != 'Peak':
                 self.vline.setValue(frequencies[fIndex] / 1e6)  # set to the discrete value from frequencies[]
             if self.markerType == 'Delta':
-                self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.3f}MHz {dBm:.1f}dBm')
+                self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.{dp}f}MHz {dBm:.1f}dBm')
             else:
-                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz {dBm:.1f}dBm')
+                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.{dp}f}MHz {dBm:.1f}dBm')
 
     def addFreqMarker(self, freq, colour, name, position):  # adds simple freq marker without full marker capability
         if ui.presetLabel.isChecked():
@@ -750,7 +761,7 @@ class database():
         if returnpath is None:
             # no config database file found in personal or global directories
             logging.info(f'No configuration database file exists in {self.personalDir} or {self.globalDir}')
-            # Look for one in the current working folder and in the folder where the python file is stored (or linked):
+            # Look for one in the current working folder and in the folder where the python file is stored (or linked to):
             # In case QtTinySA is called from outside the stored folder.
             for workingDir in self.workingDirs:
                 if os.path.exists(os.path.join(workingDir, self.dbName)):
@@ -896,16 +907,31 @@ class modelView():
 # respond to GUI signals
 
 
+# def band_changed():
+#     index = ui.band_box.currentIndex()
+#     if bands.tm.record(index).value('stopF') != '':
+#         startF = bands.tm.record(index).value('StartF')
+#         stopF = bands.tm.record(index).value('StopF')
+#         ui.start_freq.setValue(startF)
+#         ui.stop_freq.setValue(stopF)
+#         tinySA.freq_changed(False)  # start/stop mode
+#     else:
+#         centreF = bands.tm.record(index).value('StartF')
+#         ui.centre_freq.setValue(centreF)
+#         ui.span_freq.setValue(1)
+#         tinySA.freq_changed(True)  # centre mode
+#     freqMarkers()
+
 def band_changed():
     index = ui.band_box.currentIndex()
-    if bandselect.tm.record(index).value('stopF') != '':
-        startF = bandselect.tm.record(index).value('StartF')
-        stopF = bandselect.tm.record(index).value('StopF')
+    if presetmarker.tm.record(index).value('stopF') != '':
+        startF = presetmarker.tm.record(index).value('StartF')
+        stopF = presetmarker.tm.record(index).value('StopF')
         ui.start_freq.setValue(startF)
         ui.stop_freq.setValue(stopF)
         tinySA.freq_changed(False)  # start/stop mode
     else:
-        centreF = bandselect.tm.record(index).value('StartF')
+        centreF = presetmarker.tm.record(index).value('StartF')
         ui.centre_freq.setValue(centreF)
         ui.span_freq.setValue(1)
         tinySA.freq_changed(True)  # centre mode
@@ -917,6 +943,7 @@ def addBandPressed():
         message = 'Please enable Marker 1'
         popUp(message, QMessageBox.Ok, QMessageBox.Information)
         return
+    dp = tinySA.FPrecision()  # get the required precision of the frequency
     if ui.marker1.isChecked() and ui.marker2.isChecked():  # Two markers are to set the band limits of a new band
         if S1.vline.value() >= S2.vline.value():
             message = 'M1 frequency >= M2 frequency'
@@ -924,15 +951,15 @@ def addBandPressed():
             return
         ID = presetID(str(ui.filterBox.currentText()))
         title = "New Frequency Band"
-        message = "Input the name of your new band."
+        message = "Input the name of the new band."
         bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value():.6f}',
-                         stopF=f'{S2.vline.value():.6f}', value=1, colour=colourID('green'))  # colourID(value)
+        bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value():.{dp}f}',
+                         stopF=f'{S2.vline.value():.{dp}f}', value=1, colour=colourID('green'))  # colourID(value)
     else:  # If only Marker 1 is enabled then this creates a spot Frequency marker
         title = "New Spot Frequency"
-        message = "Input the Name for your Spot Frequency"
+        message = "Input the name for your Spot Frequency"
         spotName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=spotName, preset="12", startF=f'{S1.vline.value():.6f}',
+        bands.insertData(name=spotName, preset="12", startF=f'{S1.vline.value():.{dp}f}',
                          stopF='', value=1, colour=colourID('orange'))  # preset 12 is Marker (spot frequency).
 
 
@@ -999,7 +1026,7 @@ def setPreferences():
     checkboxes.dwm.submit()
     bands.tm.submitAll()
     S4.hline.setValue(preferences.peakThreshold.value())
-    bandselect.filterType(False, ui.filterBox.currentText())
+    presetmarker.filterType(False, ui.filterBox.currentText())
     if ui.presetMarker.isChecked():
         freqMarkers()
     isMixerMode()
@@ -1155,6 +1182,7 @@ S4 = display('4', white)
 # Data models for configuration settings
 config = database()
 config.connect()
+bands = modelView('frequencies')
 checkboxes = modelView('checkboxes')
 numbers = modelView('numbers')
 markers = modelView('marker')
@@ -1165,9 +1193,8 @@ rbwtext = modelView('combo')
 bandstype = modelView('freqtype')
 colours = modelView('SVGColour')
 maps = modelView('mapping')
-bands = modelView('frequencies')
+
 presetmarker = modelView('frequencies')
-bandselect = modelView('frequencies')
 
 ###############################################################################
 # GUI settings
@@ -1281,7 +1308,7 @@ preferences.deleteRow.clicked.connect(lambda: bands.deleteRow(True))
 preferences.deleteAll.clicked.connect(lambda: bands.deleteRow(False))
 preferences.freqBands.clicked.connect(bands.tableClicked)
 preferences.filterBox.currentTextChanged.connect(lambda: bands.filterType(True, preferences.filterBox.currentText()))
-ui.filterBox.currentTextChanged.connect(lambda: bandselect.filterType(False, ui.filterBox.currentText()))
+ui.filterBox.currentTextChanged.connect(lambda: presetmarker.filterType(False, ui.filterBox.currentText()))
 ui.actionPreferences.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
 ui.actionAbout_QtTinySA.triggered.connect(about)
 pwindow.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
@@ -1294,12 +1321,9 @@ preferences.importButton.pressed.connect(importData)
 logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 
 # table models - read/write views of the configuration data
-
-# field mapping of the checkboxes from the database
 maps.createTableModel()
 maps.tm.select()
 
-# to populate the preset bands and markers relational table in the preferences dialogue
 bands.createTableModel()
 bands.tm.setSort(3, QtCore.Qt.AscendingOrder)
 bands.tm.setHeaderData(5, QtCore.Qt.Horizontal, 'visible')
@@ -1308,35 +1332,35 @@ bands.tm.setEditStrategy(QSqlRelationalTableModel.OnFieldChange)
 bands.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))  # set 'type' column to a freq type choice combo box
 bands.tm.setRelation(5, QSqlRelation('boolean', 'ID', 'value'))  # set 'view' column to a True/False choice combo box
 bands.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))  # set 'marker' column to a colours choice combo box
+
 presets = QSqlRelationalDelegate(preferences.freqBands)
 preferences.freqBands.setItemDelegate(presets)
 colHeader = preferences.freqBands.horizontalHeader()
 colHeader.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
 
-# for the filter combo box in the preferences dialogue
 bandstype.createTableModel()
 bandstype.tm.select()
 
-# to lookup the preset bands and markers colours because can't get the relationships to work
 colours.createTableModel()
 colours.tm.select()
 
-# for the preset markers, which need different filtering to the preferences dialogue
 presetmarker.createTableModel()
 presetmarker.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))
 presetmarker.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'type'))
 presetmarker.tm.setSort(3, QtCore.Qt.AscendingOrder)
 presetmarker.tm.select()
 
-# populate the ui band selection combo box, which needs different filter to preferences dialogue and preset markers
-bandselect.createTableModel()
-bandselect.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'type'))
-bandselect.tm.setSort(3, QtCore.Qt.AscendingOrder)
-ui.band_box.setModel(bandselect.tm)
-ui.band_box.setModelColumn(1)
-bandselect.tm.select()
+# populate the band presets combo box
+# ui.band_box.setModel(bands.tm)
+# ui.band_box.setModelColumn(1)
+# bands.tm.select()  # initially select the data in the model
 
-# populate the preferences dialogue and ui filter combo boxes
+ui.band_box.setModel(presetmarker.tm)
+ui.band_box.setModelColumn(1)
+# bands.tm.select()  # initially select the data in the model
+
+
+# populate the preferences and main GUI filter combo boxes
 preferences.filterBox.setModel(bandstype.tm)
 preferences.filterBox.setModelColumn(1)
 ui.filterBox.setModel(bandstype.tm)
