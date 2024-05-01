@@ -17,7 +17,6 @@ Serial communication commands are based on Martin's Python NanoVNA/TinySA Toolse
 
 import os
 import time
-import math
 import logging
 import numpy as np
 import queue
@@ -167,10 +166,7 @@ class analyser:
         ui.band_box.currentIndexChanged.connect(band_changed)
 >>>>>>> Stashed changes
         ui.band_box.activated.connect(band_changed)
-<<<<<<< HEAD
 
-=======
->>>>>>> development
         self.fifoTimer.start(500)  # calls self.usbSend() every 500mS to execute serial commands whilst not scanning
 
     def restoreSettings(self):
@@ -580,24 +576,13 @@ class analyser:
             ui.atten_auto.setEnabled(True)
             ui.atten_auto.setChecked(True)
         self.fifo.put(command)
-<<<<<<< Updated upstream
         
     def FPrecision(self):  # sets the marker and band precision based on scan width(meaningless acuracy)
         ScanWidth = (ui.stop_freq.value()*1e6 - ui.start_freq.value()*1e6)
         res = int(math.log10(ScanWidth))
         self.dp = (8 - res) # number of decicimal places required
-=======
-
-    def FPrecision(self):
-        # sets the marker and band precision based on scan width to remove meaningless accuracy
-        ScanWidth = np.ptp(tinySA.set_frequencies())
-        res = int(np.log10(ScanWidth))
-        self.dp = (8 - res)  # dp is number of decicimal places suggested
->>>>>>> Stashed changes
         if self.dp < 0:
             self.dp = 0
-        return self.dp
-
 
 class display:
     def __init__(self, name, pen):
@@ -701,14 +686,9 @@ class display:
             # marker is out of scan range so just show its frequency
             self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz')
         else:
-<<<<<<< Updated upstream
             a = analyser() #  get the required precision of the frequency
             a.FPrecision()
             dp = a.dp
-=======
-            # marker is in scan range
-            dp = tinySA.FPrecision()  # get the required precision of the frequency
->>>>>>> Stashed changes
             fIndex = np.argmin(np.abs(frequencies - (markerF * 1e6)))  # find closest value in freq array
             dBm = readings[fIndex]
             if dBm > S4.hline.value() or self.markerType[:4] != 'Peak':
@@ -721,7 +701,7 @@ class display:
     def addFreqMarker(self, freq, colour, name, position):  # adds simple freq marker without full marker capability
         if ui.presetLabel.isChecked():
             self.marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5, style=QtCore.Qt.DashLine),
-                                                 label=name, labelOpts={'position': position, 'color': (colour)})
+                                            label=name, labelOpts={'position': position, 'color': (colour)})
             self.marker.label.setMovable(True)
         else:
             self.marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5, style=QtCore.Qt.DashLine))
@@ -944,33 +924,30 @@ def addBandPressed():
         message = 'Please enable Marker 1'
         popUp(message, QMessageBox.Ok, QMessageBox.Warning)
         return
-    dp = tinySA.FPrecision()  # get the required precision of the frequency
-    if ui.marker1.isChecked() and ui.marker2.isChecked():  # Two markers are to set the band limits of a new band
+    a = analyser() #  get the required precision of the frequency
+    a.FPrecision()
+    dp = a.dp
+    if ui.marker1.isChecked() and ui.marker2.isChecked(): # Two markers are to set the band limits of a new band
         if S1.vline.value() >= S2.vline.value():
             message = 'M1 frequency >= M2 frequency'
             popUp(message, QMessageBox.Ok, QMessageBox.Information)
             return
         ID = presetID(str(ui.filterBox.currentText()))
         title = "New Frequency Band"
-<<<<<<< Updated upstream
         message = "Input the name of your new band."
         bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal,"")
         if bandName =='':
             bandName = 'M' + str(round(S1.vline.value(), 3))
-=======
-        message = "Input the name of the new band."
-        bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
->>>>>>> Stashed changes
         bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value():.{dp}f}',
-                         stopF=f'{S2.vline.value():.{dp}f}', value=1, colour=colourID('green'))  # colourID(value)
+                         stopF=f'{S2.vline.value():.{dp}f}', value=1, colour= colourID('green'))  # colourID(value)
     else:  # If only Marker 1 is enabled then this creates a spot Frequency marker
         title = "New Spot Frequency"
-        message = "Input the name for your Spot Frequency"
+        message = "Input the Name for your Spot Frequency"
         spotName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
         if spotName =='':
             spotName = 'M' + str(round(S1.vline.value(), 5))
         bands.insertData(name=spotName, preset="12", startF=f'{S1.vline.value():.{dp}f}',
-                         stopF='', value=1, colour=colourID('orange'))  # preset 12 is Marker (spot frequency).
+                         stopF='', value=1, colour= colourID('orange')) # preset 12 is Marker (spot frequency).
 
 
 def attenuate_changed():
