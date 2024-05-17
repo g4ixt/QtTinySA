@@ -27,6 +27,7 @@ from platform import system
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit
 from PyQt5.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate
+from datetime import datetime
 import pyqtgraph
 import QtTinySpectrum  # the GUI
 import QtTSApreferences  # the GUI preferences window
@@ -72,7 +73,6 @@ class analyser:
         self.runTimer = QtCore.QElapsedTimer()  # debug
         self.scale = 174
         self.scanMemory = 50
-        # self.scan3D = False
         self.surface = None
         self.vGrid = None
         self.usbCheck = QtCore.QTimer()
@@ -122,11 +122,11 @@ class analyser:
             self.usbCheck.stop()
 
     def initialise(self):
-        i = 0
+        i = 1
         hardware = ''
-        while hardware[:6] != 'tinySA' and i < 3:  # try 3 times to detect TinySA
+        while hardware[:6] != 'tinySA' and i < 4:  # try 3 times to detect TinySA
             hardware = self.version()
-            logging.info(f'{hardware[:16]}')
+            logging.info(f'Try {i} to detect TinySA version: {hardware[:16]}')
             i += 1
             time.sleep(0.5)
         # hardware = 'tinySA'  # used for testing
@@ -153,6 +153,8 @@ class analyser:
         # show hardware information in GUI
         ui.battery.setText(self.battery())
         ui.version.setText(hardware[8:16])
+
+        self.setTime()
 
         # connect the rbw & frequency boxes here or it causes startup index errors when they are populated
         ui.rbw_box.currentIndexChanged.connect(rbwChanged)
@@ -202,10 +204,15 @@ class analyser:
                 ui.run3D.setEnabled(False)
             else:
                 try:  # start measurements
+                    # test
+                    command = 'abort on\r'.encode()
+                    self.usb.write(command)
+                    # test
                     self.fifoTimer.stop()
                     self.scanCount = 1
                     self.clearBuffer()
                     self.setRBW()
+                    self.sampleRep()
                     self.runButton('Stop')
                     self.usbSend()
                     self.startMeasurement()  # runs measurement in separate thread
@@ -235,7 +242,7 @@ class analyser:
             logging.info(f'Serial port open: {self.usb.isOpen()}')
         while self.fifo.qsize() > 0:
             command = self.fifo.get(block=True, timeout=None)
-            logging.debug(command)
+            logging.info(command)
             self.usb.write(command)
             self.usb.read_until(b'ch> ')  # skip command echo and prompt
 
@@ -254,6 +261,7 @@ class analyser:
         points = self.setPoints()
         frequencies = np.linspace(startF, stopF, points, dtype=np.int64)
         logging.debug(f'frequencies = {frequencies}')
+        self.fPrecision(frequencies)
         return frequencies
 
     def freq_changed(self, centre=False):
@@ -572,6 +580,25 @@ class analyser:
             ui.atten_auto.setChecked(True)
         self.fifo.put(command)
 
+    def setTime(self):
+        if self.tinySA4 and preferences.syncTime.isChecked():
+            dt = datetime.now()
+            y = dt.year - 2000
+            command = f'time b 0x{y}{dt.month:02d}{dt.day:02d} 0x{dt.hour:02d}{dt.minute:02d}{dt.second:02d}\r'.encode()
+            self.fifo.put(command)
+
+    def sampleRep(self):
+        # sets the number of repeat measurements at each frequency point to the value in the GUI
+        command = f'repeat {ui.sampleRepeat.value()}\r'.encode()
+        self.fifo.put(command)
+
+    def fPrecision(self, frequencies):  # sets the marker and band indicated frequency precision
+        fInc = frequencies[1] - frequencies[0]
+        self.dp = int(np.log10(frequencies[0] / fInc))  # number of decicimal places required
+        logging.info(f'fPrecision: fInc = {fInc} dp = {self.dp}')
+        if self.dp < 0:
+            self.dp = 0
+
 
 class display:
     def __init__(self, name, pen):
@@ -662,6 +689,10 @@ class display:
         else:
             tinySA.vGrid.hide()
         if not tinySA.sweeping:  # measurement thread is stopping
+            # test
+            # command = 'abort\r'.encode()
+            # tinySA.usb.write(command)
+            # test
             ui.scan_button.setText('Stopping ...')
             ui.scan_button.setStyleSheet('background-color: orange')
             ui.run3D.setText('Stopping ...')
@@ -673,7 +704,8 @@ class display:
         markerF = options.get(self.markerType)
         if markerF * 1e6 < np.min(frequencies) or markerF * 1e6 > np.max(frequencies):
             # marker is out of scan range so just show its frequency
-            self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz')
+            #self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz')
+            self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.{tinySA.dp}f}MHz')
         else:
             # marker is in scan range
             fIndex = np.argmin(np.abs(frequencies - (markerF * 1e6)))  # find closest value in freq array
@@ -681,9 +713,11 @@ class display:
             if dBm > S4.hline.value() or self.markerType[:4] != 'Peak':
                 self.vline.setValue(frequencies[fIndex] / 1e6)  # set to the discrete value from frequencies[]
             if self.markerType == 'Delta':
-                self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.3f}MHz {dBm:.1f}dBm')
+                # self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.3f}MHz {dBm:.1f}dBm')
+                self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.{tinySA.dp}f}MHz {dBm:.1f}dBm')
             else:
-                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz {dBm:.1f}dBm')
+                # self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz {dBm:.1f}dBm')
+                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.{tinySA.dp}f}MHz {dBm:.1f}dBm')
 
     def addFreqMarker(self, freq, colour, name, position):  # adds simple freq marker without full marker capability
         if ui.presetLabel.isChecked():
@@ -926,13 +960,13 @@ def addBandPressed():
         title = "New Frequency Band"
         message = "Input the name of your new band."
         bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value():.6f}',
-                         stopF=f'{S2.vline.value():.6f}', value=1, colour=colourID('green'))  # colourID(value)
+        bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value():.{tinySA.dp}f}',
+                         stopF=f'{S2.vline.value():.{tinySA.dp}f}', value=1, colour=colourID('green'))  # colourID(value)
     else:  # If only Marker 1 is enabled then this creates a spot Frequency marker
         title = "New Spot Frequency"
         message = "Input the Name for your Spot Frequency"
         spotName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=spotName, preset="12", startF=f'{S1.vline.value():.6f}',
+        bands.insertData(name=spotName, preset="12", startF=f'{S1.vline.value():.{tinySA.dp}f}',
                          stopF='', value=1, colour=colourID('orange'))  # preset 12 is Marker (spot frequency).
 
 
@@ -1017,6 +1051,7 @@ def about():
     message = ('TinySA Ultra GUI programme using Qt5 and PyQt\nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
                .format(app.applicationVersion(), config.dbpath))
     popUp(message, QMessageBox.Ok, QMessageBox.Information)
+
 
 ##############################################################################
 # other methods
@@ -1137,7 +1172,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.4')
+app.setApplicationVersion(' v0.10.5a')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1253,6 +1288,8 @@ ui.t1_type.activated.connect(S1.tType)
 ui.t2_type.activated.connect(S2.tType)
 ui.t3_type.activated.connect(S3.tType)
 ui.t4_type.activated.connect(S4.tType)
+
+ui.sampleRepeat.valueChanged.connect(tinySA.sampleRep)
 
 # 3D graph controls
 ui.orbitL.clicked.connect(lambda: tinySA.orbit3D(1, True))
