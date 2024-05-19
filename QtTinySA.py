@@ -126,7 +126,7 @@ class analyser:
         hardware = ''
         while hardware[:6] != 'tinySA' and i < 4:  # try 3 times to detect TinySA
             hardware = self.version()
-            logging.info(f'Try {i} to detect TinySA version: {hardware[:16]}')
+            logging.info(f'Try {i}: TinySA version: {hardware[:16]}')
             i += 1
             time.sleep(0.5)
         # hardware = 'tinySA'  # used for testing
@@ -242,7 +242,7 @@ class analyser:
             logging.info(f'Serial port open: {self.usb.isOpen()}')
         while self.fifo.qsize() > 0:
             command = self.fifo.get(block=True, timeout=None)
-            logging.info(command)
+            logging.debug(command)
             self.usb.write(command)
             self.usb.read_until(b'ch> ')  # skip command echo and prompt
 
@@ -279,7 +279,7 @@ class analyser:
             ui.centre_freq.setValue(startF + (stopF - startF) / 2)
             ui.span_freq.setValue(stopF - startF)
         ui.graphWidget.setXRange(startF, stopF)
-        self.resume()
+        self.resume()  # # without this command, the trace doesn't update
 
     def freqOffset(self, frequencies):  # for mixers or LNBs external to TinySA
         startF = frequencies[0]
@@ -592,10 +592,10 @@ class analyser:
         command = f'repeat {ui.sampleRepeat.value()}\r'.encode()
         self.fifo.put(command)
 
-    def fPrecision(self, frequencies):  # sets the marker and band indicated frequency precision
+    def fPrecision(self, frequencies):  # sets the marker indicated frequency precision
         fInc = frequencies[1] - frequencies[0]
         self.dp = int(np.log10(frequencies[0] / fInc))  # number of decicimal places required
-        logging.info(f'fPrecision: fInc = {fInc} dp = {self.dp}')
+        logging.debug(f'fPrecision: fInc = {fInc} dp = {self.dp}')
         if self.dp < 0:
             self.dp = 0
 
@@ -856,7 +856,9 @@ class modelView():
 
     def insertData(self, **data):
         record = self.tm.record()
+        logging.info(f'insertData: record = {record}')
         for key, value in data.items():
+            logging.info(f'insertData: key = {key} value={value}')
             record.setValue(str(key), value)
         self.tm.insertRecord(-1, record)
         # self.tm.select()
@@ -960,14 +962,14 @@ def addBandPressed():
         title = "New Frequency Band"
         message = "Input the name of your new band."
         bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value():.{tinySA.dp}f}',
-                         stopF=f'{S2.vline.value():.{tinySA.dp}f}', value=1, colour=colourID('green'))  # colourID(value)
+        bands.insertData(name=bandName, type=ID, startF=f'{S1.vline.value():.6f}',
+                         stopF=f'{S2.vline.value():.6f}', visible=1, colour=colourID('green'))  # colourID(value)
     else:  # If only Marker 1 is enabled then this creates a spot Frequency marker
         title = "New Spot Frequency"
         message = "Input the Name for your Spot Frequency"
         spotName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=spotName, preset="12", startF=f'{S1.vline.value():.{tinySA.dp}f}',
-                         stopF='', value=1, colour=colourID('orange'))  # preset 12 is Marker (spot frequency).
+        bands.insertData(name=spotName, type="12", startF=f'{S1.vline.value():.6f}',
+                         stopF='', visible=1, colour=colourID('orange'))  # preset 12 is Marker (spot frequency).
 
 
 def attenuate_changed():
@@ -985,8 +987,11 @@ def attenuate_changed():
 def rbwChanged():
     if ui.rbw_auto.isChecked():  # can't calculate Points because we don't know what the RBW will be
         ui.rbw_box.setEnabled(False)
+        ui.points_auto.setChecked(False)
+        ui.points_auto.setEnabled(False)
     else:
         ui.rbw_box.setEnabled(True)
+        ui.points_auto.setEnabled(True)
     tinySA.setRBW()  # if measurement thread is running, calling setRBW() will force it to update scan parameters
 
 
@@ -996,7 +1001,7 @@ def pointsChanged():
         ui.rbw_box.setEnabled(True)
     else:
         ui.points_box.setEnabled(True)
-    tinySA.resume()
+    tinySA.resume()  # without this command, the trace doesn't update
 
 
 def memChanged():
@@ -1172,7 +1177,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.5a')
+app.setApplicationVersion(' v0.10.5b')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1361,13 +1366,13 @@ colours.tm.select()
 # for the preset markers, which need different filtering to the preferences dialogue
 presetmarker.createTableModel()
 presetmarker.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))
-presetmarker.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'type'))
+presetmarker.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))
 presetmarker.tm.setSort(3, QtCore.Qt.AscendingOrder)
 presetmarker.tm.select()
 
 # populate the ui band selection combo box, which needs different filter to preferences dialogue and preset markers
 bandselect.createTableModel()
-bandselect.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'type'))
+bandselect.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))
 bandselect.tm.setSort(3, QtCore.Qt.AscendingOrder)
 ui.band_box.setModel(bandselect.tm)
 ui.band_box.setModelColumn(1)

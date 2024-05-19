@@ -215,7 +215,7 @@
              </font>
             </property>
             <property name="toolTip">
-             <string>Set Points</string>
+             <string>Set the number of frequency Points to measure</string>
             </property>
             <property name="suffix">
              <string/>
@@ -258,9 +258,6 @@
             <property name="checked">
              <bool>true</bool>
             </property>
-            <attribute name="buttonGroup">
-             <string notr="true">rbwpointsgroup</string>
-            </attribute>
            </widget>
           </item>
           <item row="25" column="0">
@@ -490,9 +487,6 @@
             <property name="text">
              <string>Auto RBW</string>
             </property>
-            <attribute name="buttonGroup">
-             <string notr="true">rbwpointsgroup</string>
-            </attribute>
            </widget>
           </item>
           <item row="12" column="0">
@@ -503,7 +497,7 @@
              </font>
             </property>
             <property name="toolTip">
-             <string>Set the number of repeat measurements at each frequency</string>
+             <string>Set the number of repeat measurements at each frequency Point</string>
             </property>
             <property name="minimum">
              <number>1</number>
@@ -2033,7 +2027,4 @@
    <bool>true</bool>
   </property>
  </designerdata>
- <buttongroups>
-  <buttongroup name="rbwpointsgroup"/>
- </buttongroups>
 </ui>
