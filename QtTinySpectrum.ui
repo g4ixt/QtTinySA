@@ -1961,6 +1961,14 @@
     </property>
     <addaction name="actionPreferences"/>
    </widget>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionBrowse_TinySA"/>
+    <addaction name="actionQuit"/>
+   </widget>
+   <addaction name="menuFile"/>
    <addaction name="menuSettings"/>
    <addaction name="menu_Help"/>
   </widget>
@@ -1992,6 +2000,16 @@
   <action name="actionbands">
    <property name="text">
     <string>Bands and Markers</string>
+   </property>
+  </action>
+  <action name="actionBrowse_TinySA">
+   <property name="text">
+    <string>Browse TinySA</string>
+   </property>
+  </action>
+  <action name="actionQuit">
+   <property name="text">
+    <string>Quit</string>
    </property>
   </action>
  </widget>

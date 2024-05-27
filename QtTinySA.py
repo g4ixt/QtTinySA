@@ -27,10 +27,12 @@ from platform import system
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit
 from PyQt5.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate
+from PyQt5.QtGui import QPixmap
 from datetime import datetime
 import pyqtgraph
 import QtTinySpectrum  # the GUI
 import QtTSApreferences  # the GUI preferences window
+import QtTSAfilebrowse
 import struct
 import serial
 from serial.tools import list_ports
@@ -66,6 +68,7 @@ class analyser:
     def __init__(self):
         self.usb = None
         self.sweeping = False
+        self.threadRunning = False
         self.signals = WorkerSignals()
         self.signals.result.connect(self.sigProcess)
         self.signals.fullSweep.connect(self.updateGUI)
@@ -165,6 +168,7 @@ class analyser:
         ui.span_freq.valueChanged.connect(lambda: self.freq_changed(True))  # centre/span mode
         ui.band_box.currentIndexChanged.connect(band_changed)
         ui.band_box.activated.connect(band_changed)
+
         self.fifoTimer.start(500)  # calls self.usbSend() every 500mS to execute serial commands whilst not scanning
 
     def restoreSettings(self):
@@ -204,10 +208,6 @@ class analyser:
                 ui.run3D.setEnabled(False)
             else:
                 try:  # start measurements
-                    # test
-                    command = 'abort on\r'.encode()
-                    self.usb.write(command)
-                    # test
                     self.fifoTimer.stop()
                     self.scanCount = 1
                     self.clearBuffer()
@@ -243,15 +243,15 @@ class analyser:
         while self.fifo.qsize() > 0:
             command = self.fifo.get(block=True, timeout=None)
             logging.debug(command)
-            self.usb.write(command)
+            self.usb.write(command.encode())
             self.usb.read_until(b'ch> ')  # skip command echo and prompt
 
     def serialQuery(self, command):
         self.usb.timeout = 1
         logging.debug(command)
-        self.usb.write(command)
-        self.usb.read_until(command + b'\n')  # skip command echo
-        response = self.usb.read_until(b'ch> ')
+        self.usb.write(command.encode())
+        self.usb.read_until(command.encode() + b'\n')  # skip command echo
+        response = self.usb.read_until(b'ch> ')  # until prompt
         logging.debug(response)
         return response[:-6].decode()  # remove prompt
 
@@ -299,7 +299,7 @@ class analyser:
     def setRBW(self):  # may be called by measurement thread as well as normally
         rbw = ui.rbw_box.currentText()  # ui values are discrete ones in kHz
         logging.debug(f'rbw = {rbw}')
-        command = f'rbw {rbw}\r'.encode()
+        command = f'rbw {rbw}\r'
         self.fifo.put(command)
 
     def setPoints(self):  # may be called by measurement thread as well as normally
@@ -348,19 +348,19 @@ class analyser:
                 self.usb.timeout = self.sweepTimeout(frequencies)
                 if preferences.freqLO != 0:
                     startF, stopF = self.freqOffset(frequencies)
-                    command = f'scanraw {int(startF)} {int(stopF)} {int(points)}\r'.encode()
+                    command = f'scanraw {int(startF)} {int(stopF)} {int(points)}\r'
                 else:
-                    command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)}\r'.encode()
+                    command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)}\r'
                 logging.debug(f'measurement: command = {command}')
-                self.usb.write(command)
+                self.usb.write(command.encode())
                 index = 0
                 # self.runTimer.start()  # debug
-                self.usb.read_until(command + b'\n{')  # skip command echo
+                self.usb.read_until(command.encode() + b'\n{')  # skip command echo
                 dataBlock = ''
                 while dataBlock != b'}ch' and index < points:  # if '}ch' it's reached the end of the scan points
                     dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
                     logging.debug(f'dataBlock: {dataBlock}\n')
-                    if dataBlock == b'}ch':
+                    if dataBlock == b'}ch' or dataBlock == b'}':  # from FW165 jog button press returns different value
                         logging.info('jog button pressed')
                         self.sweeping = False
                         break
@@ -536,26 +536,26 @@ class analyser:
 
     def pause(self):
         # pauses the sweeping in either input or output mode
-        command = 'pause\r'.encode()
+        command = 'pause\r'
         self.fifo.put(command)
 
     def resume(self):
         # resumes the sweeping in either input or output mode
-        command = 'resume\r'.encode()
+        command = 'resume\r'
         self.fifo.put(command)
 
     def reset(self):
         # not yet found any detail for what is actually reset
-        command = 'reset\r'.encode()
+        command = 'reset\r'
         self.fifo.put(command)
 
     def battery(self):
-        command = 'vbat\r'.encode()
+        command = 'vbat\r'
         vbat = self.serialQuery(command)
         return vbat
 
     def version(self):
-        command = 'version\r'.encode()
+        command = 'version\r'
         version = self.serialQuery(command)
         return version
 
@@ -563,19 +563,19 @@ class analyser:
         sType = ui.spur_box.checkState()
         options = {0: 'Spur Off', 1: 'Spur Auto', 2: 'Spur On'}
         ui.spur_box.setText(options.get(sType))
-        options = {0: 'spur off\r'.encode(), 1: 'spur auto\r'.encode(), 2: 'spur on\r'.encode()}
+        options = {0: 'spur off\r', 1: 'spur auto\r', 2: 'spur on\r'}
         command = options.get(sType)
         self.fifo.put(command)
 
     def lna(self):
         if ui.lna_box.isChecked():
-            command = 'lna on\r'.encode()
+            command = 'lna on\r'
             ui.atten_auto.setEnabled(False)  # attenuator and lna are switched so mutually exclusive
             ui.atten_auto.setChecked(False)
             ui.atten_box.setEnabled(False)
             ui.atten_box.setValue(0)
         else:
-            command = 'lna off\r'.encode()
+            command = 'lna off\r'
             ui.atten_auto.setEnabled(True)
             ui.atten_auto.setChecked(True)
         self.fifo.put(command)
@@ -584,20 +584,37 @@ class analyser:
         if self.tinySA4 and preferences.syncTime.isChecked():
             dt = datetime.now()
             y = dt.year - 2000
-            command = f'time b 0x{y}{dt.month:02d}{dt.day:02d} 0x{dt.hour:02d}{dt.minute:02d}{dt.second:02d}\r'.encode()
+            command = f'time b 0x{y}{dt.month:02d}{dt.day:02d} 0x{dt.hour:02d}{dt.minute:02d}{dt.second:02d}\r'
             self.fifo.put(command)
 
     def sampleRep(self):
         # sets the number of repeat measurements at each frequency point to the value in the GUI
-        command = f'repeat {ui.sampleRepeat.value()}\r'.encode()
+        command = f'repeat {ui.sampleRepeat.value()}\r'
         self.fifo.put(command)
 
     def fPrecision(self, frequencies):  # sets the marker indicated frequency precision
         fInc = frequencies[1] - frequencies[0]
-        self.dp = int(np.log10(frequencies[0] / fInc))  # number of decicimal places required
-        logging.debug(f'fPrecision: fInc = {fInc} dp = {self.dp}')
-        if self.dp < 0:
+        if fInc > 0:
+            self.dp = int(np.log10(frequencies[0] / fInc))  # number of decicimal places required
+            logging.debug(f'fPrecision: fInc = {fInc} dp = {self.dp}')
+        else:
             self.dp = 0
+
+    def listSD(self):
+        command = 'sd_list\r'
+        ls = self.serialQuery(command)
+        return ls
+
+    def readSD(self, fileName):
+        command = ('sd_read %s\r' % fileName)
+        self.usb.write(command.encode())
+        self.usb.readline()  # discard empty line
+        format_string = "<1i"  # little-endian single integer of 4 bytes
+        buffer = self.usb.read(4)
+        size = struct.unpack(format_string, buffer)
+        size = size[0]
+        data = self.usb.read(size)
+        return (data)
 
 
 class display:
@@ -689,10 +706,6 @@ class display:
         else:
             tinySA.vGrid.hide()
         if not tinySA.sweeping:  # measurement thread is stopping
-            # test
-            # command = 'abort\r'.encode()
-            # tinySA.usb.write(command)
-            # test
             ui.scan_button.setText('Stopping ...')
             ui.scan_button.setStyleSheet('background-color: orange')
             ui.run3D.setText('Stopping ...')
@@ -704,7 +717,7 @@ class display:
         markerF = options.get(self.markerType)
         if markerF * 1e6 < np.min(frequencies) or markerF * 1e6 > np.max(frequencies):
             # marker is out of scan range so just show its frequency
-            #self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz')
+            # self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz')
             self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.{tinySA.dp}f}MHz')
         else:
             # marker is in scan range
@@ -980,7 +993,7 @@ def attenuate_changed():
     else:
         if not ui.lna_box.isChecked():  # attenuator and lna are switched so mutually exclusive
             ui.atten_box.setEnabled(True)
-    command = f'attenuate {str(atten)}\r'.encode()
+    command = f'attenuate {str(atten)}\r'
     tinySA.fifo.put(command)
 
 
@@ -1050,6 +1063,45 @@ def dialogPrefs():
     bands.currentRow = 0
     preferences.freqBands.selectRow(bands.currentRow)
     pwindow.show()
+
+
+def dialogBrowse():
+    if tinySA.threadRunning:
+        popUp("Cannot browse tinySA whilst a scan is running", QMessageBox.Ok, QMessageBox.Information)
+        return
+    else:
+        tinySA.clearBuffer()
+        ls = tinySA.listSD()
+        logging.info(f'list = {ls}')
+        filebrowse.listWidget.clear()
+        filebrowse.listWidget.insertItems(0, ls.splitlines())
+        fwindow.show()
+
+
+def fileDownload():
+    fileName = filebrowse.listWidget.currentItem()
+    fileName = fileName.text().split(" ")[0]
+    with open(fileName, "wb") as file:
+        fileContent = tinySA.readSD(fileName)
+        file.write(fileContent)
+        file.close()
+    tinySA.clearBuffer()
+    pixmap = QPixmap(fileName)
+    filebrowse.picture.setPixmap(pixmap)
+
+
+def fileShow():
+    fileName = filebrowse.listWidget.currentItem()
+    fileName = fileName.text().split(" ")[0]
+    if fileName[-3:] == 'bmp':
+        if os.path.isfile(fileName):
+            logging.info(f'filename = {fileName}')
+            pixmap = QPixmap(fileName)
+            filebrowse.picture.setPixmap(pixmap)
+        else:
+            fileDownload()
+    else:
+        filebrowse.picture.clear()
 
 
 def about():
@@ -1177,7 +1229,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.5b')
+app.setApplicationVersion(' v0.10.5c')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1185,6 +1237,10 @@ ui.setupUi(window)
 pwindow = QtWidgets.QDialog()  # pwindow is the preferences dialogue box
 preferences = QtTSApreferences.Ui_Preferences()
 preferences.setupUi(pwindow)
+
+fwindow = QtWidgets.QDialog()  # fwindow is the filebrowse dialogue box
+filebrowse = QtTSAfilebrowse.Ui_Filebrowse()
+filebrowse.setupUi(fwindow)
 
 # Traces & markers
 S1 = display('1', yellow)
@@ -1329,6 +1385,14 @@ ui.actionAbout_QtTinySA.triggered.connect(about)
 pwindow.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
 preferences.exportButton.pressed.connect(exportData)
 preferences.importButton.pressed.connect(importData)
+
+# filebrowse
+ui.actionBrowse_TinySA.triggered.connect(dialogBrowse)
+filebrowse.download.clicked.connect(fileDownload)
+filebrowse.listWidget.itemSelectionChanged.connect(fileShow)
+
+# Quit
+ui.actionQuit.triggered.connect(app.closeAllWindows)
 
 
 ###############################################################################
