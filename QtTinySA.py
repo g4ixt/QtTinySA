@@ -596,7 +596,7 @@ class analyser:
     def fPrecision(self, frequencies):  # sets the marker indicated frequency precision
         fInc = frequencies[1] - frequencies[0]
         if fInc > 0:
-            self.dp = int(np.log10(frequencies[0] / fInc))  # number of decicimal places required
+            self.dp = np.clip(int(np.log10(frequencies[0] / fInc)), 0, 5)  # number of decicimal places required
             logging.debug(f'fPrecision: fInc = {fInc} dp = {self.dp}')
         else:
             self.dp = 0
