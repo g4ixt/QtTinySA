@@ -85,6 +85,7 @@ class analyser:
         self.fifoTimer.timeout.connect(self.usbSend)
         self.tinySA4 = None
         self.maxF = 6000
+        self.directory = None
 
     def openPort(self):
         self.dev = None
@@ -601,20 +602,70 @@ class analyser:
             self.dp = 0
 
     def listSD(self):
+        self.clearBuffer()  # clear the USB serial buffer
         command = 'sd_list\r'
         ls = self.serialQuery(command)
         return ls
 
     def readSD(self, fileName):
+        # self.clearBuffer()  # clear the USB serial buffer
         command = ('sd_read %s\r' % fileName)
         self.usb.write(command.encode())
         self.usb.readline()  # discard empty line
         format_string = "<1i"  # little-endian single integer of 4 bytes
+        self.usb.timeout = None
         buffer = self.usb.read(4)
         size = struct.unpack(format_string, buffer)
         size = size[0]
         data = self.usb.read(size)
-        return (data)
+        self.usb.timeout = 1
+        return data
+
+    def dialogBrowse(self):
+        if self.threadRunning:
+            popUp("Cannot browse tinySA whilst a scan is running", QMessageBox.Ok, QMessageBox.Information)
+            return
+        else:
+            SD = self.listSD()
+            filebrowse.listWidget.clear()
+            ls = []
+            for i in range(len(SD.splitlines())):
+                ls.append(SD.splitlines()[i].split(" ")[0])
+            filebrowse.listWidget.insertItems(0, ls)
+            fwindow.show()
+
+    def fileDownload(self):
+        selected = filebrowse.listWidget.currentItem().text()  # the file selected in the list widget
+        if self.directory:  # already downloaded a file so use the same folder path as the default
+            folder = os.path.join(self.directory, selected)
+            fileName = QFileDialog.getSaveFileName(caption="Save As", directory=folder)
+        else:
+            fileName = QFileDialog.getSaveFileName(caption="Save As", directory=selected)
+        filebrowse.downloadBar.setValue(20)  # update the fake progress bar to show start of download
+        with open(str(fileName[0]), "wb") as file:
+            file.write(self.readSD(selected))
+        self.clearBuffer()
+        # pixmap = QPixmap(selected)
+        pixmap = QPixmap(fileName[0])
+        filebrowse.picture.setPixmap(pixmap)
+        filebrowse.downloadBar.setValue(100)  # update the fake progress bar to complete
+        self.directory = os.path.dirname(fileName[0])
+        filebrowse.downloadInfo.setText(self.directory)  # show the path where the file was saved
+
+    def fileShow(self):
+        filebrowse.downloadBar.setValue(0)
+        fileName = filebrowse.listWidget.currentItem().text()
+        if self.directory:
+            filebrowse.downloadInfo.setText(self.directory)
+            folder = os.path.join(self.directory, fileName)
+        else:
+            folder = fileName
+        if not os.path.isfile(folder):
+            filebrowse.picture.clear()
+        if fileName[-3:] == 'bmp':
+            if os.path.isfile(folder):
+                pixmap = QPixmap(folder)
+                filebrowse.picture.setPixmap(pixmap)
 
 
 class display:
@@ -1065,43 +1116,7 @@ def dialogPrefs():
     pwindow.show()
 
 
-def dialogBrowse():
-    if tinySA.threadRunning:
-        popUp("Cannot browse tinySA whilst a scan is running", QMessageBox.Ok, QMessageBox.Information)
-        return
-    else:
-        tinySA.clearBuffer()
-        ls = tinySA.listSD()
-        logging.info(f'list = {ls}')
-        filebrowse.listWidget.clear()
-        filebrowse.listWidget.insertItems(0, ls.splitlines())
-        fwindow.show()
 
-
-def fileDownload():
-    fileName = filebrowse.listWidget.currentItem()
-    fileName = fileName.text().split(" ")[0]
-    with open(fileName, "wb") as file:
-        fileContent = tinySA.readSD(fileName)
-        file.write(fileContent)
-        file.close()
-    tinySA.clearBuffer()
-    pixmap = QPixmap(fileName)
-    filebrowse.picture.setPixmap(pixmap)
-
-
-def fileShow():
-    fileName = filebrowse.listWidget.currentItem()
-    fileName = fileName.text().split(" ")[0]
-    if fileName[-3:] == 'bmp':
-        if os.path.isfile(fileName):
-            logging.info(f'filename = {fileName}')
-            pixmap = QPixmap(fileName)
-            filebrowse.picture.setPixmap(pixmap)
-        else:
-            fileDownload()
-    else:
-        filebrowse.picture.clear()
 
 
 def about():
@@ -1229,7 +1244,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.5c')
+app.setApplicationVersion(' v0.10.5d')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1387,9 +1402,9 @@ preferences.exportButton.pressed.connect(exportData)
 preferences.importButton.pressed.connect(importData)
 
 # filebrowse
-ui.actionBrowse_TinySA.triggered.connect(dialogBrowse)
-filebrowse.download.clicked.connect(fileDownload)
-filebrowse.listWidget.itemSelectionChanged.connect(fileShow)
+ui.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
+filebrowse.download.clicked.connect(tinySA.fileDownload)
+filebrowse.listWidget.itemSelectionChanged.connect(tinySA.fileShow)
 
 # Quit
 ui.actionQuit.triggered.connect(app.closeAllWindows)
