@@ -602,13 +602,13 @@ class analyser:
             self.dp = 0
 
     def listSD(self):
-        self.clearBuffer()  # clear the USB serial buffer
-        command = 'sd_list\r'
-        ls = self.serialQuery(command)
-        return ls
+        if self.usb:
+            self.clearBuffer()  # clear the USB serial buffer
+            command = 'sd_list\r'
+            ls = self.serialQuery(command)
+            return ls
 
     def readSD(self, fileName):
-        # self.clearBuffer()  # clear the USB serial buffer
         command = ('sd_read %s\r' % fileName)
         self.usb.write(command.encode())
         self.usb.readline()  # discard empty line
@@ -625,7 +625,7 @@ class analyser:
         if self.threadRunning:
             popUp("Cannot browse tinySA whilst a scan is running", QMessageBox.Ok, QMessageBox.Information)
             return
-        else:
+        elif self.usb:
             SD = self.listSD()
             filebrowse.listWidget.clear()
             ls = []
