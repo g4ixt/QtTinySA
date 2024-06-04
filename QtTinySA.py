@@ -87,6 +87,7 @@ class analyser:
         self.tinySA4 = None
         self.maxF = 6000
         self.directory = None
+        self.memF = BytesIO()
 
     def openPort(self):
         self.dev = None
@@ -637,15 +638,13 @@ class analyser:
 
     def fileDownload(self):
         selected = filebrowse.listWidget.currentItem().text()  # the file selected in the list widget
-        if self.directory:  # already downloaded a file so use the same folder path as the default
+        if self.directory:  # already saved a file so use the same folder path as the default
             folder = os.path.join(self.directory, selected)
             fileName = QFileDialog.getSaveFileName(caption="Save As", directory=folder)
         else:
             fileName = QFileDialog.getSaveFileName(caption="Save As", directory=selected)
-        filebrowse.downloadBar.setValue(20)  # update the fake progress bar to show start of download
         with open(str(fileName[0]), "wb") as file:
-            file.write(self.fileShow().getvalue())
-        filebrowse.downloadBar.setValue(100)  # update the fake progress bar to complete
+            file.write(self.memF.getvalue())
         self.directory = os.path.dirname(fileName[0])
         filebrowse.downloadInfo.setText(self.directory)  # show the path where the file was saved
 
@@ -654,13 +653,13 @@ class analyser:
         filebrowse.picture.clear()
         fileName = filebrowse.listWidget.currentItem().text()
         self.clearBuffer()  # clear the tinySA serial buffer
-        memF = BytesIO()
-        memF.write(self.readSD(fileName))
+        filebrowse.downloadBar.setValue(20)  # update the fake progress bar to show start of download
+        self.memF.write(self.readSD(fileName))
         if fileName[-3:] == 'bmp':
             pixmap = QPixmap()
-            pixmap.loadFromData(memF.getvalue())
+            pixmap.loadFromData(self.memF.getvalue())
             filebrowse.picture.setPixmap(pixmap)
-        return memF
+        filebrowse.downloadBar.setValue(100)  # update the fake progress bar to complete
 
 
 class display:
