@@ -36,6 +36,7 @@ import QtTSAfilebrowse
 import struct
 import serial
 from serial.tools import list_ports
+from io import BytesIO
 
 #  For 3D
 import pyqtgraph.opengl as pyqtgl
@@ -643,29 +644,23 @@ class analyser:
             fileName = QFileDialog.getSaveFileName(caption="Save As", directory=selected)
         filebrowse.downloadBar.setValue(20)  # update the fake progress bar to show start of download
         with open(str(fileName[0]), "wb") as file:
-            file.write(self.readSD(selected))
-        self.clearBuffer()
-        # pixmap = QPixmap(selected)
-        pixmap = QPixmap(fileName[0])
-        filebrowse.picture.setPixmap(pixmap)
+            file.write(self.fileShow().getvalue())
         filebrowse.downloadBar.setValue(100)  # update the fake progress bar to complete
         self.directory = os.path.dirname(fileName[0])
         filebrowse.downloadInfo.setText(self.directory)  # show the path where the file was saved
 
     def fileShow(self):
-        filebrowse.downloadBar.setValue(0)
+        filebrowse.downloadBar.setValue(0)  # reset the fake progress bar
+        filebrowse.picture.clear()
         fileName = filebrowse.listWidget.currentItem().text()
-        if self.directory:
-            filebrowse.downloadInfo.setText(self.directory)
-            folder = os.path.join(self.directory, fileName)
-        else:
-            folder = fileName
-        if not os.path.isfile(folder):
-            filebrowse.picture.clear()
+        self.clearBuffer()  # clear the tinySA serial buffer
+        memF = BytesIO()
+        memF.write(self.readSD(fileName))
         if fileName[-3:] == 'bmp':
-            if os.path.isfile(folder):
-                pixmap = QPixmap(folder)
-                filebrowse.picture.setPixmap(pixmap)
+            pixmap = QPixmap()
+            pixmap.loadFromData(memF.getvalue())
+            filebrowse.picture.setPixmap(pixmap)
+        return memF
 
 
 class display:
@@ -768,7 +763,6 @@ class display:
         markerF = options.get(self.markerType)
         if markerF * 1e6 < np.min(frequencies) or markerF * 1e6 > np.max(frequencies):
             # marker is out of scan range so just show its frequency
-            # self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz')
             self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.{tinySA.dp}f}MHz')
         else:
             # marker is in scan range
@@ -777,10 +771,8 @@ class display:
             if dBm > S4.hline.value() or self.markerType[:4] != 'Peak':
                 self.vline.setValue(frequencies[fIndex] / 1e6)  # set to the discrete value from frequencies[]
             if self.markerType == 'Delta':
-                # self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.3f}MHz {dBm:.1f}dBm')
                 self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.{tinySA.dp}f}MHz {dBm:.1f}dBm')
             else:
-                # self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz {dBm:.1f}dBm')
                 self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.{tinySA.dp}f}MHz {dBm:.1f}dBm')
 
     def addFreqMarker(self, freq, colour, name, position):  # adds simple freq marker without full marker capability
@@ -1244,7 +1236,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.5d')
+app.setApplicationVersion(' v0.10.5e')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)

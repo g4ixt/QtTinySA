@@ -41,4 +41,4 @@ class Ui_Filebrowse(object):
     def retranslateUi(self, Filebrowse):
         _translate = QtCore.QCoreApplication.translate
         Filebrowse.setWindowTitle(_translate("Filebrowse", "File List"))
-        self.download.setText(_translate("Filebrowse", "Download"))
+        self.download.setText(_translate("Filebrowse", "Save"))
