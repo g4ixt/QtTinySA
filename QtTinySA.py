@@ -1021,7 +1021,7 @@ def addBandPressed():
         title = "New Spot Frequency"
         message = "Input the Name for your Spot Frequency"
         spotName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=spotName, type="12", startF=f'{S1.vline.value():.6f}',
+        bands.insertData(name=spotName, type=12, startF=f'{S1.vline.value():.6f}',
                          stopF='', visible=1, colour=colourID('orange'))  # preset 12 is Marker (spot frequency).
 
 
