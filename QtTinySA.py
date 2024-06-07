@@ -132,7 +132,7 @@ class analyser:
         hardware = ''
         while hardware[:6] != 'tinySA' and i < 4:  # try 3 times to detect TinySA
             hardware = self.version()
-            logging.info(f'Try {i}: TinySA version: {hardware[:16]}')
+            logging.info(f'Hardware detection attempt {i}: TinySA version: {hardware[:16]}')
             i += 1
             time.sleep(0.5)
         # hardware = 'tinySA'  # used for testing
@@ -217,6 +217,7 @@ class analyser:
                     self.setRBW()
                     self.sampleRep()
                     self.runButton('Stop')
+                    self.pause()
                     self.usbSend()
                     self.startMeasurement()  # runs measurement in separate thread
                 except serial.SerialException:
@@ -590,6 +591,10 @@ class analyser:
             command = f'time b 0x{y}{dt.month:02d}{dt.day:02d} 0x{dt.hour:02d}{dt.minute:02d}{dt.second:02d}\r'
             self.fifo.put(command)
 
+    def example(self):
+        command = 'example\r'
+        self.fifo.put(command)
+
     def sampleRep(self):
         # sets the number of repeat measurements at each frequency point to the value in the GUI
         command = f'repeat {ui.sampleRepeat.value()}\r'
@@ -635,6 +640,8 @@ class analyser:
                 ls.append(SD.splitlines()[i].split(" ")[0])
             filebrowse.listWidget.insertItems(0, ls)
             fwindow.show()
+        else:
+            popUp('TinySA not found', QMessageBox.Ok, QMessageBox.Critical)
 
     def fileDownload(self):
         selected = filebrowse.listWidget.currentItem().text()  # the file selected in the list widget
@@ -818,40 +825,31 @@ class database():
     def __init__(self):
         self.db = None
         self.dbName = "QtTSAprefs.db"
-        self.personalDir = platformdirs.user_config_dir(appname=app.applicationName(), ensure_exists=True)
+        self.personalDir = platformdirs.user_config_dir(appname=app.applicationName())
         self.globalDir = platformdirs.site_config_dir(appname=app.applicationName())
         self.workingDirs = [os.path.dirname(__file__), os.path.dirname(os.path.realpath(__file__)), os.getcwd()]
         self.dbpath = self._getPersonalisedPath()
 
     def _getPersonalisedPath(self):
-        returnpath = None
-        # check if config database file exists in ~/.config/qttinysa/
-        if os.path.exists(os.path.join(self.personalDir, self.dbName)):
-            returnpath = self.personalDir
+        if os.path.exists(os.path.join(self.personalDir, self.dbName)):  # check if personal config database file exists
             logging.info(f'Personal configuration database found at {self.personalDir}')
-        elif os.path.exists(os.path.join(self.globalDir, self.dbName)):
-            logging.info(f'Personal configuration database not found in {self.personalDir}')
-            c = shutil.copy(os.path.join(self.globalDir, self.dbName), self.personalDir)
-            if os.path.exists(os.path.join(self.personalDir, self.dbName)):
-                returnpath = self.personalDir
-                logging.info(f'Global configuration database copied to {c}')
-                popUp(f'Personal configuration database created at \n{c}', QMessageBox.Ok, QMessageBox.Information)
-        if returnpath is None:
-            # no config database file found in personal or global directories
-            logging.info(f'No configuration database file exists in {self.personalDir} or {self.globalDir}')
-            # Look for one in the current working folder and in the folder where the python file is stored (or linked):
-            # In case QtTinySA is called from outside the stored folder.
-            for workingDir in self.workingDirs:
-                if os.path.exists(os.path.join(workingDir, self.dbName)):
-                    logging.info(f'Copying configuration database from {workingDir}')
-                    c = shutil.copy(os.path.join(workingDir, self.dbName), self.personalDir)
-            if os.path.exists(os.path.join(self.personalDir, self.dbName)):
-                returnpath = self.personalDir
-                logging.info(f'Personal configuration database created at {c}')
-                popUp(f'Personal configuration database created at \n{c}', QMessageBox.Ok, QMessageBox.Information)
+            return self.personalDir
+        if not os.path.exists(self.personalDir):
+            os.mkdir(self.personalDir)
+        if os.path.exists(os.path.join(self.globalDir, self.dbName)):
+            logging.info(f'Global configuration database found at {self.globalDir}')
+            shutil.copy(os.path.join(self.globalDir, self.dbName), self.personalDir)
+            logging.info(f'Global configuration database copied from {self.globalDir} to {self.personalDir}')
+            return self.personalDir
+        logging.info(f'No configuration database file exists in {self.personalDir} or {self.globalDir}')
+        # Look in current working folder & where the python file is stored/linked from
+        for workingDir in self.workingDirs:
+            if os.path.exists(os.path.join(workingDir, self.dbName)):
+                shutil.copy(os.path.join(workingDir, self.dbName), self.personalDir)
+                logging.info(f'Personal configuration database copied from {workingDir} to {self.personalDir}')
+                return self.personalDir
             else:
-                raise FileNotFoundError("Unable to create a personal configuration database")
-        return returnpath
+                raise FileNotFoundError("Unable to find the configuration database QtTSAprefs.db")
 
     def connect(self):
         self.db = QSqlDatabase.addDatabase('QSQLITE')
@@ -1107,9 +1105,6 @@ def dialogPrefs():
     pwindow.show()
 
 
-
-
-
 def about():
     message = ('TinySA Ultra GUI programme using Qt5 and PyQt\nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
                .format(app.applicationVersion(), config.dbpath))
@@ -1137,6 +1132,7 @@ def exit_handler():
             while tinySA.threadRunning:
                 time.sleep(0.1)  # wait for measurements to stop
         tinySA.resume()
+        tinySA.usbSend()
         tinySA.closePort()  # close USB connection
     config.disconnect()  # close database
     logging.info('QtTinySA Closed')
@@ -1235,7 +1231,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.5e')
+app.setApplicationVersion(' v0.10.5')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
