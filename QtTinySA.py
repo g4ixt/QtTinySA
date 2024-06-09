@@ -606,7 +606,7 @@ class analyser:
             self.dp = np.clip(int(np.log10(frequencies[0] / fInc)), 0, 5)  # number of decicimal places required
             logging.debug(f'fPrecision: fInc = {fInc} dp = {self.dp}')
         else:
-            self.dp = 0
+            self.dp = 6
 
     def listSD(self):
         if self.usb:
@@ -825,8 +825,8 @@ class database():
     def __init__(self):
         self.db = None
         self.dbName = "QtTSAprefs.db"
-        self.personalDir = platformdirs.user_config_dir(appname=app.applicationName())
-        self.globalDir = platformdirs.site_config_dir(appname=app.applicationName())
+        self.personalDir = platformdirs.user_config_dir(appname=app.applicationName(), appauthor=False)
+        self.globalDir = platformdirs.site_config_dir(appname=app.applicationName(), appauthor=False)
         self.workingDirs = [os.path.dirname(__file__), os.path.dirname(os.path.realpath(__file__)), os.getcwd()]
         self.dbpath = self._getPersonalisedPath()
 
@@ -848,8 +848,7 @@ class database():
                 shutil.copy(os.path.join(workingDir, self.dbName), self.personalDir)
                 logging.info(f'Personal configuration database copied from {workingDir} to {self.personalDir}')
                 return self.personalDir
-            else:
-                raise FileNotFoundError("Unable to find the configuration database QtTSAprefs.db")
+        raise FileNotFoundError("Unable to find the configuration database QtTSAprefs.db")
 
     def connect(self):
         self.db = QSqlDatabase.addDatabase('QSQLITE')
@@ -1013,13 +1012,13 @@ def addBandPressed():
             return
         ID = presetID(str(ui.filterBox.currentText()))
         title = "New Frequency Band"
-        message = "Input the name of your new band."
+        message = "Enter a name for the new band."
         bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
         bands.insertData(name=bandName, type=ID, startF=f'{S1.vline.value():.6f}',
                          stopF=f'{S2.vline.value():.6f}', visible=1, colour=colourID('green'))  # colourID(value)
     else:  # If only Marker 1 is enabled then this creates a spot Frequency marker
-        title = "New Spot Frequency"
-        message = "Input the Name for your Spot Frequency"
+        title = "New Spot Frequency Marker"
+        message = "Enter a name for the Spot Frequency"
         spotName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
         bands.insertData(name=spotName, type=12, startF=f'{S1.vline.value():.6f}',
                          stopF='', visible=1, colour=colourID('orange'))  # preset 12 is Marker (spot frequency).
@@ -1099,7 +1098,7 @@ def setPreferences():
 
 def dialogPrefs():
     bands.filterType(True, preferences.filterBox.currentText())
-    bands.tm.select()
+    bands.tm.select()  # stopping marker add
     bands.currentRow = 0
     preferences.freqBands.selectRow(bands.currentRow)
     pwindow.show()
@@ -1231,7 +1230,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.5')
+app.setApplicationVersion(' v0.10.6')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
