@@ -7,8 +7,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1000</width>
-    <height>603</height>
+    <width>1024</width>
+    <height>614</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -43,26 +43,8 @@
        <layout class="QGridLayout" name="gridLayout">
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_3">
-          <item row="22" column="0">
-           <spacer name="verticalSpacer_2">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>17</width>
-              <height>13</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="3" column="0">
-           <widget class="QCheckBox" name="atten_auto">
+          <item row="20" column="0">
+           <widget class="QCheckBox" name="trace4">
             <property name="font">
              <font>
               <pointsize>7</pointsize>
@@ -71,52 +53,10 @@
              </font>
             </property>
             <property name="toolTip">
-             <string>Enable auto attenuator</string>
+             <string>Enable Trace</string>
             </property>
             <property name="text">
-             <string>Auto Att</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="15" column="0">
-           <widget class="QComboBox" name="t2_type">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Trace Type</string>
-            </property>
-           </widget>
-          </item>
-          <item row="24" column="0">
-           <widget class="QLabel" name="version">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Firmware Version</string>
-            </property>
-            <property name="text">
-             <string>Cnx</string>
+             <string>Trace 4</string>
             </property>
            </widget>
           </item>
@@ -141,25 +81,44 @@
             </property>
            </widget>
           </item>
-          <item row="18" column="0">
-           <widget class="QCheckBox" name="trace4">
+          <item row="17" column="0">
+           <widget class="QComboBox" name="t2_type">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="font">
              <font>
               <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
              </font>
             </property>
             <property name="toolTip">
-             <string>Enable Trace</string>
+             <string>Trace Type</string>
             </property>
-            <property name="text">
-             <string>Trace 4</string>
+           </widget>
+          </item>
+          <item row="21" column="0">
+           <widget class="QComboBox" name="t4_type">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Trace Type</string>
             </property>
            </widget>
           </item>
           <item row="19" column="0">
-           <widget class="QComboBox" name="t4_type">
+           <widget class="QComboBox" name="t3_type">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -206,7 +165,102 @@
             </property>
            </widget>
           </item>
-          <item row="23" column="0">
+          <item row="26" column="0">
+           <widget class="QLabel" name="version">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Firmware Version</string>
+            </property>
+            <property name="text">
+             <string>Cnx</string>
+            </property>
+           </widget>
+          </item>
+          <item row="14" column="0">
+           <widget class="QComboBox" name="t1_type">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Trace Type</string>
+            </property>
+            <property name="modelColumn">
+             <number>0</number>
+            </property>
+           </widget>
+          </item>
+          <item row="11" column="0">
+           <widget class="QSpinBox" name="points_box">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Set the number of frequency Points to measure</string>
+            </property>
+            <property name="suffix">
+             <string/>
+            </property>
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>30000</number>
+            </property>
+            <property name="singleStep">
+             <number>100</number>
+            </property>
+            <property name="stepType">
+             <enum>QAbstractSpinBox::AdaptiveDecimalStepType</enum>
+            </property>
+            <property name="value">
+             <number>400</number>
+            </property>
+           </widget>
+          </item>
+          <item row="10" column="0">
+           <widget class="QCheckBox" name="points_auto">
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Auto set points to suit RBW</string>
+            </property>
+            <property name="text">
+             <string>Auto Pts</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="25" column="0">
            <widget class="QLabel" name="mixerMode">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -251,24 +305,64 @@
             </property>
            </widget>
           </item>
-          <item row="0" column="0">
-           <widget class="QCheckBox" name="lna_box">
+          <item row="3" column="0">
+           <widget class="QCheckBox" name="atten_auto">
             <property name="font">
              <font>
               <pointsize>7</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
+              <weight>75</weight>
+              <bold>true</bold>
              </font>
             </property>
             <property name="toolTip">
-             <string>Enable Low Noise Amplifier</string>
+             <string>Enable auto attenuator</string>
             </property>
             <property name="text">
-             <string>LNA</string>
+             <string>Auto Att</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
             </property>
            </widget>
           </item>
-          <item row="11" column="0">
+          <item row="18" column="0">
+           <widget class="QCheckBox" name="trace3">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Enable Trace</string>
+            </property>
+            <property name="text">
+             <string>Trace 3</string>
+            </property>
+           </widget>
+          </item>
+          <item row="16" column="0">
+           <widget class="QCheckBox" name="trace2">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Enable Trace</string>
+            </property>
+            <property name="text">
+             <string>Trace 2</string>
+            </property>
+            <property name="tristate">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="13" column="0">
            <widget class="QCheckBox" name="trace1">
             <property name="font">
              <font>
@@ -291,24 +385,24 @@
             </property>
            </widget>
           </item>
-          <item row="16" column="0">
-           <widget class="QCheckBox" name="trace3">
+          <item row="0" column="0">
+           <widget class="QCheckBox" name="lna_box">
             <property name="font">
              <font>
               <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
+              <weight>50</weight>
+              <bold>false</bold>
              </font>
             </property>
             <property name="toolTip">
-             <string>Enable Trace</string>
+             <string>Enable Low Noise Amplifier</string>
             </property>
             <property name="text">
-             <string>Trace 3</string>
+             <string>LNA</string>
             </property>
            </widget>
           </item>
-          <item row="25" column="0">
+          <item row="27" column="0">
            <widget class="QLabel" name="battery">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
@@ -329,120 +423,23 @@
             </property>
            </widget>
           </item>
-          <item row="17" column="0">
-           <widget class="QComboBox" name="t3_type">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
+          <item row="24" column="0">
+           <spacer name="verticalSpacer_2">
             <property name="font">
              <font>
               <pointsize>7</pointsize>
              </font>
             </property>
-            <property name="toolTip">
-             <string>Trace Type</string>
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
             </property>
-           </widget>
-          </item>
-          <item row="12" column="0">
-           <widget class="QComboBox" name="t1_type">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>17</width>
+              <height>13</height>
+             </size>
             </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Trace Type</string>
-            </property>
-            <property name="modelColumn">
-             <number>0</number>
-            </property>
-           </widget>
-          </item>
-          <item row="9" column="0">
-           <widget class="QCheckBox" name="points_auto">
-            <property name="enabled">
-             <bool>true</bool>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Auto set points to suit RBW</string>
-            </property>
-            <property name="text">
-             <string>Auto Pts</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-            <attribute name="buttonGroup">
-             <string notr="true">rbwpointsgroup</string>
-            </attribute>
-           </widget>
-          </item>
-          <item row="14" column="0">
-           <widget class="QCheckBox" name="trace2">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Enable Trace</string>
-            </property>
-            <property name="text">
-             <string>Trace 2</string>
-            </property>
-            <property name="tristate">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="10" column="0">
-           <widget class="QSpinBox" name="points_box">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Set Points</string>
-            </property>
-            <property name="suffix">
-             <string/>
-            </property>
-            <property name="minimum">
-             <number>1</number>
-            </property>
-            <property name="maximum">
-             <number>30000</number>
-            </property>
-            <property name="singleStep">
-             <number>100</number>
-            </property>
-            <property name="stepType">
-             <enum>QAbstractSpinBox::AdaptiveDecimalStepType</enum>
-            </property>
-            <property name="value">
-             <number>400</number>
-            </property>
-           </widget>
+           </spacer>
           </item>
           <item row="8" column="0">
            <widget class="QComboBox" name="rbw_box">
@@ -468,6 +465,13 @@
             </property>
            </widget>
           </item>
+          <item row="2" column="0">
+           <widget class="Line" name="line_2">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
           <item row="7" column="0">
            <widget class="QCheckBox" name="rbw_auto">
             <property name="font">
@@ -483,15 +487,26 @@
             <property name="text">
              <string>Auto RBW</string>
             </property>
-            <attribute name="buttonGroup">
-             <string notr="true">rbwpointsgroup</string>
-            </attribute>
            </widget>
           </item>
-          <item row="2" column="0">
-           <widget class="Line" name="line_2">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
+          <item row="12" column="0">
+           <widget class="QSpinBox" name="sampleRepeat">
+            <property name="font">
+             <font>
+              <pointsize>7</pointsize>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Set the number of repeat measurements at each frequency Point</string>
+            </property>
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>10000</number>
+            </property>
+            <property name="stepType">
+             <enum>QAbstractSpinBox::AdaptiveDecimalStepType</enum>
             </property>
            </widget>
           </item>
@@ -715,7 +730,7 @@
              <number>101</number>
             </property>
             <property name="value">
-             <number>10</number>
+             <number>1</number>
             </property>
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
@@ -742,7 +757,7 @@
              </font>
             </property>
             <property name="toolTip">
-             <string>Add Band preset from M1 and M2</string>
+             <string>Use M1 to add Marker, or M1 and M2 to add Band</string>
             </property>
             <property name="text">
              <string>+</string>
@@ -1930,7 +1945,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1000</width>
+     <width>1024</width>
      <height>23</height>
     </rect>
    </property>
@@ -1946,6 +1961,14 @@
     </property>
     <addaction name="actionPreferences"/>
    </widget>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionBrowse_TinySA"/>
+    <addaction name="actionQuit"/>
+   </widget>
+   <addaction name="menuFile"/>
    <addaction name="menuSettings"/>
    <addaction name="menu_Help"/>
   </widget>
@@ -1977,6 +2000,16 @@
   <action name="actionbands">
    <property name="text">
     <string>Bands and Markers</string>
+   </property>
+  </action>
+  <action name="actionBrowse_TinySA">
+   <property name="text">
+    <string>Browse TinySA</string>
+   </property>
+  </action>
+  <action name="actionQuit">
+   <property name="text">
+    <string>Quit</string>
    </property>
   </action>
  </widget>
@@ -2012,7 +2045,4 @@
    <bool>true</bool>
   </property>
  </designerdata>
- <buttongroups>
-  <buttongroup name="rbwpointsgroup"/>
- </buttongroups>
 </ui>

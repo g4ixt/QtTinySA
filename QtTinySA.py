@@ -25,14 +25,18 @@ import platformdirs
 import csv
 from platform import system
 from PyQt5 import QtWidgets, QtCore
-from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog
+from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit
 from PyQt5.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate
+from PyQt5.QtGui import QPixmap
+from datetime import datetime
 import pyqtgraph
 import QtTinySpectrum  # the GUI
 import QtTSApreferences  # the GUI preferences window
+import QtTSAfilebrowse
 import struct
 import serial
 from serial.tools import list_ports
+from io import BytesIO
 
 #  For 3D
 import pyqtgraph.opengl as pyqtgl
@@ -65,6 +69,7 @@ class analyser:
     def __init__(self):
         self.usb = None
         self.sweeping = False
+        self.threadRunning = False
         self.signals = WorkerSignals()
         self.signals.result.connect(self.sigProcess)
         self.signals.fullSweep.connect(self.updateGUI)
@@ -72,7 +77,6 @@ class analyser:
         self.runTimer = QtCore.QElapsedTimer()  # debug
         self.scale = 174
         self.scanMemory = 50
-        # self.scan3D = False
         self.surface = None
         self.vGrid = None
         self.usbCheck = QtCore.QTimer()
@@ -82,6 +86,8 @@ class analyser:
         self.fifoTimer.timeout.connect(self.usbSend)
         self.tinySA4 = None
         self.maxF = 6000
+        self.directory = None
+        self.memF = BytesIO()
 
     def openPort(self):
         self.dev = None
@@ -102,7 +108,8 @@ class analyser:
                 self.usb = serial.Serial(self.dev, baudrate=576000)
                 logging.info(f'Serial port open: {self.usb.isOpen()}')
             except serial.SerialException:
-                logging.info('serial port exception')
+                logging.info('Serial port exception.  Is your username in the "dialout" group?')
+                logging.info(f'groups: {os.getgroups()}')
                 popUp('Serial Port Exception', QMessageBox.Ok, QMessageBox.Critical)
         if self.dev and self.usb:
             self.initialise()
@@ -121,11 +128,11 @@ class analyser:
             self.usbCheck.stop()
 
     def initialise(self):
-        i = 0
+        i = 1
         hardware = ''
-        while hardware[:6] != 'tinySA' and i < 3:  # try 3 times to detect TinySA
+        while hardware[:6] != 'tinySA' and i < 4:  # try 3 times to detect TinySA
             hardware = self.version()
-            logging.info(f'{hardware[:16]}')
+            logging.info(f'Hardware detection attempt {i}: TinySA version: {hardware[:16]}')
             i += 1
             time.sleep(0.5)
         # hardware = 'tinySA'  # used for testing
@@ -153,6 +160,8 @@ class analyser:
         ui.battery.setText(self.battery())
         ui.version.setText(hardware[8:16])
 
+        self.setTime()
+
         # connect the rbw & frequency boxes here or it causes startup index errors when they are populated
         ui.rbw_box.currentIndexChanged.connect(rbwChanged)
         ui.rbw_auto.clicked.connect(rbwChanged)
@@ -160,6 +169,7 @@ class analyser:
         ui.stop_freq.editingFinished.connect(self.freq_changed)
         ui.centre_freq.valueChanged.connect(lambda: self.freq_changed(True))  # centre/span mode
         ui.span_freq.valueChanged.connect(lambda: self.freq_changed(True))  # centre/span mode
+        ui.band_box.currentIndexChanged.connect(band_changed)
         ui.band_box.activated.connect(band_changed)
 
         self.fifoTimer.start(500)  # calls self.usbSend() every 500mS to execute serial commands whilst not scanning
@@ -205,7 +215,9 @@ class analyser:
                     self.scanCount = 1
                     self.clearBuffer()
                     self.setRBW()
+                    self.sampleRep()
                     self.runButton('Stop')
+                    self.pause()
                     self.usbSend()
                     self.startMeasurement()  # runs measurement in separate thread
                 except serial.SerialException:
@@ -235,15 +247,15 @@ class analyser:
         while self.fifo.qsize() > 0:
             command = self.fifo.get(block=True, timeout=None)
             logging.debug(command)
-            self.usb.write(command)
+            self.usb.write(command.encode())
             self.usb.read_until(b'ch> ')  # skip command echo and prompt
 
     def serialQuery(self, command):
         self.usb.timeout = 1
         logging.debug(command)
-        self.usb.write(command)
-        self.usb.read_until(command + b'\n')  # skip command echo
-        response = self.usb.read_until(b'ch> ')
+        self.usb.write(command.encode())
+        self.usb.read_until(command.encode() + b'\n')  # skip command echo
+        response = self.usb.read_until(b'ch> ')  # until prompt
         logging.debug(response)
         return response[:-6].decode()  # remove prompt
 
@@ -253,6 +265,7 @@ class analyser:
         points = self.setPoints()
         frequencies = np.linspace(startF, stopF, points, dtype=np.int64)
         logging.debug(f'frequencies = {frequencies}')
+        self.fPrecision(frequencies)
         return frequencies
 
     def freq_changed(self, centre=False):
@@ -270,7 +283,7 @@ class analyser:
             ui.centre_freq.setValue(startF + (stopF - startF) / 2)
             ui.span_freq.setValue(stopF - startF)
         ui.graphWidget.setXRange(startF, stopF)
-        self.resume()
+        self.resume()  # # without this command, the trace doesn't update
 
     def freqOffset(self, frequencies):  # for mixers or LNBs external to TinySA
         startF = frequencies[0]
@@ -290,7 +303,7 @@ class analyser:
     def setRBW(self):  # may be called by measurement thread as well as normally
         rbw = ui.rbw_box.currentText()  # ui values are discrete ones in kHz
         logging.debug(f'rbw = {rbw}')
-        command = f'rbw {rbw}\r'.encode()
+        command = f'rbw {rbw}\r'
         self.fifo.put(command)
 
     def setPoints(self):  # may be called by measurement thread as well as normally
@@ -339,19 +352,19 @@ class analyser:
                 self.usb.timeout = self.sweepTimeout(frequencies)
                 if preferences.freqLO != 0:
                     startF, stopF = self.freqOffset(frequencies)
-                    command = f'scanraw {int(startF)} {int(stopF)} {int(points)}\r'.encode()
+                    command = f'scanraw {int(startF)} {int(stopF)} {int(points)}\r'
                 else:
-                    command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)}\r'.encode()
+                    command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)}\r'
                 logging.debug(f'measurement: command = {command}')
-                self.usb.write(command)
+                self.usb.write(command.encode())
                 index = 0
                 # self.runTimer.start()  # debug
-                self.usb.read_until(command + b'\n{')  # skip command echo
+                self.usb.read_until(command.encode() + b'\n{')  # skip command echo
                 dataBlock = ''
                 while dataBlock != b'}ch' and index < points:  # if '}ch' it's reached the end of the scan points
                     dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
                     logging.debug(f'dataBlock: {dataBlock}\n')
-                    if dataBlock == b'}ch':
+                    if dataBlock == b'}ch' or dataBlock == b'}':  # from FW165 jog button press returns different value
                         logging.info('jog button pressed')
                         self.sweeping = False
                         break
@@ -527,26 +540,26 @@ class analyser:
 
     def pause(self):
         # pauses the sweeping in either input or output mode
-        command = 'pause\r'.encode()
+        command = 'pause\r'
         self.fifo.put(command)
 
     def resume(self):
         # resumes the sweeping in either input or output mode
-        command = 'resume\r'.encode()
+        command = 'resume\r'
         self.fifo.put(command)
 
     def reset(self):
         # not yet found any detail for what is actually reset
-        command = 'reset\r'.encode()
+        command = 'reset\r'
         self.fifo.put(command)
 
     def battery(self):
-        command = 'vbat\r'.encode()
+        command = 'vbat\r'
         vbat = self.serialQuery(command)
         return vbat
 
     def version(self):
-        command = 'version\r'.encode()
+        command = 'version\r'
         version = self.serialQuery(command)
         return version
 
@@ -554,22 +567,106 @@ class analyser:
         sType = ui.spur_box.checkState()
         options = {0: 'Spur Off', 1: 'Spur Auto', 2: 'Spur On'}
         ui.spur_box.setText(options.get(sType))
-        options = {0: 'spur off\r'.encode(), 1: 'spur auto\r'.encode(), 2: 'spur on\r'.encode()}
+        options = {0: 'spur off\r', 1: 'spur auto\r', 2: 'spur on\r'}
         command = options.get(sType)
         self.fifo.put(command)
 
     def lna(self):
         if ui.lna_box.isChecked():
-            command = 'lna on\r'.encode()
+            command = 'lna on\r'
             ui.atten_auto.setEnabled(False)  # attenuator and lna are switched so mutually exclusive
             ui.atten_auto.setChecked(False)
             ui.atten_box.setEnabled(False)
             ui.atten_box.setValue(0)
         else:
-            command = 'lna off\r'.encode()
+            command = 'lna off\r'
             ui.atten_auto.setEnabled(True)
             ui.atten_auto.setChecked(True)
         self.fifo.put(command)
+
+    def setTime(self):
+        if self.tinySA4 and preferences.syncTime.isChecked():
+            dt = datetime.now()
+            y = dt.year - 2000
+            command = f'time b 0x{y}{dt.month:02d}{dt.day:02d} 0x{dt.hour:02d}{dt.minute:02d}{dt.second:02d}\r'
+            self.fifo.put(command)
+
+    def example(self):
+        command = 'example\r'
+        self.fifo.put(command)
+
+    def sampleRep(self):
+        # sets the number of repeat measurements at each frequency point to the value in the GUI
+        command = f'repeat {ui.sampleRepeat.value()}\r'
+        self.fifo.put(command)
+
+    def fPrecision(self, frequencies):  # sets the marker indicated frequency precision
+        fInc = frequencies[1] - frequencies[0]
+        if fInc > 0:
+            self.dp = np.clip(int(np.log10(frequencies[0] / fInc)), 0, 5)  # number of decicimal places required
+            logging.debug(f'fPrecision: fInc = {fInc} dp = {self.dp}')
+        else:
+            self.dp = 6
+
+    def listSD(self):
+        if self.usb:
+            self.clearBuffer()  # clear the USB serial buffer
+            command = 'sd_list\r'
+            ls = self.serialQuery(command)
+            return ls
+
+    def readSD(self, fileName):
+        command = ('sd_read %s\r' % fileName)
+        self.usb.write(command.encode())
+        self.usb.readline()  # discard empty line
+        format_string = "<1i"  # little-endian single integer of 4 bytes
+        self.usb.timeout = None
+        buffer = self.usb.read(4)
+        size = struct.unpack(format_string, buffer)
+        size = size[0]
+        data = self.usb.read(size)
+        self.usb.timeout = 1
+        return data
+
+    def dialogBrowse(self):
+        if self.threadRunning:
+            popUp("Cannot browse tinySA whilst a scan is running", QMessageBox.Ok, QMessageBox.Information)
+            return
+        elif self.usb:
+            SD = self.listSD()
+            filebrowse.listWidget.clear()
+            ls = []
+            for i in range(len(SD.splitlines())):
+                ls.append(SD.splitlines()[i].split(" ")[0])
+            filebrowse.listWidget.insertItems(0, ls)
+            fwindow.show()
+        else:
+            popUp('TinySA not found', QMessageBox.Ok, QMessageBox.Critical)
+
+    def fileDownload(self):
+        selected = filebrowse.listWidget.currentItem().text()  # the file selected in the list widget
+        if self.directory:  # already saved a file so use the same folder path as the default
+            folder = os.path.join(self.directory, selected)
+            fileName = QFileDialog.getSaveFileName(caption="Save As", directory=folder)
+        else:
+            fileName = QFileDialog.getSaveFileName(caption="Save As", directory=selected)
+        with open(str(fileName[0]), "wb") as file:
+            file.write(self.memF.getvalue())
+        self.directory = os.path.dirname(fileName[0])
+        filebrowse.downloadInfo.setText(self.directory)  # show the path where the file was saved
+
+    def fileShow(self):
+        filebrowse.downloadBar.setValue(0)  # reset the fake progress bar
+        filebrowse.picture.clear()
+        fileName = filebrowse.listWidget.currentItem().text()
+        self.clearBuffer()  # clear the tinySA serial buffer
+        filebrowse.downloadBar.setValue(20)  # update the fake progress bar to show start of download
+        self.memF.write(self.readSD(fileName))
+        if fileName[-3:] == 'bmp':
+            pixmap = QPixmap()
+            pixmap.loadFromData(self.memF.getvalue())
+            filebrowse.picture.setPixmap(pixmap)
+        filebrowse.downloadBar.setValue(100)  # update the fake progress bar to complete
 
 
 class display:
@@ -672,7 +769,7 @@ class display:
         markerF = options.get(self.markerType)
         if markerF * 1e6 < np.min(frequencies) or markerF * 1e6 > np.max(frequencies):
             # marker is out of scan range so just show its frequency
-            self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz')
+            self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.{tinySA.dp}f}MHz')
         else:
             # marker is in scan range
             fIndex = np.argmin(np.abs(frequencies - (markerF * 1e6)))  # find closest value in freq array
@@ -680,14 +777,14 @@ class display:
             if dBm > S4.hline.value() or self.markerType[:4] != 'Peak':
                 self.vline.setValue(frequencies[fIndex] / 1e6)  # set to the discrete value from frequencies[]
             if self.markerType == 'Delta':
-                self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.3f}MHz {dBm:.1f}dBm')
+                self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.{tinySA.dp}f}MHz {dBm:.1f}dBm')
             else:
-                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.3f}MHz {dBm:.1f}dBm')
+                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.{tinySA.dp}f}MHz {dBm:.1f}dBm')
 
     def addFreqMarker(self, freq, colour, name, position):  # adds simple freq marker without full marker capability
         if ui.presetLabel.isChecked():
             self.marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5, style=QtCore.Qt.DashLine),
-                                            label=name, labelOpts={'position': position, 'color': (colour)})
+                                                 label=name, labelOpts={'position': position, 'color': (colour)})
             self.marker.label.setMovable(True)
         else:
             self.marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5, style=QtCore.Qt.DashLine))
@@ -728,40 +825,30 @@ class database():
     def __init__(self):
         self.db = None
         self.dbName = "QtTSAprefs.db"
-        self.personalDir = platformdirs.user_config_dir(appname=app.applicationName(), ensure_exists=True)
-        self.globalDir = platformdirs.site_config_dir(appname=app.applicationName())
+        self.personalDir = platformdirs.user_config_dir(appname=app.applicationName(), appauthor=False)
+        self.globalDir = platformdirs.site_config_dir(appname=app.applicationName(), appauthor=False)
         self.workingDirs = [os.path.dirname(__file__), os.path.dirname(os.path.realpath(__file__)), os.getcwd()]
         self.dbpath = self._getPersonalisedPath()
 
     def _getPersonalisedPath(self):
-        returnpath = None
-        # check if config database file exists in ~/.config/qttinysa/
-        if os.path.exists(os.path.join(self.personalDir, self.dbName)):
-            returnpath = self.personalDir
+        if os.path.exists(os.path.join(self.personalDir, self.dbName)):  # check if personal config database file exists
             logging.info(f'Personal configuration database found at {self.personalDir}')
-        elif os.path.exists(os.path.join(self.globalDir, self.dbName)):
-            logging.info(f'Personal configuration database not found in {self.personalDir}')
-            c = shutil.copy(os.path.join(self.globalDir, self.dbName), self.personalDir)
-            if os.path.exists(os.path.join(self.personalDir, self.dbName)):
-                returnpath = self.personalDir
-                logging.info(f'Global configuration database copied to {c}')
-                popUp(f'Personal configuration database created at \n{c}', QMessageBox.Ok, QMessageBox.Information)
-        if returnpath is None:
-            # no config database file found in personal or global directories
-            logging.info(f'No configuration database file exists in {self.personalDir} or {self.globalDir}')
-            # Look for one in the current working folder and in the folder where the python file is stored (or linked to):
-            # In case QtTinySA is called from outside the stored folder.
-            for workingDir in self.workingDirs:
-                if os.path.exists(os.path.join(workingDir, self.dbName)):
-                    logging.info(f'Copying configuration database from {workingDir}')
-                    c = shutil.copy(os.path.join(workingDir, self.dbName), self.personalDir)
-            if os.path.exists(os.path.join(self.personalDir, self.dbName)):
-                returnpath = self.personalDir
-                logging.info(f'Personal configuration database created at {c}')
-                popUp(f'Personal configuration database created at \n{c}', QMessageBox.Ok, QMessageBox.Information)
-            else:
-                raise FileNotFoundError("Unable to create a personal configuration database")
-        return returnpath
+            return self.personalDir
+        if not os.path.exists(self.personalDir):
+            os.mkdir(self.personalDir)
+        if os.path.exists(os.path.join(self.globalDir, self.dbName)):
+            logging.info(f'Global configuration database found at {self.globalDir}')
+            shutil.copy(os.path.join(self.globalDir, self.dbName), self.personalDir)
+            logging.info(f'Global configuration database copied from {self.globalDir} to {self.personalDir}')
+            return self.personalDir
+        logging.info(f'No configuration database file exists in {self.personalDir} or {self.globalDir}')
+        # Look in current working folder & where the python file is stored/linked from
+        for workingDir in self.workingDirs:
+            if os.path.exists(os.path.join(workingDir, self.dbName)):
+                shutil.copy(os.path.join(workingDir, self.dbName), self.personalDir)
+                logging.info(f'Personal configuration database copied from {workingDir} to {self.personalDir}')
+                return self.personalDir
+        raise FileNotFoundError("Unable to find the configuration database QtTSAprefs.db")
 
     def connect(self):
         self.db = QSqlDatabase.addDatabase('QSQLITE')
@@ -788,6 +875,7 @@ class modelView():
         self.tm = QSqlRelationalTableModel()
         self.dwm = QDataWidgetMapper()
         self.currentRow = 0
+        self.currentBand = 0
 
     def createTableModel(self):
         self.tm.setTable(self.tableName)
@@ -820,10 +908,12 @@ class modelView():
 
     def insertData(self, **data):
         record = self.tm.record()
+        logging.info(f'insertData: record = {record}')
         for key, value in data.items():
+            logging.info(f'insertData: key = {key} value={value}')
             record.setValue(str(key), value)
         self.tm.insertRecord(-1, record)
-        self.tm.select()
+        # self.tm.select()
         self.tm.layoutChanged.emit()
         self.dwm.submit()
 
@@ -832,13 +922,16 @@ class modelView():
         if prefsDialog:
             if boxText == 'show all':
                 sql = ''
+            self.tm.setFilter(sql)
         else:
             sql = 'visible = "1" AND preset = "' + boxText + '"'
             if boxText == 'show all':
                 sql = 'visible = "1"'
             if tinySA.tinySA4 is False:  # It's a tinySA basic with limited frequency range
                 sql = sql + ' AND startF <= "960"'
-        bands.tm.setFilter(sql)
+            index = ui.band_box.currentIndex()
+            self.tm.setFilter(sql)
+            ui.band_box.setCurrentIndex(index)
 
     def readCSV(self, fileName):
         with open(fileName, "r") as fileInput:
@@ -849,7 +942,7 @@ class modelView():
                     # don't understand how to make relation work for these fields
                     if key == 'preset':
                         value = presetID(value)
-                    if key.lower() == 'colour':
+                    if key == 'colour':
                         value = colourID(value)
                     if key == 'value':
                         value = int(eval(value))
@@ -893,14 +986,14 @@ class modelView():
 
 def band_changed():
     index = ui.band_box.currentIndex()
-    if bandstype.tm.record(ui.filterBox.currentIndex()).value('type') == 'band':
-        startF = bands.tm.record(index).value('StartF')
-        stopF = bands.tm.record(index).value('StopF')
+    if bandselect.tm.record(index).value('stopF') != '':
+        startF = bandselect.tm.record(index).value('StartF')
+        stopF = bandselect.tm.record(index).value('StopF')
         ui.start_freq.setValue(startF)
         ui.stop_freq.setValue(stopF)
         tinySA.freq_changed(False)  # start/stop mode
     else:
-        centreF = bands.tm.record(index).value('StartF')
+        centreF = bandselect.tm.record(index).value('StartF')
         ui.centre_freq.setValue(centreF)
         ui.span_freq.setValue(1)
         tinySA.freq_changed(True)  # centre mode
@@ -908,18 +1001,27 @@ def band_changed():
 
 
 def addBandPressed():
-    if ui.marker1.isChecked() and ui.marker2.isChecked():
+    if not ui.marker1.isChecked():
+        message = 'Please enable Marker 1'
+        popUp(message, QMessageBox.Ok, QMessageBox.Information)
+        return
+    if ui.marker1.isChecked() and ui.marker2.isChecked():  # Two markers are to set the band limits of a new band
         if S1.vline.value() >= S2.vline.value():
             message = 'M1 frequency >= M2 frequency'
             popUp(message, QMessageBox.Ok, QMessageBox.Information)
             return
-        bandName = 'M' + str(round(S1.vline.value(), 6))
         ID = presetID(str(ui.filterBox.currentText()))
-        bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value():.6f}',
-                         stopF=f'{S2.vline.value():.6f}', value=1, colour="aliceblue")
-    else:
-        message = 'M1 and M2 must both be enabled to add a new Band'
-        popUp(message, QMessageBox.Ok, QMessageBox.Information)
+        title = "New Frequency Band"
+        message = "Enter a name for the new band."
+        bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
+        bands.insertData(name=bandName, type=ID, startF=f'{S1.vline.value():.6f}',
+                         stopF=f'{S2.vline.value():.6f}', visible=1, colour=colourID('green'))  # colourID(value)
+    else:  # If only Marker 1 is enabled then this creates a spot Frequency marker
+        title = "New Spot Frequency Marker"
+        message = "Enter a name for the Spot Frequency"
+        spotName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
+        bands.insertData(name=spotName, type=12, startF=f'{S1.vline.value():.6f}',
+                         stopF='', visible=1, colour=colourID('orange'))  # preset 12 is Marker (spot frequency).
 
 
 def attenuate_changed():
@@ -930,15 +1032,18 @@ def attenuate_changed():
     else:
         if not ui.lna_box.isChecked():  # attenuator and lna are switched so mutually exclusive
             ui.atten_box.setEnabled(True)
-    command = f'attenuate {str(atten)}\r'.encode()
+    command = f'attenuate {str(atten)}\r'
     tinySA.fifo.put(command)
 
 
 def rbwChanged():
     if ui.rbw_auto.isChecked():  # can't calculate Points because we don't know what the RBW will be
         ui.rbw_box.setEnabled(False)
+        ui.points_auto.setChecked(False)
+        ui.points_auto.setEnabled(False)
     else:
         ui.rbw_box.setEnabled(True)
+        ui.points_auto.setEnabled(True)
     tinySA.setRBW()  # if measurement thread is running, calling setRBW() will force it to update scan parameters
 
 
@@ -948,7 +1053,7 @@ def pointsChanged():
         ui.rbw_box.setEnabled(True)
     else:
         ui.points_box.setEnabled(True)
-    tinySA.resume()
+    tinySA.resume()  # without this command, the trace doesn't update
 
 
 def memChanged():
@@ -985,7 +1090,7 @@ def setPreferences():
     checkboxes.dwm.submit()
     bands.tm.submitAll()
     S4.hline.setValue(preferences.peakThreshold.value())
-    bands.filterType(False, ui.filterBox.currentText())
+    bandselect.filterType(False, ui.filterBox.currentText())
     if ui.presetMarker.isChecked():
         freqMarkers()
     isMixerMode()
@@ -993,7 +1098,7 @@ def setPreferences():
 
 def dialogPrefs():
     bands.filterType(True, preferences.filterBox.currentText())
-    bands.tm.select()
+    bands.tm.select()  # stopping marker add
     bands.currentRow = 0
     preferences.freqBands.selectRow(bands.currentRow)
     pwindow.show()
@@ -1003,6 +1108,7 @@ def about():
     message = ('TinySA Ultra GUI programme using Qt5 and PyQt\nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
                .format(app.applicationVersion(), config.dbpath))
     popUp(message, QMessageBox.Ok, QMessageBox.Information)
+
 
 ##############################################################################
 # other methods
@@ -1025,6 +1131,7 @@ def exit_handler():
             while tinySA.threadRunning:
                 time.sleep(0.1)  # wait for measurements to stop
         tinySA.resume()
+        tinySA.usbSend()
         tinySA.closePort()  # close USB connection
     config.disconnect()  # close database
     logging.info('QtTinySA Closed')
@@ -1040,7 +1147,7 @@ def popUp(message, button, icon):
 
 
 def freqMarkers():
-    presetmarker.tm.select()
+    # presetmarker.tm.select()
     S1.delFreqMarkers()
     S2.delFreqMarkers()
     for i in range(0, presetmarker.tm.rowCount()):
@@ -1049,11 +1156,11 @@ def freqMarkers():
             colour = presetmarker.tm.record(i).value('colour')
             name = presetmarker.tm.record(i).value('name')
             if ui.presetMarker.isChecked() and presetmarker.tm.record(i).value('visible')\
-                    and presetmarker.tm.record(i).value('type') != 'band':
+                    and presetmarker.tm.record(i).value('stopF') == '':
                 S1.addFreqMarker(startF, colour, name, 0.05)
                 if ui.presetLabel.isChecked() and ui.presetLabel.checkState() == 2:
                     S1.marker.label.setAngle(90)
-            if presetmarker.tm.record(i).value('type') == 'band':
+            if presetmarker.tm.record(i).value('stopF') != '':
                 stopF = presetmarker.tm.record(i).value('StopF')
                 S1.addFreqMarker(startF, colour, name, 0.98)
                 S2.addFreqMarker(stopF, colour, name, 0.98)
@@ -1123,7 +1230,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.3')
+app.setApplicationVersion(' v0.10.6')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1131,6 +1238,10 @@ ui.setupUi(window)
 pwindow = QtWidgets.QDialog()  # pwindow is the preferences dialogue box
 preferences = QtTSApreferences.Ui_Preferences()
 preferences.setupUi(pwindow)
+
+fwindow = QtWidgets.QDialog()  # fwindow is the filebrowse dialogue box
+filebrowse = QtTSAfilebrowse.Ui_Filebrowse()
+filebrowse.setupUi(fwindow)
 
 # Traces & markers
 S1 = display('1', yellow)
@@ -1141,7 +1252,6 @@ S4 = display('4', white)
 # Data models for configuration settings
 config = database()
 config.connect()
-bands = modelView('frequencies')
 checkboxes = modelView('checkboxes')
 numbers = modelView('numbers')
 markers = modelView('marker')
@@ -1152,16 +1262,18 @@ rbwtext = modelView('combo')
 bandstype = modelView('freqtype')
 colours = modelView('SVGColour')
 maps = modelView('mapping')
-
-presetmarker = modelView(('frequencies'))
+bands = modelView('frequencies')
+presetmarker = modelView('frequencies')
+bandselect = modelView('frequencies')
 
 ###############################################################################
 # GUI settings
 
 # pyqtgraph settings for spectrum display
 ui.graphWidget.disableAutoRange()  # supposed to make pyqtgraph plot faster
+#
 ui.graphWidget.setYRange(-110, 5)
-ui.graphWidget.setXRange(87.5, 108)
+# ui.graphWidget.setXRange(87.5, 108)
 ui.graphWidget.setBackground('k')  # black
 ui.graphWidget.showGrid(x=True, y=True)
 
@@ -1223,7 +1335,7 @@ ui.m4_type.activated.connect(S4.mType)
 
 # frequency band markers
 ui.presetMarker.clicked.connect(freqMarkers)
-ui.presetLabel.stateChanged.connect(freqMarkerLabel)
+ui.presetLabel.clicked.connect(freqMarkerLabel)
 ui.mToBand.clicked.connect(addBandPressed)
 ui.filterBox.currentTextChanged.connect(freqMarkers)
 
@@ -1238,6 +1350,8 @@ ui.t1_type.activated.connect(S1.tType)
 ui.t2_type.activated.connect(S2.tType)
 ui.t3_type.activated.connect(S3.tType)
 ui.t4_type.activated.connect(S4.tType)
+
+ui.sampleRepeat.valueChanged.connect(tinySA.sampleRep)
 
 # 3D graph controls
 ui.orbitL.clicked.connect(lambda: tinySA.orbit3D(1, True))
@@ -1266,12 +1380,20 @@ preferences.deleteRow.clicked.connect(lambda: bands.deleteRow(True))
 preferences.deleteAll.clicked.connect(lambda: bands.deleteRow(False))
 preferences.freqBands.clicked.connect(bands.tableClicked)
 preferences.filterBox.currentTextChanged.connect(lambda: bands.filterType(True, preferences.filterBox.currentText()))
-ui.filterBox.currentTextChanged.connect(lambda: bands.filterType(False, ui.filterBox.currentText()))
+ui.filterBox.currentTextChanged.connect(lambda: bandselect.filterType(False, ui.filterBox.currentText()))
 ui.actionPreferences.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
 ui.actionAbout_QtTinySA.triggered.connect(about)
 pwindow.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
 preferences.exportButton.pressed.connect(exportData)
 preferences.importButton.pressed.connect(importData)
+
+# filebrowse
+ui.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
+filebrowse.download.clicked.connect(tinySA.fileDownload)
+filebrowse.listWidget.itemSelectionChanged.connect(tinySA.fileShow)
+
+# Quit
+ui.actionQuit.triggered.connect(app.closeAllWindows)
 
 
 ###############################################################################
@@ -1279,9 +1401,12 @@ preferences.importButton.pressed.connect(importData)
 logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 
 # table models - read/write views of the configuration data
+
+# field mapping of the checkboxes from the database
 maps.createTableModel()
 maps.tm.select()
 
+# to populate the preset bands and markers relational table in the preferences dialogue
 bands.createTableModel()
 bands.tm.setSort(3, QtCore.Qt.AscendingOrder)
 bands.tm.setHeaderData(5, QtCore.Qt.Horizontal, 'visible')
@@ -1290,29 +1415,35 @@ bands.tm.setEditStrategy(QSqlRelationalTableModel.OnFieldChange)
 bands.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))  # set 'type' column to a freq type choice combo box
 bands.tm.setRelation(5, QSqlRelation('boolean', 'ID', 'value'))  # set 'view' column to a True/False choice combo box
 bands.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))  # set 'marker' column to a colours choice combo box
-
 presets = QSqlRelationalDelegate(preferences.freqBands)
 preferences.freqBands.setItemDelegate(presets)
 colHeader = preferences.freqBands.horizontalHeader()
 colHeader.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
 
+# for the filter combo box in the preferences dialogue
 bandstype.createTableModel()
 bandstype.tm.select()
 
+# to lookup the preset bands and markers colours because can't get the relationships to work
 colours.createTableModel()
 colours.tm.select()
 
+# for the preset markers, which need different filtering to the preferences dialogue
 presetmarker.createTableModel()
 presetmarker.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))
-presetmarker.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'type'))
+presetmarker.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))
+presetmarker.tm.setSort(3, QtCore.Qt.AscendingOrder)
 presetmarker.tm.select()
 
-# populate the band presets combo box
-ui.band_box.setModel(bands.tm)
+# populate the ui band selection combo box, which needs different filter to preferences dialogue and preset markers
+bandselect.createTableModel()
+bandselect.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))
+bandselect.tm.setSort(3, QtCore.Qt.AscendingOrder)
+ui.band_box.setModel(bandselect.tm)
 ui.band_box.setModelColumn(1)
-bands.tm.select()  # initially select the data in the model
+bandselect.tm.select()
 
-# populate the preferences and main GUI filter combo boxes
+# populate the preferences dialogue and ui filter combo boxes
 preferences.filterBox.setModel(bandstype.tm)
 preferences.filterBox.setModelColumn(1)
 ui.filterBox.setModel(bandstype.tm)
