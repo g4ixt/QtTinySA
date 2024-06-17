@@ -1126,6 +1126,9 @@
             </property>
            </widget>
           </item>
+          <item row="2" column="11">
+           <widget class="QDoubleSpinBox" name="sweepTime"/>
+          </item>
          </layout>
         </item>
        </layout>

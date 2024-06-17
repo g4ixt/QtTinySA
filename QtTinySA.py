@@ -178,7 +178,7 @@ class analyser:
         # update centre freq, span, auto points and graph for the start/stop freqs loaded from database
         self.freq_changed(False)  # start/stop mode
         pointsChanged()
-        ui.graphWidget.setXRange(ui.start_freq.value(), ui.stop_freq.value())
+        ui.graphWidget.setXRange(ui.start_freq.value() * 1e6, ui.stop_freq.value() * 1e6)
         logging.debug(f'restoreSettings(): band = {numbers.tm.record(0).value("band")}')
 
         # update trace and marker settings from the database.  1 = last saved (default) settings
@@ -217,7 +217,7 @@ class analyser:
                     self.setRBW()
                     self.sampleRep()
                     self.runButton('Stop')
-                    self.pause()
+                    # self.pause()
                     self.usbSend()
                     self.startMeasurement()  # runs measurement in separate thread
                 except serial.SerialException:
@@ -260,8 +260,8 @@ class analyser:
         return response[:-6].decode()  # remove prompt
 
     def set_frequencies(self):  # creates a numpy array of equi-spaced freqs in Hz. Also called by measurement thread.
-        startF = ui.start_freq.value()*1e6  # freq in Hz
-        stopF = ui.stop_freq.value()*1e6
+        startF = ui.start_freq.value() * 1e6  # freq in Hz
+        stopF = ui.stop_freq.value() * 1e6
         points = self.setPoints()
         frequencies = np.linspace(startF, stopF, points, dtype=np.int64)
         logging.debug(f'frequencies = {frequencies}')
@@ -282,7 +282,7 @@ class analyser:
                 ui.stop_freq.setValue(stopF)
             ui.centre_freq.setValue(startF + (stopF - startF) / 2)
             ui.span_freq.setValue(stopF - startF)
-        ui.graphWidget.setXRange(startF, stopF)
+        ui.graphWidget.setXRange(startF * 1e6, stopF * 1e6)
         self.resume()  # # without this command, the trace doesn't update
 
     def freqOffset(self, frequencies):  # for mixers or LNBs external to TinySA
@@ -293,7 +293,7 @@ class analyser:
             scanF = (loF - startF - spanF, loF - startF)
         else:
             scanF = (startF - loF, startF - loF + spanF)
-        if min(scanF) <= 0:
+        if min(scanF) < 0:
             self.sweeping = False
             scanF = (88 * 1e6, 108 * 1e6)
             logging.info('frequency offset error, check preferences')
@@ -668,6 +668,11 @@ class analyser:
             filebrowse.picture.setPixmap(pixmap)
         filebrowse.downloadBar.setValue(100)  # update the fake progress bar to complete
 
+    def sweepTime(self, seconds):
+        #  0.003 to 60S
+        command = f'sweeptime {seconds}\r'
+        self.fifo.put(command)
+
 
 class display:
     def __init__(self, name, pen):
@@ -694,6 +699,17 @@ class display:
         if self.guiRef(0).isChecked():
             self.vline.setValue(ui.start_freq.value() + (0.2 * int(self.name) * ui.span_freq.value()))
             self.mType()
+
+    # def mSpread(self):
+        # spread markers across scan range
+        # mOn = [ui.marker1.isChecked(), ui.marker2.isChecked(), ui.marker3.isChecked(), ui.marker4.isChecked()]
+        # mcount = np.count_nonzero(mOn)
+        # for i in range(4):
+        #     if mOn[i + 1] and mcount == 1
+
+        # if self.guiRef(0).isChecked():
+        #     self.vline.setValue(ui.start_freq.value() + (0.5 * ui.span_freq.value())/mcount)
+        #     self.mType()
 
     def mType(self):
         self.markerType = self.guiRef(1).currentText()  # current combobox value from appropriate GUI field
@@ -752,7 +768,15 @@ class display:
         checkboxes.dwm.submit()
 
     def updateTrace(self, frequencies, readings):  # called by sigProcess() for every trace every 20 points
-        self.trace.setData((frequencies/1e6), readings)
+        if frequencies[0] != frequencies[-1]:
+            self.trace.setData((frequencies), readings)
+            ui.graphWidget.setLabel('bottom', 'Frequency', units='Hz')  # the wrong place for this, it called too often
+        else:
+            points = len(readings)
+            timeaxis = np.linspace(1, points-1, points)
+            ui.graphWidget.setXRange(timeaxis[0], timeaxis[-1])
+            ui.graphWidget.setLabel('bottom', 'Time')  # the wrong place for this, it called too often
+            self.trace.setData((timeaxis), readings)
         if ui.grid.isChecked():
             tinySA.vGrid.show()
         else:
@@ -764,22 +788,22 @@ class display:
             ui.run3D.setStyleSheet('background-color: orange')
 
     def updateMarker(self, frequencies, readings, fPeaks):  # called by updateGUI()
-        options = {'Peak1': fPeaks[0]/1e6, 'Peak2': fPeaks[1]/1e6, 'Peak3': fPeaks[2]/1e6,
-                   'Peak4': fPeaks[3]/1e6, 'Normal': self.vline.value(), 'Delta': self.vline.value()}
+        options = {'Peak1': fPeaks[0], 'Peak2': fPeaks[1], 'Peak3': fPeaks[2],
+                   'Peak4': fPeaks[3], 'Normal': self.vline.value(), 'Delta': self.vline.value()}
         markerF = options.get(self.markerType)
-        if markerF * 1e6 < np.min(frequencies) or markerF * 1e6 > np.max(frequencies):
+        if markerF < np.min(frequencies) or markerF > np.max(frequencies):
             # marker is out of scan range so just show its frequency
-            self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.{tinySA.dp}f}MHz')
+            self.vline.label.setText(f'M{self.vline.name()} {self.vline.value()/1e6:.{tinySA.dp}f}')
         else:
             # marker is in scan range
-            fIndex = np.argmin(np.abs(frequencies - (markerF * 1e6)))  # find closest value in freq array
+            fIndex = np.argmin(np.abs(frequencies - (markerF)))  # find closest value in freq array
             dBm = readings[fIndex]
             if dBm > S4.hline.value() or self.markerType[:4] != 'Peak':
-                self.vline.setValue(frequencies[fIndex] / 1e6)  # set to the discrete value from frequencies[]
+                self.vline.setValue(frequencies[fIndex])  # set to the discrete value from frequencies[]
             if self.markerType == 'Delta':
-                self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.{tinySA.dp}f}MHz {dBm:.1f}dBm')
+                self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF/1e6:.{tinySA.dp}f} {dBm:.1f}dBm')
             else:
-                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value():.{tinySA.dp}f}MHz {dBm:.1f}dBm')
+                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value()/1e6:.{tinySA.dp}f} {dBm:.1f}dBm')
 
     def addFreqMarker(self, freq, colour, name, position):  # adds simple freq marker without full marker capability
         if ui.presetLabel.isChecked():
@@ -995,7 +1019,7 @@ def band_changed():
     else:
         centreF = bandselect.tm.record(index).value('StartF')
         ui.centre_freq.setValue(centreF)
-        ui.span_freq.setValue(1)
+        ui.span_freq.setValue(int(centreF/10))  # default span to a tenth of the centre freq
         tinySA.freq_changed(True)  # centre mode
     freqMarkers()
 
@@ -1160,7 +1184,7 @@ def freqMarkers():
                 S1.addFreqMarker(startF, colour, name, 0.05)
                 if ui.presetLabel.isChecked() and ui.presetLabel.checkState() == 2:
                     S1.marker.label.setAngle(90)
-            if presetmarker.tm.record(i).value('stopF') != '':
+            if ui.presetMarker.isChecked() and presetmarker.tm.record(i).value('stopF') != '':
                 stopF = presetmarker.tm.record(i).value('StopF')
                 S1.addFreqMarker(startF, colour, name, 0.98)
                 S2.addFreqMarker(stopF, colour, name, 0.98)
@@ -1230,7 +1254,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.6')
+app.setApplicationVersion(' v0.10.7.a')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1277,8 +1301,9 @@ ui.graphWidget.setYRange(-110, 5)
 ui.graphWidget.setBackground('k')  # black
 ui.graphWidget.showGrid(x=True, y=True)
 
-ui.graphWidget.setLabel('left', 'Signal', 'dBm')
-ui.graphWidget.setLabel('bottom', 'Frequency MHz')
+ui.graphWidget.setLabel('left', 'Signal', units='dBm')
+ui.graphWidget.setLabel('bottom', 'Frequency', units='Hz')
+
 
 # marker label positions
 S1.vline.label.setPosition(0.99)
@@ -1395,6 +1420,8 @@ filebrowse.listWidget.itemSelectionChanged.connect(tinySA.fileShow)
 # Quit
 ui.actionQuit.triggered.connect(app.closeAllWindows)
 
+# Sweep time
+ui.sweepTime.valueChanged.connect(lambda: tinySA.sweepTime(ui.sweepTime.value()))
 
 ###############################################################################
 # set up the application
