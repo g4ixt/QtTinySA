@@ -477,10 +477,11 @@ class analyser:
             params = ui.openGLWidget.cameraParams()
             logging.debug(f'camera {params}')
         fPeaks = self.peakDetect(frequencies, readings)
-        S1.updateMarker(frequencies, readings[0, :], fPeaks)
-        S2.updateMarker(frequencies, readings[0, :], fPeaks)
-        S3.updateMarker(frequencies, readings[0, :], fPeaks)
-        S4.updateMarker(frequencies, readings[0, :], fPeaks)
+        fTroughs = self.troughDetect(frequencies, readings)
+        S1.updateMarker(frequencies, readings[0, :], fPeaks, fTroughs)
+        S2.updateMarker(frequencies, readings[0, :], fPeaks, fTroughs)
+        S3.updateMarker(frequencies, readings[0, :], fPeaks, fTroughs)
+        S4.updateMarker(frequencies, readings[0, :], fPeaks, fTroughs)
 
     def peakDetect(self, frequencies, readings):
         # find the signal peak values for setting peak markers
@@ -496,6 +497,21 @@ class analyser:
             Avg = np.ma.masked_where(np.abs(frequencies[peaks[-1]] - frequencies) < fWidth, Avg)
             peaks.append(np.argmax(Avg))
         return list(frequencies[peaks])
+
+    def troughDetect(self, frequencies, readings):
+        # find the signal low values for setting trough markers
+        Avg = np.average(readings[:ui.avgSlider.value(), ::], axis=0)
+        # calculate a frequency width factor to use to mask readings above and below each low frequency
+        if ui.rbw_auto.isChecked():
+            fWidth = preferences.rbw_x.value() * 850 * 1e3
+        else:
+            fWidth = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3
+        troughs = [np.argmin(Avg)]  # the index of the highest peak in the averaged readings array
+        for i in range(3):
+            # mask frequencies around detected peaks and find the next 3 lowest troughs
+            Avg = np.ma.masked_where(np.abs(frequencies[troughs[-1]] - frequencies) < fWidth, Avg)
+            troughs.append(np.argmin(Avg))
+        return list(frequencies[troughs])
 
     def orbit3D(self, sign, azimuth=True):  # orbits the camera around the 3D plot
         degrees = ui.rotateBy.value()
@@ -716,7 +732,7 @@ class display:
         if self.markerType == 'Delta':
             self.deltaF = self.vline.value() - S1.vline.value()
             self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.3f}MHz')
-        if 'Peak' in (S1.markerType[:4], S2.markerType[:4], S3.markerType[:4], S4.markerType[:4]):
+        if {'Peak', 'Trou'}.intersection({S1.markerType[:4], S2.markerType[:4], S3.markerType[:4], S4.markerType[:4]}):
             S4.hline.show()  # the peak detection threshold line
         else:
             S4.hline.hide()
@@ -787,9 +803,11 @@ class display:
             ui.run3D.setText('Stopping ...')
             ui.run3D.setStyleSheet('background-color: orange')
 
-    def updateMarker(self, frequencies, readings, fPeaks):  # called by updateGUI()
+    def updateMarker(self, frequencies, readings, fPeaks,fTroughs):  # called by updateGUI()
         options = {'Peak1': fPeaks[0], 'Peak2': fPeaks[1], 'Peak3': fPeaks[2],
-                   'Peak4': fPeaks[3], 'Normal': self.vline.value(), 'Delta': self.vline.value()}
+                   'Peak4': fPeaks[3], 'Normal': self.vline.value(), 'Delta': self.vline.value(),
+                   'Trough1': fTroughs[0], 'Trough2': fTroughs[1], 'Trough3': fTroughs[2],
+                   'Trough4': fTroughs[3]}
         markerF = options.get(self.markerType)
         if markerF < np.min(frequencies) or markerF > np.max(frequencies):
             # marker is out of scan range so just show its frequency
@@ -798,7 +816,7 @@ class display:
             # marker is in scan range
             fIndex = np.argmin(np.abs(frequencies - (markerF)))  # find closest value in freq array
             dBm = readings[fIndex]
-            if dBm > S4.hline.value() or self.markerType[:4] != 'Peak':
+            if dBm > S4.hline.value() or self.markerType[:4] == 'Normal' or self.markerType[:4] == 'Delta':
                 self.vline.setValue(frequencies[fIndex])  # set to the discrete value from frequencies[]
             if self.markerType == 'Delta':
                 self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF/1e6:.{tinySA.dp}f} {dBm:.1f}dBm')
@@ -1254,7 +1272,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.7.a')
+app.setApplicationVersion(' v0.10.7.b')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
