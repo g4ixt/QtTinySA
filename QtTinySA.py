@@ -703,17 +703,18 @@ class display:
                                             labelOpts={'position': 0.025, 'color': ('r')})
         self.deltaF = 0  # the difference between this marker and Reference Marker (1)
         self.fifo = queue.SimpleQueue()
+        self.vline.sigClicked.connect(self.mClicked)
 
     def mStart(self):
         # set marker to the sweep start frequency
         if self.guiRef(0).isChecked():
-            self.vline.setValue(ui.start_freq.value())
+            self.vline.setValue(ui.start_freq.value() * 1e6)
             self.mType()
 
     def mSpread(self):
         # spread markers equally across scan range
         if self.guiRef(0).isChecked():
-            self.vline.setValue(ui.start_freq.value() + (0.2 * int(self.name) * ui.span_freq.value()))
+            self.vline.setValue(ui.start_freq.value() * 1e6 + (0.2 * int(self.name) * ui.span_freq.value() * 1e6))
             self.mType()
 
     # def mSpread(self):
@@ -726,6 +727,10 @@ class display:
         # if self.guiRef(0).isChecked():
         #     self.vline.setValue(ui.start_freq.value() + (0.5 * ui.span_freq.value())/mcount)
         #     self.mType()
+
+    def mClicked(self):
+        ui.centre_freq.setValue(self.vline.value() / 1e6)
+        tinySA.freq_changed(True)
 
     def mType(self):
         self.markerType = self.guiRef(1).currentText()  # current combobox value from appropriate GUI field
@@ -1272,7 +1277,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.7.b')
+app.setApplicationVersion(' v0.10.7.c')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1440,6 +1445,7 @@ ui.actionQuit.triggered.connect(app.closeAllWindows)
 
 # Sweep time
 ui.sweepTime.valueChanged.connect(lambda: tinySA.sweepTime(ui.sweepTime.value()))
+
 
 ###############################################################################
 # set up the application
