@@ -178,7 +178,7 @@ class analyser:
         # update centre freq, span, auto points and graph for the start/stop freqs loaded from database
         self.freq_changed(False)  # start/stop mode
         pointsChanged()
-        ui.graphWidget.setXRange(ui.start_freq.value() * 1e6, ui.stop_freq.value() * 1e6)
+        ui.graphWidget.setXRange(ui.start_freq.value() * 1e6, ui.stop_freq.value() * 1e6, padding=0)
         logging.debug(f'restoreSettings(): band = {numbers.tm.record(0).value("band")}')
 
         # update trace and marker settings from the database.  1 = last saved (default) settings
@@ -283,7 +283,7 @@ class analyser:
             ui.centre_freq.setValue(startF + (stopF - startF) / 2)
             ui.span_freq.setValue(stopF - startF)
         ui.graphWidget.setXRange(startF * 1e6, stopF * 1e6)
-        self.resume()  # # without this command, the trace doesn't update
+        self.resume()  # puts a message in the fifo buffer so the measurement thread spots it and updates its settings
 
     def freqOffset(self, frequencies):  # for mixers or LNBs external to TinySA
         startF = frequencies[0]
@@ -398,7 +398,7 @@ class analyser:
                     firstSweep = True
                     self.createTimeSpectrum(frequencies, readings)
                     self.scanCount = 1
-                    self.usbSend()
+                    self.usbSend()  # send all the queued commands from the FIFO buffer
             except serial.SerialException:
                 logging.info('serial port exception')
                 self.sweeping = False
@@ -684,16 +684,26 @@ class analyser:
             filebrowse.picture.setPixmap(pixmap)
         filebrowse.downloadBar.setValue(100)  # update the fake progress bar to complete
 
-    def sweepTime(self, seconds):
-        #  0.003 to 60S
-        command = f'sweeptime {seconds}\r'
-        self.fifo.put(command)
+    # def sweepTime(self, seconds):
+    #     #  0.003 to 60S
+    #     command = f'sweeptime {seconds}\r'
+    #     self.fifo.put(command)
+
+    def mouseScaled(self):
+        # find the current limits of the (frequency axis) viewbox and set the sweep to them
+        xaxis = (ui.graphWidget.getAxis('bottom').range)
+        startF = float(xaxis[0]/1e6)
+        stopF = float(xaxis[1]/1e6)
+        logging.debug(f'mouseScaled: start = {startF} stop = {stopF}')
+        ui.start_freq.setValue(startF)
+        ui.stop_freq.setValue(stopF)
+        self.freq_changed(False)
 
 
 class display:
     def __init__(self, name, pen):
         self.name = name
-        self.trace = ui.graphWidget.plot([], [], name=name, pen=pen, width=1)
+        self.trace = ui.graphWidget.plot([], [], name=name, pen=pen, width=1, padding=0)
         self.traceType = 'Normal'  # Normal, Average, Max, Min
         self.markerType = 'Normal'  # Normal, Delta; Peak
         self.vline = ui.graphWidget.addLine(88, 90, movable=True, name=name,
@@ -791,12 +801,12 @@ class display:
     def updateTrace(self, frequencies, readings):  # called by sigProcess() for every trace every 20 points
         if frequencies[0] != frequencies[-1]:
             self.trace.setData((frequencies), readings)
-            ui.graphWidget.setLabel('bottom', 'Frequency', units='Hz')  # the wrong place for this, it called too often
+            # ui.graphWidget.setLabel('bottom', 'Frequency', units='Hz')  # the wrong place for this, it called too often
         else:
             points = len(readings)
             timeaxis = np.linspace(1, points-1, points)
             ui.graphWidget.setXRange(timeaxis[0], timeaxis[-1])
-            ui.graphWidget.setLabel('bottom', 'Time')  # the wrong place for this, it called too often
+            # ui.graphWidget.setLabel('bottom', 'Time')  # the wrong place for this, it called too often
             self.trace.setData((timeaxis), readings)
         if ui.grid.isChecked():
             tinySA.vGrid.show()
@@ -808,7 +818,7 @@ class display:
             ui.run3D.setText('Stopping ...')
             ui.run3D.setStyleSheet('background-color: orange')
 
-    def updateMarker(self, frequencies, readings, fPeaks,fTroughs):  # called by updateGUI()
+    def updateMarker(self, frequencies, readings, fPeaks, fTroughs):  # called by updateGUI()
         options = {'Peak1': fPeaks[0], 'Peak2': fPeaks[1], 'Peak3': fPeaks[2],
                    'Peak4': fPeaks[3], 'Normal': self.vline.value(), 'Delta': self.vline.value(),
                    'Trough1': fTroughs[0], 'Trough2': fTroughs[1], 'Trough3': fTroughs[2],
@@ -1277,7 +1287,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.7.c')
+app.setApplicationVersion(' v0.10.7.d')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1317,16 +1327,10 @@ bandselect = modelView('frequencies')
 # GUI settings
 
 # pyqtgraph settings for spectrum display
-ui.graphWidget.disableAutoRange()  # supposed to make pyqtgraph plot faster
-#
 ui.graphWidget.setYRange(-110, 5)
-# ui.graphWidget.setXRange(87.5, 108)
-ui.graphWidget.setBackground('k')  # black
+ui.graphWidget.setDefaultPadding(padding=0)
 ui.graphWidget.showGrid(x=True, y=True)
-
-ui.graphWidget.setLabel('left', 'Signal', units='dBm')
-ui.graphWidget.setLabel('bottom', 'Frequency', units='Hz')
-
+ui.graphWidget.setLabel('bottom', '', units='Hz')
 
 # marker label positions
 S1.vline.label.setPosition(0.99)
@@ -1358,6 +1362,7 @@ ui.lna_box.clicked.connect(tinySA.lna)
 ui.memSlider.sliderMoved.connect(memChanged)
 ui.points_auto.stateChanged.connect(pointsChanged)
 ui.points_box.editingFinished.connect(pointsChanged)
+ui.setRange.clicked.connect(tinySA.mouseScaled)
 
 # marker dragging
 S1.vline.sigPositionChanged.connect(mkr1_moved)
@@ -1444,7 +1449,7 @@ filebrowse.listWidget.itemSelectionChanged.connect(tinySA.fileShow)
 ui.actionQuit.triggered.connect(app.closeAllWindows)
 
 # Sweep time
-ui.sweepTime.valueChanged.connect(lambda: tinySA.sweepTime(ui.sweepTime.value()))
+# ui.sweepTime.valueChanged.connect(lambda: tinySA.sweepTime(ui.sweepTime.value()))
 
 
 ###############################################################################
