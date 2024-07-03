@@ -212,10 +212,9 @@ class analyser:
             else:
                 try:  # start measurements
                     self.fifoTimer.stop()
-                    self.scanCount = 1
                     self.clearBuffer()
                     self.setRBW()
-                    self.sampleRep()
+                    # self.sampleRep()  # doesn't work with scanraw
                     self.runButton('Stop')
                     # self.pause()
                     self.usbSend()
@@ -231,7 +230,8 @@ class analyser:
         frequencies = self.set_frequencies()
         self.usbSend()
         points = np.size(frequencies)
-        readings = np.full((self.scanMemory, points), -100, dtype=float)
+        readings = np.full((self.scanMemory, points), None, dtype=float)
+        readings[0] = -100
         self.sweep = Worker(self.measurement, frequencies, readings)  # workers are auto-deleted when thread stops
         self.sweeping = True
         self.createTimeSpectrum(frequencies, readings)
@@ -345,8 +345,6 @@ class analyser:
     def measurement(self, frequencies, readings):  # runs in a separate thread
         points = np.size(readings, 1)
         self.threadRunning = True
-        firstSweep = True
-        self.scanCount = 1
         while self.sweeping:
             try:
                 self.usb.timeout = self.sweepTimeout(frequencies)
@@ -378,27 +376,22 @@ class analyser:
                             break
                         readings[0, index] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
                         if index // 20 == index / 20 or index == (points - 1):  # update traces every 20 readings
-                            self.signals.result.emit(frequencies, readings)  # send readings to sigProcess()
+                            self.signals.result.emit(frequencies, readings)  # send the latest 20 points to sigProcess()
                         index += 1
                     logging.debug(f'measurement: level = {(data / 32) - self.scale}dBm')
                 self.usb.read(2)  # discard the command prompt
-                if firstSweep:
-                    readings = np.full((self.scanMemory, points), readings[0], dtype=float)
-                    firstSweep = False
-                self.scanCount += 1
-                self.signals.fullSweep.emit(frequencies, readings)  # updateGUI() only once per sweep (performance)
+                self.signals.fullSweep.emit(frequencies, readings)  # updateGUI once per sweep (min performance impact)
+                readings[-1] = readings[0]  # populate last row with current sweep before rolling
                 readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
-                readings[0] = readings[1]  # populate each sweep with previous sweep as default
                 # logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6}')  # debug
                 if self.fifo.qsize() > 0:  # a setting has changed
                     self.setRBW()
                     frequencies = self.set_frequencies()
                     points = np.size(frequencies)
-                    readings = np.full((self.scanMemory, points), -100, dtype=float)
-                    firstSweep = True
+                    readings = np.full((self.scanMemory, points), None, dtype=float)
+                    readings[0] = -100
                     self.createTimeSpectrum(frequencies, readings)
-                    self.scanCount = 1
-                    self.usbSend()  # send all the queued commands from the FIFO buffer
+                    self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
             except serial.SerialException:
                 logging.info('serial port exception')
                 self.sweeping = False
@@ -414,13 +407,11 @@ class analyser:
             # for LNB/Mixer when LO is above measured freq, the scan is reversed, i.e. low TinySA f = high meas f
             frequencies = frequencies[::-1]
             np.fliplr(readings)
-        if ui.avgSlider.value() > self.scanCount:  # slice using use scanCount to stop default values swamping average
-            readingsAvg = np.average(readings[:self.scanCount, ::], axis=0)
-        else:
-            readingsAvg = np.average(readings[:ui.avgSlider.value(), ::], axis=0)
-        readingsMax = np.amax(readings[:self.scanMemory, ::], axis=0)
-        readingsMin = np.amin(readings[:self.scanMemory, ::], axis=0)
+        readingsAvg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
+        readingsMax = np.amax(readings[:self.scanMemory], axis=0)
+        readingsMin = np.amin(readings[:self.scanMemory], axis=0)
         options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': readingsMax, 'Min': readingsMin}
+        logging.debug(f'sigProcess: averages={readingsAvg}')
         S1.updateTrace(frequencies, options.get(S1.traceType))
         S2.updateTrace(frequencies, options.get(S2.traceType))
         S3.updateTrace(frequencies, options.get(S3.traceType))
@@ -476,42 +467,62 @@ class analyser:
             self.surface.setData(z=z)  # update 3D graph
             params = ui.openGLWidget.cameraParams()
             logging.debug(f'camera {params}')
-        fPeaks = self.peakDetect(frequencies, readings)
-        fTroughs = self.troughDetect(frequencies, readings)
+        # fPeaks = self.peakDetect(frequencies, readings)
+        # fTroughs = self.troughDetect(frequencies, readings)
+        fPeaks = self.ptDetect(frequencies, readings)[0]
+        fTroughs = self.ptDetect(frequencies, readings)[1]
         S1.updateMarker(frequencies, readings[0, :], fPeaks, fTroughs)
         S2.updateMarker(frequencies, readings[0, :], fPeaks, fTroughs)
         S3.updateMarker(frequencies, readings[0, :], fPeaks, fTroughs)
         S4.updateMarker(frequencies, readings[0, :], fPeaks, fTroughs)
 
-    def peakDetect(self, frequencies, readings):
-        # find the signal peak values for setting peak markers
-        Avg = np.average(readings[:ui.avgSlider.value(), ::], axis=0)
+    # def peakDetect(self, frequencies, readings):
+    #     # find the signal peak values for setting peak markers
+    #     Avg = np.average(readings[:ui.avgBox.value(), ::], axis=0)
+    #     # calculate a frequency width factor to use to mask readings above and below each peak frequency
+    #     if ui.rbw_auto.isChecked():
+    #         fWidth = preferences.rbw_x.value() * 850 * 1e3
+    #     else:
+    #         fWidth = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3
+    #     peaks = [np.argmax(Avg)]  # the index of the highest peak in the averaged readings array
+    #     for i in range(3):
+    #         # mask frequencies around detected peaks and find the next 3 highest peaks
+    #         Avg = np.ma.masked_where(np.abs(frequencies[peaks[-1]] - frequencies) < fWidth, Avg)
+    #         peaks.append(np.argmax(Avg))
+    #     return list(frequencies[peaks])
+
+    # def troughDetect(self, frequencies, readings):
+    #     # find the signal low values for setting trough markers
+    #     Avg = np.average(readings[:ui.avgBox.value(), ::], axis=0)
+    #     # calculate a frequency width factor to use to mask readings above and below each low frequency
+    #     if ui.rbw_auto.isChecked():
+    #         fWidth = preferences.rbw_x.value() * 850 * 1e3
+    #     else:
+    #         fWidth = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3
+    #     troughs = [np.argmin(Avg)]  # the index of the highest peak in the averaged readings array
+    #     for i in range(3):
+    #         # mask frequencies around detected peaks and find the next 3 lowest troughs
+    #         Avg = np.ma.masked_where(np.abs(frequencies[troughs[-1]] - frequencies) < fWidth, Avg)
+    #         troughs.append(np.argmin(Avg))
+    #     return list(frequencies[troughs])
+
+    def ptDetect(self, frequencies, readings):
+        # find the signal peak/trough values for setting markers
+        avgP = avgT = np.average(readings[:ui.avgBox.value(), ::], axis=0)
         # calculate a frequency width factor to use to mask readings above and below each peak frequency
         if ui.rbw_auto.isChecked():
             fWidth = preferences.rbw_x.value() * 850 * 1e3
         else:
             fWidth = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3
-        peaks = [np.argmax(Avg)]  # the index of the highest peak in the averaged readings array
+        peaks = [np.argmax(avgP)]  # the index of the highest peak in the averaged readings array
+        troughs = [np.argmin(avgT)]  # the index of the deepest trough in the averaged readings array
         for i in range(3):
             # mask frequencies around detected peaks and find the next 3 highest peaks
-            Avg = np.ma.masked_where(np.abs(frequencies[peaks[-1]] - frequencies) < fWidth, Avg)
-            peaks.append(np.argmax(Avg))
-        return list(frequencies[peaks])
-
-    def troughDetect(self, frequencies, readings):
-        # find the signal low values for setting trough markers
-        Avg = np.average(readings[:ui.avgSlider.value(), ::], axis=0)
-        # calculate a frequency width factor to use to mask readings above and below each low frequency
-        if ui.rbw_auto.isChecked():
-            fWidth = preferences.rbw_x.value() * 850 * 1e3
-        else:
-            fWidth = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3
-        troughs = [np.argmin(Avg)]  # the index of the highest peak in the averaged readings array
-        for i in range(3):
-            # mask frequencies around detected peaks and find the next 3 lowest troughs
-            Avg = np.ma.masked_where(np.abs(frequencies[troughs[-1]] - frequencies) < fWidth, Avg)
-            troughs.append(np.argmin(Avg))
-        return list(frequencies[troughs])
+            avgP = np.ma.masked_where(np.abs(frequencies[peaks[-1]] - frequencies) < fWidth, avgP)
+            peaks.append(np.argmax(avgP))
+            avgT = np.ma.masked_where(np.abs(frequencies[troughs[-1]] - frequencies) < fWidth, avgT)
+            troughs.append(np.argmin(avgT))
+        return (list(frequencies[peaks]), list(frequencies[troughs]))
 
     def orbit3D(self, sign, azimuth=True):  # orbits the camera around the 3D plot
         degrees = ui.rotateBy.value()
@@ -705,7 +716,7 @@ class display:
         self.name = name
         self.trace = ui.graphWidget.plot([], [], name=name, pen=pen, width=1, padding=0)
         self.traceType = 'Normal'  # Normal, Average, Max, Min
-        self.markerType = 'Normal'  # Normal, Delta; Peak
+        self.markerType = 'Normal'  # Normal, Delta; Max, Min
         self.vline = ui.graphWidget.addLine(88, 90, movable=True, name=name,
                                             pen=pyqtgraph.mkPen('y', width=0.5, style=QtCore.Qt.DashLine),
                                             label="{value:.2f}")
@@ -747,7 +758,7 @@ class display:
         if self.markerType == 'Delta':
             self.deltaF = self.vline.value() - S1.vline.value()
             self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.3f}MHz')
-        if {'Peak', 'Trou'}.intersection({S1.markerType[:4], S2.markerType[:4], S3.markerType[:4], S4.markerType[:4]}):
+        if {'Max', 'Min'}.intersection({S1.markerType[:3], S2.markerType[:3], S3.markerType[:3], S4.markerType[:3]}):
             S4.hline.show()  # the peak detection threshold line
         else:
             S4.hline.hide()
@@ -803,12 +814,13 @@ class display:
             self.trace.setData((frequencies), readings)
             # ui.graphWidget.setLabel('bottom', 'Frequency', units='Hz')  # the wrong place for this, it called too often
         else:
+            # zero span
             points = len(readings)
             timeaxis = np.linspace(1, points-1, points)
             ui.graphWidget.setXRange(timeaxis[0], timeaxis[-1])
             # ui.graphWidget.setLabel('bottom', 'Time')  # the wrong place for this, it called too often
             self.trace.setData((timeaxis), readings)
-        if ui.grid.isChecked():
+        if ui.grid.isChecked():  # surely this is in the wrong place, should be in updategui()?
             tinySA.vGrid.show()
         else:
             tinySA.vGrid.hide()
@@ -819,10 +831,10 @@ class display:
             ui.run3D.setStyleSheet('background-color: orange')
 
     def updateMarker(self, frequencies, readings, fPeaks, fTroughs):  # called by updateGUI()
-        options = {'Peak1': fPeaks[0], 'Peak2': fPeaks[1], 'Peak3': fPeaks[2],
-                   'Peak4': fPeaks[3], 'Normal': self.vline.value(), 'Delta': self.vline.value(),
-                   'Trough1': fTroughs[0], 'Trough2': fTroughs[1], 'Trough3': fTroughs[2],
-                   'Trough4': fTroughs[3]}
+        options = {'Max1': fPeaks[0], 'Max2': fPeaks[1], 'Max3': fPeaks[2],
+                   'Max4': fPeaks[3], 'Normal': self.vline.value(), 'Delta': self.vline.value(),
+                   'Min1': fTroughs[0], 'Min2': fTroughs[1], 'Min3': fTroughs[2],
+                   'Min4': fTroughs[3]}
         markerF = options.get(self.markerType)
         if markerF < np.min(frequencies) or markerF > np.max(frequencies):
             # marker is out of scan range so just show its frequency
@@ -1114,9 +1126,9 @@ def pointsChanged():
 
 
 def memChanged():
-    depth = ui.memSlider.value()
-    if depth < ui.avgSlider.value():
-        ui.avgSlider.setValue(depth)
+    depth = ui.memBox.value()
+    if depth < ui.avgBox.value():
+        ui.avgBox.setValue(depth)
     tinySA.scanMemory = depth
 
 
@@ -1279,6 +1291,8 @@ def colourID(shade):  # using the QSQLRelation directly doesn't work for colour.
             return ID
     return 1
 
+def clickEvent():
+    logging.info('clickEvent')
 
 ###############################################################################
 # Instantiate classes
@@ -1287,7 +1301,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.7.d')
+app.setApplicationVersion(' v0.10.7.e')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1327,7 +1341,7 @@ bandselect = modelView('frequencies')
 # GUI settings
 
 # pyqtgraph settings for spectrum display
-ui.graphWidget.setYRange(-110, 5)
+ui.graphWidget.setYRange(-110, -20)
 ui.graphWidget.setDefaultPadding(padding=0)
 ui.graphWidget.showGrid(x=True, y=True)
 ui.graphWidget.setLabel('bottom', '', units='Hz')
@@ -1359,7 +1373,7 @@ ui.atten_box.valueChanged.connect(attenuate_changed)
 ui.atten_auto.clicked.connect(attenuate_changed)
 ui.spur_box.clicked.connect(tinySA.spur)
 ui.lna_box.clicked.connect(tinySA.lna)
-ui.memSlider.sliderMoved.connect(memChanged)
+ui.memBox.valueChanged.connect(memChanged)
 ui.points_auto.stateChanged.connect(pointsChanged)
 ui.points_box.editingFinished.connect(pointsChanged)
 ui.setRange.clicked.connect(tinySA.mouseScaled)
