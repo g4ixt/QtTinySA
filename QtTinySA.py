@@ -201,7 +201,6 @@ class analyser:
 
         setPreferences()
         ui.band_box.setCurrentText(numbers.tm.record(0).value("band"))  # this shouldn't be needed but it is
-        band_changed()
 
     def scan(self):  # called by 'run' button
         if self.usb is not None:
@@ -268,6 +267,22 @@ class analyser:
         self.fPrecision(frequencies)
         return frequencies
 
+    # def set_frequencies(self):  # creates a numpy array of equi-spaced freqs in Hz. Also called by measurement thread.
+    #     startF = ui.start_freq.value() * 1e6  # freq in Hz
+    #     stopF = ui.stop_freq.value() * 1e6
+    #     points = self.setPoints()
+    #     if startF != stopF:
+    #         frequencies = np.linspace(startF, stopF, points, dtype=np.int64)
+    #         # ui.graphWidget.setLabel('bottom', 'Frequency', units='Hz')
+    #     else:
+    #         # zero span
+    #         frequencies = np.linspace(1, points-1, points)
+    #         # ui.graphWidget.setXRange(frequencies[0], frequencies[-1])
+    #         # ui.graphWidget.setLabel('bottom', 'Time')
+    #     # self.fPrecision(frequencies)
+    #     logging.info(f'frequencies = {frequencies}')
+    #     return frequencies
+
     def freq_changed(self, centre=False):
         if centre:
             startF = ui.centre_freq.value()-ui.span_freq.value()/2
@@ -283,6 +298,8 @@ class analyser:
             ui.centre_freq.setValue(startF + (stopF - startF) / 2)
             ui.span_freq.setValue(stopF - startF)
         ui.graphWidget.setXRange(startF * 1e6, stopF * 1e6)
+        S1.bline.setValue(startF * 1e6)
+        S2.bline.setValue(stopF * 1e6)
         self.resume()  # puts a message in the fifo buffer so the measurement thread spots it and updates its settings
 
     def freqOffset(self, frequencies):  # for mixers or LNBs external to TinySA
@@ -381,7 +398,8 @@ class analyser:
                     logging.debug(f'measurement: level = {(data / 32) - self.scale}dBm')
                 self.usb.read(2)  # discard the command prompt
                 self.signals.fullSweep.emit(frequencies, readings)  # updateGUI once per sweep (min performance impact)
-                readings[-1] = readings[0]  # populate last row with current sweep before rolling
+                # readings[-1] = readings[0]  # populate last row with current sweep before rolling
+                readings[-1] = np.nanmean(readings[:ui.avgBox.value()], axis=0)  # populate last row with current sweep before rolling
                 readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
                 # logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6}')  # debug
                 if self.fifo.qsize() > 0:  # a setting has changed
@@ -408,8 +426,8 @@ class analyser:
             frequencies = frequencies[::-1]
             np.fliplr(readings)
         readingsAvg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
-        readingsMax = np.amax(readings[:self.scanMemory], axis=0)
-        readingsMin = np.amin(readings[:self.scanMemory], axis=0)
+        readingsMax = np.nanmax(readings[:self.scanMemory], axis=0)
+        readingsMin = np.nanmin(readings[:self.scanMemory], axis=0)
         options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': readingsMax, 'Min': readingsMin}
         logging.debug(f'sigProcess: averages={readingsAvg}')
         S1.updateTrace(frequencies, options.get(S1.traceType))
@@ -469,60 +487,34 @@ class analyser:
             logging.debug(f'camera {params}')
         # fPeaks = self.peakDetect(frequencies, readings)
         # fTroughs = self.troughDetect(frequencies, readings)
-        fPeaks = self.ptDetect(frequencies, readings)[0]
-        fTroughs = self.ptDetect(frequencies, readings)[1]
+        fPeaks = self.maxMin(frequencies, readings)[0]
+        fTroughs = self.maxMin(frequencies, readings)[1]
         S1.updateMarker(frequencies, readings[0, :], fPeaks, fTroughs)
         S2.updateMarker(frequencies, readings[0, :], fPeaks, fTroughs)
         S3.updateMarker(frequencies, readings[0, :], fPeaks, fTroughs)
         S4.updateMarker(frequencies, readings[0, :], fPeaks, fTroughs)
 
-    # def peakDetect(self, frequencies, readings):
-    #     # find the signal peak values for setting peak markers
-    #     Avg = np.average(readings[:ui.avgBox.value(), ::], axis=0)
-    #     # calculate a frequency width factor to use to mask readings above and below each peak frequency
-    #     if ui.rbw_auto.isChecked():
-    #         fWidth = preferences.rbw_x.value() * 850 * 1e3
-    #     else:
-    #         fWidth = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3
-    #     peaks = [np.argmax(Avg)]  # the index of the highest peak in the averaged readings array
-    #     for i in range(3):
-    #         # mask frequencies around detected peaks and find the next 3 highest peaks
-    #         Avg = np.ma.masked_where(np.abs(frequencies[peaks[-1]] - frequencies) < fWidth, Avg)
-    #         peaks.append(np.argmax(Avg))
-    #     return list(frequencies[peaks])
-
-    # def troughDetect(self, frequencies, readings):
-    #     # find the signal low values for setting trough markers
-    #     Avg = np.average(readings[:ui.avgBox.value(), ::], axis=0)
-    #     # calculate a frequency width factor to use to mask readings above and below each low frequency
-    #     if ui.rbw_auto.isChecked():
-    #         fWidth = preferences.rbw_x.value() * 850 * 1e3
-    #     else:
-    #         fWidth = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3
-    #     troughs = [np.argmin(Avg)]  # the index of the highest peak in the averaged readings array
-    #     for i in range(3):
-    #         # mask frequencies around detected peaks and find the next 3 lowest troughs
-    #         Avg = np.ma.masked_where(np.abs(frequencies[troughs[-1]] - frequencies) < fWidth, Avg)
-    #         troughs.append(np.argmin(Avg))
-    #     return list(frequencies[troughs])
-
-    def ptDetect(self, frequencies, readings):
-        # find the signal peak/trough values for setting markers
-        avgP = avgT = np.average(readings[:ui.avgBox.value(), ::], axis=0)
-        # calculate a frequency width factor to use to mask readings above and below each peak frequency
+    def maxMin(self, frequencies, readings):  # finds the signal max/min values for setting markers
+        avgMax = avgMin = np.nanmean(readings[:ui.avgBox.value()], axis=0)
+        # calculate a frequency width factor to use to mask readings above and below each max/min frequency
         if ui.rbw_auto.isChecked():
             fWidth = preferences.rbw_x.value() * 850 * 1e3
         else:
             fWidth = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3
-        peaks = [np.argmax(avgP)]  # the index of the highest peak in the averaged readings array
-        troughs = [np.argmin(avgT)]  # the index of the deepest trough in the averaged readings array
+        maxi = [np.argmax(avgMax)]  # the index of the highest peak in the averaged readings array
+        avgMin = np.ma.masked_where(frequencies < S1.bline.value(), avgMin)
+        avgMin = np.ma.masked_where(frequencies > S2.bline.value(), avgMin)
+        avgMin = np.ma.masked_where(avgMin < preferences.peakThreshold.value(), avgMin)  # mask minima below threshold
+        # logging.info(f'maxMin: avgMin = {avgMin}')
+        mini = [np.argmin(avgMin)]  # the index of the deepest minimum in the masked averaged readings array
         for i in range(3):
-            # mask frequencies around detected peaks and find the next 3 highest peaks
-            avgP = np.ma.masked_where(np.abs(frequencies[peaks[-1]] - frequencies) < fWidth, avgP)
-            peaks.append(np.argmax(avgP))
-            avgT = np.ma.masked_where(np.abs(frequencies[troughs[-1]] - frequencies) < fWidth, avgT)
-            troughs.append(np.argmin(avgT))
-        return (list(frequencies[peaks]), list(frequencies[troughs]))
+            # mask frequencies around detected peaks and find the next 3 highest/lowest peaks
+            avgMax = np.ma.masked_where(np.abs(frequencies[maxi[-1]] - frequencies) < fWidth, avgMax)
+            maxi.append(np.argmax(avgMax))
+            avgMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < fWidth, avgMin)
+            # logging.info(f'maxMin: mini = {mini}')
+            mini.append(np.argmin(avgMin))
+        return (list(frequencies[maxi]), list(frequencies[mini]))
 
     def orbit3D(self, sign, azimuth=True):  # orbits the camera around the 3D plot
         degrees = ui.rotateBy.value()
@@ -722,6 +714,9 @@ class display:
                                             label="{value:.2f}")
         self.hline = ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='',
                                             labelOpts={'position': 0.025, 'color': ('r')})
+        self.bline = ui.graphWidget.addLine(88, 90, movable=True, name=name,
+                                            pen=pyqtgraph.mkPen('r', width=0.5, style=QtCore.Qt.DashLine),
+                                            label="{value:.0f}", labelOpts={'position': 0.025, 'color': ('r'), 'movable': True})
         self.deltaF = 0  # the difference between this marker and Reference Marker (1)
         self.fifo = queue.SimpleQueue()
         self.vline.sigClicked.connect(self.mClicked)
@@ -760,8 +755,12 @@ class display:
             self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.3f}MHz')
         if {'Max', 'Min'}.intersection({S1.markerType[:3], S2.markerType[:3], S3.markerType[:3], S4.markerType[:3]}):
             S4.hline.show()  # the peak detection threshold line
+            S1.bline.show()  # the boundary markers
+            S2.bline.show()
         else:
             S4.hline.hide()
+            S1.bline.hide()
+            S2.bline.hide()
 
     def mDelta(self):  # delta marker locking to reference marker S1
         if self.markerType == 'Delta':
@@ -809,17 +808,29 @@ class display:
             self.trace.hide()
         checkboxes.dwm.submit()
 
+    # def updateTrace(self, frequencies, readings):  # called by sigProcess() for every trace every 20 points
+    #     if frequencies[0] != frequencies[-1]:
+    #         self.trace.setData((frequencies), readings)
+    #         # ui.graphWidget.setLabel('bottom', 'Frequency', units='Hz')  # the wrong place for this, it called too often
+    #     else:
+    #         # zero span
+    #         points = len(readings)
+    #         timeaxis = np.linspace(1, points-1, points)
+    #         ui.graphWidget.setXRange(timeaxis[0], timeaxis[-1])
+    #         # ui.graphWidget.setLabel('bottom', 'Time')  # the wrong place for this, it called too often
+    #         self.trace.setData((timeaxis), readings)
+    #     if ui.grid.isChecked():  # surely this is in the wrong place, should be in updategui()?
+    #         tinySA.vGrid.show()
+    #     else:
+    #         tinySA.vGrid.hide()
+    #     if not tinySA.sweeping:  # measurement thread is stopping
+    #         ui.scan_button.setText('Stopping ...')
+    #         ui.scan_button.setStyleSheet('background-color: orange')
+    #         ui.run3D.setText('Stopping ...')
+    #         ui.run3D.setStyleSheet('background-color: orange')
+
     def updateTrace(self, frequencies, readings):  # called by sigProcess() for every trace every 20 points
-        if frequencies[0] != frequencies[-1]:
-            self.trace.setData((frequencies), readings)
-            # ui.graphWidget.setLabel('bottom', 'Frequency', units='Hz')  # the wrong place for this, it called too often
-        else:
-            # zero span
-            points = len(readings)
-            timeaxis = np.linspace(1, points-1, points)
-            ui.graphWidget.setXRange(timeaxis[0], timeaxis[-1])
-            # ui.graphWidget.setLabel('bottom', 'Time')  # the wrong place for this, it called too often
-            self.trace.setData((timeaxis), readings)
+        self.trace.setData((frequencies), readings)
         if ui.grid.isChecked():  # surely this is in the wrong place, should be in updategui()?
             tinySA.vGrid.show()
         else:
@@ -850,10 +861,16 @@ class display:
             else:
                 self.vline.label.setText(f'M{self.vline.name()} {self.vline.value()/1e6:.{tinySA.dp}f} {dBm:.1f}dBm')
 
-    def addFreqMarker(self, freq, colour, name, position):  # adds simple freq marker without full marker capability
+    def addFreqMarker(self, freq, colour, name, band=True):  # adds simple freq marker without full marker capability
         if ui.presetLabel.isChecked():
-            self.marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5, style=QtCore.Qt.DashLine),
-                                                 label=name, labelOpts={'position': position, 'color': (colour)})
+            if band:
+                self.marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5,
+                                                     style=QtCore.Qt.DashLine), label=name, labelOpts={'position': 0.97,
+                                                     'color': (colour)})
+            else:
+                self.marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5,
+                                                     style=QtCore.Qt.DashLine), label=name, labelOpts={'position': 0.06,
+                                                     'color': (colour), 'anchors': ((0, 0.2), (0, 0.2))})
             self.marker.label.setMovable(True)
         else:
             self.marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5, style=QtCore.Qt.DashLine))
@@ -997,7 +1014,7 @@ class modelView():
             if boxText == 'show all':
                 sql = 'visible = "1"'
             if tinySA.tinySA4 is False:  # It's a tinySA basic with limited frequency range
-                sql = sql + ' AND startF <= "960"'
+                sql = sql + ' AND startF <= "960000000"'
             index = ui.band_box.currentIndex()
             self.tm.setFilter(sql)
             ui.band_box.setCurrentIndex(index)
@@ -1221,18 +1238,17 @@ def freqMarkers():
     S2.delFreqMarkers()
     for i in range(0, presetmarker.tm.rowCount()):
         try:
-            startF = presetmarker.tm.record(i).value('StartF')
+            startF = presetmarker.tm.record(i).value('StartF') * 1e6
+            stopF = presetmarker.tm.record(i).value('StopF') * 1e6
             colour = presetmarker.tm.record(i).value('colour')
             name = presetmarker.tm.record(i).value('name')
-            if ui.presetMarker.isChecked() and presetmarker.tm.record(i).value('visible')\
-                    and presetmarker.tm.record(i).value('stopF') == '':
-                S1.addFreqMarker(startF, colour, name, 0.05)
+            if ui.presetMarker.isChecked() and presetmarker.tm.record(i).value('visible') and stopF in (0, ''):
+                S1.addFreqMarker(startF, colour, name, band=False)
                 if ui.presetLabel.isChecked() and ui.presetLabel.checkState() == 2:
                     S1.marker.label.setAngle(90)
-            if ui.presetMarker.isChecked() and presetmarker.tm.record(i).value('stopF') != '':
-                stopF = presetmarker.tm.record(i).value('StopF')
-                S1.addFreqMarker(startF, colour, name, 0.98)
-                S2.addFreqMarker(stopF, colour, name, 0.98)
+            if ui.presetMarker.isChecked() and stopF not in (0, ''):  # it's a band marker
+                S1.addFreqMarker(startF, colour, name)
+                S2.addFreqMarker(stopF, colour, name)
         except ValueError:
             continue
 
@@ -1291,8 +1307,10 @@ def colourID(shade):  # using the QSQLRelation directly doesn't work for colour.
             return ID
     return 1
 
+
 def clickEvent():
     logging.info('clickEvent')
+
 
 ###############################################################################
 # Instantiate classes
@@ -1301,7 +1319,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.7.e')
+app.setApplicationVersion(' v0.10.7.f')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)

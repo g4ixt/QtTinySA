@@ -1,0 +1,177 @@
+name,preset,startF,stopF,value,colour
+LF,broadcast,0.14,0.26,1,lime
+MF,broadcast,0.43,1.6,1,lime
+80m,amateur,3.5,3.8,1,lime
+40m,amateur,7,7.1,1,lime
+20m,amateur,14,14.35,1,lime
+18MHz,amateur,18.06,18.16,1,lime
+15m,amateur,21,21.45,1,lime
+24MHz,amateur,24.89,24.99,1,lime
+10m,amateur,28,29.7,1,lime
+GB3MCB,beacon,28.215,0,1,cyan
+GB3NWB,beacon,28.247,0,1,cyan
+GB3AAX,beacon,28.268,0,1,cyan
+GB3XMB,beacon,28.287,0,1,cyan
+GB3BUX,beacon,50,0,1,cyan
+6m,amateur,50,52,1,lime
+GB3RMK,beacon,50.002,0,1,cyan
+GB3NGI,beacon,50.004,0,1,cyan
+GB3MCB,beacon,50.005,0,1,cyan
+GB3BAA,beacon,50.416,0,1,cyan
+GB3MCB,beacon,50.443,0,1,cyan
+GB3RMK,beacon,50.46,0,1,cyan
+GB3NGI,beacon,50.462,0,1,cyan
+GB3LER,beacon,50.464,0,1,cyan
+GB3BUX,beacon,70,0,1,cyan
+4m,amateur,70,70.5,1,lime
+GB3WSX,beacon,70.007,0,1,cyan
+GB3BAA,beacon,70.016,0,1,cyan
+GB3ANG,beacon,70.02,0,1,cyan
+GB3MCB,beacon,70.025,0,1,cyan
+GB3CFG,beacon,70.027,0,1,cyan
+GB3MBD,beacon,70.05,0,1,cyan
+FM,broadcast,87.5,108,1,lime
+WV R2,marker,89.9,0,1,blue
+R3 to 4,broadcast,92.1,94.3,1,lime
+WV R3,marker,92.1,0,1,blue
+WV R4,marker,94.3,0,1,blue
+WV RCy,marker,96.8,0,1,blue
+WV R1,marker,99.5,0,1,blue
+WV CLA,marker,101.7,0,1,blue
+WV R Wales,marker,103.9,0,1,blue
+2m,amateur,144,146,1,lime
+GB3ANG,beacon,144.453,0,1,cyan
+GB3SEV,beacon,144.462,0,1,cyan
+GB3MCB,beacon,144.469,0,1,cyan
+GB3NGI,beacon,144.482,0,1,cyan
+GB3WGI,beacon,144.487,0,1,cyan
+DAB,broadcast,175,230,1,lime
+5B,marker,176.64,0,1,blue
+5C,marker,178.352,0,1,blue
+5D,marker,180.064,0,1,blue
+6A,marker,181.936,0,1,blue
+6B,marker,183.648,0,1,blue
+6C,marker,185.36,0,1,blue
+6D,marker,187.072,0,1,blue
+7A,marker,188.928,0,1,blue
+7B,marker,190.64,0,1,blue
+7C,marker,192.352,0,1,blue
+7D,marker,194.064,0,1,blue
+8A,marker,195.936,0,1,blue
+8B,marker,197.648,0,1,blue
+8C,marker,199.36,0,1,blue
+8D,marker,201.072,0,1,blue
+9A,marker,202.928,0,1,blue
+9B,marker,204.64,0,1,blue
+9C,marker,206.352,0,1,blue
+9D,marker,208.064,0,1,blue
+10A,marker,209.936,0,1,blue
+10B,marker,211.648,0,1,blue
+10C,marker,213.36,0,1,blue
+10D,marker,215.072,0,1,blue
+11A,marker,216.928,0,1,blue
+11B,marker,218.64,0,1,blue
+11C,marker,220.352,0,1,blue
+11D,marker,222.064,0,1,blue
+12B,marker,225.648,0,1,blue
+12C,marker,227.36,0,1,blue
+12D,marker,229.072,0,1,blue
+13A,marker,230.784,0,1,blue
+13B,marker,232.496,0,1,blue
+13C,marker,234.208,0,1,blue
+13D,marker,235.776,0,1,blue
+70cm,amateur,430,440,1,lime
+GB3UHF,beacon,432.43,0,1,cyan
+GB3FNY,beacon,432.445,0,1,cyan
+GB3ANG,beacon,432.453,0,1,cyan
+GB3MCB,beacon,432.47,0,1,cyan
+GB3NGI,beacon,432.482,0,1,cyan
+GB3LEU,beacon,432.49,0,1,cyan
+TV,broadcast,470,700,1,lime
+Guest 32,RF mic,470.125,0,0,red
+Guest 33,RF mic,470.475,0,0,red
+Guest 34,RF mic,470.975,0,0,red
+21,marker,474,0,1,blue
+22,marker,482,0,1,blue
+23,marker,490,0,1,blue
+24,marker,498,0,1,blue
+25,marker,506,0,1,blue
+26,marker,514,0,1,blue
+27,marker,522,0,1,blue
+28,marker,530,0,1,blue
+29,marker,538,0,1,blue
+30,marker,546,0,1,blue
+31,marker,554,0,1,blue
+32,marker,562,0,1,blue
+33,marker,570,0,1,blue
+34,marker,578,0,1,blue
+35,marker,586,0,1,blue
+36,marker,594,0,1,blue
+37,marker,602,0,1,blue
+38,marker,610,0,1,blue
+39,marker,618,0,1,blue
+40,marker,626,0,1,blue
+41,marker,634,0,1,blue
+42,marker,642,0,1,blue
+43,marker,650,0,1,blue
+44,marker,658,0,1,blue
+45,marker,666,0,1,blue
+46,marker,674,0,1,blue
+47,marker,682,0,1,blue
+48,marker,690,0,1,blue
+49,marker,698,0,1,blue
+50,marker,706,0,1,blue
+51,marker,714,0,1,blue
+52,marker,722,0,1,blue
+53,marker,730,0,1,blue
+54,marker,738,0,1,blue
+55,marker,746,0,1,blue
+56,marker,754,0,1,blue
+57,marker,762,0,1,blue
+58,marker,770,0,1,blue
+59,marker,778,0,1,blue
+60,marker,786,0,1,blue
+23cm,amateur,1240,1325,1,lime
+23cm SSB,amateur,1296,1296.5,1,lime
+GB3MHZ,beacon,1296.83,0,1,cyan
+GB3IDT,beacon,1296.84,0,1,cyan
+GB3FRS,beacon,1296.85,0,1,cyan
+GB3MCB,beacon,1296.86,0,1,cyan
+GB3USK,beacon,1296.87,0,1,cyan
+GB3DUN,beacon,1296.89,0,1,cyan
+GB3CFG,beacon,1296.905,0,1,cyan
+GB3NGI,beacon,1296.905,0,1,cyan
+GB3ANG,beacon,1296.965,0,1,cyan
+GB3CSB,beacon,1296.985,0,1,cyan
+GB3EDN,beacon,1296.99,0,1,cyan
+13cm,amateur,2310,2450,1,lime
+GB3MHZ,beacon,2320.83,0,1,cyan
+GB3ZME,beacon,2320.87,0,1,cyan
+GB3ANT,beacon,2320.89,0,1,cyan
+GB3SCS,beacon,2320.905,0,1,cyan
+GB3BSS,beacon,2320.925,0,1,cyan
+GB3LES,beacon,2320.955,0,1,cyan
+GB3CSB,beacon,2320.985,0,1,cyan
+2G WiFi,amateur,2390,2450,1,lime
+9cm,amateur,3300,3500,1,lime
+GB3MHZ,beacon,3400.83,0,1,cyan
+GB3OHM,beacon,3400.9,0,1,cyan
+GB3SCF,beacon,3400.905,0,1,cyan
+GB3ZME,beacon,3400.91,0,1,cyan
+GB3LPC,beacon,3400.935,0,1,cyan
+GB3LEF,beacon,3400.955,0,1,cyan
+GB3CSB,beacon,3400.985,0,1,cyan
+SatComm,C band,3700,4200,1,firebrick
+6cm,amateur,5650,5925,1,lime
+GB3MHZ,beacon,5760.83,0,1,cyan
+GB3OHM,beacon,5760.9,0,1,cyan
+GB3SCC,beacon,5760.905,0,1,cyan
+GB3ZME,beacon,5760.91,0,1,cyan
+GB3FNM,beacon,5760.92,0,1,cyan
+GB3KEU,beacon,5760.925,0,1,cyan
+GB3CSB,beacon,5760.985,0,1,cyan
+Es'h-NB,Ku band,10489.5,10490,1,lime
+NB low,Ku beacon,10489.5,0,1,lightgreen
+NB mid,Ku beacon,10489.75,0,1,lightgreen
+Es'h-WB,C beacon,10491,10499,1,lime
+12A,marker,223.936,0,1,blue
