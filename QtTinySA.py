@@ -98,7 +98,7 @@ class analyser:
         for x in device_list:
             if x.vid == VID and x.pid == PID:
                 self.dev = x.device
-                logging.info(f'Found TinySA on {self.dev}')
+                logging.info(f'Found device on {self.dev}')
         if self.dev is None:
             ui.version.setText('TinySA not found')
             if not self.usbCheck.isActive():
@@ -298,8 +298,8 @@ class analyser:
             ui.centre_freq.setValue(startF + (stopF - startF) / 2)
             ui.span_freq.setValue(stopF - startF)
         ui.graphWidget.setXRange(startF * 1e6, stopF * 1e6)
-        S1.bline.setValue(startF * 1e6)
-        S2.bline.setValue(stopF * 1e6)
+        S1.bline.setValue((startF + ui.span_freq.value()/20) * 1e6)
+        S2.bline.setValue((stopF - ui.span_freq.value()/20) * 1e6)
         self.resume()  # puts a message in the fifo buffer so the measurement thread spots it and updates its settings
 
     def freqOffset(self, frequencies):  # for mixers or LNBs external to TinySA
@@ -398,8 +398,7 @@ class analyser:
                     logging.debug(f'measurement: level = {(data / 32) - self.scale}dBm')
                 self.usb.read(2)  # discard the command prompt
                 self.signals.fullSweep.emit(frequencies, readings)  # updateGUI once per sweep (min performance impact)
-                # readings[-1] = readings[0]  # populate last row with current sweep before rolling
-                readings[-1] = np.nanmean(readings[:ui.avgBox.value()], axis=0)  # populate last row with current sweep before rolling
+                readings[-1] = readings[0]  # populate last row with current sweep before rolling
                 readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
                 # logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6}')  # debug
                 if self.fifo.qsize() > 0:  # a setting has changed
@@ -485,34 +484,30 @@ class analyser:
             self.surface.setData(z=z)  # update 3D graph
             params = ui.openGLWidget.cameraParams()
             logging.debug(f'camera {params}')
-        # fPeaks = self.peakDetect(frequencies, readings)
-        # fTroughs = self.troughDetect(frequencies, readings)
-        fPeaks = self.maxMin(frequencies, readings)[0]
-        fTroughs = self.maxMin(frequencies, readings)[1]
-        S1.updateMarker(frequencies, readings[0, :], fPeaks, fTroughs)
-        S2.updateMarker(frequencies, readings[0, :], fPeaks, fTroughs)
-        S3.updateMarker(frequencies, readings[0, :], fPeaks, fTroughs)
-        S4.updateMarker(frequencies, readings[0, :], fPeaks, fTroughs)
+        maxmin = self.maxMin(frequencies, readings)
+        S1.updateMarker(frequencies, readings[0, :], maxmin)
+        S2.updateMarker(frequencies, readings[0, :], maxmin)
+        S3.updateMarker(frequencies, readings[0, :], maxmin)
+        S4.updateMarker(frequencies, readings[0, :], maxmin)
 
     def maxMin(self, frequencies, readings):  # finds the signal max/min values for setting markers
-        avgMax = avgMin = np.nanmean(readings[:ui.avgBox.value()], axis=0)
-        # calculate a frequency width factor to use to mask readings above and below each max/min frequency
+        avg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
+        avg = np.ma.masked_where(frequencies < S1.bline.value(), avg)
+        avg = np.ma.masked_where(frequencies > S2.bline.value(), avg)
+        avg = np.ma.masked_where(avg <= S4.hline.value(), avg)  # mask all below threshold
+        avgMin = avgMax = avg
+        # calculate a frequency width factor to use to mask readings near each max/min frequency
         if ui.rbw_auto.isChecked():
             fWidth = preferences.rbw_x.value() * 850 * 1e3
         else:
             fWidth = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3
-        maxi = [np.argmax(avgMax)]  # the index of the highest peak in the averaged readings array
-        avgMin = np.ma.masked_where(frequencies < S1.bline.value(), avgMin)
-        avgMin = np.ma.masked_where(frequencies > S2.bline.value(), avgMin)
-        avgMin = np.ma.masked_where(avgMin < preferences.peakThreshold.value(), avgMin)  # mask minima below threshold
-        # logging.info(f'maxMin: avgMin = {avgMin}')
+        maxi = [np.argmax(avgMax)]  # the index of the highest peak in the masked averaged readings array
         mini = [np.argmin(avgMin)]  # the index of the deepest minimum in the masked averaged readings array
         for i in range(3):
             # mask frequencies around detected peaks and find the next 3 highest/lowest peaks
             avgMax = np.ma.masked_where(np.abs(frequencies[maxi[-1]] - frequencies) < fWidth, avgMax)
             maxi.append(np.argmax(avgMax))
             avgMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < fWidth, avgMin)
-            # logging.info(f'maxMin: mini = {mini}')
             mini.append(np.argmin(avgMin))
         return (list(frequencies[maxi]), list(frequencies[mini]))
 
@@ -716,7 +711,7 @@ class display:
                                             labelOpts={'position': 0.025, 'color': ('r')})
         self.bline = ui.graphWidget.addLine(88, 90, movable=True, name=name,
                                             pen=pyqtgraph.mkPen('r', width=0.5, style=QtCore.Qt.DashLine),
-                                            label="{value:.0f}", labelOpts={'position': 0.025, 'color': ('r'), 'movable': True})
+                                            label="bound", labelOpts={'position': 0.025, 'color': ('r'), 'movable': True})
         self.deltaF = 0  # the difference between this marker and Reference Marker (1)
         self.fifo = queue.SimpleQueue()
         self.vline.sigClicked.connect(self.mClicked)
@@ -841,11 +836,11 @@ class display:
             ui.run3D.setText('Stopping ...')
             ui.run3D.setStyleSheet('background-color: orange')
 
-    def updateMarker(self, frequencies, readings, fPeaks, fTroughs):  # called by updateGUI()
-        options = {'Max1': fPeaks[0], 'Max2': fPeaks[1], 'Max3': fPeaks[2],
-                   'Max4': fPeaks[3], 'Normal': self.vline.value(), 'Delta': self.vline.value(),
-                   'Min1': fTroughs[0], 'Min2': fTroughs[1], 'Min3': fTroughs[2],
-                   'Min4': fTroughs[3]}
+    def updateMarker(self, frequencies, readings, maxmin):  # called by updateGUI()
+        options = {'Max1': maxmin[0][0], 'Max2': maxmin[0][1], 'Max3': maxmin[0][2],
+                   'Max4': maxmin[0][3], 'Normal': self.vline.value(), 'Delta': self.vline.value(),
+                   'Min1': maxmin[1][0], 'Min2': maxmin[1][1], 'Min3': maxmin[1][2],
+                   'Min4': maxmin[1][3]}
         markerF = options.get(self.markerType)
         if markerF < np.min(frequencies) or markerF > np.max(frequencies):
             # marker is out of scan range so just show its frequency
@@ -1070,21 +1065,35 @@ class modelView():
 # respond to GUI signals
 
 
+# def band_changed():
+#     index = ui.band_box.currentIndex()
+#     if bandselect.tm.record(index).value('stopF') in (0, ''):
+#         startF = bandselect.tm.record(index).value('StartF')
+#         stopF = bandselect.tm.record(index).value('StopF')
+#         ui.start_freq.setValue(startF)
+#         ui.stop_freq.setValue(stopF)
+#         tinySA.freq_changed(False)  # start/stop mode
+#     else:
+#         centreF = bandselect.tm.record(index).value('StartF')
+#         ui.centre_freq.setValue(centreF)
+#         ui.span_freq.setValue(int(centreF/10))  # default span to a tenth of the centre freq
+#         tinySA.freq_changed(True)  # centre mode
+#     freqMarkers()
+
 def band_changed():
     index = ui.band_box.currentIndex()
-    if bandselect.tm.record(index).value('stopF') != '':
-        startF = bandselect.tm.record(index).value('StartF')
-        stopF = bandselect.tm.record(index).value('StopF')
+    startF = bandselect.tm.record(index).value('StartF')
+    stopF = bandselect.tm.record(index).value('StopF')
+    if stopF not in (0, ''):
         ui.start_freq.setValue(startF)
         ui.stop_freq.setValue(stopF)
         tinySA.freq_changed(False)  # start/stop mode
     else:
-        centreF = bandselect.tm.record(index).value('StartF')
+        centreF = startF
         ui.centre_freq.setValue(centreF)
         ui.span_freq.setValue(int(centreF/10))  # default span to a tenth of the centre freq
         tinySA.freq_changed(True)  # centre mode
     freqMarkers()
-
 
 def addBandPressed():
     if not ui.marker1.isChecked():
@@ -1319,7 +1328,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.7.f')
+app.setApplicationVersion(' v0.10.7.g')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
