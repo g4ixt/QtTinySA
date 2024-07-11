@@ -298,8 +298,9 @@ class analyser:
             ui.centre_freq.setValue(startF + (stopF - startF) / 2)
             ui.span_freq.setValue(stopF - startF)
         ui.graphWidget.setXRange(startF * 1e6, stopF * 1e6)
-        S1.bline.setValue((startF + ui.span_freq.value()/20) * 1e6)
-        S2.bline.setValue((stopF - ui.span_freq.value()/20) * 1e6)
+        if ui.span_freq.value() != 0:
+            S1.bline.setValue((startF + ui.span_freq.value()/20) * 1e6)
+            S2.bline.setValue((stopF - ui.span_freq.value()/20) * 1e6)
         self.resume()  # puts a message in the fifo buffer so the measurement thread spots it and updates its settings
 
     def freqOffset(self, frequencies):  # for mixers or LNBs external to TinySA
@@ -398,7 +399,8 @@ class analyser:
                     logging.debug(f'measurement: level = {(data / 32) - self.scale}dBm')
                 self.usb.read(2)  # discard the command prompt
                 self.signals.fullSweep.emit(frequencies, readings)  # updateGUI once per sweep (min performance impact)
-                readings[-1] = readings[0]  # populate last row with current sweep before rolling
+                # readings[-1] = readings[0]  # populate last row with current sweep before rolling
+                readings[-1] = None  # populate last row with current sweep before rolling
                 readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
                 # logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6}')  # debug
                 if self.fifo.qsize() > 0:  # a setting has changed
@@ -429,10 +431,14 @@ class analyser:
         readingsMin = np.nanmin(readings[:self.scanMemory], axis=0)
         options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': readingsMax, 'Min': readingsMin}
         logging.debug(f'sigProcess: averages={readingsAvg}')
+        if frequencies[0] == frequencies[-1]:
+            # zero span
+            frequencies = np.arange(1, len(frequencies) + 1, dtype=int)
         S1.updateTrace(frequencies, options.get(S1.traceType))
         S2.updateTrace(frequencies, options.get(S2.traceType))
         S3.updateTrace(frequencies, options.get(S3.traceType))
         S4.updateTrace(frequencies, options.get(S4.traceType))
+
 
     def createTimeSpectrum(self, frequencies, readings):
         points = np.size(frequencies)
@@ -484,11 +490,17 @@ class analyser:
             self.surface.setData(z=z)  # update 3D graph
             params = ui.openGLWidget.cameraParams()
             logging.debug(f'camera {params}')
-        maxmin = self.maxMin(frequencies, readings)
-        S1.updateMarker(frequencies, readings[0, :], maxmin)
-        S2.updateMarker(frequencies, readings[0, :], maxmin)
-        S3.updateMarker(frequencies, readings[0, :], maxmin)
-        S4.updateMarker(frequencies, readings[0, :], maxmin)
+        if frequencies[0] == frequencies[-1]:  # zero span
+            ui.graphWidget.setLabel('bottom', 'Time')
+            frequencies = np.arange(1, len(frequencies) + 1, dtype=int)
+            ui.graphWidget.setXRange(frequencies[0], frequencies[-1])
+        else:
+            ui.graphWidget.setLabel('bottom', units='Hz')
+            maxmin = self.maxMin(frequencies, readings)
+            S1.updateMarker(frequencies, readings[0, :], maxmin)
+            S2.updateMarker(frequencies, readings[0, :], maxmin)
+            S3.updateMarker(frequencies, readings[0, :], maxmin)
+            S4.updateMarker(frequencies, readings[0, :], maxmin)
 
     def maxMin(self, frequencies, readings):  # finds the signal max/min values for setting markers
         avg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
@@ -709,7 +721,7 @@ class display:
                                             label="{value:.2f}")
         self.hline = ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='',
                                             labelOpts={'position': 0.025, 'color': ('r')})
-        self.bline = ui.graphWidget.addLine(88, 90, movable=True, name=name,
+        self.bline = ui.graphWidget.addLine(-10, -10, movable=True, name=name,
                                             pen=pyqtgraph.mkPen('r', width=0.5, style=QtCore.Qt.DashLine),
                                             label="bound", labelOpts={'position': 0.025, 'color': ('r'), 'movable': True})
         self.deltaF = 0  # the difference between this marker and Reference Marker (1)
@@ -1328,7 +1340,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.7.g')
+app.setApplicationVersion(' v0.10.7.h')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
