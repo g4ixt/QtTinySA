@@ -230,7 +230,8 @@ class analyser:
         self.usbSend()
         points = np.size(frequencies)
         readings = np.full((self.scanMemory, points), None, dtype=float)
-        readings[0] = -100
+        readings[0] = None
+        self.maxima = np.full(points, None, dtype=float)
         self.sweep = Worker(self.measurement, frequencies, readings)  # workers are auto-deleted when thread stops
         self.sweeping = True
         self.createTimeSpectrum(frequencies, readings)
@@ -399,8 +400,7 @@ class analyser:
                     logging.debug(f'measurement: level = {(data / 32) - self.scale}dBm')
                 self.usb.read(2)  # discard the command prompt
                 self.signals.fullSweep.emit(frequencies, readings)  # updateGUI once per sweep (min performance impact)
-                # readings[-1] = readings[0]  # populate last row with current sweep before rolling
-                readings[-1] = None  # populate last row with current sweep before rolling
+                readings[-1] = readings[0]  # populate last row with current sweep before rolling
                 readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
                 # logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6}')  # debug
                 if self.fifo.qsize() > 0:  # a setting has changed
@@ -408,7 +408,7 @@ class analyser:
                     frequencies = self.set_frequencies()
                     points = np.size(frequencies)
                     readings = np.full((self.scanMemory, points), None, dtype=float)
-                    readings[0] = -100
+                    readings[0] = None
                     self.createTimeSpectrum(frequencies, readings)
                     self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
             except serial.SerialException:
@@ -427,9 +427,11 @@ class analyser:
             frequencies = frequencies[::-1]
             np.fliplr(readings)
         readingsAvg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
-        readingsMax = np.nanmax(readings[:self.scanMemory], axis=0)
         readingsMin = np.nanmin(readings[:self.scanMemory], axis=0)
-        options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': readingsMax, 'Min': readingsMin}
+        readingsMax = np.nanmax(readings[:self.scanMemory], axis=0)
+        self.maxima = np.fmax(self.maxima, readingsMax)
+        # options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': readingsMax, 'Min': readingsMin}
+        options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': self.maxima, 'Min': readingsMin}
         logging.debug(f'sigProcess: averages={readingsAvg}')
         if frequencies[0] == frequencies[-1]:
             # zero span
@@ -1340,7 +1342,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.7.h')
+app.setApplicationVersion(' v0.10.7.i')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
