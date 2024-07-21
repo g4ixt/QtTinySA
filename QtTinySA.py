@@ -88,31 +88,53 @@ class analyser:
         self.maxF = 6000
         self.directory = None
         self.memF = BytesIO()
+        self.ports = []
 
     def openPort(self):
-        self.dev = None
-        # Get tinysa device (port) automatically using hardware ID
+        # Get tinysa comport using hardware ID
         VID = 0x0483  # 1155
         PID = 0x5740  # 22336
-        device_list = list_ports.comports()
-        for x in device_list:
-            if x.vid == VID and x.pid == PID:
-                self.dev = x.device
-                logging.info(f'Found device on {self.dev}')
-        if self.dev is None:
+        usbPorts = list_ports.comports()
+        for port in usbPorts:
+            if port.vid == VID and port.pid == PID:
+                logging.info(f'Found {port.product} on {port.device}')
+                if port.product[:6] == "tinySA":
+                    preferences.deviceBox.addItem(port.product + " on " + port.device)
+                    self.ports.append(port)
+        if self.ports:
+            self.usbCheck.stop()
+            logging.info(f'openPort: port count = {len(self.ports)}')
+            if len(self.ports) == 1:
+                self.testPort(port)
+                return
+            else:
+                preferences.deviceBox.insertItem(0, "Select...")
+                preferences.deviceBox.setCurrentIndex(0)
+                popUp("Several devices detected.  Choose device in Settings > Preferences",
+                      QMessageBox.Ok, QMessageBox.Information)
+        else:
             ui.version.setText('TinySA not found')
             if not self.usbCheck.isActive():
                 logging.info('TinySA not found')
-        if self.dev and self.usb is None:  # TinySA was found but serial comms not open
-            try:
-                self.usb = serial.Serial(self.dev, baudrate=576000)
-                logging.info(f'Serial port open: {self.usb.isOpen()}')
-            except serial.SerialException:
-                logging.info('Serial port exception.  Is your username in the "dialout" group?')
-                logging.info(f'groups: {os.getgroups()}')
-                popUp('Serial Port Exception', QMessageBox.Ok, QMessageBox.Critical)
-        if self.dev and self.usb:
-            self.initialise()
+
+    def testPort(self, port):
+        try:
+            self.usb = serial.Serial(port.device, baudrate=576000)
+            logging.info(f'Serial port open: {self.usb.isOpen()}')
+        except serial.SerialException:
+            logging.info('Serial port exception.  Is your username in the "dialout" group?')
+            logging.info(f'groups: {os.getgroups()}')
+            popUp('Serial Port Exception. Check that your username is in the "dialout" group.',
+                  QMessageBox.Ok, QMessageBox.Critical)
+        if self.usb:
+            for i in range(4):  # try 3 times to communicate with TinySA over USB serial
+                hardware = self.version()
+                logging.info(f'Serial port test {i}: TinySA responds: {hardware[:16]}')
+                if port.product[:6] == hardware[:6]:
+                    break
+                else:
+                    time.sleep(1)
+            self.initialise(port.product, hardware[8:16])
 
     def closePort(self):
         if self.usb:
@@ -122,28 +144,21 @@ class analyser:
 
     def isConnected(self):
         # triggered by self.usbCheck QTimer - if tinySA wasn't found checks repeatedly for device, i.e.'hotplug'
-        if self.dev is None:
+        if not self.ports:
             self.openPort()
         else:
             self.usbCheck.stop()
 
-    def initialise(self):
-        i = 1
-        hardware = ''
-        while hardware[:6] != 'tinySA' and i < 4:  # try 3 times to detect TinySA
-            hardware = self.version()
-            logging.info(f'Hardware detection attempt {i}: TinySA version: {hardware[:16]}')
-            i += 1
-            time.sleep(0.5)
-        # hardware = 'tinySA'  # used for testing
-        if hardware[:7] == 'tinySA4':  # It's an Ultra
+    def initialise(self, product, firmware):
+        # product = 'tinySA'  # used for testing
+        if product == 'tinySA4':  # It's an Ultra
             self.tinySA4 = True
-            self.maxF = 6000
+            self.maxF = preferences.maxFreqBox.value()
             self.scale = 174
             ui.spur_box.setTristate(True)  # TinySA Ultra has 'auto', 'on' and 'off' setting for Spur
             ui.spur_box.setCheckState(checkboxes.tm.record(0).value("spur"))
         else:
-            self.tinySA4 = False
+            self.tinySA4 = False  # It's a Basic
             self.maxF = 960
             self.scale = 128
             rbwtext.tm.setFilter('type = "rbw" and value != "0.2" and value != "1" and value != "850"')  # fewer RBWs
@@ -156,9 +171,9 @@ class analyser:
         ui.lna_box.setEnabled(self.tinySA4)
         self.lna()
 
-        # show hardware information in GUI
+        # show device information in GUI
         ui.battery.setText(self.battery())
-        ui.version.setText(hardware[8:16])
+        ui.version.setText(product + " " + firmware)
 
         self.setTime()
 
@@ -220,7 +235,7 @@ class analyser:
                     self.startMeasurement()  # runs measurement in separate thread
                 except serial.SerialException:
                     logging.info('serial port exception')
-                    self.dev = None
+                    self.ports = []
                     self.closePort()
         else:
             popUp('TinySA not found', QMessageBox.Ok, QMessageBox.Critical)
@@ -230,8 +245,7 @@ class analyser:
         self.usbSend()
         points = np.size(frequencies)
         readings = np.full((self.scanMemory, points), None, dtype=float)
-        readings[0] = None
-        self.maxima = np.full(points, None, dtype=float)
+        readings[0] = -120
         self.sweep = Worker(self.measurement, frequencies, readings)  # workers are auto-deleted when thread stops
         self.sweeping = True
         self.createTimeSpectrum(frequencies, readings)
@@ -242,7 +256,7 @@ class analyser:
         try:
             self.usb.timeout = 1
         except AttributeError:  # don't know why this happens on second run of programme.  Temporary workaround.
-            self.usb = serial.Serial(self.dev, baudrate=576000)
+            self.usb = serial.Serial(self.ports[0].device, baudrate=576000)  #  *****  Need to fix this ************
             logging.info(f'Serial port open: {self.usb.isOpen()}')
         while self.fifo.qsize() > 0:
             command = self.fifo.get(block=True, timeout=None)
@@ -264,6 +278,7 @@ class analyser:
         stopF = ui.stop_freq.value() * 1e6
         points = self.setPoints()
         frequencies = np.linspace(startF, stopF, points, dtype=np.int64)
+        self.maxima = np.full(points, -120, dtype=float)
         logging.debug(f'frequencies = {frequencies}')
         self.fPrecision(frequencies)
         return frequencies
@@ -408,7 +423,7 @@ class analyser:
                     frequencies = self.set_frequencies()
                     points = np.size(frequencies)
                     readings = np.full((self.scanMemory, points), None, dtype=float)
-                    readings[0] = None
+                    readings[0] = -120
                     self.createTimeSpectrum(frequencies, readings)
                     self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
             except serial.SerialException:
@@ -440,7 +455,6 @@ class analyser:
         S2.updateTrace(frequencies, options.get(S2.traceType))
         S3.updateTrace(frequencies, options.get(S3.traceType))
         S4.updateTrace(frequencies, options.get(S4.traceType))
-
 
     def createTimeSpectrum(self, frequencies, readings):
         points = np.size(frequencies)
@@ -1003,7 +1017,7 @@ class modelView():
 
     def insertData(self, **data):
         record = self.tm.record()
-        logging.info(f'insertData: record = {record}')
+        logging.debug(f'insertData: record = {record}')
         for key, value in data.items():
             logging.info(f'insertData: key = {key} value={value}')
             record.setValue(str(key), value)
@@ -1109,6 +1123,7 @@ def band_changed():
         tinySA.freq_changed(True)  # centre mode
     freqMarkers()
 
+
 def addBandPressed():
     if not ui.marker1.isChecked():
         message = 'Please enable Marker 1'
@@ -1123,13 +1138,13 @@ def addBandPressed():
         title = "New Frequency Band"
         message = "Enter a name for the new band."
         bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=bandName, type=ID, startF=f'{S1.vline.value():.6f}',
-                         stopF=f'{S2.vline.value():.6f}', visible=1, colour=colourID('green'))  # colourID(value)
+        bands.insertData(name=bandName, type=ID, startF=f'{S1.vline.value()/1e6:.6f}',
+                         stopF=f'{S2.vline.value()/1e6:.6f}', visible=1, colour=colourID('green'))  # colourID(value)
     else:  # If only Marker 1 is enabled then this creates a spot Frequency marker
         title = "New Spot Frequency Marker"
         message = "Enter a name for the Spot Frequency"
         spotName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=spotName, type=12, startF=f'{S1.vline.value():.6f}',
+        bands.insertData(name=spotName, type=12, startF=f'{S1.vline.value()/1e6:.6f}',
                          stopF='', visible=1, colour=colourID('orange'))  # preset 12 is Marker (spot frequency).
 
 
@@ -1224,7 +1239,7 @@ def about():
 
 
 def exit_handler():
-    if tinySA.dev is not None:
+    if len(tinySA.ports) != 0:
         # save the marker frequencies
         record = numbers.tm.record(0)
         record.setValue('m1f', float(S1.vline.value()))
@@ -1335,6 +1350,11 @@ def clickEvent():
     logging.info('clickEvent')
 
 
+def testComPort():
+    index = preferences.deviceBox.currentIndex() - 1  # allow for "Select..." in combobox at index = 0
+    tinySA.testPort(tinySA.ports[index])
+
+
 ###############################################################################
 # Instantiate classes
 
@@ -1342,7 +1362,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.7.i')
+app.setApplicationVersion(' v0.10.7.k')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1494,6 +1514,7 @@ ui.actionAbout_QtTinySA.triggered.connect(about)
 pwindow.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
 preferences.exportButton.pressed.connect(exportData)
 preferences.importButton.pressed.connect(importData)
+preferences.deviceBox.activated.connect(testComPort)
 
 # filebrowse
 ui.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
@@ -1607,14 +1628,14 @@ numbers.dwm.setCurrentIndex(0)
 # set GUI fields using values from the configuration database
 tinySA.restoreSettings()
 
-# try to open a USB connection to the TinySA hardware
-tinySA.openPort()
-if tinySA.dev is None:
-    tinySA.usbCheck.start(500)  # check again every 500mS
-
 window.show()
 window.setWindowTitle(app.applicationName() + app.applicationVersion())
 # window.setWindowIcon(QtGui.QIcon(os.path.join(basedir, 'tinySAsmall.png')))
+
+# try to open a USB connection to the TinySA hardware
+# tinySA.openPort()
+# if tinySA.dev is None:
+tinySA.usbCheck.start(500)  # check again every 500mS
 
 ###############################################################################
 # run the application until the user closes it

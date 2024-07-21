@@ -161,36 +161,10 @@
     </rect>
    </property>
    <layout class="QGridLayout" name="gridLayout_2">
-    <item row="11" column="0">
-     <widget class="QLabel" name="label_13">
-      <property name="font">
-       <font>
-        <weight>75</weight>
-        <bold>true</bold>
-       </font>
-      </property>
+    <item row="1" column="0">
+     <widget class="QLabel" name="label_11">
       <property name="text">
-       <string>Miscellaneous</string>
-      </property>
-     </widget>
-    </item>
-    <item row="5" column="1">
-     <widget class="QSpinBox" name="rbw_x">
-      <property name="minimum">
-       <number>2</number>
-      </property>
-      <property name="maximum">
-       <number>10</number>
-      </property>
-      <property name="value">
-       <number>3</number>
-      </property>
-     </widget>
-    </item>
-    <item row="13" column="1">
-     <widget class="QCheckBox" name="syncTime">
-      <property name="text">
-       <string>Sync to PC</string>
+       <string>Absolute maximum</string>
       </property>
      </widget>
     </item>
@@ -204,35 +178,14 @@
       </property>
      </widget>
     </item>
-    <item row="5" column="0">
-     <widget class="QLabel" name="label">
-      <property name="text">
-       <string>Points / Resolution Bandwidth</string>
+    <item row="6" column="1">
+     <widget class="QSpinBox" name="minPoints">
+      <property name="maximumSize">
+       <size>
+        <width>100</width>
+        <height>16777215</height>
+       </size>
       </property>
-     </widget>
-    </item>
-    <item row="8" column="0" colspan="2">
-     <widget class="QLabel" name="label_14">
-      <property name="font">
-       <font>
-        <weight>75</weight>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="text">
-       <string>External Mixer / LNB</string>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="0">
-     <widget class="QLabel" name="label_11">
-      <property name="text">
-       <string>Absolute maximum</string>
-      </property>
-     </widget>
-    </item>
-    <item row="7" column="1">
-     <widget class="QSpinBox" name="maxPoints">
       <property name="buttonSymbols">
        <enum>QAbstractSpinBox::NoButtons</enum>
       </property>
@@ -240,10 +193,55 @@
        <number>25</number>
       </property>
       <property name="maximum">
-       <number>100000</number>
+       <number>450</number>
       </property>
       <property name="value">
-       <number>30000</number>
+       <number>450</number>
+      </property>
+     </widget>
+    </item>
+    <item row="16" column="0">
+     <spacer name="verticalSpacer_2">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>20</width>
+        <height>40</height>
+       </size>
+      </property>
+     </spacer>
+    </item>
+    <item row="10" column="1">
+     <widget class="QDoubleSpinBox" name="freqLO">
+      <property name="suffix">
+       <string>MHz</string>
+      </property>
+      <property name="decimals">
+       <number>6</number>
+      </property>
+      <property name="minimum">
+       <double>0.000000000000000</double>
+      </property>
+      <property name="maximum">
+       <double>100000.000000000000000</double>
+      </property>
+      <property name="value">
+       <double>0.000000000000000</double>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="0">
+     <widget class="QLabel" name="label_8">
+      <property name="font">
+       <font>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="text">
+       <string>Scan Points Settings</string>
       </property>
      </widget>
     </item>
@@ -260,82 +258,6 @@
       </property>
      </widget>
     </item>
-    <item row="2" column="0">
-     <widget class="QLabel" name="label_10">
-      <property name="text">
-       <string>Max with auto attenuator</string>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="1">
-     <widget class="QCheckBox" name="neg25Line">
-      <property name="text">
-       <string>-25dBm</string>
-      </property>
-      <property name="checked">
-       <bool>false</bool>
-      </property>
-     </widget>
-    </item>
-    <item row="12" column="0">
-     <widget class="QLabel" name="label_2">
-      <property name="text">
-       <string>Peak marker detection threshold</string>
-      </property>
-     </widget>
-    </item>
-    <item row="7" column="0">
-     <widget class="QLabel" name="label_4">
-      <property name="text">
-       <string>Auto maximum points</string>
-      </property>
-     </widget>
-    </item>
-    <item row="9" column="1">
-     <widget class="QCheckBox" name="highLO">
-      <property name="text">
-       <string>True</string>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="0">
-     <widget class="QLabel" name="label_9">
-      <property name="text">
-       <string>Max for best accuracy</string>
-      </property>
-     </widget>
-    </item>
-    <item row="9" column="0">
-     <widget class="QLabel" name="label_15">
-      <property name="text">
-       <string>LO above displayed Freq</string>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="1">
-     <widget class="QCheckBox" name="zeroLine">
-      <property name="text">
-       <string> 0dBm</string>
-      </property>
-      <property name="checked">
-       <bool>false</bool>
-      </property>
-     </widget>
-    </item>
-    <item row="6" column="0">
-     <widget class="QLabel" name="label_3">
-      <property name="text">
-       <string>Auto minimum points</string>
-      </property>
-     </widget>
-    </item>
-    <item row="10" column="0">
-     <widget class="QLabel" name="label_16">
-      <property name="text">
-       <string>LO Frequency</string>
-      </property>
-     </widget>
-    </item>
     <item row="12" column="1">
      <widget class="QSpinBox" name="peakThreshold">
       <property name="sizePolicy">
@@ -346,7 +268,7 @@
       </property>
       <property name="maximumSize">
        <size>
-        <width>83</width>
+        <width>100</width>
         <height>16777215</height>
        </size>
       </property>
@@ -372,8 +294,95 @@
       </property>
      </widget>
     </item>
-    <item row="4" column="0">
-     <widget class="QLabel" name="label_8">
+    <item row="7" column="0">
+     <widget class="QLabel" name="label_4">
+      <property name="text">
+       <string>Auto maximum points</string>
+      </property>
+     </widget>
+    </item>
+    <item row="6" column="0">
+     <widget class="QLabel" name="label_3">
+      <property name="text">
+       <string>Auto minimum points</string>
+      </property>
+     </widget>
+    </item>
+    <item row="10" column="0">
+     <widget class="QLabel" name="label_16">
+      <property name="text">
+       <string>LO Frequency</string>
+      </property>
+     </widget>
+    </item>
+    <item row="9" column="1">
+     <widget class="QCheckBox" name="highLO">
+      <property name="text">
+       <string>True</string>
+      </property>
+     </widget>
+    </item>
+    <item row="13" column="0">
+     <widget class="QLabel" name="label_17">
+      <property name="text">
+       <string>Date and Time</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="1">
+     <widget class="QCheckBox" name="neg25Line">
+      <property name="text">
+       <string>-25dBm</string>
+      </property>
+      <property name="checked">
+       <bool>false</bool>
+      </property>
+     </widget>
+    </item>
+    <item row="14" column="1">
+     <widget class="QSpinBox" name="maxFreqBox">
+      <property name="maximumSize">
+       <size>
+        <width>100</width>
+        <height>16777215</height>
+       </size>
+      </property>
+      <property name="toolTip">
+       <string>Maximum Frequency allowed.  Note: TinySA-Ultra is not calibrated above 6GHz </string>
+      </property>
+      <property name="suffix">
+       <string>MHz</string>
+      </property>
+      <property name="minimum">
+       <number>350</number>
+      </property>
+      <property name="maximum">
+       <number>20000</number>
+      </property>
+      <property name="singleStep">
+       <number>100</number>
+      </property>
+      <property name="value">
+       <number>6000</number>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="0">
+     <widget class="QLabel" name="label_10">
+      <property name="text">
+       <string>Max with auto attenuator</string>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="0">
+     <widget class="QLabel" name="label">
+      <property name="text">
+       <string>Points / Resolution Bandwidth</string>
+      </property>
+     </widget>
+    </item>
+    <item row="8" column="0" colspan="2">
+     <widget class="QLabel" name="label_14">
       <property name="font">
        <font>
         <weight>75</weight>
@@ -381,12 +390,32 @@
        </font>
       </property>
       <property name="text">
-       <string>Scan Points Settings</string>
+       <string>External Mixer / LNB</string>
       </property>
      </widget>
     </item>
-    <item row="6" column="1">
-     <widget class="QSpinBox" name="minPoints">
+    <item row="13" column="1">
+     <widget class="QCheckBox" name="syncTime">
+      <property name="text">
+       <string>Sync to PC</string>
+      </property>
+     </widget>
+    </item>
+    <item row="14" column="0">
+     <widget class="QLabel" name="label_7">
+      <property name="text">
+       <string>Maximum operating frequency</string>
+      </property>
+     </widget>
+    </item>
+    <item row="7" column="1">
+     <widget class="QSpinBox" name="maxPoints">
+      <property name="maximumSize">
+       <size>
+        <width>100</width>
+        <height>16777215</height>
+       </size>
+      </property>
       <property name="buttonSymbols">
        <enum>QAbstractSpinBox::NoButtons</enum>
       </property>
@@ -394,49 +423,87 @@
        <number>25</number>
       </property>
       <property name="maximum">
-       <number>450</number>
+       <number>100000</number>
       </property>
       <property name="value">
-       <number>450</number>
+       <number>30000</number>
       </property>
      </widget>
     </item>
-    <item row="10" column="1">
-     <widget class="QDoubleSpinBox" name="freqLO">
-      <property name="suffix">
-       <string>MHz</string>
+    <item row="2" column="1">
+     <widget class="QCheckBox" name="zeroLine">
+      <property name="text">
+       <string> 0dBm</string>
       </property>
-      <property name="decimals">
-       <number>6</number>
-      </property>
-      <property name="minimum">
-       <double>0.000000000000000</double>
-      </property>
-      <property name="maximum">
-       <double>100000.000000000000000</double>
-      </property>
-      <property name="value">
-       <double>0.000000000000000</double>
+      <property name="checked">
+       <bool>false</bool>
       </property>
      </widget>
     </item>
-    <item row="14" column="0">
-     <spacer name="verticalSpacer_2">
-      <property name="orientation">
-       <enum>Qt::Vertical</enum>
+    <item row="3" column="0">
+     <widget class="QLabel" name="label_9">
+      <property name="text">
+       <string>Max for best accuracy</string>
       </property>
-      <property name="sizeHint" stdset="0">
+     </widget>
+    </item>
+    <item row="9" column="0">
+     <widget class="QLabel" name="label_15">
+      <property name="text">
+       <string>LO above displayed Freq</string>
+      </property>
+     </widget>
+    </item>
+    <item row="12" column="0">
+     <widget class="QLabel" name="label_2">
+      <property name="text">
+       <string>Max/Min marker threshold</string>
+      </property>
+     </widget>
+    </item>
+    <item row="11" column="0">
+     <widget class="QLabel" name="label_13">
+      <property name="font">
+       <font>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="text">
+       <string>Miscellaneous</string>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="1">
+     <widget class="QSpinBox" name="rbw_x">
+      <property name="maximumSize">
        <size>
-        <width>20</width>
-        <height>40</height>
+        <width>100</width>
+        <height>16777215</height>
        </size>
       </property>
-     </spacer>
+      <property name="minimum">
+       <number>2</number>
+      </property>
+      <property name="maximum">
+       <number>10</number>
+      </property>
+      <property name="value">
+       <number>3</number>
+      </property>
+     </widget>
     </item>
-    <item row="13" column="0">
-     <widget class="QLabel" name="label_17">
+    <item row="15" column="0">
+     <widget class="QLabel" name="label_18">
       <property name="text">
-       <string>Date and Time</string>
+       <string>Detected Device/Port to use</string>
+      </property>
+     </widget>
+    </item>
+    <item row="15" column="1">
+     <widget class="QComboBox" name="deviceBox">
+      <property name="toolTip">
+       <string>Select device to use if more than one is detected</string>
       </property>
      </widget>
     </item>
