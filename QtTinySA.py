@@ -94,42 +94,40 @@ class analyser:
         # Get tinysa comport using hardware ID
         VID = 0x0483  # 1155
         PID = 0x5740  # 22336
+        tinySA = False
         usbPorts = list_ports.comports()
         for port in usbPorts:
             if port.vid == VID and port.pid == PID:
-                logging.info(f'Found {port.product} on {port.device}')
-                if port.product[:6] == "tinySA":
+                if port not in self.ports:
                     preferences.deviceBox.addItem(port.product + " on " + port.device)
                     self.ports.append(port)
-        if self.ports:
+                    if port.product[:6] == 'tinySA':
+                        tinySA = True
+        if len(self.ports) == 1 and tinySA:  # found only one device and it's a tinySA so can stop checking and use it
             self.usbCheck.stop()
-            logging.info(f'openPort: port count = {len(self.ports)}')
-            if len(self.ports) == 1:
-                self.testPort(port)
-                return
-            else:
-                preferences.deviceBox.insertItem(0, "Select...")
-                preferences.deviceBox.setCurrentIndex(0)
-                popUp("Several devices detected.  Choose device in Settings > Preferences",
-                      QMessageBox.Ok, QMessageBox.Information)
-        else:
-            ui.version.setText('TinySA not found')
-            if not self.usbCheck.isActive():
-                logging.info('TinySA not found')
+            self.testPort(self.ports[0])
+            return
+        if len(self.ports) > 1 and tinySA:  # several devices found and at least one is a tinySA so stop checking
+            popUp("Several devices detected.  Choose device in Settings > Preferences",
+                  QMessageBox.Ok, QMessageBox.Information)
+            self.usbCheck.stop()
+        if len(self.ports) >= 1 and not tinySA:  # report tinySA not found and keep checking
+            if ui.version.text() != 'tinySA not found':
+                ui.version.setText('tinySA not found')
+                logging.info('tinySA not found')
 
     def testPort(self, port):
         try:
             self.usb = serial.Serial(port.device, baudrate=576000)
             logging.info(f'Serial port open: {self.usb.isOpen()}')
         except serial.SerialException:
-            logging.info('Serial port exception.  Is your username in the "dialout" group?')
-            logging.info(f'groups: {os.getgroups()}')
-            popUp('Serial Port Exception. Check that your username is in the "dialout" group.',
+            logging.info('Serial port exception.  Check that your username is in the "dialout" group?')
+            popUp('Serial port exception. Check that your username is in the "dialout" group.',
                   QMessageBox.Ok, QMessageBox.Critical)
         if self.usb:
             for i in range(4):  # try 3 times to communicate with TinySA over USB serial
                 hardware = self.version()
-                logging.info(f'Serial port test {i}: TinySA responds: {hardware[:16]}')
+                logging.info(f'Serial port test {i}: {port.product} responds: {hardware[:16]}')
                 if port.product[:6] == hardware[:6]:
                     break
                 else:
@@ -144,10 +142,14 @@ class analyser:
 
     def isConnected(self):
         # triggered by self.usbCheck QTimer - if tinySA wasn't found checks repeatedly for device, i.e.'hotplug'
-        if not self.ports:
+        if len(self.ports) == 0:
             self.openPort()
         else:
-            self.usbCheck.stop()
+            for i in range(len(self.ports)):
+                if self.ports[i].product[:6] == 'tinySA':
+                    self.usbCheck.stop()
+                else:
+                    self.openPort()
 
     def initialise(self, product, firmware):
         # product = 'tinySA'  # used for testing
@@ -256,8 +258,15 @@ class analyser:
         try:
             self.usb.timeout = 1
         except AttributeError:  # don't know why this happens on second run of programme.  Temporary workaround.
-            self.usb = serial.Serial(self.ports[0].device, baudrate=576000)  #  *****  Need to fix this ************
-            logging.info(f'Serial port open: {self.usb.isOpen()}')
+            self.usb = serial.Serial(self.ports[preferences.deviceBox.currentIndex].device, baudrate=576000)
+            logging.info(f'usbSend: attribute error. Serial port open: {self.usb.isOpen()}')
+            return
+        # except serial.SerialException:
+        #     logging.info('serial port exception')
+        #     self.ports = []
+        #     self.closePort()
+        #     self.usbCheck.start(500)
+        #     return
         while self.fifo.qsize() > 0:
             command = self.fifo.get(block=True, timeout=None)
             logging.debug(command)
@@ -1233,6 +1242,13 @@ def about():
                .format(app.applicationVersion(), config.dbpath))
     popUp(message, QMessageBox.Ok, QMessageBox.Information)
 
+def clickEvent():
+    logging.info('clickEvent')
+
+
+def testComPort():
+    index = preferences.deviceBox.currentIndex()
+    tinySA.testPort(tinySA.ports[index])
 
 ##############################################################################
 # other methods
@@ -1276,17 +1292,17 @@ def freqMarkers():
     S2.delFreqMarkers()
     for i in range(0, presetmarker.tm.rowCount()):
         try:
-            startF = presetmarker.tm.record(i).value('StartF') * 1e6
-            stopF = presetmarker.tm.record(i).value('StopF') * 1e6
+            startF = presetmarker.tm.record(i).value('StartF')
+            stopF = presetmarker.tm.record(i).value('StopF')
             colour = presetmarker.tm.record(i).value('colour')
             name = presetmarker.tm.record(i).value('name')
             if ui.presetMarker.isChecked() and presetmarker.tm.record(i).value('visible') and stopF in (0, ''):
-                S1.addFreqMarker(startF, colour, name, band=False)
+                S1.addFreqMarker(startF * 1e6, colour, name, band=False)
                 if ui.presetLabel.isChecked() and ui.presetLabel.checkState() == 2:
                     S1.marker.label.setAngle(90)
             if ui.presetMarker.isChecked() and stopF not in (0, ''):  # it's a band marker
-                S1.addFreqMarker(startF, colour, name)
-                S2.addFreqMarker(stopF, colour, name)
+                S1.addFreqMarker(startF * 1e6, colour, name)
+                S2.addFreqMarker(stopF * 1e6, colour, name)
         except ValueError:
             continue
 
@@ -1346,15 +1362,6 @@ def colourID(shade):  # using the QSQLRelation directly doesn't work for colour.
     return 1
 
 
-def clickEvent():
-    logging.info('clickEvent')
-
-
-def testComPort():
-    index = preferences.deviceBox.currentIndex() - 1  # allow for "Select..." in combobox at index = 0
-    tinySA.testPort(tinySA.ports[index])
-
-
 ###############################################################################
 # Instantiate classes
 
@@ -1362,7 +1369,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.7.k')
+app.setApplicationVersion(' v0.10.7.m')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
