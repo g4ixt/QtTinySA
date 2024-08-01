@@ -89,6 +89,8 @@ class analyser:
         self.directory = None
         self.memF = BytesIO()
         self.ports = []
+        self.measurements = queue.SimpleQueue()
+        self.dataprocess = QtCore.QTimer()
 
     def openPort(self):
         # Get tinysa comport using hardware ID
@@ -242,16 +244,27 @@ class analyser:
         else:
             popUp('TinySA not found', QMessageBox.Ok, QMessageBox.Critical)
 
+    # def startMeasurement(self):
+    #     frequencies = self.set_frequencies()
+    #     self.usbSend()
+    #     points = np.size(frequencies)
+    #     readings = np.full((self.scanMemory, points), None, dtype=float)
+    #     readings[0] = -120
+    #     self.sweep = Worker(self.measurement, frequencies, readings)  # workers are auto-deleted when thread stops
+    #     self.sweeping = True
+    #     self.createTimeSpectrum(frequencies, readings)
+    #     self.reset3D()
+    #     threadpool.start(self.sweep)
+
     def startMeasurement(self):
         frequencies = self.set_frequencies()
         self.usbSend()
         points = np.size(frequencies)
-        readings = np.full((self.scanMemory, points), None, dtype=float)
-        readings[0] = -120
-        self.sweep = Worker(self.measurement, frequencies, readings)  # workers are auto-deleted when thread stops
+        # readings = np.full(points, -120, dtype=float)
+        self.sweep = Worker(self.measurement, frequencies)  # workers are auto-deleted when thread stops
         self.sweeping = True
-        self.createTimeSpectrum(frequencies, readings)
-        self.reset3D()
+        # self.createTimeSpectrum(frequencies, readings)
+        # self.reset3D()
         threadpool.start(self.sweep)
 
     def usbSend(self):
@@ -385,12 +398,68 @@ class analyser:
         logging.debug(f'sweepTimeout = {timeout:.2f} s')
         return timeout
 
-    def measurement(self, frequencies, readings):  # runs in a separate thread
-        points = np.size(readings, 1)
+    # def measurement(self, frequencies, readings):  # runs in a separate thread
+    #     points = np.size(readings, 1)
+    #     self.threadRunning = True
+    #     while self.sweeping:
+    #         try:
+    #             self.usb.timeout = self.sweepTimeout(frequencies)
+    #             self.runTimer.start()  # debug
+    #             if preferences.freqLO != 0:
+    #                 startF, stopF = self.freqOffset(frequencies)
+    #                 command = f'scanraw {int(startF)} {int(stopF)} {int(points)}\r'
+    #             else:
+    #                 command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)}\r'
+    #             logging.debug(f'measurement: command = {command}')
+    #             self.usb.write(command.encode())
+    #             index = 0
+    #             self.usb.read_until(command.encode() + b'\n{')  # skip command echo
+    #             dataBlock = ''
+    #             while dataBlock != b'}ch' and index < points:  # if b'}ch' it's reached the end of the scan points
+    #                 dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
+    #                 logging.debug(f'dataBlock: {dataBlock}\n')
+    #                 if dataBlock == b'}ch' or dataBlock == b'}':  # from FW165 jog button press returns different value
+    #                     logging.info('jog button pressed')
+    #                     self.sweeping = False
+    #                     break
+    #                 if dataBlock != b'}ch':
+    #                     try:
+    #                         c, data = struct.unpack('<' + 'cH', dataBlock)
+    #                     except struct.error:
+    #                         logging.info('data error')
+    #                         self.sweeping = False
+    #                         break
+    #                     readings[0, index] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
+    #                     if index // 20 == index / 20 or index == (points - 1):  # update traces every 20 readings
+    #                         self.signals.result.emit(frequencies, readings)  # send the latest 20 points to sigProcess()
+    #                     index += 1
+    #                 logging.debug(f'measurement: level = {(data / 32) - self.scale}dBm')
+    #             self.usb.read(2)  # discard the command prompt
+    #             self.signals.fullSweep.emit(frequencies, readings)  # updateGUI once per sweep (min performance impact)
+    #             readings[-1] = readings[0]  # populate last row with current sweep before rolling
+    #             readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
+    #             logging.info(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6:.3f}mS')  # debug
+    #             if self.fifo.qsize() > 0:  # a setting has changed
+    #                 self.setRBW()
+    #                 frequencies = self.set_frequencies()
+    #                 points = np.size(frequencies)
+    #                 readings = np.full((self.scanMemory, points), None, dtype=float)
+    #                 readings[0] = -120
+    #                 self.createTimeSpectrum(frequencies, readings)
+    #                 self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
+    #         except serial.SerialException:
+    #             logging.info('serial port exception')
+    #             self.sweeping = False
+    #     self.threadRunning = False
+    #     self.signals.finished.emit()
+
+    def measurement(self, frequencies):  # runs in a separate thread
+        points = np.size(frequencies)
         self.threadRunning = True
         while self.sweeping:
             try:
                 self.usb.timeout = self.sweepTimeout(frequencies)
+                self.runTimer.start()  # debug
                 if preferences.freqLO != 0:
                     startF, stopF = self.freqOffset(frequencies)
                     command = f'scanraw {int(startF)} {int(stopF)} {int(points)}\r'
@@ -398,42 +467,34 @@ class analyser:
                     command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)}\r'
                 logging.debug(f'measurement: command = {command}')
                 self.usb.write(command.encode())
-                index = 0
-                # self.runTimer.start()  # debug
                 self.usb.read_until(command.encode() + b'\n{')  # skip command echo
+                index = 0
                 dataBlock = ''
-                while dataBlock != b'}ch' and index < points:  # if '}ch' it's reached the end of the scan points
+                while dataBlock != b'}ch':  # if b'}ch' it's reached the end of the scan points
                     dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
                     logging.debug(f'dataBlock: {dataBlock}\n')
-                    if dataBlock == b'}ch' or dataBlock == b'}':  # from FW165 jog button press returns different value
+                    if dataBlock == b'}':  # from FW165 jog button press returns different value
                         logging.info('jog button pressed')
                         self.sweeping = False
                         break
                     if dataBlock != b'}ch':
-                        # logging.debug(f'measurement: index {index} elapsed time = {self.runTimer.nsecsElapsed()/1e6}')
                         try:
                             c, data = struct.unpack('<' + 'cH', dataBlock)
                         except struct.error:
                             logging.info('data error')
                             self.sweeping = False
                             break
-                        readings[0, index] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
-                        if index // 20 == index / 20 or index == (points - 1):  # update traces every 20 readings
-                            self.signals.result.emit(frequencies, readings)  # send the latest 20 points to sigProcess()
+                        self.measurements.put((index, data))
+                        logging.info(f'index = {index} data = {data}')  # debug
                         index += 1
-                    logging.debug(f'measurement: level = {(data / 32) - self.scale}dBm')
                 self.usb.read(2)  # discard the command prompt
-                self.signals.fullSweep.emit(frequencies, readings)  # updateGUI once per sweep (min performance impact)
-                readings[-1] = readings[0]  # populate last row with current sweep before rolling
-                readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
-                # logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6}')  # debug
+                logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6:.3f}mS')  # debug
                 if self.fifo.qsize() > 0:  # a setting has changed
                     self.setRBW()
-                    frequencies = self.set_frequencies()
+                    frequencies = self.set_frequencies()  # sigprocess is going to need this somehow
                     points = np.size(frequencies)
-                    readings = np.full((self.scanMemory, points), None, dtype=float)
-                    readings[0] = -120
-                    self.createTimeSpectrum(frequencies, readings)
+                    # self.createTimeSpectrum(frequencies, readings)
+                    #  not having this is going to need fixing
                     self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
             except serial.SerialException:
                 logging.info('serial port exception')
@@ -441,29 +502,64 @@ class analyser:
         self.threadRunning = False
         self.signals.finished.emit()
 
+
     def threadEnds(self):
         self.runButton('Run')
-        self.fifoTimer.start(500)
+        self.fifoTimer.start(500)  # start watching for commands
 
-    def sigProcess(self, frequencies, readings):  # readings from the worker thread result signal every 20 measurements
-        if preferences.highLO.isChecked() and preferences.freqLO != 0:
-            # for LNB/Mixer when LO is above measured freq, the scan is reversed, i.e. low TinySA f = high meas f
-            frequencies = frequencies[::-1]
-            np.fliplr(readings)
-        readingsAvg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
-        readingsMin = np.nanmin(readings[:self.scanMemory], axis=0)
-        readingsMax = np.nanmax(readings[:self.scanMemory], axis=0)
-        self.maxima = np.fmax(self.maxima, readingsMax)
-        # options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': readingsMax, 'Min': readingsMin}
-        options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': self.maxima, 'Min': readingsMin}
-        logging.debug(f'sigProcess: averages={readingsAvg}')
-        if frequencies[0] == frequencies[-1]:
-            # zero span
-            frequencies = np.arange(1, len(frequencies) + 1, dtype=int)
-        S1.updateTrace(frequencies, options.get(S1.traceType))
-        S2.updateTrace(frequencies, options.get(S2.traceType))
-        S3.updateTrace(frequencies, options.get(S3.traceType))
-        S4.updateTrace(frequencies, options.get(S4.traceType))
+    # def sigProcess(self, frequencies, readings):  # readings from the worker thread result signal every 20 measurements
+    #     if preferences.highLO.isChecked() and preferences.freqLO != 0:
+    #         # for LNB/Mixer when LO is above measured freq, the scan is reversed, i.e. low TinySA f = high meas f
+    #         frequencies = frequencies[::-1]
+    #         np.fliplr(readings)
+    #     readingsAvg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
+    #     readingsMin = np.nanmin(readings[:self.scanMemory], axis=0)
+    #     readingsMax = np.nanmax(readings[:self.scanMemory], axis=0)
+    #     self.maxima = np.fmax(self.maxima, readingsMax)
+    #     # options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': readingsMax, 'Min': readingsMin}
+    #     options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': self.maxima, 'Min': readingsMin}
+    #     logging.debug(f'sigProcess: averages={readingsAvg}')
+    #     if frequencies[0] == frequencies[-1]:
+    #         # zero span
+    #         frequencies = np.arange(1, len(frequencies) + 1, dtype=int)
+    #     S1.updateTrace(frequencies, options.get(S1.traceType))
+    #     S2.updateTrace(frequencies, options.get(S2.traceType))
+    #     S3.updateTrace(frequencies, options.get(S3.traceType))
+    #     S4.updateTrace(frequencies, options.get(S4.traceType))
+
+    def sigProcess(self, frequencies, readings):  # process readings from the measurement thread
+        points = np.size(frequencies)
+        while self.measurements.qsize() > 0:
+            data = self.measurements.get()  # data is a tuple of (index, measurement)
+            readings[0, data[0]] = (data[1] / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
+
+            if data[0] == points - 1:  # it's the last reading of this scan
+                readings[-1] = readings[0]  # populate last row with current sweep before rolling
+                readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
+
+
+
+            if preferences.highLO.isChecked() and preferences.freqLO != 0:
+                # for LNB/Mixer when LO is above measured freq, the scan is reversed, i.e. low TinySA f = high meas f
+                frequencies = frequencies[::-1]
+                np.fliplr(readings)
+
+            readingsAvg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
+            readingsMin = np.nanmin(readings[:self.scanMemory], axis=0)
+            readingsMax = np.nanmax(readings[:self.scanMemory], axis=0)
+            self.maxima = np.fmax(self.maxima, readingsMax)
+            # options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': readingsMax, 'Min': readingsMin}
+            options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': self.maxima, 'Min': readingsMin}
+            logging.debug(f'sigProcess: averages={readingsAvg}')
+            if frequencies[0] == frequencies[-1]:
+                # zero span
+                frequencies = np.arange(1, len(frequencies) + 1, dtype=int)
+            S1.updateTrace(frequencies, options.get(S1.traceType))
+            S2.updateTrace(frequencies, options.get(S2.traceType))
+            S3.updateTrace(frequencies, options.get(S3.traceType))
+            S4.updateTrace(frequencies, options.get(S4.traceType))
+
+
 
     def createTimeSpectrum(self, frequencies, readings):
         points = np.size(frequencies)
