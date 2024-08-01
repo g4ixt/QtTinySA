@@ -287,26 +287,9 @@ class analyser:
         stopF = ui.stop_freq.value() * 1e6
         points = self.setPoints()
         frequencies = np.linspace(startF, stopF, points, dtype=np.int64)
-        self.maxima = np.full(points, -120, dtype=float)
         logging.debug(f'frequencies = {frequencies}')
         self.fPrecision(frequencies)
         return frequencies
-
-    # def set_frequencies(self):  # creates a numpy array of equi-spaced freqs in Hz. Also called by measurement thread.
-    #     startF = ui.start_freq.value() * 1e6  # freq in Hz
-    #     stopF = ui.stop_freq.value() * 1e6
-    #     points = self.setPoints()
-    #     if startF != stopF:
-    #         frequencies = np.linspace(startF, stopF, points, dtype=np.int64)
-    #         # ui.graphWidget.setLabel('bottom', 'Frequency', units='Hz')
-    #     else:
-    #         # zero span
-    #         frequencies = np.linspace(1, points-1, points)
-    #         # ui.graphWidget.setXRange(frequencies[0], frequencies[-1])
-    #         # ui.graphWidget.setLabel('bottom', 'Time')
-    #     # self.fPrecision(frequencies)
-    #     logging.info(f'frequencies = {frequencies}')
-    #     return frequencies
 
     def freq_changed(self, centre=False):
         if centre:
@@ -387,10 +370,12 @@ class analyser:
 
     def measurement(self, frequencies, readings):  # runs in a separate thread
         points = np.size(readings, 1)
+        maxima = np.full(points, -120, dtype=float)
         self.threadRunning = True
         while self.sweeping:
             try:
                 self.usb.timeout = self.sweepTimeout(frequencies)
+                self.runTimer.start()  # debug
                 if preferences.freqLO != 0:
                     startF, stopF = self.freqOffset(frequencies)
                     command = f'scanraw {int(startF)} {int(stopF)} {int(points)}\r'
@@ -399,10 +384,9 @@ class analyser:
                 logging.debug(f'measurement: command = {command}')
                 self.usb.write(command.encode())
                 index = 0
-                # self.runTimer.start()  # debug
                 self.usb.read_until(command.encode() + b'\n{')  # skip command echo
                 dataBlock = ''
-                while dataBlock != b'}ch' and index < points:  # if '}ch' it's reached the end of the scan points
+                while dataBlock != b'}ch' and index < points:  # if b'}ch' it's reached the end of the scan points
                     dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
                     logging.debug(f'dataBlock: {dataBlock}\n')
                     if dataBlock == b'}ch' or dataBlock == b'}':  # from FW165 jog button press returns different value
@@ -410,7 +394,6 @@ class analyser:
                         self.sweeping = False
                         break
                     if dataBlock != b'}ch':
-                        # logging.debug(f'measurement: index {index} elapsed time = {self.runTimer.nsecsElapsed()/1e6}')
                         try:
                             c, data = struct.unpack('<' + 'cH', dataBlock)
                         except struct.error:
@@ -419,20 +402,22 @@ class analyser:
                             break
                         readings[0, index] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
                         if index // 20 == index / 20 or index == (points - 1):  # update traces every 20 readings
-                            self.signals.result.emit(frequencies, readings)  # send the latest 20 points to sigProcess()
+                            maxima = np.fmax(maxima, readings[0])
+                            self.signals.result.emit(frequencies, readings, maxima)  # send the latest 20 points to sigProcess()
                         index += 1
                     logging.debug(f'measurement: level = {(data / 32) - self.scale}dBm')
                 self.usb.read(2)  # discard the command prompt
                 self.signals.fullSweep.emit(frequencies, readings)  # updateGUI once per sweep (min performance impact)
                 readings[-1] = readings[0]  # populate last row with current sweep before rolling
                 readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
-                # logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6}')  # debug
+                logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6:.3f}mS')  # debug
                 if self.fifo.qsize() > 0:  # a setting has changed
                     self.setRBW()
                     frequencies = self.set_frequencies()
                     points = np.size(frequencies)
                     readings = np.full((self.scanMemory, points), None, dtype=float)
                     readings[0] = -120
+                    maxima = np.full(points, -120, dtype=float)
                     self.createTimeSpectrum(frequencies, readings)
                     self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
             except serial.SerialException:
@@ -443,19 +428,17 @@ class analyser:
 
     def threadEnds(self):
         self.runButton('Run')
-        self.fifoTimer.start(500)
+        self.fifoTimer.start(500)  # start watching for commands
 
-    def sigProcess(self, frequencies, readings):  # readings from the worker thread result signal every 20 measurements
+    def sigProcess(self, frequencies, readings, maxima):  # readings from the worker thread result signal every 20 measurements
         if preferences.highLO.isChecked() and preferences.freqLO != 0:
             # for LNB/Mixer when LO is above measured freq, the scan is reversed, i.e. low TinySA f = high meas f
             frequencies = frequencies[::-1]
             np.fliplr(readings)
         readingsAvg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
         readingsMin = np.nanmin(readings[:self.scanMemory], axis=0)
-        readingsMax = np.nanmax(readings[:self.scanMemory], axis=0)
-        self.maxima = np.fmax(self.maxima, readingsMax)
         # options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': readingsMax, 'Min': readingsMin}
-        options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': self.maxima, 'Min': readingsMin}
+        options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': maxima, 'Min': readingsMin}
         logging.debug(f'sigProcess: averages={readingsAvg}')
         if frequencies[0] == frequencies[-1]:
             # zero span
@@ -840,27 +823,6 @@ class display:
             self.trace.hide()
         checkboxes.dwm.submit()
 
-    # def updateTrace(self, frequencies, readings):  # called by sigProcess() for every trace every 20 points
-    #     if frequencies[0] != frequencies[-1]:
-    #         self.trace.setData((frequencies), readings)
-    #         # ui.graphWidget.setLabel('bottom', 'Frequency', units='Hz')  # the wrong place for this, it called too often
-    #     else:
-    #         # zero span
-    #         points = len(readings)
-    #         timeaxis = np.linspace(1, points-1, points)
-    #         ui.graphWidget.setXRange(timeaxis[0], timeaxis[-1])
-    #         # ui.graphWidget.setLabel('bottom', 'Time')  # the wrong place for this, it called too often
-    #         self.trace.setData((timeaxis), readings)
-    #     if ui.grid.isChecked():  # surely this is in the wrong place, should be in updategui()?
-    #         tinySA.vGrid.show()
-    #     else:
-    #         tinySA.vGrid.hide()
-    #     if not tinySA.sweeping:  # measurement thread is stopping
-    #         ui.scan_button.setText('Stopping ...')
-    #         ui.scan_button.setStyleSheet('background-color: orange')
-    #         ui.run3D.setText('Stopping ...')
-    #         ui.run3D.setStyleSheet('background-color: orange')
-
     def updateTrace(self, frequencies, readings):  # called by sigProcess() for every trace every 20 points
         self.trace.setData((frequencies), readings)
         if ui.grid.isChecked():  # surely this is in the wrong place, should be in updategui()?
@@ -915,7 +877,7 @@ class display:
 
 class WorkerSignals(QtCore.QObject):
     error = QtCore.pyqtSignal(str)
-    result = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    result = QtCore.pyqtSignal(np.ndarray, np.ndarray, np.ndarray)
     fullSweep = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     finished = QtCore.pyqtSignal()
 
@@ -1101,21 +1063,6 @@ class modelView():
 ###############################################################################
 # respond to GUI signals
 
-
-# def band_changed():
-#     index = ui.band_box.currentIndex()
-#     if bandselect.tm.record(index).value('stopF') in (0, ''):
-#         startF = bandselect.tm.record(index).value('StartF')
-#         stopF = bandselect.tm.record(index).value('StopF')
-#         ui.start_freq.setValue(startF)
-#         ui.stop_freq.setValue(stopF)
-#         tinySA.freq_changed(False)  # start/stop mode
-#     else:
-#         centreF = bandselect.tm.record(index).value('StartF')
-#         ui.centre_freq.setValue(centreF)
-#         ui.span_freq.setValue(int(centreF/10))  # default span to a tenth of the centre freq
-#         tinySA.freq_changed(True)  # centre mode
-#     freqMarkers()
 
 def band_changed():
     index = ui.band_box.currentIndex()
@@ -1369,7 +1316,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.7.m')
+app.setApplicationVersion(' v0.10.7.n')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1639,10 +1586,8 @@ window.show()
 window.setWindowTitle(app.applicationName() + app.applicationVersion())
 # window.setWindowIcon(QtGui.QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 
-# try to open a USB connection to the TinySA hardware
-# tinySA.openPort()
-# if tinySA.dev is None:
-tinySA.usbCheck.start(500)  # check again every 500mS
+# try to open a USB connection to the TinySA hardware every 500mS until successful
+tinySA.usbCheck.start(500)
 
 ###############################################################################
 # run the application until the user closes it
