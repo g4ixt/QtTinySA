@@ -91,6 +91,7 @@ class analyser:
         self.ports = []
         self.measurements = queue.SimpleQueue()
         self.dataprocess = QtCore.QTimer()
+        self.dataprocess.timeout.connect(self.sigProcess)
 
     def openPort(self):
         # Get tinysa comport using hardware ID
@@ -257,15 +258,16 @@ class analyser:
     #     threadpool.start(self.sweep)
 
     def startMeasurement(self):
-        frequencies = self.set_frequencies()
+        self.frequencies = self.set_frequencies()
         self.usbSend()
-        points = np.size(frequencies)
-        # readings = np.full(points, -120, dtype=float)
-        self.sweep = Worker(self.measurement, frequencies)  # workers are auto-deleted when thread stops
+        points = np.size(self.frequencies)
+        self.readings = np.full(points, -120, dtype=float)
+        self.sweep = Worker(self.measurement, self.frequencies)  # workers are auto-deleted when thread stops
         self.sweeping = True
         # self.createTimeSpectrum(frequencies, readings)
         # self.reset3D()
         threadpool.start(self.sweep)
+        self.dataprocess.start(50)
 
     def usbSend(self):
         try:
@@ -484,8 +486,8 @@ class analyser:
                             logging.info('data error')
                             self.sweeping = False
                             break
-                        self.measurements.put((index, data))
-                        logging.info(f'index = {index} data = {data}')  # debug
+                        self.measurements.put((index, points, data))
+                        logging.debug(f'index = {index} data = {data}')  # debug
                         index += 1
                 self.usb.read(2)  # discard the command prompt
                 logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6:.3f}mS')  # debug
@@ -506,6 +508,7 @@ class analyser:
     def threadEnds(self):
         self.runButton('Run')
         self.fifoTimer.start(500)  # start watching for commands
+        self.dataprocess.stop()
 
     # def sigProcess(self, frequencies, readings):  # readings from the worker thread result signal every 20 measurements
     #     if preferences.highLO.isChecked() and preferences.freqLO != 0:
@@ -527,37 +530,44 @@ class analyser:
     #     S3.updateTrace(frequencies, options.get(S3.traceType))
     #     S4.updateTrace(frequencies, options.get(S4.traceType))
 
-    def sigProcess(self, frequencies, readings):  # process readings from the measurement thread
-        points = np.size(frequencies)
+    def sigProcess(self):  # process readings from the measurement thread
+        i = 0
         while self.measurements.qsize() > 0:
-            data = self.measurements.get()  # data is a tuple of (index, measurement)
-            readings[0, data[0]] = (data[1] / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
+            data = self.measurements.get()  # data is a tuple of (index, points, rawdata)
+            self.readings[data[0]] = (data[2] / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
+            logging.info(f'sigProcess: data = {data[0]}')
+            if data[0] == 0:  # it's the first reading of a new sweep
+                if len(np.shape(self.readings)) == 1:  # it's the first sweep
+                    self.readings = np.concatenate(self.readings, self.readings, axis=0)
+                elif np.shape(self.readings)[1] < ui.avgBox.value():
+                    self.readings = np.concatenate(self.readings, self.readings[0], axis=0)
 
-            if data[0] == points - 1:  # it's the last reading of this scan
-                readings[-1] = readings[0]  # populate last row with current sweep before rolling
-                readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
+                logging.info(f'sigProcess: shape = {np.shape(self.readings)}')
 
+            #     readings[-1] = readings[0]  # populate last row with current sweep before rolling
+            #     readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
 
+            # if preferences.highLO.isChecked() and preferences.freqLO != 0:
+            #     # for LNB/Mixer when LO is above measured freq, the scan is reversed, i.e. low TinySA f = high meas f
+            #     frequencies = frequencies[::-1]
+            #     np.fliplr(readings)
 
-            if preferences.highLO.isChecked() and preferences.freqLO != 0:
-                # for LNB/Mixer when LO is above measured freq, the scan is reversed, i.e. low TinySA f = high meas f
-                frequencies = frequencies[::-1]
-                np.fliplr(readings)
-
-            readingsAvg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
-            readingsMin = np.nanmin(readings[:self.scanMemory], axis=0)
-            readingsMax = np.nanmax(readings[:self.scanMemory], axis=0)
-            self.maxima = np.fmax(self.maxima, readingsMax)
+            # readingsAvg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
+            # readingsMin = np.nanmin(readings[:self.scanMemory], axis=0)
+            # readingsMax = np.nanmax(readings[:self.scanMemory], axis=0)
+            # self.maxima = np.fmax(self.maxima, readingsMax)
             # options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': readingsMax, 'Min': readingsMin}
-            options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': self.maxima, 'Min': readingsMin}
-            logging.debug(f'sigProcess: averages={readingsAvg}')
-            if frequencies[0] == frequencies[-1]:
-                # zero span
-                frequencies = np.arange(1, len(frequencies) + 1, dtype=int)
-            S1.updateTrace(frequencies, options.get(S1.traceType))
-            S2.updateTrace(frequencies, options.get(S2.traceType))
-            S3.updateTrace(frequencies, options.get(S3.traceType))
-            S4.updateTrace(frequencies, options.get(S4.traceType))
+            # options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': self.maxima, 'Min': readingsMin}
+            # logging.debug(f'sigProcess: averages={readingsAvg}')
+            # if frequencies[0] == frequencies[-1]:
+            #     # zero span
+            #     frequencies = np.arange(1, len(frequencies) + 1, dtype=int)
+            S1.updateTrace(self.frequencies, self.readings)
+            # S2.updateTrace(self.frequencies, self.readings)
+            # S3.updateTrace(self.frequencies, self.readings)
+            # S4.updateTrace(self.frequencies, self.readings)
+            i += 1
+        logging.info(f'queue size was {i}')
 
 
 
@@ -959,10 +969,10 @@ class display:
 
     def updateTrace(self, frequencies, readings):  # called by sigProcess() for every trace every 20 points
         self.trace.setData((frequencies), readings)
-        if ui.grid.isChecked():  # surely this is in the wrong place, should be in updategui()?
-            tinySA.vGrid.show()
-        else:
-            tinySA.vGrid.hide()
+        # if ui.grid.isChecked():  # surely this is in the wrong place, should be in updategui()?
+        #     tinySA.vGrid.show()
+        # else:
+        #     tinySA.vGrid.hide()
         if not tinySA.sweeping:  # measurement thread is stopping
             ui.scan_button.setText('Stopping ...')
             ui.scan_button.setStyleSheet('background-color: orange')
@@ -1465,7 +1475,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.7.m')
+app.setApplicationVersion(' experimental 030824')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
