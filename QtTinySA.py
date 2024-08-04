@@ -71,7 +71,7 @@ class analyser:
         self.sweeping = False
         self.threadRunning = False
         self.signals = WorkerSignals()
-        self.signals.result.connect(self.sigProcess)
+        self.signals.result.connect(self.updateTrace)
         self.signals.fullSweep.connect(self.updateGUI)
         self.signals.finished.connect(self.threadEnds)
         self.runTimer = QtCore.QElapsedTimer()  # debug
@@ -91,7 +91,7 @@ class analyser:
         self.ports = []
         self.measurements = queue.SimpleQueue()
         self.dataprocess = QtCore.QTimer()
-        self.dataprocess.timeout.connect(self.sigProcess)
+        self.dataprocess.timeout.connect(self.startProcessing)
 
     def openPort(self):
         # Get tinysa comport using hardware ID
@@ -261,7 +261,8 @@ class analyser:
         self.frequencies = self.set_frequencies()
         self.usbSend()
         points = np.size(self.frequencies)
-        self.readings = np.full(points, -120, dtype=float)
+        self.readings = np.full((self.scanMemory, points), None, dtype=float)
+        self.readings[0] = -120
         self.sweep = Worker(self.measurement, self.frequencies)  # workers are auto-deleted when thread stops
         self.sweeping = True
         # self.createTimeSpectrum(frequencies, readings)
@@ -532,44 +533,39 @@ class analyser:
 
     def sigProcess(self):  # process readings from the measurement thread
         i = 0
+        averaging = ui.avgBox.value()
         while self.measurements.qsize() > 0:
             data = self.measurements.get()  # data is a tuple of (index, points, rawdata)
-            self.readings[data[0]] = (data[2] / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
-            logging.info(f'sigProcess: data = {data[0]}')
-            if data[0] == 0:  # it's the first reading of a new sweep
-                if len(np.shape(self.readings)) == 1:  # it's the first sweep
-                    self.readings = np.concatenate(self.readings, self.readings, axis=0)
-                elif np.shape(self.readings)[1] < ui.avgBox.value():
-                    self.readings = np.concatenate(self.readings, self.readings[0], axis=0)
-
-                logging.info(f'sigProcess: shape = {np.shape(self.readings)}')
-
-            #     readings[-1] = readings[0]  # populate last row with current sweep before rolling
-            #     readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
-
+            self.readings[0, data[0]] = (data[2] / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
+            if data[0] == data[1]-1:  # final point of sweep
+                self.readings[-1] = self.readings[0]  # populate last row with current sweep before rolling
+                self.readings = np.roll(self.readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
             # if preferences.highLO.isChecked() and preferences.freqLO != 0:
             #     # for LNB/Mixer when LO is above measured freq, the scan is reversed, i.e. low TinySA f = high meas f
             #     frequencies = frequencies[::-1]
             #     np.fliplr(readings)
 
-            # readingsAvg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
-            # readingsMin = np.nanmin(readings[:self.scanMemory], axis=0)
-            # readingsMax = np.nanmax(readings[:self.scanMemory], axis=0)
-            # self.maxima = np.fmax(self.maxima, readingsMax)
-            # options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': readingsMax, 'Min': readingsMin}
-            # options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': self.maxima, 'Min': readingsMin}
+                readingsAvg = np.nanmean(self.readings[:averaging], axis=0)
+                readingsMin = np.nanmin(self.readings[:self.scanMemory], axis=0)
+                readingsMax = np.nanmax(self.readings[:self.scanMemory], axis=0)
+                self.maxima = np.fmax(self.maxima, readingsMax)
+            # options = {'Normal': self.readings[0], 'Average': readingsAvg, 'Max': readingsMax, 'Min': readingsMin}
+
             # logging.debug(f'sigProcess: averages={readingsAvg}')
             # if frequencies[0] == frequencies[-1]:
             #     # zero span
             #     frequencies = np.arange(1, len(frequencies) + 1, dtype=int)
-            S1.updateTrace(self.frequencies, self.readings)
+            S1.updateTrace(self.frequencies, self.readings[0])
             # S2.updateTrace(self.frequencies, self.readings)
             # S3.updateTrace(self.frequencies, self.readings)
             # S4.updateTrace(self.frequencies, self.readings)
             i += 1
+            logging.debug(f'readings = {self.readings}')
         logging.info(f'queue size was {i}')
 
-
+    def startProcessing(self):
+        processor = Worker(self.sigProcess)
+        threadpool.start(processor)
 
     def createTimeSpectrum(self, frequencies, readings):
         points = np.size(frequencies)
@@ -967,7 +963,7 @@ class display:
     #         ui.run3D.setText('Stopping ...')
     #         ui.run3D.setStyleSheet('background-color: orange')
 
-    def updateTrace(self, frequencies, readings):  # called by sigProcess() for every trace every 20 points
+    def updateTrace(self, frequencies, readings):  # called by sigProcess()
         self.trace.setData((frequencies), readings)
         # if ui.grid.isChecked():  # surely this is in the wrong place, should be in updategui()?
         #     tinySA.vGrid.show()
@@ -1038,9 +1034,9 @@ class Worker(QtCore.QRunnable):
     @QtCore.pyqtSlot()
     def run(self):
         '''Initialise the runner'''
-        logging.info(f'{self.fn.__name__} thread running')
+        logging.debug(f'{self.fn.__name__} thread running')
         self.fn(*self.args)
-        logging.info(f'{self.fn.__name__} thread stopped')
+        logging.debug(f'{self.fn.__name__} thread stopped')
 
 
 class database():
@@ -1475,7 +1471,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' experimental 030824')
+app.setApplicationVersion(' experimental 040824')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
