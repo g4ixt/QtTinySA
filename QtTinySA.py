@@ -555,14 +555,14 @@ class analyser:
             # if frequencies[0] == frequencies[-1]:
             #     # zero span
             #     frequencies = np.arange(1, len(frequencies) + 1, dtype=int)
-            self.signals.result.emit(self.frequencies, self.readings[0])
             # S1.updateTrace(self.frequencies, self.readings[0])
             # S2.updateTrace(self.frequencies, self.readings)
             # S3.updateTrace(self.frequencies, self.readings)
             # S4.updateTrace(self.frequencies, self.readings)
             i += 1
             logging.debug(f'readings = {self.readings}')
-        logging.info(f'queue size was {i}')
+        self.signals.result.emit(self.frequencies, self.readings[0])
+        logging.debug(f'queue size was {i}')
 
     def startProcessing(self):
         processor = Worker(self.sigProcess)
@@ -1005,7 +1005,7 @@ class display:
     #         ui.run3D.setText('Stopping ...')
     #         ui.run3D.setStyleSheet('background-color: orange')
 
-    def updateTrace(self, frequencies, readings):  # called by sigProcess()
+    def updateTrace(self, frequencies, readings):  # now called by updateGUI()
         self.trace.setData((frequencies), readings)
         # if ui.grid.isChecked():  # surely this is in the wrong place, should be in updategui()?
         #     tinySA.vGrid.show()
