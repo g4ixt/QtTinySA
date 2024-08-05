@@ -268,7 +268,7 @@ class analyser:
         # self.createTimeSpectrum(frequencies, readings)
         # self.reset3D()
         threadpool.start(self.sweep)
-        self.dataprocess.start(50)
+        self.dataprocess.start(5)
 
     def usbSend(self):
         try:
@@ -562,7 +562,7 @@ class analyser:
             i += 1
             logging.debug(f'readings = {self.readings}')
         self.signals.result.emit(self.frequencies, self.readings[0])
-        logging.debug(f'queue size was {i}')
+        logging.info(f'queue size was {i}')
 
     def startProcessing(self):
         processor = Worker(self.sigProcess)
