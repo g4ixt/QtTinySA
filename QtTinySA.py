@@ -71,7 +71,7 @@ class analyser:
         self.sweeping = False
         self.threadRunning = False
         self.signals = WorkerSignals()
-        self.signals.result.connect(self.updateTrace)
+        self.signals.result.connect(self.updateGUI)
         self.signals.fullSweep.connect(self.updateGUI)
         self.signals.finished.connect(self.threadEnds)
         self.runTimer = QtCore.QElapsedTimer()  # debug
@@ -555,7 +555,8 @@ class analyser:
             # if frequencies[0] == frequencies[-1]:
             #     # zero span
             #     frequencies = np.arange(1, len(frequencies) + 1, dtype=int)
-            S1.updateTrace(self.frequencies, self.readings[0])
+            self.signals.result.emit(self.frequencies, self.readings[0])
+            # S1.updateTrace(self.frequencies, self.readings[0])
             # S2.updateTrace(self.frequencies, self.readings)
             # S3.updateTrace(self.frequencies, self.readings)
             # S4.updateTrace(self.frequencies, self.readings)
@@ -604,30 +605,71 @@ class analyser:
         else:
             self.vGrid.hide()
 
+    # def updateGUI(self, frequencies, readings):  # called once per scan by fullSweep signal from measurement() thread
+    #     if preferences.highLO.isChecked() and preferences.freqLO != 0:
+    #         # for LNB/Mixer when LO is above measured freq, the scan is reversed, i.e. low TinySA f = high meas f
+    #         frequencies = frequencies[::-1]
+    #         np.fliplr(readings)
+    #     if ui.points_auto.isChecked():
+    #         ui.points_box.setValue(np.size(frequencies))
+    #     if ui.stackedWidget.currentWidget() == ui.View3D:
+    #         z = readings + 120  # Surface plot height shader needs positive numbers so convert from dBm to dBf
+    #         logging.debug(f'z = {z}')
+    #         self.surface.setData(z=z)  # update 3D graph
+    #         params = ui.openGLWidget.cameraParams()
+    #         logging.debug(f'camera {params}')
+    #     if frequencies[0] == frequencies[-1]:  # zero span
+    #         ui.graphWidget.setLabel('bottom', 'Time')
+    #         frequencies = np.arange(1, len(frequencies) + 1, dtype=int)
+    #         ui.graphWidget.setXRange(frequencies[0], frequencies[-1])
+    #     else:
+    #         ui.graphWidget.setLabel('bottom', units='Hz')
+    #         maxmin = self.maxMin(frequencies, readings)
+    #         S1.updateMarker(frequencies, readings[0, :], maxmin)
+    #         S2.updateMarker(frequencies, readings[0, :], maxmin)
+    #         S3.updateMarker(frequencies, readings[0, :], maxmin)
+    #         S4.updateMarker(frequencies, readings[0, :], maxmin)
+
     def updateGUI(self, frequencies, readings):  # called once per scan by fullSweep signal from measurement() thread
-        if preferences.highLO.isChecked() and preferences.freqLO != 0:
-            # for LNB/Mixer when LO is above measured freq, the scan is reversed, i.e. low TinySA f = high meas f
-            frequencies = frequencies[::-1]
-            np.fliplr(readings)
-        if ui.points_auto.isChecked():
-            ui.points_box.setValue(np.size(frequencies))
-        if ui.stackedWidget.currentWidget() == ui.View3D:
-            z = readings + 120  # Surface plot height shader needs positive numbers so convert from dBm to dBf
-            logging.debug(f'z = {z}')
-            self.surface.setData(z=z)  # update 3D graph
-            params = ui.openGLWidget.cameraParams()
-            logging.debug(f'camera {params}')
-        if frequencies[0] == frequencies[-1]:  # zero span
-            ui.graphWidget.setLabel('bottom', 'Time')
-            frequencies = np.arange(1, len(frequencies) + 1, dtype=int)
-            ui.graphWidget.setXRange(frequencies[0], frequencies[-1])
-        else:
-            ui.graphWidget.setLabel('bottom', units='Hz')
-            maxmin = self.maxMin(frequencies, readings)
-            S1.updateMarker(frequencies, readings[0, :], maxmin)
-            S2.updateMarker(frequencies, readings[0, :], maxmin)
-            S3.updateMarker(frequencies, readings[0, :], maxmin)
-            S4.updateMarker(frequencies, readings[0, :], maxmin)
+        # from updatetrace
+        S1.trace.setData((frequencies), readings)
+        S2.trace.setData((frequencies), readings)
+        S3.trace.setData((frequencies), readings)
+        S4.trace.setData((frequencies), readings)
+        # if ui.grid.isChecked():  # surely this is in the wrong place, should be in updategui()?
+        #     tinySA.vGrid.show()
+        # else:
+        #     tinySA.vGrid.hide()
+        if not tinySA.sweeping:  # measurement thread is stopping
+            ui.scan_button.setText('Stopping ...')
+            ui.scan_button.setStyleSheet('background-color: orange')
+            ui.run3D.setText('Stopping ...')
+            ui.run3D.setStyleSheet('background-color: orange')
+        # from updatetrace
+
+        # if preferences.highLO.isChecked() and preferences.freqLO != 0:
+        #     # for LNB/Mixer when LO is above measured freq, the scan is reversed, i.e. low TinySA f = high meas f
+        #     frequencies = frequencies[::-1]
+        #     np.fliplr(readings)
+        # if ui.points_auto.isChecked():
+        #     ui.points_box.setValue(np.size(frequencies))
+        # if ui.stackedWidget.currentWidget() == ui.View3D:
+        #     z = readings + 120  # Surface plot height shader needs positive numbers so convert from dBm to dBf
+        #     logging.debug(f'z = {z}')
+        #     self.surface.setData(z=z)  # update 3D graph
+        #     params = ui.openGLWidget.cameraParams()
+        #     logging.debug(f'camera {params}')
+        # if frequencies[0] == frequencies[-1]:  # zero span
+        #     ui.graphWidget.setLabel('bottom', 'Time')
+        #     frequencies = np.arange(1, len(frequencies) + 1, dtype=int)
+        #     ui.graphWidget.setXRange(frequencies[0], frequencies[-1])
+        # else:
+        #     ui.graphWidget.setLabel('bottom', units='Hz')
+        #     maxmin = self.maxMin(frequencies, readings)
+        #     S1.updateMarker(frequencies, readings[0, :], maxmin)
+        #     S2.updateMarker(frequencies, readings[0, :], maxmin)
+        #     S3.updateMarker(frequencies, readings[0, :], maxmin)
+        #     S4.updateMarker(frequencies, readings[0, :], maxmin)
 
     def maxMin(self, frequencies, readings):  # finds the signal max/min values for setting markers
         avg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
@@ -1471,7 +1513,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' experimental 040824')
+app.setApplicationVersion(' experimental 050824')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
