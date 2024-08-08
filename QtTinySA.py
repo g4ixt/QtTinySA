@@ -234,7 +234,6 @@ class analyser:
                     self.setRBW()
                     # self.sampleRep()  # doesn't work with scanraw
                     self.runButton('Stop')
-                    # self.pause()
                     self.usbSend()
                     self.startMeasurement()  # runs measurement in separate thread
                 except serial.SerialException:
@@ -289,7 +288,6 @@ class analyser:
         self.fPrecision(frequencies)
         readings = np.full((self.scanMemory, points), None, dtype=float)
         readings[0] = -120
-        logging.debug(f'frequencies = {frequencies}')
         return frequencies, readings, maxima
 
     def freq_changed(self, centre=False):
@@ -376,7 +374,7 @@ class analyser:
         while self.sweeping:
             try:
                 self.usb.timeout = self.sweepTimeout(frequencies)
-                # self.runTimer.start()  # debug
+                # self.runTimer.start()  # for debug
                 updateTimer.start()
                 if preferences.freqLO != 0:
                     startF, stopF = self.freqOffset(frequencies)
@@ -518,12 +516,13 @@ class analyser:
         if ui.points_auto.isChecked():
             ui.points_box.setValue(np.size(frequencies))
 
+        ui.updateFreq.setValue(int(1/(runtime/1e9)))  # the display update frequency indicator
+
         if not tinySA.sweeping:  # measurement thread is stopping
             ui.scan_button.setText('Stopping ...')
             ui.scan_button.setStyleSheet('background-color: orange')
             ui.run3D.setText('Stopping ...')
             ui.run3D.setStyleSheet('background-color: orange')
-        ui.updateFreq.setValue(int(1/(runtime/1e9)))
 
     def maxMin(self, frequencies, readings):  # finds the signal max/min values for setting markers
         avg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
@@ -1067,21 +1066,6 @@ class modelView():
 # respond to GUI signals
 
 
-# def band_changed():
-#     index = ui.band_box.currentIndex()
-#     if bandselect.tm.record(index).value('stopF') in (0, ''):
-#         startF = bandselect.tm.record(index).value('StartF')
-#         stopF = bandselect.tm.record(index).value('StopF')
-#         ui.start_freq.setValue(startF)
-#         ui.stop_freq.setValue(stopF)
-#         tinySA.freq_changed(False)  # start/stop mode
-#     else:
-#         centreF = bandselect.tm.record(index).value('StartF')
-#         ui.centre_freq.setValue(centreF)
-#         ui.span_freq.setValue(int(centreF/10))  # default span to a tenth of the centre freq
-#         tinySA.freq_changed(True)  # centre mode
-#     freqMarkers()
-
 def band_changed():
     index = ui.band_box.currentIndex()
     startF = bandselect.tm.record(index).value('StartF')
@@ -1206,6 +1190,7 @@ def about():
     message = ('TinySA Ultra GUI programme using Qt5 and PyQt\nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
                .format(app.applicationVersion(), config.dbpath))
     popUp(message, QMessageBox.Ok, QMessageBox.Information)
+
 
 def clickEvent():
     logging.info('clickEvent')
@@ -1605,8 +1590,6 @@ window.setWindowTitle(app.applicationName() + app.applicationVersion())
 # window.setWindowIcon(QtGui.QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 
 # try to open a USB connection to the TinySA hardware
-# tinySA.openPort()
-# if tinySA.dev is None:
 tinySA.usbCheck.start(500)  # check again every 500mS
 
 ###############################################################################
