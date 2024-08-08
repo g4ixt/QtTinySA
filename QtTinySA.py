@@ -100,7 +100,7 @@ class analyser:
                 if port not in self.ports:
                     preferences.deviceBox.addItem(port.product + " on " + port.device)
                     self.ports.append(port)
-                    if port.product[:6] == 'tinySA':
+                    if port.product[:6] == 'tinySA' or system() != "Linux":
                         tinySA = True
         if len(self.ports) == 1 and tinySA:  # found only one device and it's a tinySA so can stop checking and use it
             self.usbCheck.stop()
@@ -126,12 +126,15 @@ class analyser:
         if self.usb:
             for i in range(4):  # try 3 times to communicate with TinySA over USB serial
                 hardware = self.version()
-                logging.info(f'Serial port test {i}: {port.product} responds: {hardware[:16]}')
-                if port.product[:6] == hardware[:6]:
+                logging.info(f'Serial port test {i}: {port.device} responds: {hardware[:16]}')
+                if hardware[:6] == 'tinySA':
                     break
                 else:
                     time.sleep(1)
-            self.initialise(port.product, hardware[8:16])
+            if system() == "Linux":
+                self.initialise(port.product, hardware[8:16])
+            else:
+                self.initialise(hardware[:7], hardware[8:16])
 
     def closePort(self):
         if self.usb:
@@ -242,12 +245,8 @@ class analyser:
             popUp('TinySA not found', QMessageBox.Ok, QMessageBox.Critical)
 
     def startMeasurement(self):
-        frequencies = self.set_frequencies()
-        self.usbSend()
-        points = np.size(frequencies)
-        readings = np.full((self.scanMemory, points), None, dtype=float)
-        readings[0] = -120
-        self.sweep = Worker(self.measurement, frequencies, readings)  # workers are auto-deleted when thread stops
+        frequencies, readings, maxima = self.set_arrays()
+        self.sweep = Worker(self.measurement, frequencies, readings, maxima)  # workers auto-deleted when thread stops
         self.sweeping = True
         self.createTimeSpectrum(frequencies, readings)
         self.reset3D()
@@ -281,14 +280,17 @@ class analyser:
         logging.debug(response)
         return response[:-6].decode()  # remove prompt
 
-    def set_frequencies(self):  # creates a numpy array of equi-spaced freqs in Hz. Also called by measurement thread.
+    def set_arrays(self):
         startF = ui.start_freq.value() * 1e6  # freq in Hz
         stopF = ui.stop_freq.value() * 1e6
         points = self.setPoints()
+        maxima = np.full(points, -120, dtype=float)
         frequencies = np.linspace(startF, stopF, points, dtype=np.int64)
-        logging.debug(f'frequencies = {frequencies}')
         self.fPrecision(frequencies)
-        return frequencies
+        readings = np.full((self.scanMemory, points), None, dtype=float)
+        readings[0] = -120
+        logging.debug(f'frequencies = {frequencies}')
+        return frequencies, readings, maxima
 
     def freq_changed(self, centre=False):
         if centre:
@@ -367,10 +369,9 @@ class analyser:
         logging.debug(f'sweepTimeout = {timeout:.2f} s')
         return timeout
 
-    def measurement(self, frequencies, readings):  # runs in a separate thread
+    def measurement(self, frequencies, readings, maxima):  # runs in a separate thread
         updateTimer = QtCore.QElapsedTimer()
         points = np.size(frequencies)
-        maxima = np.full(points, -120, dtype=float)
         self.threadRunning = True
         while self.sweeping:
             try:
@@ -409,16 +410,17 @@ class analyser:
                             readings[-1] = readings[0]  # populate last row with current sweep before rolling
                             readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
                         index += 1
-                        if updateTimer.nsecsElapsed()/1e6 > 50:
-                            self.signals.result.emit(frequencies, readings, maxima)  # send the readings to updateGUI()
+                        runtime = updateTimer.nsecsElapsed()
+                        if runtime/1e6 > preferences.intervalBox.value():
+                            self.signals.result.emit(frequencies, readings, maxima, runtime)  # send to updateGUI()
                             updateTimer.start()
                 self.usb.read(2)  # discard the command prompt
                 logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6:.3f}mS')  # debug
                 if self.fifo.qsize() > 0:  # a setting has changed
                     self.setRBW()
-                    frequencies = self.set_frequencies()
+                    frequencies, readings, maxima = self.set_arrays()
                     points = np.size(frequencies)
-                    # self.createTimeSpectrum(frequencies, readings)
+                    self.createTimeSpectrum(frequencies, readings)
                     self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
             except serial.SerialException:
                 logging.info('serial port exception')
@@ -467,7 +469,7 @@ class analyser:
         else:
             self.vGrid.hide()
 
-    def updateGUI(self, frequencies, readings, maxima):  # called by the 'result' signal from the measurement() thread
+    def updateGUI(self, frequencies, readings, maxima, runtime):  # called by the 'result' signal from the measurement() thread
         # for LNB/Mixer mode when LO is above measured freq the scan is reversed, i.e. low TinySA freq = high meas freq
         if preferences.highLO.isChecked() and preferences.freqLO != 0:
             frequencies = frequencies[::-1]
@@ -521,6 +523,7 @@ class analyser:
             ui.scan_button.setStyleSheet('background-color: orange')
             ui.run3D.setText('Stopping ...')
             ui.run3D.setStyleSheet('background-color: orange')
+        ui.updateFreq.setValue(int(1/(runtime/1e9)))
 
     def maxMin(self, frequencies, readings):  # finds the signal max/min values for setting markers
         avg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
@@ -877,7 +880,7 @@ class display:
 
 class WorkerSignals(QtCore.QObject):
     error = QtCore.pyqtSignal(str)
-    result = QtCore.pyqtSignal(np.ndarray, np.ndarray, np.ndarray)
+    result = QtCore.pyqtSignal(np.ndarray, np.ndarray, np.ndarray, float)
     fullSweep = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     finished = QtCore.pyqtSignal()
 
@@ -1331,7 +1334,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' experimental 070824')
+app.setApplicationVersion(' experimental 080824')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
