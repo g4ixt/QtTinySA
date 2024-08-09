@@ -222,7 +222,7 @@
             <property name="minimumSize">
              <size>
               <width>50</width>
-              <height>10</height>
+              <height>7</height>
              </size>
             </property>
             <property name="palette">

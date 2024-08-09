@@ -123,7 +123,7 @@ class Ui_MainWindow(object):
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.updateFreq.sizePolicy().hasHeightForWidth())
         self.updateFreq.setSizePolicy(sizePolicy)
-        self.updateFreq.setMinimumSize(QtCore.QSize(50, 10))
+        self.updateFreq.setMinimumSize(QtCore.QSize(50, 7))
         palette = QtGui.QPalette()
         brush = QtGui.QBrush(QtGui.QColor(85, 255, 127))
         brush.setStyle(QtCore.Qt.SolidPattern)
