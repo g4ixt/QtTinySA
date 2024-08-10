@@ -71,10 +71,9 @@ class analyser:
         self.sweeping = False
         self.threadRunning = False
         self.signals = WorkerSignals()
-        self.signals.result.connect(self.sigProcess)
-        self.signals.fullSweep.connect(self.updateGUI)
+        self.signals.result.connect(self.updateGUI)
         self.signals.finished.connect(self.threadEnds)
-        self.runTimer = QtCore.QElapsedTimer()  # debug
+        self.runTimer = QtCore.QElapsedTimer()
         self.scale = 174
         self.scanMemory = 50
         self.surface = None
@@ -232,7 +231,6 @@ class analyser:
                     self.setRBW()
                     # self.sampleRep()  # doesn't work with scanraw
                     self.runButton('Stop')
-                    # self.pause()
                     self.usbSend()
                     self.startMeasurement()  # runs measurement in separate thread
                 except serial.SerialException:
@@ -243,12 +241,8 @@ class analyser:
             popUp('TinySA not found', QMessageBox.Ok, QMessageBox.Critical)
 
     def startMeasurement(self):
-        frequencies = self.set_frequencies()
-        self.usbSend()
-        points = np.size(frequencies)
-        readings = np.full((self.scanMemory, points), None, dtype=float)
-        readings[0] = -120
-        self.sweep = Worker(self.measurement, frequencies, readings)  # workers are auto-deleted when thread stops
+        frequencies, readings, maxima = self.set_arrays()
+        self.sweep = Worker(self.measurement, frequencies, readings, maxima)  # workers auto-deleted when thread stops
         self.sweeping = True
         self.createTimeSpectrum(frequencies, readings)
         self.reset3D()
@@ -282,14 +276,16 @@ class analyser:
         logging.debug(response)
         return response[:-6].decode()  # remove prompt
 
-    def set_frequencies(self):  # creates a numpy array of equi-spaced freqs in Hz. Also called by measurement thread.
+    def set_arrays(self):
         startF = ui.start_freq.value() * 1e6  # freq in Hz
         stopF = ui.stop_freq.value() * 1e6
         points = self.setPoints()
+        maxima = np.full(points, -120, dtype=float)
         frequencies = np.linspace(startF, stopF, points, dtype=np.int64)
-        logging.debug(f'frequencies = {frequencies}')
         self.fPrecision(frequencies)
-        return frequencies
+        readings = np.full((self.scanMemory, points), None, dtype=float)
+        readings[0] = -120
+        return frequencies, readings, maxima
 
     def freq_changed(self, centre=False):
         if centre:
@@ -368,28 +364,19 @@ class analyser:
         logging.debug(f'sweepTimeout = {timeout:.2f} s')
         return timeout
 
-    def measurement(self, frequencies, readings):  # runs in a separate thread
-        points = np.size(readings, 1)
-        maxima = np.full(points, -120, dtype=float)
+    def measurement(self, frequencies, readings, maxima):  # runs in a separate thread
+        updateTimer = QtCore.QElapsedTimer()
+        points = np.size(frequencies)
         self.threadRunning = True
         while self.sweeping:
             try:
                 self.usb.timeout = self.sweepTimeout(frequencies)
-                self.runTimer.start()  # debug
-                if preferences.freqLO != 0:
-                    startF, stopF = self.freqOffset(frequencies)
-                    command = f'scanraw {int(startF)} {int(stopF)} {int(points)}\r'
-                else:
-                    command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)}\r'
-                logging.debug(f'measurement: command = {command}')
-                self.usb.write(command.encode())
-                index = 0
-                self.usb.read_until(command.encode() + b'\n{')  # skip command echo
-                dataBlock = ''
-                while dataBlock != b'}ch' and index < points:  # if b'}ch' it's reached the end of the scan points
+                # self.runTimer.start()  # for debug
+                updateTimer.start()
+                while dataBlock != b'}ch':  # if b'}ch' it's reached the end of the scan points
                     dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
                     logging.debug(f'dataBlock: {dataBlock}\n')
-                    if dataBlock == b'}ch' or dataBlock == b'}':  # from FW165 jog button press returns different value
+                    if dataBlock == b'}':  # from FW165 jog button press returns different value
                         logging.info('jog button pressed')
                         self.sweeping = False
                         break
@@ -400,24 +387,24 @@ class analyser:
                             logging.info('data error')
                             self.sweeping = False
                             break
+                        logging.debug(f'index = {index} data = {data}')  # debug
                         readings[0, index] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
-                        if index // 20 == index / 20 or index == (points - 1):  # update traces every 20 readings
-                            maxima = np.fmax(maxima, readings[0])
-                            self.signals.result.emit(frequencies, readings, maxima)  # send the latest 20 points to sigProcess()
+                        if index + 1 == points:  # it's the final point of this sweep
+                            readingsMax = np.nanmax(readings[:self.scanMemory], axis=0)
+                            maxima = np.fmax(maxima, readingsMax)
+                            readings[-1] = readings[0]  # populate last row with current sweep before rolling
+                            readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
                         index += 1
-                    logging.debug(f'measurement: level = {(data / 32) - self.scale}dBm')
+                        runtime = updateTimer.nsecsElapsed()
+                        if runtime/1e6 > preferences.intervalBox.value():
+                            self.signals.result.emit(frequencies, readings, maxima, runtime)  # send to updateGUI()
+                            updateTimer.start()
                 self.usb.read(2)  # discard the command prompt
-                self.signals.fullSweep.emit(frequencies, readings)  # updateGUI once per sweep (min performance impact)
-                readings[-1] = readings[0]  # populate last row with current sweep before rolling
-                readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
                 logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6:.3f}mS')  # debug
                 if self.fifo.qsize() > 0:  # a setting has changed
                     self.setRBW()
-                    frequencies = self.set_frequencies()
+                    frequencies, readings, maxima = self.set_arrays()
                     points = np.size(frequencies)
-                    readings = np.full((self.scanMemory, points), None, dtype=float)
-                    readings[0] = -120
-                    maxima = np.full(points, -120, dtype=float)
                     self.createTimeSpectrum(frequencies, readings)
                     self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
             except serial.SerialException:
@@ -429,24 +416,6 @@ class analyser:
     def threadEnds(self):
         self.runButton('Run')
         self.fifoTimer.start(500)  # start watching for commands
-
-    def sigProcess(self, frequencies, readings, maxima):  # readings from the worker thread result signal every 20 measurements
-        if preferences.highLO.isChecked() and preferences.freqLO != 0:
-            # for LNB/Mixer when LO is above measured freq, the scan is reversed, i.e. low TinySA f = high meas f
-            frequencies = frequencies[::-1]
-            np.fliplr(readings)
-        readingsAvg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
-        readingsMin = np.nanmin(readings[:self.scanMemory], axis=0)
-        # options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': readingsMax, 'Min': readingsMin}
-        options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': maxima, 'Min': readingsMin}
-        logging.debug(f'sigProcess: averages={readingsAvg}')
-        if frequencies[0] == frequencies[-1]:
-            # zero span
-            frequencies = np.arange(1, len(frequencies) + 1, dtype=int)
-        S1.updateTrace(frequencies, options.get(S1.traceType))
-        S2.updateTrace(frequencies, options.get(S2.traceType))
-        S3.updateTrace(frequencies, options.get(S3.traceType))
-        S4.updateTrace(frequencies, options.get(S4.traceType))
 
     def createTimeSpectrum(self, frequencies, readings):
         points = np.size(frequencies)
@@ -485,30 +454,62 @@ class analyser:
         else:
             self.vGrid.hide()
 
-    def updateGUI(self, frequencies, readings):  # called once per scan by fullSweep signal from measurement() thread
+    def updateGUI(self, frequencies, readings, maxima, runtime):  # called by the 'result' signal from the measurement() thread
+        # for LNB/Mixer mode when LO is above measured freq the scan is reversed, i.e. low TinySA freq = high meas freq
         if preferences.highLO.isChecked() and preferences.freqLO != 0:
-            # for LNB/Mixer when LO is above measured freq, the scan is reversed, i.e. low TinySA f = high meas f
             frequencies = frequencies[::-1]
             np.fliplr(readings)
-        if ui.points_auto.isChecked():
-            ui.points_box.setValue(np.size(frequencies))
-        if ui.stackedWidget.currentWidget() == ui.View3D:
-            z = readings + 120  # Surface plot height shader needs positive numbers so convert from dBm to dBf
-            logging.debug(f'z = {z}')
-            self.surface.setData(z=z)  # update 3D graph
-            params = ui.openGLWidget.cameraParams()
-            logging.debug(f'camera {params}')
-        if frequencies[0] == frequencies[-1]:  # zero span
+
+        # calculate the average and min trace values
+        readingsAvg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
+        readingsMin = np.nanmin(readings[:self.scanMemory], axis=0)
+        logging.debug(f'sigProcess: averages={readingsAvg}')
+
+        # update graph axes if in zero span
+        if frequencies[0] == frequencies[-1]:
             ui.graphWidget.setLabel('bottom', 'Time')
             frequencies = np.arange(1, len(frequencies) + 1, dtype=int)
             ui.graphWidget.setXRange(frequencies[0], frequencies[-1])
-        else:
+
+        # update the swept traces
+        options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': maxima, 'Min': readingsMin}
+        S1.trace.setData(frequencies, options.get(S1.traceType))
+        S2.trace.setData(frequencies, options.get(S2.traceType))
+        S3.trace.setData(frequencies, options.get(S3.traceType))
+        S4.trace.setData(frequencies, options.get(S4.traceType))
+
+        # update markers if not in zero span (where they are not relevant)
+        if frequencies[0] != frequencies[-1]:
             ui.graphWidget.setLabel('bottom', units='Hz')
             maxmin = self.maxMin(frequencies, readings)
             S1.updateMarker(frequencies, readings[0, :], maxmin)
             S2.updateMarker(frequencies, readings[0, :], maxmin)
             S3.updateMarker(frequencies, readings[0, :], maxmin)
             S4.updateMarker(frequencies, readings[0, :], maxmin)
+
+        # update 3D graph if enabled
+        if ui.stackedWidget.currentWidget() == ui.View3D:
+            z = readings + 120  # Surface plot height shader needs positive numbers so convert from dBm to dBf
+            logging.debug(f'z = {z}')
+            self.surface.setData(z=z)  # update 3D graph
+            params = ui.openGLWidget.cameraParams()
+            logging.debug(f'camera {params}')
+        if ui.grid.isChecked():
+            tinySA.vGrid.show()
+        else:
+            tinySA.vGrid.hide()
+
+        # other updates
+        if ui.points_auto.isChecked():
+            ui.points_box.setValue(np.size(frequencies))
+
+        ui.updateFreq.setValue(int(1/(runtime/1e9)))  # the display update frequency indicator
+
+        if not tinySA.sweeping:  # measurement thread is stopping
+            ui.scan_button.setText('Stopping ...')
+            ui.scan_button.setStyleSheet('background-color: orange')
+            ui.run3D.setText('Stopping ...')
+            ui.run3D.setStyleSheet('background-color: orange')
 
     def maxMin(self, frequencies, readings):  # finds the signal max/min values for setting markers
         avg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
@@ -823,18 +824,6 @@ class display:
             self.trace.hide()
         checkboxes.dwm.submit()
 
-    def updateTrace(self, frequencies, readings):  # called by sigProcess() for every trace every 20 points
-        self.trace.setData((frequencies), readings)
-        if ui.grid.isChecked():  # surely this is in the wrong place, should be in updategui()?
-            tinySA.vGrid.show()
-        else:
-            tinySA.vGrid.hide()
-        if not tinySA.sweeping:  # measurement thread is stopping
-            ui.scan_button.setText('Stopping ...')
-            ui.scan_button.setStyleSheet('background-color: orange')
-            ui.run3D.setText('Stopping ...')
-            ui.run3D.setStyleSheet('background-color: orange')
-
     def updateMarker(self, frequencies, readings, maxmin):  # called by updateGUI()
         options = {'Max1': maxmin[0][0], 'Max2': maxmin[0][1], 'Max3': maxmin[0][2],
                    'Max4': maxmin[0][3], 'Normal': self.vline.value(), 'Delta': self.vline.value(),
@@ -877,7 +866,7 @@ class display:
 
 class WorkerSignals(QtCore.QObject):
     error = QtCore.pyqtSignal(str)
-    result = QtCore.pyqtSignal(np.ndarray, np.ndarray, np.ndarray)
+    result = QtCore.pyqtSignal(np.ndarray, np.ndarray, np.ndarray, float)
     fullSweep = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     finished = QtCore.pyqtSignal()
 
@@ -1189,6 +1178,7 @@ def about():
                .format(app.applicationVersion(), config.dbpath))
     popUp(message, QMessageBox.Ok, QMessageBox.Information)
 
+
 def clickEvent():
     logging.info('clickEvent')
 
@@ -1315,8 +1305,7 @@ def colourID(shade):  # using the QSQLRelation directly doesn't work for colour.
 tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
-app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.10.7.n')
+app.setApplicationVersion(' v0.11.0')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1586,8 +1575,8 @@ window.show()
 window.setWindowTitle(app.applicationName() + app.applicationVersion())
 # window.setWindowIcon(QtGui.QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 
-# try to open a USB connection to the TinySA hardware every 500mS until successful
-tinySA.usbCheck.start(500)
+# try to open a USB connection to the TinySA hardware
+tinySA.usbCheck.start(500)  # check again every 500mS
 
 ###############################################################################
 # run the application until the user closes it
