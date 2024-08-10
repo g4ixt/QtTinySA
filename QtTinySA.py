@@ -100,7 +100,7 @@ class analyser:
                 if port not in self.ports:
                     preferences.deviceBox.addItem(port.product + " on " + port.device)
                     self.ports.append(port)
-                    if port.product[:6] == 'tinySA' or system() != "Linux":
+                    if port.product[:6] == 'tinySA':
                         tinySA = True
         if len(self.ports) == 1 and tinySA:  # found only one device and it's a tinySA so can stop checking and use it
             self.usbCheck.stop()
@@ -126,15 +126,12 @@ class analyser:
         if self.usb:
             for i in range(4):  # try 3 times to communicate with TinySA over USB serial
                 hardware = self.version()
-                logging.info(f'Serial port test {i}: {port.device} responds: {hardware[:16]}')
-                if hardware[:6] == 'tinySA':
+                logging.info(f'Serial port test {i}: {port.product} responds: {hardware[:16]}')
+                if port.product[:6] == hardware[:6]:
                     break
                 else:
                     time.sleep(1)
-            if system() == "Linux":
-                self.initialise(port.product, hardware[8:16])
-            else:
-                self.initialise(hardware[:7], hardware[8:16])
+            self.initialise(port.product, hardware[8:16])
 
     def closePort(self):
         if self.usb:
@@ -1319,7 +1316,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' experimental 080824')
+app.setApplicationVersion(' v0.11.0')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
