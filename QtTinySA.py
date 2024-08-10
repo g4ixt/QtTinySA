@@ -90,48 +90,50 @@ class analyser:
         self.ports = []
 
     def openPort(self):
-        # Get tinysa comport using hardware ID
+        # Get tinySA comport using hardware ID
         VID = 0x0483  # 1155
         PID = 0x5740  # 22336
-        tinySA = False
         usbPorts = list_ports.comports()
         for port in usbPorts:
             if port.vid == VID and port.pid == PID:
                 if port not in self.ports:
-                    preferences.deviceBox.addItem(port.product + " on " + port.device)
+                    preferences.deviceBox.addItem(self.identify(port) + " on " + port.device)
                     self.ports.append(port)
-                    if port.product[:6] == 'tinySA':
-                        tinySA = True
-        if len(self.ports) == 1 and tinySA:  # found only one device and it's a tinySA so can stop checking and use it
+        if len(self.ports) == 1:  # found only one device so just test it
             self.usbCheck.stop()
             self.testPort(self.ports[0])
             return
-        if len(self.ports) > 1 and tinySA:  # several devices found and at least one is a tinySA so stop checking
+        if len(self.ports) > 1:  # several devices found
+            preferences.deviceBox.insertItem(0, "Select device")
+            preferences.deviceBox.setCurrentIndex(0)
             popUp("Several devices detected.  Choose device in Settings > Preferences",
                   QMessageBox.Ok, QMessageBox.Information)
             self.usbCheck.stop()
-        if len(self.ports) >= 1 and not tinySA:  # report tinySA not found and keep checking
-            if ui.version.text() != 'tinySA not found':
-                ui.version.setText('tinySA not found')
-                logging.info('tinySA not found')
 
     def testPort(self, port):
         try:
             self.usb = serial.Serial(port.device, baudrate=576000)
-            logging.info(f'Serial port open: {self.usb.isOpen()}')
+            logging.info(f'Serial port {port.device} open: {self.usb.isOpen()}')
         except serial.SerialException:
             logging.info('Serial port exception.  Check that your username is in the "dialout" group?')
             popUp('Serial port exception. Check that your username is in the "dialout" group.',
                   QMessageBox.Ok, QMessageBox.Critical)
         if self.usb:
-            for i in range(4):  # try 3 times to communicate with TinySA over USB serial
+            for i in range(4):  # try 3 times to communicate with tinySA over USB serial
                 hardware = self.version()
-                logging.info(f'Serial port test {i}: {port.product} responds: {hardware[:16]}')
-                if port.product[:6] == hardware[:6]:
-                    break
-                else:
+                logging.info(f'{port.device} test {i} responds: {hardware[:16]}')
+                if hardware[:6] != 'tinySA':
                     time.sleep(1)
-            self.initialise(port.product, hardware[8:16])
+                else:
+                    break
+            self.initialise(hardware[:7], hardware[8:16])
+
+    def identify(self, port):
+        # Windows returns no information to pySerial list_ports.comports()
+        if system() == 'Linux':
+            return port.product
+        else:
+            return 'USB device'
 
     def closePort(self):
         if self.usb:
@@ -1195,7 +1197,7 @@ def clickEvent():
 
 def testComPort():
     index = preferences.deviceBox.currentIndex()
-    tinySA.testPort(tinySA.ports[index])
+    tinySA.testPort(tinySA.ports[index - 1])  # allow for 'select device' entry
 
 ##############################################################################
 # other methods
@@ -1315,7 +1317,7 @@ def colourID(shade):  # using the QSQLRelation directly doesn't work for colour.
 tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
-app.setApplicationVersion(' v0.11.0')
+app.setApplicationVersion(' v0.11.1')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
