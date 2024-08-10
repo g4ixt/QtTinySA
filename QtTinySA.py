@@ -373,16 +373,6 @@ class analyser:
                 self.usb.timeout = self.sweepTimeout(frequencies)
                 # self.runTimer.start()  # for debug
                 updateTimer.start()
-                if preferences.freqLO != 0:
-                    startF, stopF = self.freqOffset(frequencies)
-                    command = f'scanraw {int(startF)} {int(stopF)} {int(points)}\r'
-                else:
-                    command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)}\r'
-                logging.debug(f'measurement: command = {command}')
-                self.usb.write(command.encode())
-                self.usb.read_until(command.encode() + b'\n{')  # skip command echo
-                index = 0
-                dataBlock = ''
                 while dataBlock != b'}ch':  # if b'}ch' it's reached the end of the scan points
                     dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
                     logging.debug(f'dataBlock: {dataBlock}\n')
@@ -1315,7 +1305,6 @@ def colourID(shade):  # using the QSQLRelation directly doesn't work for colour.
 tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
-app.setApplicationName('QtTinySA')
 app.setApplicationVersion(' v0.11.0')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
