@@ -68,6 +68,11 @@ blue_dash = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
 class analyser:
     def __init__(self):
         self.usb = None
+        self.surface = None
+        self.vGrid = None
+        self.tinySA4 = None
+        self.directory = None
+        self.firmware = None
         self.sweeping = False
         self.threadRunning = False
         self.signals = WorkerSignals()
@@ -76,16 +81,12 @@ class analyser:
         self.runTimer = QtCore.QElapsedTimer()
         self.scale = 174
         self.scanMemory = 50
-        self.surface = None
-        self.vGrid = None
         self.usbCheck = QtCore.QTimer()
         self.usbCheck.timeout.connect(self.isConnected)
         self.fifo = queue.SimpleQueue()
         self.fifoTimer = QtCore.QTimer()
         self.fifoTimer.timeout.connect(self.usbSend)
-        self.tinySA4 = None
         self.maxF = 6000
-        self.directory = None
         self.memF = BytesIO()
         self.ports = []
 
@@ -99,6 +100,7 @@ class analyser:
                 if port not in self.ports:
                     preferences.deviceBox.addItem(self.identify(port) + " on " + port.device)
                     self.ports.append(port)
+                    logging.info(f'openPort: {port}')
         if len(self.ports) == 1:  # found only one device so just test it
             self.usbCheck.stop()
             self.testPort(self.ports[0])
@@ -119,14 +121,20 @@ class analyser:
             popUp('Serial port exception. Check that your username is in the "dialout" group.',
                   QMessageBox.Ok, QMessageBox.Critical)
         if self.usb:
-            for i in range(4):  # try 3 times to communicate with tinySA over USB serial
-                hardware = self.version()
-                logging.info(f'{port.device} test {i} responds: {hardware[:16]}')
-                if hardware[:6] != 'tinySA':
-                    time.sleep(1)
-                else:
-                    break
-            self.initialise(hardware[:7], hardware[8:16])
+            try:
+                for i in range(4):  # try 3 times to communicate with tinySA over USB serial
+                    firmware = self.version()
+                    self.firmware = firmware.replace('_', '-').split('-')
+                    logging.info(f'{port.device} test {i} : {self.firmware[0]} {self.firmware[1]} {self.firmware[2]}')
+                    if self.firmware[0] in ('tinySA4',  'tinySA_'):
+                        break
+                    else:
+                        time.sleep(1)
+                if float(self.firmware[1][-3:] + self.firmware[2]) < 1.4177:
+                    logging.info('for fastest possible scan speed, upgrade firmware to v1.4-177 or later')
+                self.initialise(self.firmware)
+            except IndexError:
+                logging.info(f'{port.device} serial command found version {firmware}. Expected to find tinySA_vn.n-nnn')
 
     def identify(self, port):
         # Windows returns no information to pySerial list_ports.comports()
@@ -152,9 +160,9 @@ class analyser:
                 else:
                     self.openPort()
 
-    def initialise(self, product, firmware):
+    def initialise(self, product):
         # product = 'tinySA'  # used for testing
-        if product == 'tinySA4':  # It's an Ultra
+        if product[0] == 'tinySA4':  # It's an Ultra
             self.tinySA4 = True
             self.maxF = preferences.maxFreqBox.value()
             self.scale = 174
@@ -176,7 +184,7 @@ class analyser:
 
         # show device information in GUI
         ui.battery.setText(self.battery())
-        ui.version.setText(product + " " + firmware)
+        ui.version.setText(product[0] + " " + product[1] + " " + product[2])
 
         self.setTime()
 
@@ -190,7 +198,7 @@ class analyser:
         ui.band_box.currentIndexChanged.connect(band_changed)
         ui.band_box.activated.connect(band_changed)
 
-        self.abort(True)
+        self.setAbort(True)
         self.fifoTimer.start(500)  # calls self.usbSend() every 500mS to execute serial commands whilst not scanning
 
     def restoreSettings(self):
@@ -258,26 +266,23 @@ class analyser:
             self.usb = serial.Serial(self.ports[preferences.deviceBox.currentIndex].device, baudrate=576000)
             logging.info(f'usbSend: attribute error. Serial port open: {self.usb.isOpen()}')
             return
-        # except serial.SerialException:
-        #     logging.info('serial port exception')
-        #     self.ports = []
-        #     self.closePort()
-        #     self.usbCheck.start(500)
-        #     return
         while self.fifo.qsize() > 0:
             command = self.fifo.get(block=True, timeout=None)
             logging.debug(command)
-            self.usb.write(command.encode())
-            self.usb.read_until(b'ch> ')  # skip command echo and prompt
+            self.serialWrite(command)
 
     def serialQuery(self, command):
-        self.usb.timeout = 1
-        logging.debug(command)
         self.usb.write(command.encode())
         self.usb.read_until(command.encode() + b'\n')  # skip command echo
         response = self.usb.read_until(b'ch> ')  # until prompt
         logging.debug(response)
         return response[:-6].decode()  # remove prompt
+
+    def serialWrite(self, command):
+        self.usb.timeout = 1
+        logging.debug(command)
+        self.usb.write(command.encode())
+        self.usb.read_until(b'ch> ')  # skip command echo and prompt
 
     def set_arrays(self):
         startF = ui.start_freq.value() * 1e6  # freq in Hz
@@ -367,73 +372,12 @@ class analyser:
         logging.debug(f'sweepTimeout = {timeout:.2f} s')
         return timeout
 
-    # def measurement(self, frequencies, readings, maxima):  # runs in a separate thread
-    #     updateTimer = QtCore.QElapsedTimer()
-    #     points = np.size(frequencies)
-    #     self.threadRunning = True
-    #     while self.sweeping:
-    #         try:
-    #             self.usb.timeout = self.sweepTimeout(frequencies)
-    #             updateTimer.start()  # used to trigger the signal containing measurements
-    #             if preferences.freqLO != 0:
-    #                 startF, stopF = self.freqOffset(frequencies)
-    #                 command = f'scanraw {int(startF)} {int(stopF)} {int(points)}\r'
-    #             else:
-    #                 command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)}\r'
-    #             logging.debug(f'measurement: command = {command}')
-    #             # self.runTimer.start()  # for debug
-    #             self.usb.write(command.encode())
-    #             self.usb.read_until(command.encode() + b'\n{')  # skip command echo
-    #             index = 0
-    #             dataBlock = ''
-    #             # logging.info(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6:.3f}mS')  # debug
-    #             while dataBlock != b'}ch':  # if b'}ch' it's reached the end of the scan points
-    #                 dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
-    #                 logging.debug(f'dataBlock: {dataBlock}\n')
-    #                 if dataBlock == b'}':  # from FW165 jog button press returns different value
-    #                     logging.info('jog button pressed')
-    #                     self.sweeping = False
-    #                     break
-    #                 if dataBlock != b'}ch':
-    #                     try:
-    #                         c, data = struct.unpack('<' + 'cH', dataBlock)
-    #                     except struct.error:
-    #                         logging.info('data error')
-    #                         self.sweeping = False
-    #                         break
-    #                     logging.debug(f'index = {index} data = {data}')  # debug
-    #                     readings[0, index] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
-    #                     if index + 1 == points:  # it's the final point of this sweep
-    #                         readingsMax = np.nanmax(readings[:self.scanMemory], axis=0)
-    #                         maxima = np.fmax(maxima, readingsMax)
-    #                         readings[-1] = readings[0]  # populate last row with current sweep before rolling
-    #                         readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
-    #                     index += 1
-    #                     runtime = updateTimer.nsecsElapsed()
-    #                     if runtime/1e6 > preferences.intervalBox.value():
-    #                         self.signals.result.emit(frequencies, readings, maxima, runtime)  # send to updateGUI()
-    #                         updateTimer.start()  # restart the timer
-    #                         logging.info(f'points measured = {index}')
-    #             self.usb.read(2)  # discard the command prompt
-    #             if self.fifo.qsize() > 0:  # a setting has changed
-    #                 self.setRBW()
-    #                 frequencies, readings, maxima = self.set_arrays()
-    #                 points = np.size(frequencies)
-    #                 self.createTimeSpectrum(frequencies, readings)
-    #                 self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
-    #         except serial.SerialException:
-    #             logging.info('serial port exception')
-    #             self.sweeping = False
-    #     self.threadRunning = False
-    #     self.signals.finished.emit()
-
     def measurement(self, frequencies, readings, maxima):  # runs in a separate thread
         updateTimer = QtCore.QElapsedTimer()
         points = np.size(frequencies)
         self.threadRunning = True
         firstRun = True
-        version = self.version()
-        version = int(version[13:16])  # just the firmware version number
+        version = int(self.firmware[2])  # just the firmware version number
 
         # self.runTimer.start()  # debug
         # logging.info(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6:.3f}mS')  # debug
@@ -444,7 +388,6 @@ class analyser:
                 command = f'scanraw {int(startF)} {int(stopF)} {int(points)} 3\r'
             else:
                 command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)} 3\r'
-            logging.debug(f'measurement thread: command = {command}')
             self.usb.timeout = self.sweepTimeout(frequencies)
             if version < 177 or firstRun:  # firmware versions before 177 did not support auto-repeating scanraw
                 try:
@@ -463,53 +406,45 @@ class analyser:
                     logging.info('jog button pressed')
                     self.sweeping = False
                     break
-                if dataBlock != b'}ch':
-                    try:
-                        c, data = struct.unpack('<' + 'cH', dataBlock)
-                    except struct.error:
-                        logging.info('data error')
-                        self.sweeping = False
-                        break
-                    readings[0, point] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
-                    if point == points - 1:  # it's the final point of this sweep
-                        readingsMax = np.nanmax(readings[:self.scanMemory], axis=0)
-                        maxima = np.fmax(maxima, readingsMax)
-                        readings[-1] = readings[0]  # populate last row with current sweep before rolling
-                        readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
-                        if version >= 177:
-                            firstRun = False
-                            endSig = self.usb.read(2)  # should be the end of scan marker character
-                            if endSig != b'}{':
-                                self.sweeping = False
-                                logging.info(f'synchronisation error {endSig}')
-                                break
-                        if self.fifo.qsize() > 0:  # a setting has been changed by the user
-                            command = 'abort\r'
-                            self.usb.write(command.encode())
-                            self.usb.read_until(command.encode() + b'\n{')  # skip command echo
-                            firstRun = True
-                            self.setRBW()
-                            frequencies, readings, maxima = self.set_arrays()
-                            points = np.size(frequencies)
-                            self.createTimeSpectrum(frequencies, readings)
-                            self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
-                            logging.debug('setting changed')
-                    timeElapsed = updateTimer.nsecsElapsed()  # how long the thread has been running, nS
-                    if timeElapsed/1e6 > preferences.intervalBox.value() or point == points - 1:
-                        self.signals.result.emit(frequencies, readings, maxima, timeElapsed)  # send to updateGUI()
-                        updateTimer.start()  # restart the thread run timer
-        # ending
+                try:
+                    c, data = struct.unpack('<' + 'cH', dataBlock)
+                except struct.error:
+                    logging.info('data error')
+                    self.sweeping = False
+                    break
+                readings[0, point] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
+                if point == points - 1:  # it's the final point of this sweep
+                    readingsMax = np.nanmax(readings[:self.scanMemory], axis=0)
+                    maxima = np.fmax(maxima, readingsMax)
+                    readings[-1] = readings[0]  # populate last row with current sweep before rolling
+                    readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
+                    if version >= 177:
+                        firstRun = False
+                        if self.usb.read(2) != b'}{':  # it should be the end of scan marker character now
+                            logging.info('synchronisation error')
+                            self.sweeping = False
+                            break
+                if self.fifo.qsize() > 0 or not self.sweeping:  # a setting has been changed by the user
+                    self.serialWrite('abort\r')
+                    self.clearBuffer()
+                    firstRun = True
+                    self.setRBW()
+                    frequencies, readings, maxima = self.set_arrays()
+                    points = np.size(frequencies)
+                    self.createTimeSpectrum(frequencies, readings)
+                    self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
+                    break
+                timeElapsed = updateTimer.nsecsElapsed()  # how long the thread has been running, nS
+                if timeElapsed/1e6 > preferences.intervalBox.value() or point == points - 1:
+                    self.signals.result.emit(frequencies, readings, maxima, timeElapsed)  # send to updateGUI()
+                    updateTimer.start()
         self.usb.read(2)  # discard the command prompt
         self.threadRunning = False
         self.signals.finished.emit()
 
     def threadEnds(self):
-        version = self.version()
-        version = int(version[13:16])  # just the firmware version number
-        if version >= 177:
-            command = 'abort\r'
-            self.usb.write(command.encode())
-            self.usb.read_until(command.encode() + b'\n{')  # skip command echo
+        if int(self.firmware[2]) >= 177:  # the firmware version number
+            self.serialWrite('abort\r')
         self.runButton('Run')
         self.fifoTimer.start(500)  # start watching for commands
 
@@ -670,35 +605,31 @@ class analyser:
             ui.run3D.setEnabled(True)
 
     def pause(self):
-        # pauses the sweeping in either input or output mode
-        command = 'pause\r'
-        self.fifo.put(command)
+        self.fifo.put('pause\r')
 
     def resume(self):
-        # resumes the sweeping in either input or output mode
-        command = 'resume\r'
-        self.fifo.put(command)
+        self.fifo.put('resume\r')
 
     def reset(self):
-        # not yet found any detail for what is actually reset
-        command = 'reset\r'
-        self.fifo.put(command)
+        self.fifo.put('reset\r')
 
     def battery(self):
-        command = 'vbat\r'
-        vbat = self.serialQuery(command)
+        vbat = self.serialQuery('vbat\r')
         return vbat
 
-    def abort(self, on=True):
+    def setAbort(self, on=True):
         if on:
             command = 'abort on\r'
         else:
             command = 'abort off\r'
         self.fifo.put(command)
 
+    def abort(self):
+        self.serialWrite('abort\r')
+        self.clearBuffer()
+
     def version(self):
-        command = 'version\r'
-        version = self.serialQuery(command)
+        version = self.serialQuery('version\r')
         return version
 
     def spur(self):
@@ -730,8 +661,7 @@ class analyser:
             self.fifo.put(command)
 
     def example(self):
-        command = 'example\r'
-        self.fifo.put(command)
+        self.fifo.put('example\r')
 
     def sampleRep(self):
         # sets the number of repeat measurements at each frequency point to the value in the GUI
@@ -749,8 +679,7 @@ class analyser:
     def listSD(self):
         if self.usb:
             self.clearBuffer()  # clear the USB serial buffer
-            command = 'sd_list\r'
-            ls = self.serialQuery(command)
+            ls = self.serialQuery('sd_list\r')
             return ls
 
     def readSD(self, fileName):
@@ -1409,7 +1338,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.11.2')
+app.setApplicationVersion(' v0.11.3')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
