@@ -378,7 +378,6 @@ class analyser:
         self.threadRunning = True
         firstRun = True
         version = int(self.firmware[2])  # just the firmware version number
-
         # self.runTimer.start()  # debug
         # logging.info(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6:.3f}mS')  # debug
 
@@ -389,7 +388,8 @@ class analyser:
             else:
                 command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)} 3\r'
             self.usb.timeout = self.sweepTimeout(frequencies)
-            if version < 177 or firstRun:  # firmware versions before 177 did not support auto-repeating scanraw
+            if version < 177 or firstRun:
+                # firmware versions before 4.177 don't support auto-repeating scanraw so command must be sent each sweep
                 try:
                     self.usb.write(command.encode())
                     self.usb.read_until(command.encode() + b'\n{')  # skip command echo
@@ -420,8 +420,8 @@ class analyser:
                     readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
                     if version >= 177:
                         firstRun = False
-                        if self.usb.read(2) != b'}{':  # it should be the end of scan marker character now
-                            logging.info('synchronisation error')
+                        if self.usb.read(2) != b'}{':  # the end of scan marker character is '}{'
+                            logging.info('QtTinySA display is out of sync with tinySA frequency')
                             self.sweeping = False
                             break
                 if self.fifo.qsize() > 0 or not self.sweeping:  # a setting has been changed by the user
@@ -435,7 +435,7 @@ class analyser:
                     self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
                     break
                 timeElapsed = updateTimer.nsecsElapsed()  # how long the thread has been running, nS
-                if timeElapsed/1e6 > preferences.intervalBox.value() or point == points - 1:
+                if timeElapsed/1e6 > preferences.intervalBox.value():
                     self.signals.result.emit(frequencies, readings, maxima, timeElapsed)  # send to updateGUI()
                     updateTimer.start()
         self.usb.read(2)  # discard the command prompt
@@ -727,13 +727,13 @@ class analyser:
         filebrowse.picture.clear()
         fileName = filebrowse.listWidget.currentItem().text()
         self.clearBuffer()  # clear the tinySA serial buffer
-        filebrowse.downloadBar.setValue(20)  # update the fake progress bar to show start of download
-        self.memF.write(self.readSD(fileName))
         if fileName[-3:] == 'bmp':
+            filebrowse.downloadBar.setValue(20)  # update the fake progress bar to show start of download
+            self.memF.write(self.readSD(fileName))
             pixmap = QPixmap()
             pixmap.loadFromData(self.memF.getvalue())
             filebrowse.picture.setPixmap(pixmap)
-        filebrowse.downloadBar.setValue(100)  # update the fake progress bar to complete
+            filebrowse.downloadBar.setValue(100)  # update the fake progress bar to complete
 
     # def sweepTime(self, seconds):
     #     #  0.003 to 60S
@@ -1014,7 +1014,6 @@ class modelView():
             logging.info(f'insertData: key = {key} value={value}')
             record.setValue(str(key), value)
         self.tm.insertRecord(-1, record)
-        # self.tm.select()
         self.tm.layoutChanged.emit()
         self.dwm.submit()
 
@@ -1040,6 +1039,7 @@ class modelView():
             for row in reader:
                 record = self.tm.record()
                 for key, value in row.items():
+                    logging.debug(f'readCSV: key = {key} value = {value}')
                     # don't understand how to make relation work for these fields
                     if key == 'preset':
                         value = presetID(value)
@@ -1115,8 +1115,10 @@ def addBandPressed():
         title = "New Frequency Band"
         message = "Enter a name for the new band."
         bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=bandName, type=ID, startF=f'{S1.vline.value()/1e6:.6f}',
-                         stopF=f'{S2.vline.value()/1e6:.6f}', visible=1, colour=colourID('green'))  # colourID(value)
+        # bands.insertData(name=bandName, type=ID, startF=f'{S1.vline.value()/1e6:.6f}',
+        #                  stopF=f'{S2.vline.value()/1e6:.6f}', visible=1, colour=colourID('green'))  # colourID(value)
+        bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value()/1e6:.6f}',
+                         stopF=f'{S2.vline.value()/1e6:.6f}', value=1, colour=colourID('green'))  # colourID(value)
     else:  # If only Marker 1 is enabled then this creates a spot Frequency marker
         title = "New Spot Frequency Marker"
         message = "Enter a name for the Spot Frequency"
@@ -1187,19 +1189,19 @@ def mkr1_moved():
         S4.mDelta()
 
 
-def setPreferences():
+def setPreferences():  # called when the preferences window is closed
     checkboxes.dwm.submit()
     bands.tm.submitAll()
     S4.hline.setValue(preferences.peakThreshold.value())
-    # bandselect.filterType(False, ui.filterBox.currentText())
+    bandselect.filterType(False, ui.filterBox.currentText())
     if ui.presetMarker.isChecked():
         freqMarkers()
     isMixerMode()
 
 
-def dialogPrefs():
+def dialogPrefs():  # called by clicking on the setup > preferences menu
     bands.filterType(True, preferences.filterBox.currentText())
-    bands.tm.select()  # stopping marker add
+    # bands.tm.select()  # stopping marker add
     bands.currentRow = 0
     preferences.freqBands.selectRow(bands.currentRow)
     pwindow.show()
@@ -1338,7 +1340,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.11.3')
+app.setApplicationVersion(' v0.11.4')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1495,7 +1497,7 @@ preferences.deviceBox.activated.connect(testComPort)
 # filebrowse
 ui.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
 filebrowse.download.clicked.connect(tinySA.fileDownload)
-filebrowse.listWidget.itemSelectionChanged.connect(tinySA.fileShow)
+filebrowse.listWidget.itemClicked.connect(tinySA.fileShow)
 
 # Quit
 ui.actionQuit.triggered.connect(app.closeAllWindows)
@@ -1516,6 +1518,7 @@ maps.tm.select()
 
 # to populate the preset bands and markers relational table in the preferences dialogue
 bands.createTableModel()
+bands.tm.select()
 bands.tm.setSort(3, QtCore.Qt.AscendingOrder)
 bands.tm.setHeaderData(5, QtCore.Qt.Horizontal, 'visible')
 bands.tm.setHeaderData(7, QtCore.Qt.Horizontal, 'LO')
@@ -1546,6 +1549,8 @@ presetmarker.tm.select()
 # populate the ui band selection combo box, which needs different filter to preferences dialogue and preset markers
 bandselect.createTableModel()
 bandselect.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))
+bandselect.tm.setRelation(5, QSqlRelation('boolean', 'ID', 'value'))
+bandselect.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))
 bandselect.tm.setSort(3, QtCore.Qt.AscendingOrder)
 ui.band_box.setModel(bandselect.tm)
 ui.band_box.setModelColumn(1)
