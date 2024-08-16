@@ -1115,8 +1115,6 @@ def addBandPressed():
         title = "New Frequency Band"
         message = "Enter a name for the new band."
         bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        # bands.insertData(name=bandName, type=ID, startF=f'{S1.vline.value()/1e6:.6f}',
-        #                  stopF=f'{S2.vline.value()/1e6:.6f}', visible=1, colour=colourID('green'))  # colourID(value)
         bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value()/1e6:.6f}',
                          stopF=f'{S2.vline.value()/1e6:.6f}', value=1, colour=colourID('green'))  # colourID(value)
     else:  # If only Marker 1 is enabled then this creates a spot Frequency marker
