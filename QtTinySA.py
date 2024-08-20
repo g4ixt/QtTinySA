@@ -660,7 +660,7 @@ class analyser:
     def spur(self):
         sType = ui.spur_box.checkState()
         options = {0: 'Spur Off', 1: 'Spur Auto', 2: 'Spur On'}
-        ui.spur_box.setText(options.get(sType))
+        ui.spur_label.setText(options.get(sType))
         options = {0: 'spur off\r', 1: 'spur auto\r', 2: 'spur on\r'}
         command = options.get(sType)
         self.fifo.put(command)
