@@ -90,7 +90,7 @@ class analyser:
         self.memF = BytesIO()
         self.ports = []
 
-    def openPort(self):
+    def openPort(self):  # called by isConnected() triggered by the self.usbCheck QTimer at startup
         # Get tinySA comport using hardware ID
         VID = 0x0483  # 1155
         PID = 0x5740  # 22336
@@ -100,7 +100,6 @@ class analyser:
                 if port not in self.ports:
                     preferences.deviceBox.addItem(self.identify(port) + " on " + port.device)
                     self.ports.append(port)
-                    logging.info(f'openPort: {port}')
         if len(self.ports) == 1:  # found only one device so just test it
             self.usbCheck.stop()
             self.testPort(self.ports[0])
@@ -112,28 +111,54 @@ class analyser:
                   QMessageBox.Ok, QMessageBox.Information)
             self.usbCheck.stop()
 
+    # def testPort(self, port):
+    #     try:
+    #         self.usb = serial.Serial(port.device, baudrate=576000)
+    #         logging.info(f'Serial port {port.device} open: {self.usb.isOpen()}')
+    #     except serial.SerialException:
+    #         logging.info('Serial port exception.  Check that your username is in the "dialout" group?')
+    #         popUp('Serial port exception. Check that your username is in the "dialout" group.',
+    #               QMessageBox.Ok, QMessageBox.Critical)
+    #     if self.usb:
+    #         for i in range(4):  # try 3 times to communicate with tinySA over USB serial
+    #             firmware = self.version()
+    #             # split it into a list of [device, major version number, minor version number, other stuff]
+    #             self.firmware = firmware.replace('_', '-').split('-')
+    #             if float(self.firmware[1][-3:] + self.firmware[2]) < 1.4177:
+    #                 logging.info('for fastest possible scan speed, upgrade firmware to v1.4-177 or later')
+    #             logging.info(f'{port.device} test {i} : {self.firmware[0]} {self.firmware[1]} {self.firmware[2]}')
+    #             if self.firmware[0] in ('tinySA4',  'tinySA_') and self.firmware[1][0] == "v":
+    #                 self.initialise(self.firmware)
+    #                 break
+    #             else:
+    #                 time.sleep(1)
+    #             if self.firmware[1][0] != "v":
+    #                 logging.info(f'{port.device} serial command found version {firmware}. Expected to find tinySA_vn.n-nnn')
+    #                 continue
+
     def testPort(self, port):
         try:
             self.usb = serial.Serial(port.device, baudrate=576000)
             logging.info(f'Serial port {port.device} open: {self.usb.isOpen()}')
         except serial.SerialException:
-            logging.info('Serial port exception.  Check that your username is in the "dialout" group?')
-            popUp('Serial port exception. Check that your username is in the "dialout" group.',
+            logging.info('Serial port exception. This can occur if your username is not in the "dialout" group.')
+            popUp('Serial port exception. This can occur if your username is not in the "dialout" group.',
                   QMessageBox.Ok, QMessageBox.Critical)
         if self.usb:
-            try:
-                for i in range(4):  # try 3 times to communicate with tinySA over USB serial
-                    firmware = self.version()
-                    self.firmware = firmware.replace('_', '-').split('-')
-                    logging.info(f'{port.device} test {i} : {self.firmware[0]} {self.firmware[1]} {self.firmware[2]}')
-                    if self.firmware[0] in ('tinySA4',  'tinySA_'):
-                        break
-                    else:
-                        time.sleep(1)
-                if float(self.firmware[1][-3:] + self.firmware[2]) < 1.4177:
-                    logging.info('for fastest possible scan speed, upgrade firmware to v1.4-177 or later')
+            for i in range(4):  # try 3 times to communicate with tinySA over USB serial
+                firmware = self.version()
+                if firmware[:6] == 'tinySA':
+                    logging.info(f'{port.device} test {i} : {firmware[:16]}')
+                    break
+                else:
+                    time.sleep(1)
+            # split it into a list of [device, major version number, minor version number, other stuff]
+            self.firmware = firmware.replace('_', '-').split('-')
+            if float(self.firmware[1][-3:] + self.firmware[2]) < 1.4177:
+                logging.info('for fastest possible scan speed, upgrade firmware to v1.4-177 or later')
+            if self.firmware[0] in ('tinySA4',  'tinySA_') and self.firmware[1][0] == "v":
                 self.initialise(self.firmware)
-            except IndexError:
+            if self.firmware[1][0] != "v":
                 logging.info(f'{port.device} serial command found version {firmware}. Expected to find tinySA_vn.n-nnn')
 
     def identify(self, port):
@@ -161,6 +186,7 @@ class analyser:
                     self.openPort()
 
     def initialise(self, product):
+        self.setSweep(ui.start_freq.value() * 1e6, ui.stop_freq.value() * 1e6)  # set the tinySA default scan range
         # product = 'tinySA'  # used for testing
         if product[0] == 'tinySA4':  # It's an Ultra
             self.tinySA4 = True
@@ -199,6 +225,7 @@ class analyser:
         ui.band_box.activated.connect(band_changed)
 
         self.setAbort(True)
+
         self.fifoTimer.start(500)  # calls self.usbSend() every 500mS to execute serial commands whilst not scanning
 
     def restoreSettings(self):
@@ -262,9 +289,8 @@ class analyser:
     def usbSend(self):
         try:
             self.usb.timeout = 1
-        except AttributeError:  # don't know why this happens on second run of programme.  Temporary workaround.
-            self.usb = serial.Serial(self.ports[preferences.deviceBox.currentIndex].device, baudrate=576000)
-            logging.info(f'usbSend: attribute error. Serial port open: {self.usb.isOpen()}')
+        except (serial.SerialException, AttributeError):
+            self.usbCheck.start()
             return
         while self.fifo.qsize() > 0:
             command = self.fifo.get(block=True, timeout=None)
@@ -290,7 +316,6 @@ class analyser:
         points = self.setPoints()
         maxima = np.full(points, -120, dtype=float)
         frequencies = np.linspace(startF, stopF, points, dtype=np.int64)
-        self.fPrecision(frequencies)
         readings = np.full((self.scanMemory, points), None, dtype=float)
         readings[0] = -120
         return frequencies, readings, maxima
@@ -647,10 +672,12 @@ class analyser:
             ui.atten_auto.setChecked(False)
             ui.atten_box.setEnabled(False)
             ui.atten_box.setValue(0)
+            self.fifo.put('attenuate 0\r')
         else:
             command = 'lna off\r'
             ui.atten_auto.setEnabled(True)
             ui.atten_auto.setChecked(True)
+            self.fifo.put('attenuate auto\r')
         self.fifo.put(command)
 
     def setTime(self):
@@ -663,6 +690,12 @@ class analyser:
     def example(self):
         self.fifo.put('example\r')
 
+    def setSweep(self, start, stop):  # only used to set a default on the tinySA
+        if start is not None:
+            self.serialWrite("sweep start %d\r" % start)
+        if stop is not None:
+            self.serialWrite("sweep stop %d\r" % stop)
+
     def sampleRep(self):
         # sets the number of repeat measurements at each frequency point to the value in the GUI
         command = f'repeat {ui.sampleRepeat.value()}\r'
@@ -672,7 +705,7 @@ class analyser:
         fInc = frequencies[1] - frequencies[0]
         if fInc > 0:
             self.dp = np.clip(int(np.log10(frequencies[0] / fInc)), 0, 5)  # number of decicimal places required
-            logging.debug(f'fPrecision: fInc = {fInc} dp = {self.dp}')
+            logging.info(f'fPrecision: fInc = {fInc} dp = {self.dp}')
         else:
             self.dp = 6
 
@@ -759,7 +792,7 @@ class display:
         self.markerType = 'Normal'  # Normal, Delta; Max, Min
         self.vline = ui.graphWidget.addLine(88, 90, movable=True, name=name,
                                             pen=pyqtgraph.mkPen('y', width=0.5, style=QtCore.Qt.DashLine),
-                                            label="{value:.2f}")
+                                            label="{value:.5f}")
         self.hline = ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='',
                                             labelOpts={'position': 0.025, 'color': ('r')})
         self.bline = ui.graphWidget.addLine(-10, -10, movable=True, name=name,
@@ -800,7 +833,7 @@ class display:
         self.markerType = self.guiRef(1).currentText()  # current combobox value from appropriate GUI field
         if self.markerType == 'Delta':
             self.deltaF = self.vline.value() - S1.vline.value()
-            self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.3f}MHz')
+            self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.5f}MHz')
         if {'Max', 'Min'}.intersection({S1.markerType[:3], S2.markerType[:3], S3.markerType[:3], S4.markerType[:3]}):
             S4.hline.show()  # the peak detection threshold line
             S1.bline.show()  # the boundary markers
@@ -864,7 +897,7 @@ class display:
         markerF = options.get(self.markerType)
         if markerF < np.min(frequencies) or markerF > np.max(frequencies):
             # marker is out of scan range so just show its frequency
-            self.vline.label.setText(f'M{self.vline.name()} {self.vline.value()/1e6:.{tinySA.dp}f}')
+            self.vline.label.setText(f'M{self.vline.name()} {self.vline.value()/1e6:.{5}f}')
         else:
             # marker is in scan range
             fIndex = np.argmin(np.abs(frequencies - (markerF)))  # find closest value in freq array
@@ -872,9 +905,9 @@ class display:
             if dBm > S4.hline.value() or self.markerType[:4] == 'Normal' or self.markerType[:4] == 'Delta':
                 self.vline.setValue(frequencies[fIndex])  # set to the discrete value from frequencies[]
             if self.markerType == 'Delta':
-                self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF/1e6:.{tinySA.dp}f} {dBm:.1f}dBm')
+                self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF/1e6:.{5}f} {dBm:.1f}dBm')
             else:
-                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value()/1e6:.{tinySA.dp}f} {dBm:.1f}dBm')
+                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value()/1e6:.{5}f} {dBm:.1f}dBm')
 
     def addFreqMarker(self, freq, colour, name, band=True):  # adds simple freq marker without full marker capability
         if ui.presetLabel.isChecked():
@@ -1090,8 +1123,8 @@ def band_changed():
     startF = bandselect.tm.record(index).value('StartF')
     stopF = bandselect.tm.record(index).value('StopF')
     if stopF not in (0, ''):
-        ui.start_freq.setValue(startF)
-        ui.stop_freq.setValue(stopF)
+        ui.start_freq.setValue(startF / 1e6)
+        ui.stop_freq.setValue(stopF / 1e6)
         tinySA.freq_changed(False)  # start/stop mode
     else:
         centreF = startF
@@ -1115,13 +1148,13 @@ def addBandPressed():
         title = "New Frequency Band"
         message = "Enter a name for the new band."
         bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value()/1e6:.6f}',
+        bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value()}',
                          stopF=f'{S2.vline.value()/1e6:.6f}', value=1, colour=colourID('green'))  # colourID(value)
     else:  # If only Marker 1 is enabled then this creates a spot Frequency marker
         title = "New Spot Frequency Marker"
         message = "Enter a name for the Spot Frequency"
         spotName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=spotName, type=12, startF=f'{S1.vline.value()/1e6:.6f}',
+        bands.insertData(name=spotName, type=12, startF=f'{S1.vline.value()}',
                          stopF='', visible=1, colour=colourID('orange'))  # preset 12 is Marker (spot frequency).
 
 
@@ -1256,7 +1289,6 @@ def popUp(message, button, icon):
 
 
 def freqMarkers():
-    # presetmarker.tm.select()
     S1.delFreqMarkers()
     S2.delFreqMarkers()
     for i in range(0, presetmarker.tm.rowCount()):
@@ -1266,12 +1298,12 @@ def freqMarkers():
             colour = presetmarker.tm.record(i).value('colour')
             name = presetmarker.tm.record(i).value('name')
             if ui.presetMarker.isChecked() and presetmarker.tm.record(i).value('visible') and stopF in (0, ''):
-                S1.addFreqMarker(startF * 1e6, colour, name, band=False)
+                S1.addFreqMarker(startF, colour, name, band=False)
                 if ui.presetLabel.isChecked() and ui.presetLabel.checkState() == 2:
                     S1.marker.label.setAngle(90)
             if ui.presetMarker.isChecked() and stopF not in (0, ''):  # it's a band marker
-                S1.addFreqMarker(startF * 1e6, colour, name)
-                S2.addFreqMarker(stopF * 1e6, colour, name)
+                S1.addFreqMarker(startF, colour, name)
+                S2.addFreqMarker(stopF, colour, name)
         except ValueError:
             continue
 
@@ -1338,7 +1370,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.11.4')
+app.setApplicationVersion(' v0.11.5')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1563,7 +1595,7 @@ ui.filterBox.setModelColumn(1)
 # connect the preferences dialogue box freq band table widget to the data model
 preferences.freqBands.setModel(bands.tm)
 preferences.freqBands.hideColumn(0)  # ID
-preferences.freqBands.verticalHeader().setVisible(False)
+preferences.freqBands.verticalHeader().setVisible(True)
 
 # Map database tables to preferences/GUI fields * lines need to be in this order and here or the mapping doesn't work *
 checkboxes.createTableModel()
