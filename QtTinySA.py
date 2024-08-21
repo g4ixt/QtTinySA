@@ -111,31 +111,6 @@ class analyser:
                   QMessageBox.Ok, QMessageBox.Information)
             self.usbCheck.stop()
 
-    # def testPort(self, port):
-    #     try:
-    #         self.usb = serial.Serial(port.device, baudrate=576000)
-    #         logging.info(f'Serial port {port.device} open: {self.usb.isOpen()}')
-    #     except serial.SerialException:
-    #         logging.info('Serial port exception.  Check that your username is in the "dialout" group?')
-    #         popUp('Serial port exception. Check that your username is in the "dialout" group.',
-    #               QMessageBox.Ok, QMessageBox.Critical)
-    #     if self.usb:
-    #         for i in range(4):  # try 3 times to communicate with tinySA over USB serial
-    #             firmware = self.version()
-    #             # split it into a list of [device, major version number, minor version number, other stuff]
-    #             self.firmware = firmware.replace('_', '-').split('-')
-    #             if float(self.firmware[1][-3:] + self.firmware[2]) < 1.4177:
-    #                 logging.info('for fastest possible scan speed, upgrade firmware to v1.4-177 or later')
-    #             logging.info(f'{port.device} test {i} : {self.firmware[0]} {self.firmware[1]} {self.firmware[2]}')
-    #             if self.firmware[0] in ('tinySA4',  'tinySA_') and self.firmware[1][0] == "v":
-    #                 self.initialise(self.firmware)
-    #                 break
-    #             else:
-    #                 time.sleep(1)
-    #             if self.firmware[1][0] != "v":
-    #                 logging.info(f'{port.device} serial command found version {firmware}. Expected to find tinySA_vn.n-nnn')
-    #                 continue
-
     def testPort(self, port):
         try:
             self.usb = serial.Serial(port.device, baudrate=576000)
@@ -215,14 +190,12 @@ class analyser:
         self.setTime()
 
         # connect the rbw & frequency boxes here or it causes startup index errors when they are populated
-        ui.rbw_box.currentIndexChanged.connect(rbwChanged)
-        ui.rbw_auto.clicked.connect(rbwChanged)
+        # ui.rbw_box.currentIndexChanged.connect(rbwChanged)
+        # ui.rbw_auto.clicked.connect(rbwChanged)
         ui.start_freq.editingFinished.connect(self.freq_changed)
         ui.stop_freq.editingFinished.connect(self.freq_changed)
         ui.centre_freq.valueChanged.connect(lambda: self.freq_changed(True))  # centre/span mode
         ui.span_freq.valueChanged.connect(lambda: self.freq_changed(True))  # centre/span mode
-        ui.band_box.currentIndexChanged.connect(band_changed)
-        ui.band_box.activated.connect(band_changed)
 
         self.setAbort(True)
 
@@ -1127,9 +1100,9 @@ def band_changed():
         ui.stop_freq.setValue(stopF / 1e6)
         tinySA.freq_changed(False)  # start/stop mode
     else:
-        centreF = startF
+        centreF = startF / 1e6
         ui.centre_freq.setValue(centreF)
-        ui.span_freq.setValue(int(centreF/10))  # default span to a tenth of the centre freq
+        ui.span_freq.setValue(int(centreF / 10))  # default span to a tenth of the centre freq
         tinySA.freq_changed(True)  # centre mode
     freqMarkers()
 
@@ -1370,7 +1343,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.11.5')
+app.setApplicationVersion(' v0.11.6')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1434,7 +1407,7 @@ S4.hline.setMovable(True)
 S4.hline.label.setFormat("{value:.1f}")
 
 ###############################################################################
-# Connect signals from buttons and sliders.  Connections for freq and rbw boxes are in 'initialise' Fn
+# Connect signals from buttons and sliders.  Some connections are in 'initialise' Fn
 
 ui.scan_button.clicked.connect(tinySA.scan)
 ui.run3D.clicked.connect(tinySA.scan)
@@ -1446,6 +1419,10 @@ ui.memBox.valueChanged.connect(memChanged)
 ui.points_auto.stateChanged.connect(pointsChanged)
 ui.points_box.editingFinished.connect(pointsChanged)
 ui.setRange.clicked.connect(tinySA.mouseScaled)
+ui.band_box.currentIndexChanged.connect(band_changed)
+ui.band_box.activated.connect(band_changed)
+ui.rbw_box.currentIndexChanged.connect(rbwChanged)
+ui.rbw_auto.clicked.connect(rbwChanged)
 
 # marker dragging
 S1.vline.sigPositionChanged.connect(mkr1_moved)
@@ -1474,6 +1451,7 @@ ui.presetMarker.clicked.connect(freqMarkers)
 ui.presetLabel.clicked.connect(freqMarkerLabel)
 ui.mToBand.clicked.connect(addBandPressed)
 ui.filterBox.currentTextChanged.connect(freqMarkers)
+
 
 # trace checkboxes
 ui.trace1.stateChanged.connect(S1.tEnable)

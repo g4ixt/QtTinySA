@@ -1,0 +1,177 @@
+name,preset,startF,stopF,value,colour
+LF,broadcast,140000,260000,1,lime
+MF,broadcast,430000,1600000,1,lime
+80m,amateur,3500000,3800000,1,lime
+40m,amateur,7000000,7100000,1,lime
+20m,amateur,14000000,14350000,1,lime
+18MHz,amateur,18060000,18160000,1,lime
+15m,amateur,21000000,21450000,1,lime
+24MHz,amateur,24890000,24990000,1,lime
+10m,amateur,28000000,29700000,1,lime
+GB3MCB,beacon,28215000,0,1,cyan
+GB3NWB,beacon,28247000,0,1,cyan
+GB3AAX,beacon,28268000,0,1,cyan
+GB3XMB,beacon,28287000,0,1,cyan
+GB3BUX,beacon,50000000,0,1,cyan
+6m,amateur,50000000,52000000,1,lime
+GB3RMK,beacon,50002000,0,1,cyan
+GB3NGI,beacon,50004000,0,1,cyan
+GB3MCB,beacon,50005000,0,1,cyan
+GB3BAA,beacon,50416000,0,1,cyan
+GB3MCB,beacon,50443000,0,1,cyan
+GB3RMK,beacon,50460000,0,1,cyan
+GB3NGI,beacon,50462000,0,1,cyan
+GB3LER,beacon,50464000,0,1,cyan
+GB3BUX,beacon,70000000,0,1,cyan
+4m,amateur,70000000,70500000,1,lime
+GB3WSX,beacon,70007000,0,1,cyan
+GB3BAA,beacon,70016000,0,1,cyan
+GB3ANG,beacon,70020000,0,1,cyan
+GB3MCB,beacon,70025000,0,1,cyan
+GB3CFG,beacon,70027000,0,1,cyan
+GB3MBD,beacon,70050000,0,1,cyan
+FM,broadcast,87500000,108000000,1,lime
+WV R2,marker,89900000,0,1,blue
+R3 to 4,broadcast,92100000,94300000,1,lime
+WV R3,marker,92100000,0,1,blue
+WV R4,marker,94300000,0,1,blue
+WV RCy,marker,96800000,0,1,blue
+WV R1,marker,99500000,0,1,blue
+WV CLA,marker,101700000,0,1,blue
+WV R Wales,marker,103900000,0,1,blue
+2m,amateur,144000000,146000000,1,lime
+GB3ANG,beacon,144453000,0,1,cyan
+GB3SEV,beacon,144462000,0,1,cyan
+GB3MCB,beacon,144469000,0,1,cyan
+GB3NGI,beacon,144482000,0,1,cyan
+GB3WGI,beacon,144487000,0,1,cyan
+DAB,broadcast,175000000,230000000,1,lime
+5B,marker,176640000,0,1,blue
+5C,marker,178352000,0,1,blue
+5D,marker,180064000,0,1,blue
+6A,marker,181936000,0,1,blue
+6B,marker,183648000,0,1,blue
+6C,marker,185360000,0,1,blue
+6D,marker,187072000,0,1,blue
+7A,marker,188928000,0,1,blue
+7B,marker,190640000,0,1,blue
+7C,marker,192352000,0,1,blue
+7D,marker,194064000,0,1,blue
+8A,marker,195936000,0,1,blue
+8B,marker,197648000,0,1,blue
+8C,marker,199360000,0,1,blue
+8D,marker,201072000,0,1,blue
+9A,marker,202928000,0,1,blue
+9B,marker,204640000,0,1,blue
+9C,marker,206352000,0,1,blue
+9D,marker,208064000,0,1,blue
+10A,marker,209936000,0,1,blue
+10B,marker,211648000,0,1,blue
+10C,marker,213360000,0,1,blue
+10D,marker,215072000,0,1,blue
+11A,marker,216928000,0,1,blue
+11B,marker,218640000,0,1,blue
+11C,marker,220352000,0,1,blue
+11D,marker,222064000,0,1,blue
+12B,marker,225648000,0,1,blue
+12C,marker,227360000,0,1,blue
+12D,marker,229072000,0,1,blue
+13A,marker,230784000,0,1,blue
+13B,marker,232496000,0,1,blue
+13C,marker,234208000,0,1,blue
+13D,marker,235776000,0,1,blue
+70cm,amateur,430000000,440000000,1,lime
+GB3UHF,beacon,432430000,0,1,cyan
+GB3FNY,beacon,432445000,0,1,cyan
+GB3ANG,beacon,432453000,0,1,cyan
+GB3MCB,beacon,432470000,0,1,cyan
+GB3NGI,beacon,432482000,0,1,cyan
+GB3LEU,beacon,432490000,0,1,cyan
+TV,broadcast,470000000,700000000,1,lime
+Guest 32,RF mic,470125000,0,0,red
+Guest 33,RF mic,470475000,0,0,red
+Guest 34,RF mic,470975000,0,0,red
+21,marker,474000000,0,1,blue
+22,marker,482000000,0,1,blue
+23,marker,490000000,0,1,blue
+24,marker,498000000,0,1,blue
+25,marker,506000000,0,1,blue
+26,marker,514000000,0,1,blue
+27,marker,522000000,0,1,blue
+28,marker,530000000,0,1,blue
+29,marker,538000000,0,1,blue
+30,marker,546000000,0,1,blue
+31,marker,554000000,0,1,blue
+32,marker,562000000,0,1,blue
+33,marker,570000000,0,1,blue
+34,marker,578000000,0,1,blue
+35,marker,586000000,0,1,blue
+36,marker,594000000,0,1,blue
+37,marker,602000000,0,1,blue
+38,marker,610000000,0,1,blue
+39,marker,618000000,0,1,blue
+40,marker,626000000,0,1,blue
+41,marker,634000000,0,1,blue
+42,marker,642000000,0,1,blue
+43,marker,650000000,0,1,blue
+44,marker,658000000,0,1,blue
+45,marker,666000000,0,1,blue
+46,marker,674000000,0,1,blue
+47,marker,682000000,0,1,blue
+48,marker,690000000,0,1,blue
+49,marker,698000000,0,1,blue
+50,marker,706000000,0,1,blue
+51,marker,714000000,0,1,blue
+52,marker,722000000,0,1,blue
+53,marker,730000000,0,1,blue
+54,marker,738000000,0,1,blue
+55,marker,746000000,0,1,blue
+56,marker,754000000,0,1,blue
+57,marker,762000000,0,1,blue
+58,marker,770000000,0,1,blue
+59,marker,778000000,0,1,blue
+60,marker,786000000,0,1,blue
+23cm,amateur,1240000000,1325000000,1,lime
+23cm SSB,amateur,1296000000,1296500000,1,lime
+GB3MHZ,beacon,1296830000,0,1,cyan
+GB3IDT,beacon,1296840000,0,1,cyan
+GB3FRS,beacon,1296850000,0,1,cyan
+GB3MCB,beacon,1296860000,0,1,cyan
+GB3USK,beacon,1296870000,0,1,cyan
+GB3DUN,beacon,1296890000,0,1,cyan
+GB3CFG,beacon,1296905000,0,1,cyan
+GB3NGI,beacon,1296905000,0,1,cyan
+GB3ANG,beacon,1296965000,0,1,cyan
+GB3CSB,beacon,1296985000,0,1,cyan
+GB3EDN,beacon,1296990000,0,1,cyan
+13cm,amateur,2310000000,2450000000,1,lime
+GB3MHZ,beacon,2320830000,0,1,cyan
+GB3ZME,beacon,2320870000,0,1,cyan
+GB3ANT,beacon,2320890000,0,1,cyan
+GB3SCS,beacon,2320905000,0,1,cyan
+GB3BSS,beacon,2320925000,0,1,cyan
+GB3LES,beacon,2320955000,0,1,cyan
+GB3CSB,beacon,2320985000,0,1,cyan
+2G WiFi,amateur,2390000000,2450000000,1,lime
+9cm,amateur,3300000000,3500000000,1,lime
+GB3MHZ,beacon,3400830000,0,1,cyan
+GB3OHM,beacon,3400900000,0,1,cyan
+GB3SCF,beacon,3400905000,0,1,cyan
+GB3ZME,beacon,3400910000,0,1,cyan
+GB3LPC,beacon,3400935000,0,1,cyan
+GB3LEF,beacon,3400955000,0,1,cyan
+GB3CSB,beacon,3400985000,0,1,cyan
+SatComm,C band,3700000000,4200000000,1,firebrick
+6cm,amateur,5650000000,5925000000,1,lime
+GB3MHZ,beacon,5760830000,0,1,cyan
+GB3OHM,beacon,5760900000,0,1,cyan
+GB3SCC,beacon,5760905000,0,1,cyan
+GB3ZME,beacon,5760910000,0,1,cyan
+GB3FNM,beacon,5760920000,0,1,cyan
+GB3KEU,beacon,5760925000,0,1,cyan
+GB3CSB,beacon,5760985000,0,1,cyan
+Es'h-NB,Ku band,10489500000,10490000000,1,lime
+NB low,Ku beacon,10489500000,0,1,lightgreen
+NB mid,Ku beacon,10489750000,0,1,lightgreen
+Es'h-WB,C beacon,10491000000,10499000000,1,lime
+12A,marker,223936000,0,1,blue
