@@ -155,7 +155,7 @@ class analyser:
             self.openPort()
         else:
             for i in range(len(self.ports)):
-                if self.ports[i].product[:6] == 'tinySA':
+                if self.identify(self.ports[i])[:6] in ('tinySA', 'USB de'):
                     self.usbCheck.stop()
                 else:
                     self.openPort()
@@ -289,6 +289,7 @@ class analyser:
         points = self.setPoints()
         maxima = np.full(points, -120, dtype=float)
         frequencies = np.linspace(startF, stopF, points, dtype=np.int64)
+        # logging.info(f'set_arrays: frequencies = {frequencies}')
         readings = np.full((self.scanMemory, points), None, dtype=float)
         readings[0] = -120
         return frequencies, readings, maxima
@@ -384,6 +385,7 @@ class analyser:
                 startF, stopF = self.freqOffset(frequencies)
                 command = f'scanraw {int(startF)} {int(stopF)} {int(points)} 3\r'
             else:
+                # command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)} 3\r'
                 command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)} 3\r'
             self.usb.timeout = self.sweepTimeout(frequencies)
             if version < 177 or firstRun:
@@ -401,7 +403,7 @@ class analyser:
                 dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
                 logging.debug(f'dataBlock: {dataBlock}\n')
                 if dataBlock == b'}':  # from FW165 jog button press returns different value
-                    logging.info('jog button pressed')
+                    logging.info('screen touched or jog button pressed')
                     self.sweeping = False
                     break
                 try:
@@ -483,14 +485,14 @@ class analyser:
         else:
             self.vGrid.hide()
 
-    def updateGUI(self, frequencies, readings, maxima, runtime):  # called by the 'result' signal from the measurement() thread
+    def updateGUI(self, frequencies, readings, maxima, runtime):  # called by a signal from the measurement() thread
         # for LNB/Mixer mode when LO is above measured freq the scan is reversed, i.e. low TinySA freq = high meas freq
         if preferences.highLO.isChecked() and preferences.freqLO != 0:
             frequencies = frequencies[::-1]
             np.fliplr(readings)
 
         # calculate the average and min trace values
-        readingsAvg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
+        readingsAvg = np.nanmean(readings[0:ui.avgBox.value()], axis=0)
         readingsMin = np.nanmin(readings[:self.scanMemory], axis=0)
         logging.debug(f'sigProcess: averages={readingsAvg}')
 
@@ -963,7 +965,7 @@ class database():
             self.db.setDatabaseName(os.path.join(self.dbpath, self.dbName))
             self.db.open()
             logging.info(f'Database open: {self.db.isOpen()}')
-            self.db.exec('PRAGMA foreign_keys = ON;')
+            # self.db.setConnectOptions('PRAGMA foreign_keys = ON;')
         else:
             logging.info('Database file is missing')
             popUp('Database file is missing', QMessageBox.Ok, QMessageBox.Critical)
@@ -1343,7 +1345,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.11.6')
+app.setApplicationVersion(' v0.11.7')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
