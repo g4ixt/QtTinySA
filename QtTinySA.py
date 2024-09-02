@@ -385,7 +385,6 @@ class analyser:
                 startF, stopF = self.freqOffset(frequencies)
                 command = f'scanraw {int(startF)} {int(stopF)} {int(points)} 3\r'
             else:
-                # command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)} 3\r'
                 command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)} 3\r'
             self.usb.timeout = self.sweepTimeout(frequencies)
             if version < 177 or firstRun:
