@@ -1,0 +1,62 @@
+v0.11.6
+Bugfix: selecting a marker set freq incorrectly
+Bugfix: band selection combobox didn't work unless tinySA hardware was detected
+Updated preferences database with freqs in Hz instead of MHz
+
+v0.11.4 bugfixes
+Fixed band add fail after preferences window opened
+Fixed filebrowse picture not being shown if a csv was selected first
+removed gui update at end of scan
+
+v0.11.3
+backwards compatible with firmware older than 4.177
+scanraw auto-repeat code tidied up
+changes to openport and testport with error trapping
+much faster stopping on slow sweeps
+bug #56 still to fix
+testing still to do
+
+v0.11.2 wip
+auto-repeat scanraw changes
+
+v0.11.1
+Fix multiple device detection for pySerial returning no product info in Windows
+
+v0.10.7.n
+max hold fixed
+zero span working as well as it can without re-coding
+selection of device when multiple tinySA tested
+
+v0.10.7m
+code for enhancement #58 (more than one device)
+fixed various bugs caused by changes
+work in progress
+
+v0.10.7i
+Changed 'max' trace to permanent hold until scanning stopped/restarted, instead of a decaying max based on scan 'memory'
+
+v0.10.7h
+working zero span
+
+v0.10.7g wip
+fixed min/max marker Fn
+reversed change to averaging as it was defective
+fixed span bug when marker selected in band combo box
+
+v0.10.7f wip
+marker min/max detection boundary
+syncTime, AverageBox & Sample repeat added to config database
+trace averaging improvement but more to do
+potentially a lot of bugs added
+
+v0.10.7d
+Removed padding from display
+Set Scan to Graph button added
+
+v0.10.7c
+Marker bug fixed
+Marker click centres freq on marker
+
+v0.10.7a
+improved zero span?
+auto units on freq axis
