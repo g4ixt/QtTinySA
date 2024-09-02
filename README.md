@@ -1,5 +1,5 @@
 # QtTinySA  
-![Screenshot_20240404_143416](https://github.com/g4ixt/QtTinySA/assets/76836635/47d9e6e9-daeb-4ae3-8e9c-91b5f041f6ff)
+![v0-11-7](https://github.com/user-attachments/assets/2d9ebcd7-d91c-49c7-a89e-8e53a9587727)
 
 A Python 'TinySA Ultra' (and original 'TinySA') GUI programme using Qt5 and PyQt5. Designed to run in Linux but works in Windows (minimal testing) and mac (no testing).  
 The Windows executable does not work on Windows versions < 10. 
