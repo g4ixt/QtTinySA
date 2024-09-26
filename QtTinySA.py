@@ -116,8 +116,8 @@ class analyser:
             self.usb = serial.Serial(port.device, baudrate=576000)
             logging.info(f'Serial port {port.device} open: {self.usb.isOpen()}')
         except serial.SerialException:
-            logging.info('Serial port exception. This can occur if your username is not in the "dialout" group.')
-            popUp('Serial port exception. This can occur if your username is not in the "dialout" group.',
+            logging.info('Serial port exception. A possible cause is that your username is not in the "dialout" group.')
+            popUp('Serial port exception',
                   QMessageBox.Ok, QMessageBox.Critical)
         if self.usb:
             for i in range(4):  # try 3 times to communicate with tinySA over USB serial
@@ -227,6 +227,7 @@ class analyser:
         S4.vline.label.setColor('w')
 
         setPreferences()
+        ui.updates.setText(str(int(1000/(preferences.intervalBox.value()))))  # the display update frequency indicator
         ui.band_box.setCurrentText(numbers.tm.record(0).value("band"))  # this shouldn't be needed but it is
 
     def scan(self):  # called by 'run' button
@@ -380,6 +381,7 @@ class analyser:
         # self.runTimer.start()  # debug
         # logging.info(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6:.3f}mS')  # debug
 
+        updateTimer.start()  # used to trigger the signal that sends measurements to updateGUI()
         while self.sweeping:
             if preferences.freqLO != 0:
                 startF, stopF = self.freqOffset(frequencies)
@@ -397,7 +399,6 @@ class analyser:
                     logging.info('serial port exception')
                     self.sweeping = False
                     break
-            updateTimer.start()  # used to trigger the signal that sends measurements to updateGUI()
             for point in range(points):
                 dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
                 logging.debug(f'dataBlock: {dataBlock}\n')
@@ -432,6 +433,7 @@ class analyser:
                     points = np.size(frequencies)
                     self.createTimeSpectrum(frequencies, readings)
                     self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
+                    updateTimer.start()
                     break
                 timeElapsed = updateTimer.nsecsElapsed()  # how long the thread has been running, nS
                 if timeElapsed/1e6 > preferences.intervalBox.value():
@@ -533,7 +535,7 @@ class analyser:
         if ui.points_auto.isChecked():
             ui.points_box.setValue(np.size(frequencies))
 
-        ui.updateFreq.setValue(int(1/(runtime/1e9)))  # the display update frequency indicator
+        ui.updates.setText(str(int(1/(runtime/1e9))))  # the display update frequency indicator
 
         if not tinySA.sweeping:  # measurement thread is stopping
             ui.scan_button.setText('Stopping ...')
@@ -730,17 +732,15 @@ class analyser:
         filebrowse.downloadInfo.setText(self.directory)  # show the path where the file was saved
 
     def fileShow(self):
-        filebrowse.downloadBar.setValue(0)  # reset the fake progress bar
+        self.memF.seek(0, 0)  # reset the memory buffer pointer
         filebrowse.picture.clear()
         fileName = filebrowse.listWidget.currentItem().text()
         self.clearBuffer()  # clear the tinySA serial buffer
+        self.memF.write(self.readSD(fileName))  # read the file from the tinySA memory card and store in memory buffer
         if fileName[-3:] == 'bmp':
-            filebrowse.downloadBar.setValue(20)  # update the fake progress bar to show start of download
-            self.memF.write(self.readSD(fileName))
             pixmap = QPixmap()
             pixmap.loadFromData(self.memF.getvalue())
             filebrowse.picture.setPixmap(pixmap)
-            filebrowse.downloadBar.setValue(100)  # update the fake progress bar to complete
 
     # def sweepTime(self, seconds):
     #     #  0.003 to 60S
@@ -1231,6 +1231,8 @@ def testComPort():
 
 
 def exit_handler():
+    numbers.dwm.submit()
+    checkboxes.dwm.submit()
     if len(tinySA.ports) != 0:
         # save the marker frequencies
         record = numbers.tm.record(0)
@@ -1240,8 +1242,6 @@ def exit_handler():
         record.setValue('m4f', float(S4.vline.value()))
         numbers.tm.setRecord(0, record)
         # save the gui field values and checkbox states
-        numbers.dwm.submit()
-        checkboxes.dwm.submit()
         if tinySA.sweeping:
             tinySA.sweeping = False  # tell the measurement thread to stop
             while tinySA.threadRunning:
@@ -1344,7 +1344,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.11.7')
+app.setApplicationVersion(' v0.11.8')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
