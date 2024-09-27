@@ -930,9 +930,9 @@ class Worker(QtCore.QRunnable):
 class database():
     '''configuration data is stored in a SQLite database'''
 
-    def __init__(self):
+    def __init__(self, dbName):
         self.db = None
-        self.dbName = "QtTSAprefs.db"
+        self.dbName = dbName
         self.personalDir = platformdirs.user_config_dir(appname=app.applicationName(), appauthor=False)
         self.globalDir = platformdirs.site_config_dir(appname=app.applicationName(), appauthor=False)
         self.workingDirs = [os.path.dirname(__file__), os.path.dirname(os.path.realpath(__file__)), os.getcwd()]
@@ -940,38 +940,38 @@ class database():
 
     def _getPersonalisedPath(self):
         if os.path.exists(os.path.join(self.personalDir, self.dbName)):  # check if personal config database file exists
-            logging.info(f'Personal configuration database found at {self.personalDir}')
+            logging.info(f'Database {self.dbName} found at {self.personalDir}')
             return self.personalDir
         if not os.path.exists(self.personalDir):
             os.mkdir(self.personalDir)
         if os.path.exists(os.path.join(self.globalDir, self.dbName)):
-            logging.info(f'Global configuration database found at {self.globalDir}')
+            logging.info(f'Database {self.dbName} found at {self.globalDir}')
             shutil.copy(os.path.join(self.globalDir, self.dbName), self.personalDir)
-            logging.info(f'Global configuration database copied from {self.globalDir} to {self.personalDir}')
+            logging.info(f'Database {self.dbName} copied from {self.globalDir} to {self.personalDir}')
             return self.personalDir
-        logging.info(f'No configuration database file exists in {self.personalDir} or {self.globalDir}')
+        logging.info(f'No database file {self.dbName} exists in {self.personalDir} or {self.globalDir}')
         # Look in current working folder & where the python file is stored/linked from
         for workingDir in self.workingDirs:
             if os.path.exists(os.path.join(workingDir, self.dbName)):
                 shutil.copy(os.path.join(workingDir, self.dbName), self.personalDir)
-                logging.info(f'Personal configuration database copied from {workingDir} to {self.personalDir}')
+                logging.info(f'{self.dbName} copied from {workingDir} to {self.personalDir}')
                 return self.personalDir
-        raise FileNotFoundError("Unable to find the configuration database QtTSAprefs.db")
+        raise FileNotFoundError("Unable to find the database {self.dbName}")
 
     def connect(self):
         self.db = QSqlDatabase.addDatabase('QSQLITE')
         if QtCore.QFile.exists(os.path.join(self.dbpath, self.dbName)):
             self.db.setDatabaseName(os.path.join(self.dbpath, self.dbName))
             self.db.open()
-            logging.info(f'Database open: {self.db.isOpen()}')
+            logging.info(f'{self.dbName} open: {self.db.isOpen()}')
             # self.db.setConnectOptions('PRAGMA foreign_keys = ON;')
         else:
-            logging.info('Database file is missing')
+            logging.info('Database file {self.dbpath}{self.dbName} is missing')
             popUp('Database file is missing', QMessageBox.Ok, QMessageBox.Critical)
 
     def disconnect(self):
         self.db.close()
-        logging.info(f'Database open: {self.db.isOpen()}')
+        logging.info(f'Database {self.dbName} open: {self.db.isOpen()}')
         QSqlDatabase.removeDatabase(QSqlDatabase.database().connectionName())
 
 
@@ -1198,7 +1198,7 @@ def setPreferences():  # called when the preferences window is closed
     checkboxes.dwm.submit()
     bands.tm.submitAll()
     S4.hline.setValue(preferences.peakThreshold.value())
-    bandselect.filterType(False, ui.filterBox.currentText())
+    # bandselect.filterType(False, ui.filterBox.currentText())
     if ui.presetMarker.isChecked():
         freqMarkers()
     isMixerMode()
@@ -1364,7 +1364,7 @@ S3 = display('3', cyan)
 S4 = display('4', white)
 
 # Data models for configuration settings
-config = database()
+config = database("QtTSAprefs.db")
 config.connect()
 checkboxes = modelView('checkboxes')
 numbers = modelView('numbers')
