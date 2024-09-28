@@ -732,7 +732,8 @@ class analyser:
         filebrowse.downloadInfo.setText(self.directory)  # show the path where the file was saved
 
     def fileShow(self):
-        self.memF.seek(0, 0)  # reset the memory buffer pointer
+        self.memF.seek(0, 0)  # set the memory buffer pointer to the start
+        self.memF.truncate()  # clear down the memory buffer to the pointer
         filebrowse.picture.clear()
         fileName = filebrowse.listWidget.currentItem().text()
         self.clearBuffer()  # clear the tinySA serial buffer

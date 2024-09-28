@@ -735,7 +735,7 @@
              </font>
             </property>
             <property name="text">
-             <string/>
+             <string>ups</string>
             </property>
            </widget>
           </item>
@@ -784,6 +784,9 @@
             </property>
             <property name="text">
              <string>25</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
             </property>
            </widget>
           </item>
