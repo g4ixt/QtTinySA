@@ -951,12 +951,13 @@ class database():
             return self.personalDir
         logging.info(f'No database file {self.dbName} exists in {self.personalDir} or {self.globalDir}')
         # Look in current working folder & where the python file is stored/linked from
-        for workingDir in self.workingDirs:
-            if os.path.exists(os.path.join(workingDir, self.dbName)):
-                shutil.copy(os.path.join(workingDir, self.dbName), self.personalDir)
-                logging.info(f'{self.dbName} copied from {workingDir} to {self.personalDir}')
-                return self.personalDir
-        raise FileNotFoundError("Unable to find the database {self.dbName}")
+        if self.dbName == "QtTSAprefs.db":
+            for workingDir in self.workingDirs:
+                if os.path.exists(os.path.join(workingDir, self.dbName)):
+                    shutil.copy(os.path.join(workingDir, self.dbName), self.personalDir)
+                    logging.info(f'{self.dbName} copied from {workingDir} to {self.personalDir}')
+                    return self.personalDir
+            raise FileNotFoundError("Unable to find the database {self.dbName}")
 
     def connect(self):
         self.db = QSqlDatabase.addDatabase('QSQLITE')
