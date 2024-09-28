@@ -4,6 +4,14 @@
 # Copyright 2024 Ian Jefferson G4IXT
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+# Compilation mode, support OS-specific options
+# nuitka-project-if: {OS} in ("Windows", "Linux", "Darwin", "FreeBSD"):
+#    nuitka-project: --onefile
+#    nuitka-project: --onefile-tempdir-spec=./temp
+# nuitka-project-else:
+#    nuitka-project: --standalone
+
+
 """TinySA Ultra GUI programme using Qt5 and PyQt.
 
 This code attempts to replicate some of the TinySA Ultra on-screen commands and to provide PC control.
