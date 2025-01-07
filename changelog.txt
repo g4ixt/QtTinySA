@@ -1,3 +1,49 @@
+v0.11.9
+
+Bugfixes
+If detected device is not a tinySA, don't crash but log info to terminal
+
+v0.11.8
+
+Bugfixes
+Issue 66: preferences still save to the config database if a TinySA is not connected.
+Issue 67: file >Browse TinySA shows correct bitmap file and 'save' saves the selected (clicked-on) file.
+Fixed trace updates stopping for very fast sweeps.
+
+The single file executables include the config database. If you are upgrading from a version older than v0.11.7, rename the old database first and the new one will be copied automatically.
+
+QtTinySA.bin is a new Linux executable that was built using the 'Nuitka' Python Compiler and works on Ubuntu 24.04 and 22.04 and Debian v12. It does not work on earlier versions.
+
+QtTinySA.exe is a new Windows executable that was built using the 'Nuitka' Python Compiler.
+
+v0.11.7
+
+NOTE: This release requires the updated config database QtTSAprefs.db. It is backwards compatible with firmware older than 1.4.177 as far back as 1.4.120. It does not work with firmware 1.4.109 or earlier.
+
+Much faster stopping on slow sweeps when 'stop' is pressed.
+Changed the way the GUI screen is updated by the measurement thread. Previously it was updated every 20 measurements, so the update rate varied and for very fast sweeps could cause the GUI to freeze. Now it is a fixed rate and set in the 'preferences' dialogue in mS and there is a 'update rate indicator' at the bottom left of the main screen.
+Changed measurement Fn to use the new scanraw auto-repeat option available with firmware 1.4.177 onwards.
+Zero span now working as well as it can without re-coding
+Added code for enhancement #58 (detect/choose from several connected tinySA, request by Herb Walker)
+Added box to set the maximum scan frequency above 6GHz in 'preferences' dialogue (request by @ashjmckenzie )
+Changed 'max' trace to permanent hold until scanning stopped/restarted, instead of a decaying max based on scan 'memory' (request by @CliveTombs)
+Marker min/max detection frequency boundary lines added (request by @CliveTombs)
+SyncTime, AverageBox & Sample repeat added to config database
+Removed padding from the GUI display
+Set Scan to Graph button (<>) added
+Clicking a marker centres the sweep freq onto that marker
+Units on freq axis now set automatically (changed preferences database to Hz instead of MHz)
+Changes to openport Fn and testport Fn with error trapping
+
+Bugfix: selecting a marker set freq incorrectly
+Bugfix: band selection combobox didn't work unless tinySA hardware was detected
+Bugfix: (#56) band add fail after preferences window opened
+Bugfix: filebrowse picture not being shown if a csv was selected first
+Bugfix: min/max marker Fn
+Bugfix: when marker selected in band combo box
+
+Thank you to @CliveTombs for a lot of testing.
+
 v0.11.6
 Bugfix: selecting a marker set freq incorrectly
 Bugfix: band selection combobox didn't work unless tinySA hardware was detected
