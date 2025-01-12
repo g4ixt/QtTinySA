@@ -285,8 +285,8 @@ class analyser:
             ui.span_freq.setValue(stopF - startF)
         ui.graphWidget.setXRange(startF * 1e6, stopF * 1e6)
         if ui.span_freq.value() != 0:
-            S1.bline.setValue((startF + ui.span_freq.value()/20) * 1e6)
-            S2.bline.setValue((stopF - ui.span_freq.value()/20) * 1e6)
+            M1.boundary.setValue((startF + ui.span_freq.value()/20) * 1e6)
+            M2.boundary.setValue((stopF - ui.span_freq.value()/20) * 1e6)
         self.resume()  # puts a message in the fifo buffer so the measurement thread spots it and updates its settings
 
     def freqOffset(self, frequencies):  # for mixers or LNBs external to TinySA
@@ -353,7 +353,7 @@ class analyser:
         firstRun = True
         version = int(self.firmware[2])  # just the firmware version number
         # self.runTimer.start()  # debug
-        # logging.info(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6:.3f}mS')  # debug
+        # logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6:.3f}mS')  # debug
         updateTimer.start()  # used to trigger the signal that sends measurements to updateGUI()
 
         while self.sweeping:
@@ -404,7 +404,7 @@ class analyser:
                             self.sweeping = False
                             break
 
-                # If a sweep setting has been changed by the user, the sweep must be re-started
+                # If a sweep setting has been changed by the user, the sweep must be re-started (+ new recording start)
                 if self.fifo.qsize() > 0 or not self.sweeping:
                     self.serialWrite('abort\r')
                     self.clearBuffer()
@@ -490,20 +490,20 @@ class analyser:
 
         # update the swept traces
         options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': maxima, 'Min': readingsMin}
-        S1.trace.setData(frequencies, options.get(S1.traceType))
-        S2.trace.setData(frequencies, options.get(S2.traceType))
-        S3.trace.setData(frequencies, options.get(S3.traceType))
-        S4.trace.setData(frequencies, options.get(S4.traceType))
+        T1.trace.setData(frequencies, options.get(T1.traceType))
+        T2.trace.setData(frequencies, options.get(T2.traceType))
+        T3.trace.setData(frequencies, options.get(T3.traceType))
+        T4.trace.setData(frequencies, options.get(T4.traceType))
 
         # update markers (if not in zero span, where they are not relevant)
         if frequencies[0] != frequencies[-1]:
             ui.graphWidget.setLabel('bottom', units='Hz')
-            maxmin = self.maxMin(frequencies, readings, maxima)
-            # maxmin = tuple of lists where [0, x] are indices in the frequency array of the maxes and [1, x] are mins
-            S1.updateMarker(frequencies, readings[0, :], maxmin)
-            S2.updateMarker(frequencies, readings[0, :], maxmin)
-            S3.updateMarker(frequencies, readings[0, :], maxmin)
-            S4.updateMarker(frequencies, readings[0, :], maxmin)
+            # maxmin = self.maxMin(frequencies, readings, maxima)
+            # # maxmin = tuple of lists where [0, x] are indices in the frequency array of the maxes and [1, x] are mins
+            M1.updateMarker(frequencies, readings[0, :], maxima)
+            M2.updateMarker(frequencies, readings[0, :], maxima)
+            M3.updateMarker(frequencies, readings[0, :], maxima)
+            M4.updateMarker(frequencies, readings[0, :], maxima)
 
         # update 3D graph if enabled
         if ui.stackedWidget.currentWidget() == ui.View3D:
@@ -745,7 +745,7 @@ class analyser:
         self.freq_changed(False)
 
 
-class display:
+class trace:
     def __init__(self, name, pen):
         self.name = name
         self.trace = ui.graphWidget.plot([], [], name=name, pen=pen, width=1, padding=0)
@@ -756,57 +756,19 @@ class display:
                                             label="{value:.5f}")
         self.hline = ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='',
                                             labelOpts={'position': 0.025, 'color': ('r')})
-        self.bline = ui.graphWidget.addLine(-10, -10, movable=True, name=name,
-                                            pen=pyqtgraph.mkPen('r', width=0.5, style=QtCore.Qt.DashLine),
-                                            label="bound", labelOpts={'position': 0.025, 'color': ('r'), 'movable': True})
         self.deltaF = 0  # the difference between this marker and Reference Marker (1)
         self.fifo = queue.SimpleQueue()
-        self.vline.sigClicked.connect(self.mClicked)
-
-    def mStart(self):
-        # set marker to the sweep start frequency
-        if self.guiRef(0).isChecked():
-            self.vline.setValue(ui.start_freq.value() * 1e6)
-            self.mType()
-
-    def mSpread(self):
-        # spread markers equally across scan range
-        if self.guiRef(0).isChecked():
-            self.vline.setValue(ui.start_freq.value() * 1e6 + (0.2 * int(self.name) * ui.span_freq.value() * 1e6))
-            self.mType()
-
-    def mClicked(self):
-        ui.centre_freq.setValue(self.vline.value() / 1e6)
-        tinySA.freq_changed(True)
-
-    def mType(self):
-        self.markerType = self.guiRef(1).currentText()  # current combobox value from appropriate GUI field
-        if self.markerType == 'Delta':
-            self.deltaF = self.vline.value() - S1.vline.value()
-            self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF:.5f}MHz')
-        if {'Max', 'Min'}.intersection({S1.markerType[:3], S2.markerType[:3], S3.markerType[:3], S4.markerType[:3]}):
-            S4.hline.show()  # the peak detection threshold line
-            S1.bline.show()  # the boundary markers
-            S2.bline.show()
-        else:
-            S4.hline.hide()
-            S1.bline.hide()
-            S2.bline.hide()
-
-    def mDelta(self):  # delta marker locking to reference marker S1
-        if self.markerType == 'Delta':
-            self.vline.setValue(S1.vline.value() + self.deltaF)
-            S1.vline.setPen(color='y', width=1.0)
+        # self.vline.sigClicked.connect(self.mClicked)
 
     def dLoad(self, setting):
         self.vline.label.setMovable(True)
-        self.mEnable()
-        self.mType()
+        # self.mEnable()
+        # self.mType()
         self.tType()
         self.tEnable()
-        S1.hEnable(preferences.neg25Line)
-        S2.hEnable(preferences.zeroLine)
-        S3.hEnable(preferences.plus6Line)
+        T1.hEnable(preferences.neg25Line)
+        T2.hEnable(preferences.zeroLine)
+        T3.hEnable(preferences.plus6Line)
 
     def guiRef(self, opt):
         guiFields = ({'1': ui.marker1, '2': ui.marker2, '3': ui.marker3, '4': ui.marker4},
@@ -818,13 +780,6 @@ class display:
 
     def tType(self):
         self.traceType = self.guiRef(3).currentText()  # '3' selects trace type, 'guiRef' is replaced by the option
-
-    def mEnable(self):  # show or hide a marker
-        if self.guiRef(0).isChecked():  # 0 selects marker checkboxes
-            self.vline.show()
-        else:
-            self.vline.hide()
-        checkboxes.dwm.submit()
 
     def hEnable(self, limit):  # show or hide the horizontal signal limit reminders
         if limit.isChecked():
@@ -839,26 +794,122 @@ class display:
             self.trace.hide()
         checkboxes.dwm.submit()
 
-    def updateMarker(self, frequencies, readings, maxmin):  # called by updateGUI()
+    def restoreSettings(self, markerFreq, traceColour):
+        # update centre freq, span, auto points and graph for the start/stop freqs loaded from database
+        tinySA.freq_changed(False)  # start/stop mode
+        pointsChanged()
+        ui.graphWidget.setXRange(ui.start_freq.value() * 1e6, ui.stop_freq.value() * 1e6, padding=0)
+        logging.debug(f'restoreSettings(): band = {numbers.tm.record(0).value("band")}')
+
+        # update trace and marker settings from the database.  1 = last saved (default) settings
+        self.dLoad(1)
+        # self.vline.setValue(numbers.tm.record(0).value(markerFreq))
+        self.vline.label.setColor(traceColour)
+        self.vline.setPen(color=traceColour, width=0.75, style=QtCore.Qt.DashLine)
+
+        setPreferences()
+        ui.updates.setText(str(int(1000/(preferences.intervalBox.value()))))  # the display update frequency indicator
+        ui.band_box.setCurrentText(numbers.tm.record(0).value("band"))  # this shouldn't be needed but it is
+
+
+class marker:
+    def __init__(self, name, pen, trace):
+        self.name = name
+        self.link = trace  # which trace data the marker uses as default
+        self.markerType = 'Normal'  # Normal, Delta; Max, Min
+        self.line = ui.graphWidget.addLine(88, 90, movable=True, name=name,
+                                            pen=pyqtgraph.mkPen('y', width=0.5, style=QtCore.Qt.DashLine),
+                                            label="{value:.5f}")
+        self.deltaF = 0  # the difference between this marker and Reference Marker (1)
+        self.fifo = queue.SimpleQueue()
+        self.line.sigClicked.connect(self.mClicked)
+        self.boundary = ui.graphWidget.addLine(-10, -10, movable=True, name=name,
+                                            pen=pyqtgraph.mkPen('r', width=0.5, style=QtCore.Qt.DashLine),
+                                            label="bound", labelOpts={'position': 0.025, 'color': ('r'), 'movable': True})
+
+    def start(self):
+        # set marker to the sweep start frequency
+        if self.guiRef(0).isChecked():
+            self.line.setValue(ui.start_freq.value() * 1e6)
+            self.mType()
+
+    def spread(self):
+        # spread markers equally across scan range
+        if self.guiRef(0).isChecked():
+            self.line.setValue(ui.start_freq.value() * 1e6 + (0.2 * int(self.name) * ui.span_freq.value() * 1e6))
+            self.mType()
+
+    def mClicked(self):
+        ui.centre_freq.setValue(self.line.value() / 1e6)
+        tinySA.freq_changed(True)
+
+    def mType(self):
+        self.markerType = self.guiRef(1).currentText()  # current combobox value from appropriate GUI field
+        if self.markerType == 'Delta':
+            self.deltaF = self.line.value() - M1.line.value()
+            self.line.label.setText(f'M{self.line.name()} {chr(916)}{self.deltaF:.5f}MHz')
+        if {'Max', 'Min'}.intersection({M1.markerType[:3], M2.markerType[:3], M3.markerType[:3], M4.markerType[:3]}):
+            M4.hline.show()  # the peak detection threshold line
+            M1.boundary.show()  # the boundary markers
+            M2.boundary.show()
+        else:
+            M4.hline.hide()
+            M1.boundary.hide()
+            M2.boundary.hide()
+
+    def delta(self):  # delta marker locking to reference marker M1 ** future allow any marker to have a delta marker
+        if self.markerType == 'Delta':
+            self.line.setValue(M1.line.value() + self.deltaF)
+            M1.line.setPen(color='y', width=1.0)
+
+    def dLoad(self, setting):
+        self.line.label.setMovable(True)
+        self.enable()
+        self.type()
+        # self.tType()
+        # self.tEnable()
+        # T1.hEnable(preferences.neg25Line)
+        # T2.hEnable(preferences.zeroLine)
+        # T3.hEnable(preferences.plus6Line)
+
+    def guiRef(self, opt):
+        guiFields = ({'1': ui.marker1, '2': ui.marker2, '3': ui.marker3, '4': ui.marker4},
+                     {'1': ui.m1_type, '2': ui.m2_type, '3': ui.m3_type, '4': ui.m4_type},
+                     {'1': ui.trace1, '2': ui.trace2, '3': ui.trace3, '4': ui.trace4},
+                     {'1': ui.t1_type, '2': ui.t2_type, '3': ui.t3_type, '4': ui.t4_type})
+        Ref = guiFields[opt].get(self.name)
+        return Ref
+
+    def enable(self):  # show or hide a marker
+        if self.guiRef(0).isChecked():  # 0 selects marker checkboxes
+            self.line.show()
+        else:
+            self.line.hide()
+        checkboxes.dwm.submit()
+
+    def updateMarker(self, frequencies, readings, maxima):  # called by updateGUI()
+
+        maxmin = self.maxMin(frequencies, readings, maxima)
         # maxmin is a tuple of lists where [0, x] are indices in the frequency array of the maxes and [1, x] are mins
+
         options = {'Max1': maxmin[0][0], 'Max2': maxmin[0][1], 'Max3': maxmin[0][2],
-                   'Max4': maxmin[0][3], 'Normal': self.vline.value(), 'Delta': self.vline.value(),
+                   'Max4': maxmin[0][3], 'Normal': self.line.value(), 'Delta': self.line.value(),
                    'Min1': maxmin[1][0], 'Min2': maxmin[1][1], 'Min3': maxmin[1][2],
                    'Min4': maxmin[1][3]}
         markerF = options.get(self.markerType)
         if markerF < np.min(frequencies) or markerF > np.max(frequencies):
             # marker is out of scan range so just show its frequency
-            self.vline.label.setText(f'M{self.vline.name()} {self.vline.value()/1e6:.{5}f}')
+            self.line.label.setText(f'M{self.line.name()} {self.line.value()/1e6:.{5}f}')
         else:
             # marker is in scan range
             fIndex = np.argmin(np.abs(frequencies - (markerF)))  # find closest value in freq array
             dBm = readings[fIndex]
-            if dBm > S4.hline.value() or self.markerType[:4] == 'Normal' or self.markerType[:4] == 'Delta':
-                self.vline.setValue(frequencies[fIndex])  # set to the discrete value from frequencies[]
+            if dBm > M4.hline.value() or self.markerType[:4] == 'Normal' or self.markerType[:4] == 'Delta':
+                self.line.setValue(frequencies[fIndex])  # set to the discrete value from frequencies[]
             if self.markerType == 'Delta':
-                self.vline.label.setText(f'M{self.vline.name()} {chr(916)}{self.deltaF/1e6:.{5}f} {dBm:.1f}dBm')
+                self.line.label.setText(f'M{self.line.name()} {chr(916)}{self.deltaF/1e6:.{5}f} {dBm:.1f}dBm')
             else:
-                self.vline.label.setText(f'M{self.vline.name()} {self.vline.value()/1e6:.{5}f} {dBm:.1f}dBm')
+                self.line.label.setText(f'M{self.line.name()} {self.line.value()/1e6:.{5}f} {dBm:.1f}dBm')
 
     def addFreqMarker(self, freq, colour, name, band=True):  # adds simple freq marker without full marker capability
         if ui.presetLabel.isChecked():
@@ -888,44 +939,67 @@ class display:
 
         # update trace and marker settings from the database.  1 = last saved (default) settings
         self.dLoad(1)
-        self.vline.setValue(numbers.tm.record(0).value(markerFreq))
-        self.vline.label.setColor(traceColour)
-        self.vline.setPen(color=traceColour, width=0.75, style=QtCore.Qt.DashLine)
+        self.line.setValue(numbers.tm.record(0).value(markerFreq))
+        self.line.label.setColor(traceColour)
+        self.line.setPen(color=traceColour, width=0.75, style=QtCore.Qt.DashLine)
 
         setPreferences()
         ui.updates.setText(str(int(1000/(preferences.intervalBox.value()))))  # the display update frequency indicator
         ui.band_box.setCurrentText(numbers.tm.record(0).value("band"))  # this shouldn't be needed but it is
 
-    def maxMin(self, frequencies, readings):  # finds the signal max/min values for setting markers
+    def maxMin(self, frequencies, readings, maxima):  # finds the signal max/min (indexes) values for setting markers
         options = {'Normal': readings[0],
                    'Average': np.nanmean(readings[:ui.avgBox.value()], axis=0),
-                   'Max': maxima,
-                   'Min': readingsMin}
-        levels = options.get(self.traceType)
-
+                   'Max': maxima
+                   # 'Min': readingsMin
+                   }
+        levels = options.get(self.link.traceType)
 
         # mask outside high/low freq boundary lines
-        levels = np.ma.masked_where(frequencies < S1.bline.value(), levels)
-        levels = np.ma.masked_where(frequencies > S2.bline.value(), levels)
+        levels = np.ma.masked_where(frequencies < M1.boundary.value(), levels)
+        levels = np.ma.masked_where(frequencies > M2.boundary.value(), levels)
 
         # mask readings below threshold line
-        levels = np.ma.masked_where(levels <= S4.hline.value(), levels)
-
+        levels = np.ma.masked_where(levels <= T4.hline.value(), levels) # needs rework T1 was S1 ################
 
         # calculate a frequency width factor to use to mask readings near each max/min frequency
         if ui.rbw_auto.isChecked():
             fWidth = preferences.rbw_x.value() * 850 * 1e3
         else:
             fWidth = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3
-        maxi = [np.argmax(avgMax)]  # the index of the highest peak in the masked averaged readings array
-        mini = [np.argmin(avgMin)]  # the index of the deepest minimum in the masked averaged readings array
+
+        maxi = [np.argmax(levels)]  # the index of the highest peak in the masked readings array
+        mini = [np.argmin(levels)]  # the index of the deepest minimum in the masked readings array
+
         for i in range(3):
             # mask frequencies around detected peaks and find the next 3 highest/lowest peaks
-            avgMax = np.ma.masked_where(np.abs(frequencies[maxi[-1]] - frequencies) < fWidth, avgMax)
-            maxi.append(np.argmax(avgMax))
-            avgMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < fWidth, avgMin)
-            mini.append(np.argmin(avgMin))
+            nextMax = np.ma.masked_where(np.abs(frequencies[maxi[-1]] - frequencies) < fWidth, levels)
+            maxi.append(np.argmax(nextMax))
+            nextMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < fWidth, levels)
+            mini.append(np.argmin(nextMin))
         return (list(frequencies[maxi]), list(frequencies[mini]))
+
+    # def maxMin(self, frequencies, readings, maxima):  # finds the signal max/min values for setting markers
+    #     avg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
+    #     avg = np.ma.masked_where(frequencies < S1.bline.value(), avg)
+    #     avg = np.ma.masked_where(frequencies > S2.bline.value(), avg)
+    #     avg = np.ma.masked_where(avg <= S4.hline.value(), avg)  # mask all below threshold
+    #     avgMin = avgMax = avg
+    #     # calculate a frequency width factor to use to mask readings near each max/min frequency
+    #     if ui.rbw_auto.isChecked():
+    #         fWidth = preferences.rbw_x.value() * 850 * 1e3
+    #     else:
+    #         fWidth = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3
+    #     maxi = [np.argmax(avgMax)]  # the index of the highest peak in the masked averaged readings array
+    #     mini = [np.argmin(avgMin)]  # the index of the deepest minimum in the masked averaged readings array
+    #     for i in range(3):
+    #         # mask frequencies around detected peaks and find the next 3 highest/lowest peaks
+    #         avgMax = np.ma.masked_where(np.abs(frequencies[maxi[-1]] - frequencies) < fWidth, avgMax)
+    #         maxi.append(np.argmax(avgMax))
+    #         avgMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < fWidth, avgMin)
+    #         mini.append(np.argmin(avgMin))
+    #     return (list(frequencies[maxi]), list(frequencies[mini]))
+
 
 class WorkerSignals(QtCore.QObject):
     error = QtCore.pyqtSignal(str)
@@ -975,7 +1049,7 @@ class database():
             return self.personalDir
         logging.info(f'No database file {self.dbName} exists in {self.personalDir} or {self.globalDir}')
         # Look in current working folder & where the python file is stored/linked from
-        if self.dbName == "QtTSAprefs.db":
+        if self.dbName == "QtTSAprefs.db" or self.dbName == "QtTSArecording.db":
             for workingDir in self.workingDirs:
                 if os.path.exists(os.path.join(workingDir, self.dbName)):
                     shutil.copy(os.path.join(workingDir, self.dbName), self.personalDir)
@@ -1139,7 +1213,7 @@ def addBandPressed():
         popUp(message, QMessageBox.Ok, QMessageBox.Information)
         return
     if ui.marker1.isChecked() and ui.marker2.isChecked():  # Two markers are to set the band limits of a new band
-        if S1.vline.value() >= S2.vline.value():
+        if M1.vline.value() >= M2.vline.value():
             message = 'M1 frequency >= M2 frequency'
             popUp(message, QMessageBox.Ok, QMessageBox.Information)
             return
@@ -1147,13 +1221,13 @@ def addBandPressed():
         title = "New Frequency Band"
         message = "Enter a name for the new band."
         bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=bandName, preset=ID, startF=f'{S1.vline.value()}',
-                         stopF=f'{S2.vline.value()/1e6:.6f}', value=1, colour=colourID('green'))  # colourID(value)
+        bands.insertData(name=bandName, preset=ID, startF=f'{M1.vline.value()}',
+                         stopF=f'{M2.vline.value()/1e6:.6f}', value=1, colour=colourID('green'))  # colourID(value)
     else:  # If only Marker 1 is enabled then this creates a spot Frequency marker
         title = "New Spot Frequency Marker"
         message = "Enter a name for the Spot Frequency"
         spotName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=spotName, type=12, startF=f'{S1.vline.value()}',
+        bands.insertData(name=spotName, type=12, startF=f'{M1.vline.value()}',
                          stopF='', visible=1, colour=colourID('orange'))  # preset 12 is Marker (spot frequency).
 
 
@@ -1197,32 +1271,32 @@ def memChanged():
 
 
 def markerToStart():
-    S1.mStart()
-    S2.mStart()
-    S3.mStart()
-    S4.mStart()
+    M1.start()
+    M2.start()
+    M3.start()
+    M4.start()
 
 
 def markerToCentre():
-    S1.mSpread()
-    S2.mSpread()
-    S3.mSpread()
-    S4.mSpread()
+    M1.spread()
+    M2.spread()
+    M3.spread()
+    M4.spread()
 
 
 def mkr1_moved():
-    if S2.markerType != 'Delta' and S3.markerType != 'Delta' and S4.markerType != 'Delta':
-        S1.vline.setPen(color='y', width=0.75, style=QtCore.Qt.DashLine)
+    if M2.markerType != 'Delta' and M3.markerType != 'Delta' and M4.markerType != 'Delta':
+        M1.vline.setPen(color='y', width=0.75, style=QtCore.Qt.DashLine)
     else:
-        S2.mDelta()
-        S3.mDelta()
-        S4.mDelta()
+        M2.delta()
+        M3.delta()
+        M4.delta()
 
 
 def setPreferences():  # called when the preferences window is closed
     checkboxes.dwm.submit()
     bands.tm.submitAll()
-    S4.hline.setValue(preferences.peakThreshold.value())
+    T4.hline.setValue(preferences.peakThreshold.value())  #  should this be M4??????????????????????
     # bandselect.filterType(False, ui.filterBox.currentText())
     if ui.presetMarker.isChecked():
         freqMarkers()
@@ -1261,10 +1335,10 @@ def exit_handler():
     if len(tinySA.ports) != 0:
         # save the marker frequencies
         record = numbers.tm.record(0)
-        record.setValue('m1f', float(S1.vline.value()))
-        record.setValue('m2f', float(S2.vline.value()))
-        record.setValue('m3f', float(S3.vline.value()))
-        record.setValue('m4f', float(S4.vline.value()))
+        record.setValue('m1f', float(M1.line.value()))
+        record.setValue('m2f', float(M2.line.value()))
+        record.setValue('m3f', float(M3.line.value()))
+        record.setValue('m4f', float(M4.line.value()))
         numbers.tm.setRecord(0, record)
         # save the gui field values and checkbox states
         if tinySA.sweeping:
@@ -1275,6 +1349,7 @@ def exit_handler():
         tinySA.usbSend()
         tinySA.closePort()  # close USB connection
     config.disconnect()  # close database
+
     logging.info('QtTinySA Closed')
 
 
@@ -1288,8 +1363,8 @@ def popUp(message, button, icon):
 
 
 def freqMarkers():
-    S1.delFreqMarkers()
-    S2.delFreqMarkers()
+    M1.delFreqMarkers()
+    M2.delFreqMarkers()
     for i in range(0, presetmarker.tm.rowCount()):
         try:
             startF = presetmarker.tm.record(i).value('StartF')
@@ -1297,12 +1372,12 @@ def freqMarkers():
             colour = presetmarker.tm.record(i).value('colour')
             name = presetmarker.tm.record(i).value('name')
             if ui.presetMarker.isChecked() and presetmarker.tm.record(i).value('visible') and stopF in (0, ''):
-                S1.addFreqMarker(startF, colour, name, band=False)
+                M1.addFreqMarker(startF, colour, name, band=False)
                 if ui.presetLabel.isChecked() and ui.presetLabel.checkState() == 2:
-                    S1.marker.label.setAngle(90)
+                    M1.marker.label.setAngle(90)
             if ui.presetMarker.isChecked() and stopF not in (0, ''):  # it's a band marker
-                S1.addFreqMarker(startF, colour, name)
-                S2.addFreqMarker(stopF, colour, name)
+                M1.addFreqMarker(startF, colour, name)
+                M2.addFreqMarker(stopF, colour, name)
         except ValueError:
             continue
 
@@ -1369,7 +1444,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.11.9')
+app.setApplicationVersion(' v0.12.0')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1383,10 +1458,16 @@ filebrowse = QtTSAfilebrowse.Ui_Filebrowse()
 filebrowse.setupUi(fwindow)
 
 # Traces & markers
-S1 = display('1', yellow)
-S2 = display('2', magenta)
-S3 = display('3', cyan)
-S4 = display('4', white)
+T1 = trace('1', yellow)
+T2 = trace('2', magenta)
+T3 = trace('3', cyan)
+T4 = trace('4', white)
+
+# Traces & markers
+M1 = marker('1', yellow, T1)
+M2 = marker('2', magenta, T2)
+M3 = marker('3', cyan, T3)
+M4 = marker('4', white, T4)
 
 # Data models for configuration settings
 config = database("QtTSAprefs.db")
@@ -1405,6 +1486,10 @@ bands = modelView('frequencies')
 presetmarker = modelView('frequencies')
 bandselect = modelView('frequencies')
 
+# Database for recording and playback
+# recording = database("QtTSArecording.db")
+# recording.connect()
+
 ###############################################################################
 # GUI settings
 
@@ -1415,22 +1500,22 @@ ui.graphWidget.showGrid(x=True, y=True)
 ui.graphWidget.setLabel('bottom', '', units='Hz')
 
 # marker label positions
-S1.vline.label.setPosition(0.99)
-S2.vline.label.setPosition(0.95)
-S3.vline.label.setPosition(0.90)
-S4.vline.label.setPosition(0.85)
+M1.line.label.setPosition(0.99)
+M2.line.label.setPosition(0.95)
+M3.line.label.setPosition(0.90)
+M4.line.label.setPosition(0.85)
 
 # signal limit lines
-S1.hline.setValue(-25)
-S1.hline.label.setText('best')
-S2.hline.label.setText('max')
-S3.hline.setValue(6)
-S3.hline.setPen('r')
+T1.hline.setValue(-25)
+T1.hline.label.setText('best')
+T2.hline.label.setText('max')
+T3.hline.setValue(6)
+T3.hline.setPen('r')
 
 # marker peak threshold line
-S4.hline.setPen(red_dash, width=0.5)
-S4.hline.setMovable(True)
-S4.hline.label.setFormat("{value:.1f}")
+# M4.hline.setPen(red_dash, width=0.5)
+# M4.hline.setMovable(True)
+# M4.hline.label.setFormat("{value:.1f}")
 
 ###############################################################################
 # Connect signals from buttons and sliders.  Some connections are in 'initialise' Fn
@@ -1457,26 +1542,26 @@ ui.centre_freq.valueChanged.connect(lambda: tinySA.freq_changed(True))  # centre
 ui.span_freq.valueChanged.connect(lambda: tinySA.freq_changed(True))  # centre/span mode
 
 # marker dragging
-S1.vline.sigPositionChanged.connect(mkr1_moved)
-S2.vline.sigPositionChanged.connect(S2.mType)
-S3.vline.sigPositionChanged.connect(S3.mType)
-S4.vline.sigPositionChanged.connect(S4.mType)
+M1.line.sigPositionChanged.connect(mkr1_moved)
+M2.line.sigPositionChanged.connect(M2.mType)
+M3.line.sigPositionChanged.connect(M3.mType)
+M4.line.sigPositionChanged.connect(M4.mType)
 
 # marker setting within span range
 ui.mkr_start.clicked.connect(markerToStart)
 ui.mkr_centre.clicked.connect(markerToCentre)
 
 # marker checkboxes
-ui.marker1.clicked.connect(S1.mEnable)
-ui.marker2.clicked.connect(S2.mEnable)
-ui.marker3.clicked.connect(S3.mEnable)
-ui.marker4.clicked.connect(S4.mEnable)
+ui.marker1.clicked.connect(M1.enable)
+ui.marker2.clicked.connect(M2.enable)
+ui.marker3.clicked.connect(M3.enable)
+ui.marker4.clicked.connect(M4.enable)
 
 # marker type changes
-ui.m1_type.activated.connect(S1.mType)
-ui.m2_type.activated.connect(S2.mType)
-ui.m3_type.activated.connect(S3.mType)
-ui.m4_type.activated.connect(S4.mType)
+ui.m1_type.activated.connect(M1.mType)
+ui.m2_type.activated.connect(M2.mType)
+ui.m3_type.activated.connect(M3.mType)
+ui.m4_type.activated.connect(M4.mType)
 
 # frequency band markers
 ui.presetMarker.clicked.connect(freqMarkers)
@@ -1484,18 +1569,17 @@ ui.presetLabel.clicked.connect(freqMarkerLabel)
 ui.mToBand.clicked.connect(addBandPressed)
 ui.filterBox.currentTextChanged.connect(freqMarkers)
 
-
 # trace checkboxes
-ui.trace1.stateChanged.connect(S1.tEnable)
-ui.trace2.stateChanged.connect(S2.tEnable)
-ui.trace3.stateChanged.connect(S3.tEnable)
-ui.trace4.stateChanged.connect(S4.tEnable)
+ui.trace1.stateChanged.connect(T1.tEnable)
+ui.trace2.stateChanged.connect(T2.tEnable)
+ui.trace3.stateChanged.connect(T3.tEnable)
+ui.trace4.stateChanged.connect(T4.tEnable)
 
 # trace type changes
-ui.t1_type.activated.connect(S1.tType)
-ui.t2_type.activated.connect(S2.tType)
-ui.t3_type.activated.connect(S3.tType)
-ui.t4_type.activated.connect(S4.tType)
+ui.t1_type.activated.connect(T1.tType)
+ui.t2_type.activated.connect(T2.tType)
+ui.t3_type.activated.connect(T3.tType)
+ui.t4_type.activated.connect(T4.tType)
 
 ui.sampleRepeat.valueChanged.connect(tinySA.sampleRep)
 
@@ -1518,9 +1602,9 @@ ui.timeSpectrum.clicked.connect(lambda: ui.stackedWidget.setCurrentWidget(ui.Vie
 ui.analyser.clicked.connect(lambda: ui.stackedWidget.setCurrentWidget(ui.ViewNormal))
 
 # preferences
-preferences.neg25Line.stateChanged.connect(lambda: S1.hEnable(preferences.neg25Line))
-preferences.zeroLine.stateChanged.connect(lambda: S2.hEnable(preferences.zeroLine))
-preferences.plus6Line.stateChanged.connect(lambda: S3.hEnable(preferences.plus6Line))
+preferences.neg25Line.stateChanged.connect(lambda: T1.hEnable(preferences.neg25Line))
+preferences.zeroLine.stateChanged.connect(lambda: T2.hEnable(preferences.zeroLine))
+preferences.plus6Line.stateChanged.connect(lambda: T3.hEnable(preferences.plus6Line))
 preferences.addRow.clicked.connect(bands.addRow)
 preferences.deleteRow.clicked.connect(lambda: bands.deleteRow(True))
 preferences.deleteAll.clicked.connect(lambda: bands.deleteRow(False))
@@ -1646,11 +1730,11 @@ numbers.mapWidget('numbers')  # uses mapping table from database
 numbers.tm.select()
 numbers.dwm.setCurrentIndex(0)
 
-# set GUI fields using values from the configuration database
-S1.restoreSettings('m1f', 'y')
-S2.restoreSettings('m2f', 'm')
-S3.restoreSettings('m3f', 'c')
-S4.restoreSettings('m4f', 'w')
+# set GUI fields using values from the configuration database  # check marker restore???
+T1.restoreSettings('m1f', 'y')
+T2.restoreSettings('m2f', 'm')
+T3.restoreSettings('m3f', 'c')
+T4.restoreSettings('m4f', 'w')
 
 window.show()
 window.setWindowTitle(app.applicationName() + app.applicationVersion())
