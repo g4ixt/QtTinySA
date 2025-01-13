@@ -63,13 +63,14 @@ threadpool = QtCore.QThreadPool()
 basedir = os.path.dirname(__file__)
 
 # pyqtgraph pens
-red = pyqtgraph.mkPen(color='r', width=1.0)
-yellow = pyqtgraph.mkPen(color='y', width=1.0)
-white = pyqtgraph.mkPen(color='w', width=1.0)
-magenta = pyqtgraph.mkPen(color='m', width=1.0)
-cyan = pyqtgraph.mkPen(color='c', width=1.0)
+# red = pyqtgraph.mkPen(color='r', width=1.0)
+# yellow = pyqtgraph.mkPen(color='y', width=1.0)
+# white = pyqtgraph.mkPen(color='w', width=1.0)
+# magenta = pyqtgraph.mkPen(color='m', width=1.0)
+# cyan = pyqtgraph.mkPen(color='c', width=1.0)
 red_dash = pyqtgraph.mkPen(color='r', width=0.5, style=QtCore.Qt.DashLine)
 blue_dash = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
+
 
 ###############################################################################
 # classes
@@ -748,20 +749,22 @@ class analyser:
 class trace:
     def __init__(self, name, pen):
         self.name = name
-        self.trace = ui.graphWidget.plot([], [], name=name, pen=pen, width=1, padding=0)
+        self.pen = pen
+        # self.trace = ui.graphWidget.plot([], [], name=name, pen=pen, width=1, padding=0)
+        self.trace = ui.graphWidget.plot([], [], name=name, pen=self.pen, width=1, padding=0)
         self.traceType = 'Normal'  # Normal, Average, Max, Min
-        self.markerType = 'Normal'  # Normal, Delta; Max, Min
-        self.vline = ui.graphWidget.addLine(88, 90, movable=True, name=name,
-                                            pen=pyqtgraph.mkPen('y', width=0.5, style=QtCore.Qt.DashLine),
-                                            label="{value:.5f}")
+        # self.markerType = 'Normal'  # Normal, Delta; Max, Min
+        # self.vline = ui.graphWidget.addLine(88, 90, movable=True, name=name,
+        #                                     pen=pyqtgraph.mkPen('y', width=0.5, style=QtCore.Qt.DashLine),
+        #                                     label="{value:.5f}")
         self.hline = ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='',
                                             labelOpts={'position': 0.025, 'color': ('r')})
-        self.deltaF = 0  # the difference between this marker and Reference Marker (1)
+        # self.deltaF = 0  # the difference between this marker and Reference Marker (1)
         self.fifo = queue.SimpleQueue()
         # self.vline.sigClicked.connect(self.mClicked)
 
     def dLoad(self, setting):
-        self.vline.label.setMovable(True)
+        # self.vline.label.setMovable(True)
         # self.mEnable()
         # self.mType()
         self.tType()
@@ -789,8 +792,12 @@ class trace:
 
     def tEnable(self):  # show or hide a trace
         if self.guiRef(2).isChecked():  # 2 selects trace checkboxes
+            # tint = "background-color: 'yellow';"
+            tint = str("background-color: '" + self.pen + "';")
+            self.guiRef(3).setStyleSheet(tint)
             self.trace.show()
         else:
+            self.guiRef(3).setStyleSheet("background-color: ;")
             self.trace.hide()
         checkboxes.dwm.submit()
 
@@ -804,8 +811,8 @@ class trace:
         # update trace and marker settings from the database.  1 = last saved (default) settings
         self.dLoad(1)
         # self.vline.setValue(numbers.tm.record(0).value(markerFreq))
-        self.vline.label.setColor(traceColour)
-        self.vline.setPen(color=traceColour, width=0.75, style=QtCore.Qt.DashLine)
+        # self.vline.label.setColor(traceColour)
+        # self.vline.setPen(color=traceColour, width=0.75, style=QtCore.Qt.DashLine)
 
         setPreferences()
         ui.updates.setText(str(int(1000/(preferences.intervalBox.value()))))  # the display update frequency indicator
@@ -820,6 +827,8 @@ class marker:
         self.line = ui.graphWidget.addLine(88, 90, movable=True, name=name,
                                             pen=pyqtgraph.mkPen('y', width=0.5, style=QtCore.Qt.DashLine),
                                             label="{value:.5f}")
+        self.hline = ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='',
+                                            labelOpts={'position': 0.025, 'color': ('r')})
         self.deltaF = 0  # the difference between this marker and Reference Marker (1)
         self.fifo = queue.SimpleQueue()
         self.line.sigClicked.connect(self.mClicked)
@@ -953,14 +962,16 @@ class marker:
                    'Max': maxima
                    # 'Min': readingsMin
                    }
-        levels = options.get(self.link.traceType)
+        # levels = options.get(self.link.traceType)
+        levels = readings[0:]
+        logging.debug(f'levels = {levels}')
 
         # mask outside high/low freq boundary lines
         levels = np.ma.masked_where(frequencies < M1.boundary.value(), levels)
         levels = np.ma.masked_where(frequencies > M2.boundary.value(), levels)
 
         # mask readings below threshold line
-        levels = np.ma.masked_where(levels <= T4.hline.value(), levels) # needs rework T1 was S1 ################
+        levels = np.ma.masked_where(levels <= T4.hline.value(), levels)  # needs rework T1 was S1 ################
 
         # calculate a frequency width factor to use to mask readings near each max/min frequency
         if ui.rbw_auto.isChecked():
@@ -1028,9 +1039,10 @@ class Worker(QtCore.QRunnable):
 class database():
     '''configuration data is stored in a SQLite database'''
 
-    def __init__(self, dbName):
+    def __init__(self, dbName, conName):
         self.db = None
         self.dbName = dbName
+        self.conName = conName
         self.personalDir = platformdirs.user_config_dir(appname=app.applicationName(), appauthor=False)
         self.globalDir = platformdirs.site_config_dir(appname=app.applicationName(), appauthor=False)
         self.workingDirs = [os.path.dirname(__file__), os.path.dirname(os.path.realpath(__file__)), os.getcwd()]
@@ -1058,7 +1070,10 @@ class database():
             raise FileNotFoundError("Unable to find the database {self.dbName}")
 
     def connect(self):
-        self.db = QSqlDatabase.addDatabase('QSQLITE')
+        self.db = QSqlDatabase.addDatabase('QSQLITE', connectionName=self.conName)
+        # self.db = QSqlDatabase.database('QSQLITE', connectionName='test')
+        logging.info(f'connection = {self.db.connectionName()}')
+        # QSqlDatabase.removeDatabase(QSqlDatabase.database().connectionName())
         if QtCore.QFile.exists(os.path.join(self.dbpath, self.dbName)):
             self.db.setDatabaseName(os.path.join(self.dbpath, self.dbName))
             self.db.open()
@@ -1071,7 +1086,7 @@ class database():
     def disconnect(self):
         self.db.close()
         logging.info(f'Database {self.dbName} open: {self.db.isOpen()}')
-        QSqlDatabase.removeDatabase(QSqlDatabase.database().connectionName())
+        QSqlDatabase.removeDatabase(self.conName)
 
 
 class modelView():
@@ -1079,7 +1094,7 @@ class modelView():
 
     def __init__(self, tableName):
         self.tableName = tableName
-        self.tm = QSqlRelationalTableModel()
+        self.tm = QSqlRelationalTableModel(db=config.db)
         self.dwm = QDataWidgetMapper()
         self.currentRow = 0
         self.currentBand = 0
@@ -1088,6 +1103,15 @@ class modelView():
         self.tm.setTable(self.tableName)
         self.dwm.setModel(self.tm)
         self.dwm.setSubmitPolicy(QDataWidgetMapper.AutoSubmit)
+
+    def destroyTableModel(self):
+        self.tm.setFilter('')
+        self.dwm.submit()
+        self.tm.submit()
+        del self.dwm
+        del self.tm
+        # self.dwm.setModel(None)
+        # self.tm.setTable(None)
 
     def addRow(self):  # adds a blank row to the frequency bands table widget above current row
         if self.currentRow == 0:
@@ -1213,7 +1237,7 @@ def addBandPressed():
         popUp(message, QMessageBox.Ok, QMessageBox.Information)
         return
     if ui.marker1.isChecked() and ui.marker2.isChecked():  # Two markers are to set the band limits of a new band
-        if M1.vline.value() >= M2.vline.value():
+        if M1.line.value() >= M2.line.value():
             message = 'M1 frequency >= M2 frequency'
             popUp(message, QMessageBox.Ok, QMessageBox.Information)
             return
@@ -1221,13 +1245,13 @@ def addBandPressed():
         title = "New Frequency Band"
         message = "Enter a name for the new band."
         bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=bandName, preset=ID, startF=f'{M1.vline.value()}',
-                         stopF=f'{M2.vline.value()/1e6:.6f}', value=1, colour=colourID('green'))  # colourID(value)
+        bands.insertData(name=bandName, preset=ID, startF=f'{M1.line.value()}',
+                         stopF=f'{M2.line.value()/1e6:.6f}', value=1, colour=colourID('green'))  # colourID(value)
     else:  # If only Marker 1 is enabled then this creates a spot Frequency marker
         title = "New Spot Frequency Marker"
         message = "Enter a name for the Spot Frequency"
         spotName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=spotName, type=12, startF=f'{M1.vline.value()}',
+        bands.insertData(name=spotName, type=12, startF=f'{M1.line.value()}',
                          stopF='', visible=1, colour=colourID('orange'))  # preset 12 is Marker (spot frequency).
 
 
@@ -1286,7 +1310,7 @@ def markerToCentre():
 
 def mkr1_moved():
     if M2.markerType != 'Delta' and M3.markerType != 'Delta' and M4.markerType != 'Delta':
-        M1.vline.setPen(color='y', width=0.75, style=QtCore.Qt.DashLine)
+        M1.line.setPen(color='y', width=0.75, style=QtCore.Qt.DashLine)
     else:
         M2.delta()
         M3.delta()
@@ -1296,7 +1320,7 @@ def mkr1_moved():
 def setPreferences():  # called when the preferences window is closed
     checkboxes.dwm.submit()
     bands.tm.submitAll()
-    T4.hline.setValue(preferences.peakThreshold.value())  #  should this be M4??????????????????????
+    M4.hline.setValue(preferences.peakThreshold.value())  #  should this be M4??????????????????????
     # bandselect.filterType(False, ui.filterBox.currentText())
     if ui.presetMarker.isChecked():
         freqMarkers()
@@ -1330,8 +1354,8 @@ def testComPort():
 
 
 def exit_handler():
-    numbers.dwm.submit()
-    checkboxes.dwm.submit()
+    # numbers.dwm.submit()
+    # checkboxes.dwm.submit()
     if len(tinySA.ports) != 0:
         # save the marker frequencies
         record = numbers.tm.record(0)
@@ -1348,7 +1372,27 @@ def exit_handler():
         tinySA.resume()
         tinySA.usbSend()
         tinySA.closePort()  # close USB connection
+
+    # a failed attempt to stop the error
+    # QSqlDatabasePrivate::removeDatabase: connection 'configuration' is still in use, all queries will cease to work.
+    # preferences.filterBox.disconnect()
+    # ui.band_box.disconnect()
+    # maps.destroyTableModel()
+    # bands.destroyTableModel()
+    # bandstype.destroyTableModel()
+    # colours.destroyTableModel()
+    # presetmarker.destroyTableModel()
+    # bandselect.destroyTableModel()
+    # checkboxes.destroyTableModel()
+    # rbwtext.destroyTableModel()
+    # tracetext.destroyTableModel()
+    # markertext.destroyTableModel()
+    # markers.destroyTableModel()
+    # traces.destroyTableModel()
+    # numbers.destroyTableModel()
+
     config.disconnect()  # close database
+    recording.disconnect()  # close database
 
     logging.info('QtTinySA Closed')
 
@@ -1444,7 +1488,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.12.0')
+app.setApplicationVersion(' v0.12.1')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1458,19 +1502,19 @@ filebrowse = QtTSAfilebrowse.Ui_Filebrowse()
 filebrowse.setupUi(fwindow)
 
 # Traces & markers
-T1 = trace('1', yellow)
-T2 = trace('2', magenta)
-T3 = trace('3', cyan)
-T4 = trace('4', white)
+T1 = trace('1', 'yellow')
+T2 = trace('2', 'magenta')
+T3 = trace('3', 'cyan')
+T4 = trace('4', 'white')
 
 # Traces & markers
-M1 = marker('1', yellow, T1)
-M2 = marker('2', magenta, T2)
-M3 = marker('3', cyan, T3)
-M4 = marker('4', white, T4)
+M1 = marker('1', 'y', T1)
+M2 = marker('2', 'm', T2)
+M3 = marker('3', 'c', T3)
+M4 = marker('4', 'w', T4)
 
 # Data models for configuration settings
-config = database("QtTSAprefs.db")
+config = database("QtTSAprefs.db", "configuration")
 config.connect()
 checkboxes = modelView('checkboxes')
 numbers = modelView('numbers')
@@ -1487,8 +1531,8 @@ presetmarker = modelView('frequencies')
 bandselect = modelView('frequencies')
 
 # Database for recording and playback
-# recording = database("QtTSArecording.db")
-# recording.connect()
+recording = database("QtTSArecording.db", "recording")
+recording.connect()
 
 ###############################################################################
 # GUI settings
@@ -1513,9 +1557,9 @@ T3.hline.setValue(6)
 T3.hline.setPen('r')
 
 # marker peak threshold line
-# M4.hline.setPen(red_dash, width=0.5)
-# M4.hline.setMovable(True)
-# M4.hline.label.setFormat("{value:.1f}")
+M4.hline.setPen(red_dash, width=0.5)
+M4.hline.setMovable(True)
+M4.hline.label.setFormat("{value:.1f}")
 
 ###############################################################################
 # Connect signals from buttons and sliders.  Some connections are in 'initialise' Fn
