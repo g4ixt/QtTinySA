@@ -233,6 +233,7 @@ class analyser:
         self.sweeping = True
         self.createTimeSpectrum(frequencies, readings)
         self.reset3D()
+        self.createWaterfall(frequencies, readings)
         threadpool.start(self.sweep)
 
     def usbSend(self):
@@ -472,6 +473,27 @@ class analyser:
         else:
             self.vGrid.hide()
 
+    def createWaterfall(self, frequencies, readings):
+        self.waterfall = pyqtgraph.ImageItem(axisOrder='row-major')
+        self.waterfall.setAutoDownsample(True)
+        ui.waterfall.addItem(self.waterfall)
+
+        # Histogram associated with waterfall
+        self.histogram = pyqtgraph.HistogramLUTItem(gradientPosition='top', orientation='horizontal')
+        self.histogram.setImageItem(self.waterfall)  # connects the histogram to the waterfall
+        self.histogram.gradient.loadPreset('viridis')  # set the colour map
+        self.waterfall.setLevels((-110, -20))  # needs to be here, after histogram is created
+        ui.histogram.addItem(self.histogram)
+
+    def updateWaterfall(self, readings):
+        self.waterfall.setImage(readings, autoLevels=False)
+        # sigma = np.std(readings)
+        # mean = np.mean(readings)
+        # readings_min = mean - 2*sigma  # save to window state
+        # readings_max = mean + 2*sigma
+        # self.waterfall.setLevels((readings_min, readings_max))
+        # self.histogram.setLevels((readings_min, readings_max))
+
     def updateGUI(self, frequencies, readings, maxima, runtime):  # called by a signal from the measurement() thread
         # for LNB/Mixer mode when LO is above measured freq the scan is reversed, i.e. low TinySA freq = high meas freq
         if preferences.highLO.isChecked() and preferences.freqLO != 0:
@@ -495,6 +517,8 @@ class analyser:
         T2.trace.setData(frequencies, options.get(T2.traceType))
         T3.trace.setData(frequencies, options.get(T3.traceType))
         T4.trace.setData(frequencies, options.get(T4.traceType))
+
+        self.updateWaterfall(readings)
 
         # update markers (if not in zero span, where they are not relevant)
         if frequencies[0] != frequencies[-1]:
@@ -1481,6 +1505,10 @@ def colourID(shade):  # using the QSQLRelation directly doesn't work for colour.
     return 1
 
 
+def setWaterfall():
+    ui.waterfall.setMaximumSize(QtCore.QSize(16777215, ui.waterfallSize.value()))
+
+
 ###############################################################################
 # Instantiate classes
 
@@ -1488,7 +1516,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.12.1')
+app.setApplicationVersion(' v0.12.2')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1542,6 +1570,20 @@ ui.graphWidget.setYRange(-110, -20)
 ui.graphWidget.setDefaultPadding(padding=0)
 ui.graphWidget.showGrid(x=True, y=True)
 ui.graphWidget.setLabel('bottom', '', units='Hz')
+
+# pyqtgraph settings for waterfall display
+ui.waterfall.setYRange(0, 60)
+ui.waterfall.setDefaultPadding(padding=0)
+ui.waterfall.getPlotItem().hideAxis('bottom')
+ui.waterfall.setLabel('left', 'sweep')
+# ui.waterfall.setMaximumSize(QtCore.QSize(16777215, 5))
+ui.waterfall.invertY(True)
+
+ui.histogram.setDefaultPadding(padding=0)
+ui.histogram.plotItem.invertY(True)
+ui.histogram.getPlotItem().hideAxis('bottom')
+ui.histogram.getPlotItem().hideAxis('left')
+# ui.histogram.setMaximumSize(QtCore.QSize(16777215, 30))
 
 # marker label positions
 M1.line.label.setPosition(0.99)
@@ -1673,6 +1715,8 @@ ui.actionQuit.triggered.connect(app.closeAllWindows)
 # Sweep time
 # ui.sweepTime.valueChanged.connect(lambda: tinySA.sweepTime(ui.sweepTime.value()))
 
+# Waterfall
+ui.waterfallSize.valueChanged.connect(setWaterfall)
 
 ###############################################################################
 # set up the application
