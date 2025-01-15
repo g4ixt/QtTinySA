@@ -1360,8 +1360,7 @@ if platform.system() == "Windows":
     from PyQt5.QtCore import QCoreApplication
     from PyQt5.QtCore import Qt
     # force Qt to use OpenGL rather than DirectX for Windows OS
-    QCoreApplication.setAttribute(Qt.AA_UseOpenGLES)
-    #QCoreApplication.setAttribute(Qt.AA_UseDesktopOpenGL)
+    QCoreApplication.setAttribute(Qt.AA_UseDesktopOpenGL)
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
