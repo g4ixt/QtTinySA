@@ -37,7 +37,7 @@ from platform import system
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit
 from PyQt5.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QFont
 from datetime import datetime
 import pyqtgraph
 import QtTinySpectrum  # the GUI
@@ -518,9 +518,15 @@ class analyser:
         T3.trace.setData(frequencies, options.get(T3.traceType))
         T4.trace.setData(frequencies, options.get(T4.traceType))
 
-        self.updateWaterfall(readings)
+        if ui.waterfallSize.value() != 0:
+            self.updateWaterfall(readings)
 
-        # update markers (if not in zero span, where they are not relevant)
+        record = recData.tm.record()
+        record.setValue('readings', readings)
+        recData.tm.insertRecord(-1, record)
+        recData.tm.submit()
+
+        # update markers (if not in zero span, where they are not relevant)  ############ being called too often ######
         if frequencies[0] != frequencies[-1]:
             ui.graphWidget.setLabel('bottom', units='Hz')
             # maxmin = self.maxMin(frequencies, readings, maxima)
@@ -930,13 +936,24 @@ class marker:
                    'Min1': maxmin[1][0], 'Min2': maxmin[1][1], 'Min3': maxmin[1][2],
                    'Min4': maxmin[1][3]}
         markerF = options.get(self.markerType)
+
+        #  Need to do something like this but neater ###################################################################
+        logging.info(f'marker type = {self.markerType}')
+        options = {'Normal': readings[0:],
+                   'Average': np.nanmean(readings[:ui.avgBox.value()], axis=0),
+                   'Max': maxima
+                   # 'Min': readingsMin
+                   }
+        levels = options.get(self.link.traceType)
+
+        # if marker is out of current scan range just show its frequency
         if markerF < np.min(frequencies) or markerF > np.max(frequencies):
-            # marker is out of scan range so just show its frequency
             self.line.label.setText(f'M{self.line.name()} {self.line.value()/1e6:.{5}f}')
         else:
             # marker is in scan range
             fIndex = np.argmin(np.abs(frequencies - (markerF)))  # find closest value in freq array
-            dBm = readings[fIndex]
+            # dBm = readings[fIndex]
+            dBm = levels[fIndex]
             if dBm > M4.hline.value() or self.markerType[:4] == 'Normal' or self.markerType[:4] == 'Delta':
                 self.line.setValue(frequencies[fIndex])  # set to the discrete value from frequencies[]
             if self.markerType == 'Delta':
@@ -981,21 +998,19 @@ class marker:
         ui.band_box.setCurrentText(numbers.tm.record(0).value("band"))  # this shouldn't be needed but it is
 
     def maxMin(self, frequencies, readings, maxima):  # finds the signal max/min (indexes) values for setting markers
-        options = {'Normal': readings[0],
+        options = {'Normal': readings[0:],
                    'Average': np.nanmean(readings[:ui.avgBox.value()], axis=0),
                    'Max': maxima
                    # 'Min': readingsMin
                    }
-        # levels = options.get(self.link.traceType)
-        levels = readings[0:]
-        logging.debug(f'levels = {levels}')
+        levels = options.get(self.link.traceType)
 
         # mask outside high/low freq boundary lines
         levels = np.ma.masked_where(frequencies < M1.boundary.value(), levels)
         levels = np.ma.masked_where(frequencies > M2.boundary.value(), levels)
 
         # mask readings below threshold line
-        levels = np.ma.masked_where(levels <= T4.hline.value(), levels)  # needs rework T1 was S1 ################
+        levels = np.ma.masked_where(levels <= M4.hline.value(), levels)
 
         # calculate a frequency width factor to use to mask readings near each max/min frequency
         if ui.rbw_auto.isChecked():
@@ -1005,14 +1020,16 @@ class marker:
 
         maxi = [np.argmax(levels)]  # the index of the highest peak in the masked readings array
         mini = [np.argmin(levels)]  # the index of the deepest minimum in the masked readings array
-
+        nextMax = nextMin = levels
         for i in range(3):
             # mask frequencies around detected peaks and find the next 3 highest/lowest peaks
-            nextMax = np.ma.masked_where(np.abs(frequencies[maxi[-1]] - frequencies) < fWidth, levels)
+            nextMax = np.ma.masked_where(np.abs(frequencies[maxi[-1]] - frequencies) < fWidth, nextMax)
             maxi.append(np.argmax(nextMax))
-            nextMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < fWidth, levels)
+            nextMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < fWidth, nextMin)
             mini.append(np.argmin(nextMin))
+            logging.info(f'i= {i} nextmax = {np.argmax(nextMax)} nextmin = {np.argmin(nextMin)}')
         return (list(frequencies[maxi]), list(frequencies[mini]))
+
 
     # def maxMin(self, frequencies, readings, maxima):  # finds the signal max/min values for setting markers
     #     avg = np.nanmean(readings[:ui.avgBox.value()], axis=0)
@@ -1116,12 +1133,13 @@ class database():
 class modelView():
     '''set up and process data models bound to the GUI widgets'''
 
-    def __init__(self, tableName):
+    def __init__(self, tableName, dbName):
         self.tableName = tableName
-        self.tm = QSqlRelationalTableModel(db=config.db)
+        # self.tm = QSqlRelationalTableModel(db=config.db)
+        self.tm = QSqlRelationalTableModel(db=dbName)
         self.dwm = QDataWidgetMapper()
         self.currentRow = 0
-        self.currentBand = 0
+        # self.currentBand = 0
 
     def createTableModel(self):
         self.tm.setTable(self.tableName)
@@ -1134,8 +1152,6 @@ class modelView():
         self.tm.submit()
         del self.dwm
         del self.tm
-        # self.dwm.setModel(None)
-        # self.tm.setTable(None)
 
     def addRow(self):  # adds a blank row to the frequency bands table widget above current row
         if self.currentRow == 0:
@@ -1415,8 +1431,16 @@ def exit_handler():
     # traces.destroyTableModel()
     # numbers.destroyTableModel()
 
-    config.disconnect()  # close database
-    recording.disconnect()  # close database
+    # config.disconnect()  # close database
+    # recording.disconnect()  # close database
+
+    config.db.close()
+    logging.info(f'Database {config.db} open: {config.db.isOpen()}')
+    QSqlDatabase.removeDatabase(config.conName)
+
+    recording.db.close()
+    logging.info(f'Database {recording.db} open: {recording.db.isOpen()}')
+    QSqlDatabase.removeDatabase(recording.conName)
 
     logging.info('QtTinySA Closed')
 
@@ -1516,7 +1540,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.12.2')
+app.setApplicationVersion(' v0.12.3')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1529,38 +1553,43 @@ fwindow = QtWidgets.QDialog()  # fwindow is the filebrowse dialogue box
 filebrowse = QtTSAfilebrowse.Ui_Filebrowse()
 filebrowse.setupUi(fwindow)
 
-# Traces & markers
+# Traces
 T1 = trace('1', 'yellow')
 T2 = trace('2', 'magenta')
 T3 = trace('3', 'cyan')
 T4 = trace('4', 'white')
 
-# Traces & markers
+# Markers
 M1 = marker('1', 'y', T1)
-M2 = marker('2', 'm', T2)
-M3 = marker('3', 'c', T3)
-M4 = marker('4', 'w', T4)
+M2 = marker('2', 'm', T1)
+M3 = marker('3', 'c', T1)
+M4 = marker('4', 'w', T1)
 
 # Data models for configuration settings
 config = database("QtTSAprefs.db", "configuration")
 config.connect()
-checkboxes = modelView('checkboxes')
-numbers = modelView('numbers')
-markers = modelView('marker')
-traces = modelView('trace')
-tracetext = modelView('combo')
-markertext = modelView('combo')
-rbwtext = modelView('combo')
-bandstype = modelView('freqtype')
-colours = modelView('SVGColour')
-maps = modelView('mapping')
-bands = modelView('frequencies')
-presetmarker = modelView('frequencies')
-bandselect = modelView('frequencies')
+checkboxes = modelView('checkboxes', config.db)
+numbers = modelView('numbers', config.db)
+markers = modelView('marker', config.db)
+traces = modelView('trace', config.db)
+tracetext = modelView('combo', config.db)
+markertext = modelView('combo', config.db)
+rbwtext = modelView('combo', config.db)
+bandstype = modelView('freqtype', config.db)
+colours = modelView('SVGColour', config.db)
+maps = modelView('mapping', config.db)
+bands = modelView('frequencies', config.db)
+presetmarker = modelView('frequencies', config.db)
+bandselect = modelView('frequencies', config.db)
 
 # Database for recording and playback
 recording = database("QtTSArecording.db", "recording")
 recording.connect()
+
+# Data models for recording and playback
+recRef = modelView('recording', recording.db)
+recData = modelView('data', recording.db)
+
 
 ###############################################################################
 # GUI settings
@@ -1572,18 +1601,15 @@ ui.graphWidget.showGrid(x=True, y=True)
 ui.graphWidget.setLabel('bottom', '', units='Hz')
 
 # pyqtgraph settings for waterfall display
-ui.waterfall.setYRange(0, 60)
+ui.waterfall.setYRange(0, ui.memBox.value())
 ui.waterfall.setDefaultPadding(padding=0)
 ui.waterfall.getPlotItem().hideAxis('bottom')
-ui.waterfall.setLabel('left', 'sweep')
-# ui.waterfall.setMaximumSize(QtCore.QSize(16777215, 5))
+ui.waterfall.setLabel('left', 'time units')
 ui.waterfall.invertY(True)
-
 ui.histogram.setDefaultPadding(padding=0)
 ui.histogram.plotItem.invertY(True)
 ui.histogram.getPlotItem().hideAxis('bottom')
 ui.histogram.getPlotItem().hideAxis('left')
-# ui.histogram.setMaximumSize(QtCore.QSize(16777215, 30))
 
 # marker label positions
 M1.line.label.setPosition(0.99)
@@ -1708,6 +1734,9 @@ preferences.deviceBox.activated.connect(testComPort)
 ui.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
 filebrowse.download.clicked.connect(tinySA.fileDownload)
 filebrowse.listWidget.itemClicked.connect(tinySA.fileShow)
+
+# Trace and Marker settings
+#
 
 # Quit
 ui.actionQuit.triggered.connect(app.closeAllWindows)
