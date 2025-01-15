@@ -938,7 +938,6 @@ class marker:
         markerF = options.get(self.markerType)
 
         #  Need to do something like this but neater ###################################################################
-        logging.info(f'marker type = {self.markerType}')
         options = {'Normal': readings[0:],
                    'Average': np.nanmean(readings[:ui.avgBox.value()], axis=0),
                    'Max': maxima
@@ -1027,7 +1026,6 @@ class marker:
             maxi.append(np.argmax(nextMax))
             nextMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < fWidth, nextMin)
             mini.append(np.argmin(nextMin))
-            logging.info(f'i= {i} nextmax = {np.argmax(nextMax)} nextmin = {np.argmin(nextMin)}')
         return (list(frequencies[maxi]), list(frequencies[mini]))
 
 
