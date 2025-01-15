@@ -1353,7 +1353,14 @@ def colourID(shade):  # using the QSQLRelation directly doesn't work for colour.
 # Instantiate classes
 
 tinySA = analyser()
-
+# mod
+import platform
+if platform.system == "Windows":
+    from PyQt5.QtCore import QCoreApplication
+    from PyQt5.QtCore import Qt
+    # force Qt to use OpenGL rather than DirectX for Windows OS
+    QCoreApplication.setAttribute(Qt.AA_UseDesktopOpenGL)
+# end mod
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
 app.setApplicationVersion(' v0.11.8')
