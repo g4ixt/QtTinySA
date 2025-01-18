@@ -38,7 +38,7 @@
        </font>
       </property>
       <property name="text">
-       <string>Preset Bands and Markers</string>
+       <string>Bands and Markers</string>
       </property>
      </widget>
     </item>

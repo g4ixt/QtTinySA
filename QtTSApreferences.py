@@ -258,7 +258,7 @@ class Ui_Preferences(object):
     def retranslateUi(self, Preferences):
         _translate = QtCore.QCoreApplication.translate
         Preferences.setWindowTitle(_translate("Preferences", "Preferences"))
-        self.label_5.setText(_translate("Preferences", "Preset Bands and Markers"))
+        self.label_5.setText(_translate("Preferences", "Bands and Markers"))
         self.addRow.setText(_translate("Preferences", "Add Row"))
         self.deleteRow.setText(_translate("Preferences", "Delete Row"))
         self.deleteAll.setText(_translate("Preferences", "Delete All"))
