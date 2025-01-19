@@ -247,10 +247,10 @@
              <string>Waterfall Size</string>
             </property>
             <property name="maximum">
-             <number>500</number>
+             <number>300</number>
             </property>
             <property name="value">
-             <number>50</number>
+             <number>39</number>
             </property>
             <property name="orientation">
              <enum>Qt::Vertical</enum>
@@ -952,7 +952,7 @@ and Colours</string>
              </font>
             </property>
             <property name="toolTip">
-             <string>Sweep Memory Depth</string>
+             <string>Waterfall/3D Time axis depth Depth</string>
             </property>
             <property name="minimum">
              <number>1</number>
@@ -1343,6 +1343,9 @@ and Colours</string>
             </property>
             <property name="maximum">
              <number>4</number>
+            </property>
+            <property name="value">
+             <number>1</number>
             </property>
            </widget>
           </item>
@@ -2340,7 +2343,6 @@ and Colours</string>
      <string>&amp;Settings</string>
     </property>
     <addaction name="actionPreferences"/>
-    <addaction name="actionTracesMarkers"/>
    </widget>
    <widget class="QMenu" name="menuFile">
     <property name="title">

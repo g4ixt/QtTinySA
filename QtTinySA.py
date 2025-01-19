@@ -37,7 +37,7 @@ from platform import system
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit
 from PyQt5.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate
-from PyQt5.QtGui import QPixmap, QFont
+from PyQt5.QtGui import QPixmap, QIcon, QFont
 from datetime import datetime
 import pyqtgraph
 import QtTinySpectrum  # the GUI
@@ -63,11 +63,6 @@ threadpool = QtCore.QThreadPool()
 basedir = os.path.dirname(__file__)
 
 # pyqtgraph pens
-# red = pyqtgraph.mkPen(color='r', width=1.0)
-# yellow = pyqtgraph.mkPen(color='y', width=1.0)
-# white = pyqtgraph.mkPen(color='w', width=1.0)
-# magenta = pyqtgraph.mkPen(color='m', width=1.0)
-# cyan = pyqtgraph.mkPen(color='c', width=1.0)
 red_dash = pyqtgraph.mkPen(color='r', width=0.5, style=QtCore.Qt.DashLine)
 blue_dash = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
 
@@ -175,8 +170,8 @@ class analyser:
                     self.openPort()
 
     def initialise(self, product):
-        self.setSweep(ui.start_freq.value() * 1e6, ui.stop_freq.value() * 1e6)  # set the tinySA default scan range
         # product = 'tinySA'  # used for testing
+        logging.debug(f'initialise: started')
         if product[0] == 'tinySA4':  # It's an Ultra
             self.tinySA4 = True
             self.maxF = preferences.maxFreqBox.value()
@@ -221,11 +216,27 @@ class analyser:
         T4.setup()
 
         ui.band_box.setCurrentText(numbers.tm.record(0).value("band"))  # this shouldn't be needed but it is
+        self.setSweep(ui.start_freq.value() * 1e6, ui.stop_freq.value() * 1e6)  # set the tinySA default scan range
+        ui.waterfallSize.setValue(ui.waterfallSize.value() + 1)
+
+        # update centre freq, span, auto points and graph for the start/stop freqs loaded from database
+        tinySA.freq_changed(False)  # start/stop mode
+        pointsChanged()
+        ui.graphWidget.setXRange(ui.start_freq.value() * 1e6, ui.stop_freq.value() * 1e6, padding=0)
+        setPreferences()
+        T1.hEnable(preferences.neg25Line)
+        T2.hEnable(preferences.zeroLine)
+        T3.hEnable(preferences.plus6Line)
+
+        clickConnect()
+
+        logging.debug(f'initialise: finished')
 
     def scan(self):  # called by 'run' button
         if self.usb is not None:
             if self.sweeping:  # if it's running, stop it
                 self.sweeping = False  # tells the measurement thread to stop once current scan complete
+                logging.debug('scan: stop measurement thread')
                 ui.scan_button.setEnabled(False)  # prevent repeat presses of 'stop'
                 ui.run3D.setEnabled(False)
             else:
@@ -245,8 +256,8 @@ class analyser:
             popUp('TinySA not found', QMessageBox.Ok, QMessageBox.Critical)
 
     def startMeasurement(self):
-        frequencies, readings, maxima = self.set_arrays()
-        self.sweep = Worker(self.measurement, frequencies, readings, maxima)  # workers auto-deleted when thread stops
+        frequencies, readings, maxima, minima = self.set_arrays()
+        self.sweep = Worker(self.measurement, frequencies, readings, maxima, minima)  # workers deleted when thread ends
         self.sweeping = True
         self.createTimeSpectrum(frequencies, readings)
         self.reset3D()
@@ -282,11 +293,12 @@ class analyser:
         stopF = ui.stop_freq.value() * 1e6
         points = self.setPoints()
         maxima = np.full(points, -200, dtype=float)
+        minima = np.full(points, 0, dtype=float)
         frequencies = np.linspace(startF, stopF, points, dtype=np.int64)
         # logging.info(f'set_arrays: frequencies = {frequencies}')
         readings = np.full((self.scanMemory, points), None, dtype=float)
         readings[0] = -200
-        return frequencies, readings, maxima
+        return frequencies, readings, maxima, minima
 
     def freq_changed(self, centre=False):
         if centre:
@@ -365,7 +377,7 @@ class analyser:
         logging.debug(f'sweepTimeout = {timeout:.2f} s')
         return timeout
 
-    def measurement(self, frequencies, readings, maxima):  # runs in a separate thread
+    def measurement(self, frequencies, readings, maxima, minima):  # runs in a separate thread
         updateTimer = QtCore.QElapsedTimer()
         points = np.size(frequencies)
         self.threadRunning = True
@@ -413,7 +425,9 @@ class analyser:
                 # If it's the final point of this sweep, set up for the next sweep
                 if point == points - 1:
                     readingsMax = np.nanmax(readings[:self.scanMemory], axis=0)
+                    readingsMin = np.nanmin(readings[:self.scanMemory], axis=0)
                     maxima = np.fmax(maxima, readingsMax)
+                    minima = np.fmin(minima, readingsMin)
                     readings[-1] = readings[0]  # populate last row with current sweep before rolling
                     readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
                     if version >= 177:
@@ -429,7 +443,7 @@ class analyser:
                     self.clearBuffer()
                     firstRun = True
                     self.setRBW()
-                    frequencies, readings, maxima = self.set_arrays()
+                    frequencies, readings, maxima, minima = self.set_arrays()
                     points = np.size(frequencies)
                     self.createTimeSpectrum(frequencies, readings)
                     self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
@@ -440,7 +454,7 @@ class analyser:
 
                 # Send the sesults to updateGUI if an update is due
                 if timeElapsed/1e6 > preferences.intervalBox.value():
-                    self.signals.result.emit(frequencies, readings, maxima, timeElapsed)  # send to updateGUI()
+                    self.signals.result.emit(frequencies, readings, maxima, minima, timeElapsed)  # send to updateGUI()
                     updateTimer.start()
 
         self.usb.read(2)  # discard the command prompt that the timySA sends when sweeping ends
@@ -512,16 +526,11 @@ class analyser:
         # self.waterfall.setLevels((readings_min, readings_max))
         # self.histogram.setLevels((readings_min, readings_max))
 
-    def updateGUI(self, frequencies, readings, maxima, runtime):  # called by a signal from the measurement() thread
+    def updateGUI(self, frequencies, readings, maxima, minima, runtime):  # called by signal from measurement() thread
         # for LNB/Mixer mode when LO is above measured freq the scan is reversed, i.e. low TinySA freq = high meas freq
         if preferences.highLO.isChecked() and preferences.freqLO != 0:
             frequencies = frequencies[::-1]  # reverse the array
             np.fliplr(readings)
-
-        # calculate the average and min trace values
-        readingsAvg = np.nanmean(readings[0:ui.avgBox.value()], axis=0)
-        readingsMin = np.nanmin(readings[:self.scanMemory], axis=0)
-        logging.debug(f'updateGUI: averages={readingsAvg}')
 
         # update graph axes if in zero span
         if frequencies[0] == frequencies[-1]:
@@ -530,7 +539,8 @@ class analyser:
             ui.graphWidget.setXRange(frequencies[0], frequencies[-1])
 
         # update the swept traces
-        options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': maxima, 'Min': readingsMin}
+        readingsAvg = np.nanmean(readings[0:ui.avgBox.value()], axis=0)
+        options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': maxima, 'Min': minima}
         T1.trace.setData(frequencies, options.get(T1.traceType))
         T2.trace.setData(frequencies, options.get(T2.traceType))
         T3.trace.setData(frequencies, options.get(T3.traceType))
@@ -539,20 +549,18 @@ class analyser:
         if ui.waterfallSize.value() != 0:
             self.updateWaterfall(readings)
 
-        record = recData.tm.record()
-        record.setValue('readings', readings)
-        recData.tm.insertRecord(-1, record)
-        recData.tm.submit()
+        # record = recData.tm.record()
+        # record.setValue('readings', readings)
+        # recData.tm.insertRecord(-1, record)
+        # recData.tm.submit()
 
-        # update markers (if not in zero span, where they are not relevant)  ############ being called too often ######
+        # update markers (if not in zero span, where they are not relevant)  # being called too often?
         if frequencies[0] != frequencies[-1]:
             ui.graphWidget.setLabel('bottom', units='Hz')
-            # maxmin = self.maxMin(frequencies, readings, maxima)
-            # # maxmin = tuple of lists where [0, x] are indices in the frequency array of the maxes and [1, x] are mins
-            M1.updateMarker(frequencies, readings[0, :], maxima)
-            M2.updateMarker(frequencies, readings[0, :], maxima)
-            M3.updateMarker(frequencies, readings[0, :], maxima)
-            M4.updateMarker(frequencies, readings[0, :], maxima)
+            M1.updateMarker(frequencies, readings, maxima, minima)
+            M2.updateMarker(frequencies, readings, maxima, minima)
+            M3.updateMarker(frequencies, readings, maxima, minima)
+            M4.updateMarker(frequencies, readings, maxima, minima)
 
         # update 3D graph if enabled
         if ui.stackedWidget.currentWidget() == ui.View3D:
@@ -614,8 +622,8 @@ class analyser:
             ui.scan_button.setStyleSheet('background-color: yellow')
             ui.run3D.setStyleSheet('background-color: yellow')
         else:
-            ui.scan_button.setStyleSheet('background-color: white')
-            ui.run3D.setStyleSheet('background-color: white')
+            ui.scan_button.setStyleSheet('background-color: ')
+            ui.run3D.setStyleSheet('background-color: ')
             ui.scan_button.setEnabled(True)
             ui.run3D.setEnabled(True)
 
@@ -777,22 +785,14 @@ class trace:
     def __init__(self, name, pen):
         self.name = name
         self.pen = pen
-        # self.trace = ui.graphWidget.plot([], [], name=name, pen=pen, width=1, padding=0)
         self.trace = ui.graphWidget.plot([], [], name=name, pen=self.pen, width=1, padding=0)
-        # self.traceType = self.guiRef(3).currentText()  # Normal, Average, Max, Min
-        # self.markerType = 'Normal'  # Normal, Delta; Max, Min
-        # self.vline = ui.graphWidget.addLine(88, 90, movable=True, name=name,
-        #                                     pen=pyqtgraph.mkPen('y', width=0.5, style=QtCore.Qt.DashLine),
-        #                                     label="{value:.5f}")
         self.hline = ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='',
                                             labelOpts={'position': 0.025, 'color': ('r')})
-        # self.deltaF = 0  # the difference between this marker and Reference Marker (1)
         self.fifo = queue.SimpleQueue()
-        # self.vline.sigClicked.connect(self.mClicked)
 
     def guiRef(self, opt):
         guiFields = ({'1': ui.m1_type, '2': ui.m2_type, '3': ui.m3_type, '4': ui.m4_type},
-                     {'1': ui.m1_type, '2': ui.m2_type, '3': ui.m3_type, '4': ui.m4_type},
+                     {'1': ui.m1trace, '2': ui.m2trace, '3': ui.m3trace, '4': ui.m4trace},
                      {'1': ui.trace1, '2': ui.trace2, '3': ui.trace3, '4': ui.trace4},
                      {'1': ui.t1_type, '2': ui.t2_type, '3': ui.t3_type, '4': ui.t4_type})
         Ref = guiFields[opt].get(self.name)
@@ -809,7 +809,6 @@ class trace:
 
     def enable(self):  # show or hide a trace
         if self.guiRef(2).isChecked():  # 2 selects trace checkboxes
-            # tint = "background-color: 'yellow';"
             tint = str("background-color: '" + self.pen + "';")
             self.guiRef(3).setStyleSheet(tint)
             self.trace.show()
@@ -819,17 +818,8 @@ class trace:
         checkboxes.dwm.submit()
 
     def setup(self):
-        # update centre freq, span, auto points and graph for the start/stop freqs loaded from database
-        tinySA.freq_changed(False)  # start/stop mode
-        pointsChanged()
-        ui.graphWidget.setXRange(ui.start_freq.value() * 1e6, ui.stop_freq.value() * 1e6, padding=0)
-        logging.debug(f'trace setup(): band = {numbers.tm.record(0).value("band")}')
         self.tType()
         self.enable()
-        T1.hEnable(preferences.neg25Line)
-        T2.hEnable(preferences.zeroLine)
-        T3.hEnable(preferences.plus6Line)
-        setPreferences()
 
 
 class marker:
@@ -838,12 +828,12 @@ class marker:
         self.linked = T1  # which trace data the marker uses as default
         self.level = 1  # marker tracking level (min or max), set per marker from GUI
         self.markerType = 'Normal'
+
         self.line = ui.graphWidget.addLine(88, 90, movable=True, name=name,
-                                           pen=pyqtgraph.mkPen('y', width=0.5, style=QtCore.Qt.DashLine),
-                                           label=self.name)
+                                           pen=pyqtgraph.mkPen('y', width=0.5), label=self.name)
 
         self.deltaline = ui.graphWidget.addLine(0, 90, movable=True, name=name,
-                                                pen=pyqtgraph.mkPen('y', width=0.5, style=QtCore.Qt.DotLine),
+                                                pen=pyqtgraph.mkPen('y', width=0.5, style=QtCore.Qt.DashLine),
                                                 label=self.name)
 
         self.hline = ui.graphWidget.addLine(y=0, movable=False, pen=red_dash, label='',
@@ -855,21 +845,32 @@ class marker:
                                                                          'movable': True})
 
         self.deltaF = 0  # the delta marker frequency difference
-        self.fifo = queue.SimpleQueue()
+        self.deltaRelative = True
+        self.deltaline.sigClicked.connect(self.deltaClicked)
         self.line.sigClicked.connect(self.lineClicked)
-        self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(-4.3, -box))  # try LegendItem instead?
+
+        self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(-4.2, -box))  # try LegendItem instead?
         self.markerBox.setParentItem(ui.graphWidget.plotItem)
+        self.fifo = queue.SimpleQueue()
+
+    def traceLink(self, setting):
+        traces = {'1': T1, '2': T2, '3': T3, '4': T4}
+        self.linked = traces.get(str(setting))
+        tint = str("background-color: '" + self.linked.pen + "';")
+        self.guiRef(1).setStyleSheet(tint)
+        checkboxes.dwm.submit()
 
     def setup(self, colour, freqField):
         # restore the marker frequencies from the configuration database and set starting conditions
         self.line.setValue(numbers.tm.record(0).value(freqField))
         self.line.label.setColor(colour)
-        self.line.setPen(color=colour, width=0.75, style=QtCore.Qt.DashLine)
+        self.line.setPen(color=colour, width=0.5)
         self.mType()
         self.deltaline.hide()
         self.deltaline.setValue(0)
         self.deltaF = 0
         self.line.label.setMovable(True)
+        self.deltaline.label.setMovable(True)
 
     def start(self):
         # set marker to the sweep start frequency
@@ -892,6 +893,12 @@ class marker:
             self.deltaline.show()
             self.deltaline.setValue(self.line.value())
             self.deltaF = 0
+
+    def deltaClicked(self):
+        if self.deltaRelative:
+            self.deltaRelative = False
+        else:
+            self.deltaRelative = True
 
     def deltaMoved(self):
         self.deltaF = self.deltaline.value() - self.line.value()
@@ -926,7 +933,7 @@ class marker:
         Ref = guiFields[opt].get(self.name)
         return Ref
 
-    def updateMarker(self, frequencies, readings, maxima):  # called by updateGUI()
+    def updateMarker(self, frequencies, readings, maxima, minima):  # called by updateGUI()
         if self.markerType == 'Off':
             self.markerBox.setVisible(False)
             return
@@ -934,7 +941,7 @@ class marker:
             self.markerBox.setVisible(True)
 
         if self.markerType in ('Max', 'Min'):
-            maxmin = self.maxMin(frequencies, readings, maxima)
+            maxmin = self.maxMin(frequencies, readings, maxima, minima)
             # maxmin is a tuple of lists where [0, x] are indices in the frequency array of the max and [1, x] are min
             logging.debug(f'updateMarker: maxmin = {maxmin}')
             if self.markerType == 'Max':
@@ -944,47 +951,28 @@ class marker:
             if self.markerType == 'Min':
                 self.line.setValue(maxmin[1][self.level])
                 if self.deltaline.value != 0:
-                    self.deltaline.setValue(maxmin[0][self.level] + self.deltaF)  # needs to be index delta not F
+                    self.deltaline.setValue(maxmin[1][self.level] + self.deltaF)  # needs to be index delta not F
 
-        #  Need to do something about min ###################################################################
-        options = {'Normal': readings[0:],
+        options = {'Normal': readings[0],
                    'Average': np.nanmean(readings[:ui.avgBox.value()], axis=0),
-                   'Max': maxima
-                   # 'Min': readingsMin
-                   }
+                   'Max': maxima,
+                   'Min': minima}
+
         levels = options.get(self.linked.traceType)
 
-        fIndex = np.argmin(np.abs(frequencies - (self.line.value())))  # find closest value in freq array
-        dBm = levels[fIndex]
-        self.markerBox.setText(f'M{self.line.name()} {self.line.value()/1e6:.{5}f} {dBm:.1f}dBm')
+        lineIndex = np.argmin(np.abs(frequencies - (self.line.value())))  # find closest value in freq array
+        linedBm = levels[lineIndex]
+        self.markerBox.setText(f'M{self.line.name()} {self.line.value()/1e6:.{4}f} {linedBm:.1f}dBm')
 
         if self.deltaline.value != 0:
-            fIndex = np.argmin(np.abs(frequencies - (self.deltaline.value())))  # find closest value in freq array
-            dBm = levels[fIndex]
-            self.deltaline.label.setText(f'M{self.line.name()} {chr(916)}{self.deltaF/1e6:.{5}f} {dBm:.1f}dBm')
-
-        # options = {'Max': maxmin[0][0], 'Max2': maxmin[0][1], 'Max3': maxmin[0][2],
-        #            'Max4': maxmin[0][3], 'Normal': self.line.value(), 'Delta': self.line.value(),
-        #            'Min': maxmin[1][0], 'Min2': maxmin[1][1], 'Min3': maxmin[1][2],
-        #            'Min4': maxmin[1][3]}
-        # markerF = options.get(self.markerType)
-
-        # if marker is out of current scan range just show its frequency
-        # if self.line.value() < frequencies[0] or self.line.value() > frequencies[-1]:
-        #     self.line.label.setText(f'M{self.line.name()}')  # not needed now?
-        #     self.markerBox.setText(f'M{self.line.name()} {self.line.value()/1e6:.{5}f}')
-        # else:
-        #     # marker is in scan range
-        #     fIndex = np.argmin(np.abs(frequencies - (self.line.value())))  # find closest value in freq array
-        #     dBm = levels[fIndex]
-        #     if dBm > M4.hline.value() or self.markerType == 'Normal':
-        #         self.line.setValue(frequencies[fIndex])  # set to the discrete value from frequencies[]
-        #         # self.deltaline.setValue(frequencies[fIndex + 20])
-        #     if self.markerType == 'Delta':
-        #         self.line.label.setText(f'M{self.line.name()} {chr(916)}{self.deltaF/1e6:.{5}f} {dBm:.1f}dBm')
-        #     else:
-        #         # self.line.label.setText(f'M{self.line.name()} {self.line.value()/1e6:.{5}f} {dBm:.1f}dBm')
-        #         self.markerBox.setText(f'M{self.line.name()} {self.line.value()/1e6:.{5}f} {dBm:.1f}dBm')
+            deltaLineIndex = np.argmin(np.abs(frequencies - (self.deltaline.value())))  # closest value in freq array
+            if self.deltaRelative:
+                deltaLinedBm = levels[deltaLineIndex]
+                dBm = deltaLinedBm - linedBm
+                self.deltaline.label.setText(f'{chr(916)}{self.line.name()} {dBm:.1f}dBm\n{self.deltaF/1e6:.{3}f}MHz')
+            else:
+                dBm = levels[deltaLineIndex]
+                self.deltaline.label.setText(f'{chr(916)}{self.line.name()} {dBm:.1f}dBm\n{self.deltaline.value()/1e6:.{3}f}MHz')
 
     def addFreqMarker(self, freq, colour, name, band=True):  # adds simple freq marker without full marker capability
         if ui.presetLabel.isChecked():
@@ -1006,13 +994,13 @@ class marker:
         for i in range(0, self.fifo.qsize()):
             ui.graphWidget.removeItem(self.fifo.get())  # remove the marker and its corresponding object in the queue
 
-    def maxMin(self, frequencies, readings, maxima):  # finds the signal max/min (indexes) values for setting markers
-        options = {'Normal': readings[0:],
+    def maxMin(self, frequencies, readings, maxima, minima):  # finds the signal max/min (indexes) for setting markers
+        options = {'Normal': readings[0],
                    'Average': np.nanmean(readings[:ui.avgBox.value()], axis=0),
-                   'Max': maxima
-                   # 'Min': readingsMin
-                   }
+                   'Max': maxima,
+                   'Min': minima}
         levels = options.get(self.linked.traceType)
+
         logging.debug(f'maxmin: linked tracetype = {self.linked.traceType}')
 
         # mask outside high/low freq boundary lines
@@ -1040,12 +1028,12 @@ class marker:
         return (list(frequencies[maxi]), list(frequencies[mini]))
 
     def setLevel(self, setting):
-        self.level = setting
+        self.level = setting - 1  # array indexes start at 0 not 1
 
 
 class WorkerSignals(QtCore.QObject):
     error = QtCore.pyqtSignal(str)
-    result = QtCore.pyqtSignal(np.ndarray, np.ndarray, np.ndarray, float)
+    result = QtCore.pyqtSignal(np.ndarray, np.ndarray, np.ndarray, np.ndarray, float)
     fullSweep = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     finished = QtCore.pyqtSignal()
 
@@ -1102,9 +1090,7 @@ class database():
 
     def connect(self):
         self.db = QSqlDatabase.addDatabase('QSQLITE', connectionName=self.conName)
-        # self.db = QSqlDatabase.database('QSQLITE', connectionName='test')
         logging.info(f'connection = {self.db.connectionName()}')
-        # QSqlDatabase.removeDatabase(QSqlDatabase.database().connectionName())
         if QtCore.QFile.exists(os.path.join(self.dbpath, self.dbName)):
             self.db.setDatabaseName(os.path.join(self.dbpath, self.dbName))
             self.db.open()
@@ -1125,11 +1111,9 @@ class modelView():
 
     def __init__(self, tableName, dbName):
         self.tableName = tableName
-        # self.tm = QSqlRelationalTableModel(db=config.db)
         self.tm = QSqlRelationalTableModel(db=dbName)
         self.dwm = QDataWidgetMapper()
         self.currentRow = 0
-        # self.currentBand = 0
 
     def createTableModel(self):
         self.tm.setTable(self.tableName)
@@ -1348,8 +1332,7 @@ def markerLevel():
 def setPreferences():  # called when the preferences window is closed
     checkboxes.dwm.submit()
     bands.tm.submitAll()
-    M4.hline.setValue(preferences.peakThreshold.value())  #  should this be M4??????????????????????
-    # bandselect.filterType(False, ui.filterBox.currentText())
+    M4.hline.setValue(preferences.peakThreshold.value())
     if ui.presetMarker.isChecked():
         freqMarkers()
     isMixerMode()
@@ -1357,7 +1340,6 @@ def setPreferences():  # called when the preferences window is closed
 
 def dialogPrefs():  # called by clicking on the setup > preferences menu
     bands.filterType(True, preferences.filterBox.currentText())
-    # bands.tm.select()  # stopping marker add
     bands.currentRow = 0
     preferences.freqBands.selectRow(bands.currentRow)
     pwindow.show()
@@ -1396,7 +1378,7 @@ def exit_handler():
         if tinySA.sweeping:
             tinySA.sweeping = False  # tell the measurement thread to stop
             while tinySA.threadRunning:
-                time.sleep(0.1)  # wait for measurements to stop
+                time.sleep(0.05)  # wait for measurements to stop
         tinySA.resume()
         tinySA.usbSend()
         tinySA.closePort()  # close USB connection
@@ -1418,7 +1400,6 @@ def exit_handler():
     # markers.destroyTableModel()
     # traces.destroyTableModel()
     # numbers.destroyTableModel()
-
     # config.disconnect()  # close database
     # recording.disconnect()  # close database
 
@@ -1521,6 +1502,131 @@ def setWaterfall():
     ui.waterfall.setMaximumSize(QtCore.QSize(16777215, ui.waterfallSize.value()))
 
 
+def clickConnect():
+    # Connect signals from buttons and sliders.  Called by 'initialise'.
+
+    ui.scan_button.clicked.connect(tinySA.scan)
+    ui.run3D.clicked.connect(tinySA.scan)
+    ui.atten_box.valueChanged.connect(attenuate_changed)
+    ui.atten_auto.clicked.connect(attenuate_changed)
+    ui.spur_box.clicked.connect(tinySA.spur)
+    ui.lna_box.clicked.connect(tinySA.lna)
+    ui.memBox.valueChanged.connect(memChanged)
+    ui.points_auto.stateChanged.connect(pointsChanged)
+    ui.points_box.editingFinished.connect(pointsChanged)
+    ui.setRange.clicked.connect(tinySA.mouseScaled)
+    ui.band_box.currentIndexChanged.connect(band_changed)
+    ui.band_box.activated.connect(band_changed)
+    ui.rbw_box.currentIndexChanged.connect(rbwChanged)
+    ui.rbw_auto.clicked.connect(rbwChanged)
+
+    # frequencies
+    ui.start_freq.editingFinished.connect(tinySA.freq_changed)
+    ui.stop_freq.editingFinished.connect(tinySA.freq_changed)
+    ui.centre_freq.valueChanged.connect(lambda: tinySA.freq_changed(True))  # centre/span mode
+    ui.span_freq.valueChanged.connect(lambda: tinySA.freq_changed(True))  # centre/span mode
+
+    # marker associated trace
+    ui.m1trace.valueChanged.connect(lambda: M1.traceLink(ui.m1trace.value()))
+    ui.m2trace.valueChanged.connect(lambda: M2.traceLink(ui.m2trace.value()))
+    ui.m3trace.valueChanged.connect(lambda: M3.traceLink(ui.m3trace.value()))
+    ui.m4trace.valueChanged.connect(lambda: M4.traceLink(ui.m4trace.value()))
+
+    # marker dragging
+    M1.line.sigPositionChanged.connect(M1.setDelta)
+    M2.line.sigPositionChanged.connect(M2.setDelta)
+    M3.line.sigPositionChanged.connect(M3.setDelta)
+    M4.line.sigPositionChanged.connect(M4.setDelta)
+    M1.deltaline.sigPositionChanged.connect(M1.deltaMoved)
+    M2.deltaline.sigPositionChanged.connect(M2.deltaMoved)
+    M3.deltaline.sigPositionChanged.connect(M3.deltaMoved)
+    M4.deltaline.sigPositionChanged.connect(M4.deltaMoved)
+
+    # marker setting within span range
+    ui.mkr_start.clicked.connect(markerToStart)
+    ui.mkr_centre.clicked.connect(markerToCentre)
+
+    # marker tracking level
+    ui.m1track.valueChanged.connect(lambda: M1.setLevel(ui.m1track.value()))
+    ui.m2track.valueChanged.connect(lambda: M2.setLevel(ui.m2track.value()))
+    ui.m3track.valueChanged.connect(lambda: M3.setLevel(ui.m3track.value()))
+    ui.m4track.valueChanged.connect(lambda: M4.setLevel(ui.m4track.value()))
+
+    # marker type changes
+    ui.m1_type.activated.connect(M1.mType)
+    ui.m2_type.activated.connect(M2.mType)
+    ui.m3_type.activated.connect(M3.mType)
+    ui.m4_type.activated.connect(M4.mType)
+
+    # frequency band markers
+    ui.presetMarker.clicked.connect(freqMarkers)
+    ui.presetLabel.clicked.connect(freqMarkerLabel)
+    ui.mToBand.clicked.connect(addBandPressed)
+    ui.filterBox.currentTextChanged.connect(freqMarkers)
+
+    # trace checkboxes
+    ui.trace1.stateChanged.connect(T1.enable)
+    ui.trace2.stateChanged.connect(T2.enable)
+    ui.trace3.stateChanged.connect(T3.enable)
+    ui.trace4.stateChanged.connect(T4.enable)
+
+    # trace type changes
+    ui.t1_type.activated.connect(T1.tType)
+    ui.t2_type.activated.connect(T2.tType)
+    ui.t3_type.activated.connect(T3.tType)
+    ui.t4_type.activated.connect(T4.tType)
+
+    ui.sampleRepeat.valueChanged.connect(tinySA.sampleRep)
+
+    # 3D graph controls
+    ui.orbitL.clicked.connect(lambda: tinySA.orbit3D(1, True))
+    ui.orbitR.clicked.connect(lambda: tinySA.orbit3D(-1, True))
+    ui.orbitU.clicked.connect(lambda: tinySA.orbit3D(-1, False))
+    ui.orbitD.clicked.connect(lambda: tinySA.orbit3D(1, False))
+    ui.timeF.clicked.connect(lambda: tinySA.axes3D(-1, 'X'))
+    ui.timeR.clicked.connect(lambda: tinySA.axes3D(1, 'X'))
+    ui.freqR.clicked.connect(lambda: tinySA.axes3D(-1, 'Y'))
+    ui.freqL.clicked.connect(lambda: tinySA.axes3D(1, 'Y'))
+    ui.signalUp.clicked.connect(lambda: tinySA.axes3D(-1, 'Z'))
+    ui.signalDown.clicked.connect(lambda: tinySA.axes3D(1, 'Z'))
+    ui.gridF.clicked.connect(lambda: tinySA.grid(1))
+    ui.gridR.clicked.connect(lambda: tinySA.grid(-1))
+    ui.zoom.sliderMoved.connect(tinySA.zoom3D)
+    ui.reset3D.clicked.connect(tinySA.reset3D)
+    ui.timeSpectrum.clicked.connect(lambda: ui.stackedWidget.setCurrentWidget(ui.View3D))
+    ui.analyser.clicked.connect(lambda: ui.stackedWidget.setCurrentWidget(ui.ViewNormal))
+
+    # preferences
+    preferences.neg25Line.stateChanged.connect(lambda: T1.hEnable(preferences.neg25Line))
+    preferences.zeroLine.stateChanged.connect(lambda: T2.hEnable(preferences.zeroLine))
+    preferences.plus6Line.stateChanged.connect(lambda: T3.hEnable(preferences.plus6Line))
+    preferences.addRow.clicked.connect(bands.addRow)
+    preferences.deleteRow.clicked.connect(lambda: bands.deleteRow(True))
+    preferences.deleteAll.clicked.connect(lambda: bands.deleteRow(False))
+    preferences.freqBands.clicked.connect(bands.tableClicked)
+    preferences.filterBox.currentTextChanged.connect(lambda: bands.filterType(True, preferences.filterBox.currentText()))
+    ui.filterBox.currentTextChanged.connect(lambda: bandselect.filterType(False, ui.filterBox.currentText()))
+    ui.actionPreferences.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
+    ui.actionAbout_QtTinySA.triggered.connect(about)
+    pwindow.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
+    preferences.exportButton.pressed.connect(exportData)
+    preferences.importButton.pressed.connect(importData)
+    preferences.deviceBox.activated.connect(testComPort)
+
+    # filebrowse
+    ui.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
+    filebrowse.download.clicked.connect(tinySA.fileDownload)
+    filebrowse.listWidget.itemClicked.connect(tinySA.fileShow)
+
+    # Quit
+    ui.actionQuit.triggered.connect(app.closeAllWindows)
+
+    # Sweep time
+    # ui.sweepTime.valueChanged.connect(lambda: tinySA.sweepTime(ui.sweepTime.value()))
+
+    # Waterfall
+    ui.waterfallSize.valueChanged.connect(setWaterfall)
+
 ###############################################################################
 # Instantiate classes
 
@@ -1528,7 +1634,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.12.4')
+app.setApplicationVersion(' v0.12.5')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1542,16 +1648,16 @@ filebrowse = QtTSAfilebrowse.Ui_Filebrowse()
 filebrowse.setupUi(fwindow)
 
 # Traces
-T1 = trace('1', 'yellow')
-T2 = trace('2', 'magenta')
-T3 = trace('3', 'cyan')
-T4 = trace('4', 'white')
+T1 = trace('1', 'lightblue')
+T2 = trace('2', 'indianred')
+T3 = trace('3', 'orange')
+T4 = trace('4', 'yellow')
 
 # Markers
-M1 = marker('1', 0)
+M1 = marker('1', 0.1)
 M2 = marker('2', 0.6)
-M3 = marker('3', 1.2)
-M4 = marker('4', 1.8)
+M3 = marker('3', 1.1)
+M4 = marker('4', 1.7)
 
 # Data models for configuration settings
 config = database("QtTSAprefs.db", "configuration")
@@ -1599,11 +1705,16 @@ ui.histogram.plotItem.invertY(True)
 ui.histogram.getPlotItem().hideAxis('bottom')
 ui.histogram.getPlotItem().hideAxis('left')
 
-# marker label positions  ############################### maybe not needed now ##############################
-M1.line.label.setPosition(0.03)
-M2.line.label.setPosition(0.03)
-M3.line.label.setPosition(0.03)
-M4.line.label.setPosition(0.03)
+# marker label positions
+M1.line.label.setPosition(0.99)
+M2.line.label.setPosition(0.99)
+M3.line.label.setPosition(0.99)
+M4.line.label.setPosition(0.99)
+M1.deltaline.label.setPosition(0.05)
+M2.deltaline.label.setPosition(0.05)
+M3.deltaline.label.setPosition(0.05)
+M4.deltaline.label.setPosition(0.05)
+
 
 # signal limit lines
 T1.hline.setValue(-25)
@@ -1616,128 +1727,6 @@ T3.hline.setPen('r')
 M4.hline.setPen(red_dash, width=0.5)
 M4.hline.setMovable(True)
 M4.hline.label.setFormat("{value:.1f}")
-
-###############################################################################
-# Connect signals from buttons and sliders.  Some connections are in 'initialise' Fn
-
-ui.scan_button.clicked.connect(tinySA.scan)
-ui.run3D.clicked.connect(tinySA.scan)
-ui.atten_box.valueChanged.connect(attenuate_changed)
-ui.atten_auto.clicked.connect(attenuate_changed)
-ui.spur_box.clicked.connect(tinySA.spur)
-ui.lna_box.clicked.connect(tinySA.lna)
-ui.memBox.valueChanged.connect(memChanged)
-ui.points_auto.stateChanged.connect(pointsChanged)
-ui.points_box.editingFinished.connect(pointsChanged)
-ui.setRange.clicked.connect(tinySA.mouseScaled)
-ui.band_box.currentIndexChanged.connect(band_changed)
-ui.band_box.activated.connect(band_changed)
-ui.rbw_box.currentIndexChanged.connect(rbwChanged)
-ui.rbw_auto.clicked.connect(rbwChanged)
-
-# frequencies
-ui.start_freq.editingFinished.connect(tinySA.freq_changed)
-ui.stop_freq.editingFinished.connect(tinySA.freq_changed)
-ui.centre_freq.valueChanged.connect(lambda: tinySA.freq_changed(True))  # centre/span mode
-ui.span_freq.valueChanged.connect(lambda: tinySA.freq_changed(True))  # centre/span mode
-
-# marker dragging
-M1.line.sigPositionChanged.connect(M1.setDelta)
-M2.line.sigPositionChanged.connect(M2.setDelta)
-M3.line.sigPositionChanged.connect(M3.setDelta)
-M4.line.sigPositionChanged.connect(M4.setDelta)
-M1.deltaline.sigPositionChanged.connect(M1.deltaMoved)
-M2.deltaline.sigPositionChanged.connect(M2.deltaMoved)
-M3.deltaline.sigPositionChanged.connect(M3.deltaMoved)
-M4.deltaline.sigPositionChanged.connect(M4.deltaMoved)
-
-# marker setting within span range
-ui.mkr_start.clicked.connect(markerToStart)
-ui.mkr_centre.clicked.connect(markerToCentre)
-
-# marker tracking level
-ui.m1track.valueChanged.connect(lambda: M1.setLevel(ui.m1track.value()))
-ui.m2track.valueChanged.connect(lambda: M2.setLevel(ui.m2track.value()))
-ui.m3track.valueChanged.connect(lambda: M3.setLevel(ui.m3track.value()))
-ui.m4track.valueChanged.connect(lambda: M4.setLevel(ui.m4track.value()))
-
-# marker type changes
-ui.m1_type.activated.connect(M1.mType)
-ui.m2_type.activated.connect(M2.mType)
-ui.m3_type.activated.connect(M3.mType)
-ui.m4_type.activated.connect(M4.mType)
-
-# frequency band markers
-ui.presetMarker.clicked.connect(freqMarkers)
-ui.presetLabel.clicked.connect(freqMarkerLabel)
-ui.mToBand.clicked.connect(addBandPressed)
-ui.filterBox.currentTextChanged.connect(freqMarkers)
-
-# trace checkboxes
-ui.trace1.stateChanged.connect(T1.enable)
-ui.trace2.stateChanged.connect(T2.enable)
-ui.trace3.stateChanged.connect(T3.enable)
-ui.trace4.stateChanged.connect(T4.enable)
-
-# trace type changes
-ui.t1_type.activated.connect(T1.tType)
-ui.t2_type.activated.connect(T2.tType)
-ui.t3_type.activated.connect(T3.tType)
-ui.t4_type.activated.connect(T4.tType)
-
-ui.sampleRepeat.valueChanged.connect(tinySA.sampleRep)
-
-# 3D graph controls
-ui.orbitL.clicked.connect(lambda: tinySA.orbit3D(1, True))
-ui.orbitR.clicked.connect(lambda: tinySA.orbit3D(-1, True))
-ui.orbitU.clicked.connect(lambda: tinySA.orbit3D(-1, False))
-ui.orbitD.clicked.connect(lambda: tinySA.orbit3D(1, False))
-ui.timeF.clicked.connect(lambda: tinySA.axes3D(-1, 'X'))
-ui.timeR.clicked.connect(lambda: tinySA.axes3D(1, 'X'))
-ui.freqR.clicked.connect(lambda: tinySA.axes3D(-1, 'Y'))
-ui.freqL.clicked.connect(lambda: tinySA.axes3D(1, 'Y'))
-ui.signalUp.clicked.connect(lambda: tinySA.axes3D(-1, 'Z'))
-ui.signalDown.clicked.connect(lambda: tinySA.axes3D(1, 'Z'))
-ui.gridF.clicked.connect(lambda: tinySA.grid(1))
-ui.gridR.clicked.connect(lambda: tinySA.grid(-1))
-ui.zoom.sliderMoved.connect(tinySA.zoom3D)
-ui.reset3D.clicked.connect(tinySA.reset3D)
-ui.timeSpectrum.clicked.connect(lambda: ui.stackedWidget.setCurrentWidget(ui.View3D))
-ui.analyser.clicked.connect(lambda: ui.stackedWidget.setCurrentWidget(ui.ViewNormal))
-
-# preferences
-preferences.neg25Line.stateChanged.connect(lambda: T1.hEnable(preferences.neg25Line))
-preferences.zeroLine.stateChanged.connect(lambda: T2.hEnable(preferences.zeroLine))
-preferences.plus6Line.stateChanged.connect(lambda: T3.hEnable(preferences.plus6Line))
-preferences.addRow.clicked.connect(bands.addRow)
-preferences.deleteRow.clicked.connect(lambda: bands.deleteRow(True))
-preferences.deleteAll.clicked.connect(lambda: bands.deleteRow(False))
-preferences.freqBands.clicked.connect(bands.tableClicked)
-preferences.filterBox.currentTextChanged.connect(lambda: bands.filterType(True, preferences.filterBox.currentText()))
-ui.filterBox.currentTextChanged.connect(lambda: bandselect.filterType(False, ui.filterBox.currentText()))
-ui.actionPreferences.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
-ui.actionAbout_QtTinySA.triggered.connect(about)
-pwindow.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
-preferences.exportButton.pressed.connect(exportData)
-preferences.importButton.pressed.connect(importData)
-preferences.deviceBox.activated.connect(testComPort)
-
-# filebrowse
-ui.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
-filebrowse.download.clicked.connect(tinySA.fileDownload)
-filebrowse.listWidget.itemClicked.connect(tinySA.fileShow)
-
-# Trace and Marker settings
-
-
-# Quit
-ui.actionQuit.triggered.connect(app.closeAllWindows)
-
-# Sweep time
-# ui.sweepTime.valueChanged.connect(lambda: tinySA.sweepTime(ui.sweepTime.value()))
-
-# Waterfall
-ui.waterfallSize.valueChanged.connect(setWaterfall)
 
 ###############################################################################
 # set up the application
@@ -1841,7 +1830,7 @@ numbers.dwm.setCurrentIndex(0)
 
 window.show()
 window.setWindowTitle(app.applicationName() + app.applicationVersion())
-# window.setWindowIcon(QtGui.QIcon(os.path.join(basedir, 'tinySAsmall.png')))
+window.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 
 # try to open a USB connection to the TinySA hardware
 tinySA.usbCheck.start(500)  # check again every 500mS
