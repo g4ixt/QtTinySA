@@ -1137,6 +1137,8 @@ class modelView():
             self.tm.insertRow(0)
         else:
             self.tm.insertRow(self.currentRow)
+            bands.tm.select()
+            bandstype.tm.select()
         preferences.freqBands.selectRow(self.currentRow)
 
     def saveChanges(self):
@@ -1144,6 +1146,7 @@ class modelView():
 
     def deleteRow(self, single=True):  # deletes rows in the frequency bands table widget
         if single:
+            logging.info(f'deleteRow: current row = {self.currentRow}')
             self.tm.removeRow(self.currentRow)
         else:
             for i in range(0, self.tm.rowCount()):
@@ -1251,11 +1254,11 @@ def band_changed():
 
 
 def addBandPressed():  # this is not going to work now ################################################################
-    if not ui.marker1.isChecked():
+    if ui.m1_type.currentText() == 'Off':
         message = 'Please enable Marker 1'
         popUp(message, QMessageBox.Ok, QMessageBox.Information)
         return
-    if ui.marker1.isChecked() and ui.marker2.isChecked():  # Two markers are to set the band limits of a new band
+    if ui.m1_type.currentText() != 'Off' and ui.m2_type.currentText() != 'Off':  # Two markers to set a band limit
         if M1.line.value() >= M2.line.value():
             message = 'M1 frequency >= M2 frequency'
             popUp(message, QMessageBox.Ok, QMessageBox.Information)
@@ -1264,14 +1267,16 @@ def addBandPressed():  # this is not going to work now #########################
         title = "New Frequency Band"
         message = "Enter a name for the new band."
         bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=bandName, preset=ID, startF=f'{M1.line.value()}',
-                         stopF=f'{M2.line.value()/1e6:.6f}', value=1, colour=colourID('green'))  # colourID(value)
+        bands.insertData(name=bandName, type=ID, startF=f'{M1.line.value()}',
+                         stopF=f'{M2.line.value()}', visible=1, colour=colourID('green'))  # colourID(value)
     else:  # If only Marker 1 is enabled then this creates a spot Frequency marker
         title = "New Spot Frequency Marker"
         message = "Enter a name for the Spot Frequency"
         spotName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
         bands.insertData(name=spotName, type=12, startF=f'{M1.line.value()}',
                          stopF='', visible=1, colour=colourID('orange'))  # preset 12 is Marker (spot frequency).
+    bands.tm.select()
+    bandselect.tm.select()
 
 
 def attenuate_changed():
@@ -1641,7 +1646,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.12.6')
+app.setApplicationVersion(' v0.12.7')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
