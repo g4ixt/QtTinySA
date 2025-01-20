@@ -117,7 +117,7 @@ class analyser:
                   QMessageBox.Ok, QMessageBox.Information)
             self.usbCheck.stop()
 
-    def testPort(self, port):
+    def testPort(self, port):  # tests comms and initialises tinySA if found
         try:
             self.usb = serial.Serial(port.device, baudrate=576000)
             logging.info(f'Serial port {port.device} open: {self.usb.isOpen()}')
@@ -200,36 +200,39 @@ class analyser:
         self.setAbort(True)
         self.fifoTimer.start(500)  # calls self.usbSend() every 500mS to execute serial commands whilst not scanning
 
+        # Markers
         M1.setLevel(ui.m1track.value())
         M2.setLevel(ui.m2track.value())
         M3.setLevel(ui.m3track.value())
         M4.setLevel(ui.m4track.value())
-
         M1.setup('yellow', 'm1f')
         M2.setup('yellow', 'm2f')
         M3.setup('yellow', 'm3f')
         M4.setup('yellow', 'm4f')
 
+        # Traces
         T1.setup()
         T2.setup()
         T3.setup()
         T4.setup()
 
-        ui.band_box.setCurrentText(numbers.tm.record(0).value("band"))  # this shouldn't be needed but it is
-        self.setSweep(ui.start_freq.value() * 1e6, ui.stop_freq.value() * 1e6)  # set the tinySA default scan range
         ui.waterfallSize.setValue(ui.waterfallSize.value() + 1)
 
-        # update centre freq, span, auto points and graph for the start/stop freqs loaded from database
-        tinySA.freq_changed(False)  # start/stop mode
         pointsChanged()
-        ui.graphWidget.setXRange(ui.start_freq.value() * 1e6, ui.stop_freq.value() * 1e6, padding=0)
         setPreferences()
         T1.hEnable(preferences.neg25Line)
         T2.hEnable(preferences.zeroLine)
         T3.hEnable(preferences.plus6Line)
 
+        # set the default scan range
+        band = ui.band_box.currentText()
+        bandselect.filterType(False, ui.filterBox.currentText())  # setting the filter overwrites the band
+
+        # connect (activate) GUI controls
         clickConnect()
 
+        # restore the band
+        ui.band_box.setCurrentText(band)
         logging.debug(f'initialise: finished')
 
     def scan(self):  # called by 'run' button
@@ -849,8 +852,9 @@ class marker:
         self.deltaline.sigClicked.connect(self.deltaClicked)
         self.line.sigClicked.connect(self.lineClicked)
 
-        self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(-4.2, -box))  # try LegendItem instead?
+        self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(-0.5, -box))  # box is vertical posn
         self.markerBox.setParentItem(ui.graphWidget.plotItem)
+
         self.fifo = queue.SimpleQueue()
 
     def traceLink(self, setting):
@@ -1089,6 +1093,7 @@ class database():
             raise FileNotFoundError("Unable to find the database {self.dbName}")
 
     def connect(self):
+
         self.db = QSqlDatabase.addDatabase('QSQLITE', connectionName=self.conName)
         logging.info(f'connection = {self.db.connectionName()}')
         if QtCore.QFile.exists(os.path.join(self.dbpath, self.dbName)):
@@ -1245,7 +1250,7 @@ def band_changed():
     freqMarkers()
 
 
-def addBandPressed():
+def addBandPressed():  # this is not going to work now ################################################################
     if not ui.marker1.isChecked():
         message = 'Please enable Marker 1'
         popUp(message, QMessageBox.Ok, QMessageBox.Information)
@@ -1403,12 +1408,13 @@ def exit_handler():
     # config.disconnect()  # close database
     # recording.disconnect()  # close database
 
+    config.disconnect()
     config.db.close()
-    logging.info(f'Database {config.db} open: {config.db.isOpen()}')
+    logging.info(f'Database {config.dbName} open: {config.db.isOpen()}')
     QSqlDatabase.removeDatabase(config.conName)
 
     recording.db.close()
-    logging.info(f'Database {recording.db} open: {recording.db.isOpen()}')
+    logging.info(f'Database {recording.dbName} open: {recording.db.isOpen()}')
     QSqlDatabase.removeDatabase(recording.conName)
 
     logging.info('QtTinySA Closed')
@@ -1627,6 +1633,7 @@ def clickConnect():
     # Waterfall
     ui.waterfallSize.valueChanged.connect(setWaterfall)
 
+
 ###############################################################################
 # Instantiate classes
 
@@ -1634,7 +1641,7 @@ tinySA = analyser()
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.12.5')
+app.setApplicationVersion(' v0.12.6')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1718,7 +1725,7 @@ M4.deltaline.label.setPosition(0.05)
 
 # signal limit lines
 T1.hline.setValue(-25)
-T1.hline.label.setText('best')
+# T1.hline.label.setText('best')
 T2.hline.label.setText('max')
 T3.hline.setValue(6)
 T3.hline.setPen('r')
