@@ -548,8 +548,6 @@ class analyser:
         if ui.waterfallSize.value() != 0:
             self.updateWaterfall(readings)
 
-        # recRef.makeRecording(1234, 10, 100, 500)
-
         # update markers (if not in zero span, where they are not relevant)  # being called too often?
         if frequencies[0] != frequencies[-1]:
             ui.graphWidget.setLabel('bottom', units='Hz')
@@ -822,7 +820,7 @@ class limit:
         if self.y:
             label = '{value:.1f}'
         self.line = ui.graphWidget.addLine(self.x, self.y, movable=self.movable, pen=self.pen, label=label,
-                                           labelOpts={'position': 0.025, 'color': (self.pen), 'movable': True})
+                                           labelOpts={'position': 0.98, 'color': (self.pen), 'movable': True})
         if dash:
             self.line.setPen(self.pen, width=0.5, style=QtCore.Qt.DashLine)
 
@@ -841,10 +839,10 @@ class marker:
         self.markerType = 'Normal'
         self.line = ui.graphWidget.addLine(88, 90, movable=True, name=name,
                                            pen=pyqtgraph.mkPen('y', width=0.5), label=self.name)
-
         self.deltaline = ui.graphWidget.addLine(0, 90, movable=True, name=name,
                                                 pen=pyqtgraph.mkPen('y', width=0.5, style=QtCore.Qt.DashLine),
                                                 label=self.name)
+        self.line.addMarker('^', 0, 10)
         self.deltaF = 0  # the delta marker frequency difference
         self.deltaRelative = True
         self.deltaline.sigClicked.connect(self.deltaClicked)
@@ -864,7 +862,7 @@ class marker:
         # restore the marker frequencies from the configuration database and set starting conditions
         self.line.setValue(numbers.tm.record(0).value(freqField))
         self.line.label.setColor(colour)
-        self.line.label.setPosition(0.99)
+        self.line.label.setPosition(0.02)
         self.line.label.setMovable(True)
         self.line.setPen(color=colour, width=0.5)
         self.mType()
@@ -890,7 +888,7 @@ class marker:
             self.deltaline.setValue(0)
         else:
             self.deltaline.show()
-            self.deltaline.setValue(self.line.value())
+            self.deltaline.setValue(self.line.value() + ui.span_freq.value() * 2.5e4)
             self.deltaF = 0
 
     def deltaClicked(self):  # toggle relative or absolute labelling
@@ -904,7 +902,6 @@ class marker:
 
     def mType(self):
         self.markerType = self.guiRef(0).currentText()  # current combobox value from appropriate GUI field
-        logging.info(f'markerType = {self.markerType}')
         if self.markerType == 'Off' or self.markerType == '':
             self.line.hide()
             self.deltaline.hide()
@@ -1070,13 +1067,6 @@ class modelView():
         self.dwm.setModel(self.tm)
         self.dwm.setSubmitPolicy(QDataWidgetMapper.AutoSubmit)
 
-    def destroyTableModel(self):
-        self.tm.setFilter('')
-        self.dwm.submit()
-        self.tm.submit()
-        del self.dwm
-        del self.tm
-
     def addRow(self):  # adds a blank row to the frequency bands table widget above current row
         if self.currentRow == 0:
             self.tm.insertRow(0)
@@ -1177,17 +1167,6 @@ class modelView():
             gui = maps.tm.record(index).value('gui')
             column = maps.tm.record(index).value('column')
             self.dwm.addMapping(eval(gui), int(column))
-
-    def makeRecording(self, dateTime, startF, stopF, points):
-        record = self.tm.record()
-        record.setValue('dateTime', dateTime)
-        record.setValue('startF', startF)
-        record.setValue('stopF', stopF)
-        record.setValue('points', points)
-        self.tm.insertRecord(-1, record)
-        self.tm.submit()
-        self.tm.select()
-
 
 ###############################################################################
 # respond to GUI signals
@@ -1361,26 +1340,27 @@ def getPath(dbName):
     raise FileNotFoundError("Unable to find the database {self.dbName}")
 
 
-def connect(dbName, conName):
+def connect(dbFile, con):
 
-    database = QSqlDatabase.addDatabase('QSQLITE', connectionName=conName)
-    dbPath = getPath(dbName)
-    if QtCore.QFile.exists(os.path.join(dbPath, dbName)):
-        database.setDatabaseName(os.path.join(dbPath, dbName))
-        database.open()
-        logging.info(f'{dbName} open: {database.isOpen()}  Connection = "{database.connectionName()}"')
+    db = QSqlDatabase.addDatabase('QSQLITE', connectionName=con)
+    dbPath = getPath(dbFile)
+    if QtCore.QFile.exists(os.path.join(dbPath, dbFile)):
+        db.setDatabaseName(os.path.join(dbPath, dbFile))
+        db.open()
+        logging.info(f'{dbFile} open: {db.isOpen()}  Connection = "{db.connectionName()}"')
+        logging.debug(f'tables available = {db.tables()}')
         # database.setConnectOptions('PRAGMA foreign_keys = ON;')
     else:
-        logging.info('Database file {dbPath}{dbName} is missing')
+        logging.info('Database file {dbPath}{dbFile} is missing')
         popUp('Database file is missing', QMessageBox.Ok, QMessageBox.Critical)
         return
-    return database
+    return db
 
 
-def disconnect(database, conName):
-    logging.info(f'Database {database} open: {database.isOpen()}')
-    database.close()
-    QSqlDatabase.removeDatabase(conName)
+def disconnect(db):
+    db.close()
+    logging.info(f'Database {db.databaseName()} open: {db.isOpen()}')
+    QSqlDatabase.removeDatabase(db.databaseName())
 
 
 def exit_handler():
@@ -1401,8 +1381,8 @@ def exit_handler():
         tinySA.usbSend()
         tinySA.closePort()  # close USB connection
 
-    disconnect(config, 'configuration')
-    disconnect(recording, 'recording')
+    checkboxes.dwm.submit()
+    disconnect(config)
 
     logging.info('QtTinySA Closed')
 
@@ -1623,18 +1603,21 @@ def clickConnect():
 
 tinySA = analyser()
 
-app = QtWidgets.QApplication([])  # create QApplication for the GUI
+# create QApplication for the GUI
+app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.12.8')
+app.setApplicationVersion(' v0.12.9')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
 
-pwindow = QtWidgets.QDialog()  # pwindow is the preferences dialogue box
+# pwindow is the preferences dialogue box
+pwindow = QtWidgets.QDialog()
 preferences = QtTSApreferences.Ui_Preferences()
 preferences.setupUi(pwindow)
 
-fwindow = QtWidgets.QDialog()  # fwindow is the filebrowse dialogue box
+# fwindow is the filebrowse dialogue box
+fwindow = QtWidgets.QDialog()
 filebrowse = QtTSAfilebrowse.Ui_Filebrowse()
 filebrowse.setupUi(fwindow)
 
@@ -1665,7 +1648,8 @@ lowF.create(True)
 highF.create(True)
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "configuration")
+config = connect("QtTSAprefs.db", "settings")
+
 checkboxes = modelView('checkboxes', config)
 numbers = modelView('numbers', config)
 markers = modelView('marker', config)
@@ -1680,17 +1664,19 @@ bands = modelView('frequencies', config)
 presetmarker = modelView('frequencies', config)
 bandselect = modelView('frequencies', config)
 
-# Database and models for recording and playback (doesn't work)
-recording = connect("QtTSArecording.db", "recording")
-recRef = modelView('recording', recording)
-recData = modelView('data', recording)
+# Database and models for recording and playback (can't get multiple databases to work)
+# saveData = connect("QtTSArecording.db", "measurements")
+# data = modelView('data', saveData.database())
+# settings = modelView('settings', saveData.database())
+# data.tm.select()
+# settings.tm.select()
 
 
 ###############################################################################
 # GUI settings
 
 # pyqtgraph settings for spectrum display
-ui.graphWidget.setYRange(-110, -20)
+ui.graphWidget.setYRange(-112, -20)
 ui.graphWidget.setDefaultPadding(padding=0)
 ui.graphWidget.showGrid(x=True, y=True)
 ui.graphWidget.setLabel('bottom', '', units='Hz')
