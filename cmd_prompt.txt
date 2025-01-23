@@ -1,6 +1,0 @@
-PS C:\Users\ian\nuitka\QtTinySA> python QtTinySA.py
-Database QtTSAprefs.db found at C:\Users\ian\AppData\Local\QtTinySA
-QtTSAprefs.db open: True
-QtTinySA v0.11.8
-Serial port COM3 open: True
-COM3 test 0 : tinySA4_v1.4-177

@@ -36,7 +36,7 @@ from platform import system
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit
 from PyQt5.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate
-from PyQt5.QtGui import QPixmap, QIcon, QFont
+from PyQt5.QtGui import QPixmap, QIcon
 from datetime import datetime
 import pyqtgraph
 import QtTinySpectrum  # the main GUI
@@ -82,6 +82,7 @@ class analyser:
         self.signals = WorkerSignals()
         self.signals.result.connect(self.updateGUI)
         self.signals.finished.connect(self.threadEnds)
+        self.signals.saveResults.connect(saveFile)
         self.runTimer = QtCore.QElapsedTimer()
         self.scale = 174
         self.scanMemory = 50
@@ -220,18 +221,16 @@ class analyser:
         setPreferences()
         band = ui.band_box.currentText()
         bandselect.filterType(False, ui.filterBox.currentText())  # setting the filter overwrites the band
-        # T1.hEnable(preferences.neg25Line)
-        # T2.hEnable(preferences.zeroLine)
-        # T3.hEnable(preferences.plus6Line)
 
-        # connect (activate) GUI controls
-        clickConnect()
+        # connect GUI controls that send messages to tinySA
+        connectActive()
 
         # restore the band
         ui.band_box.setCurrentText(band)
         logging.debug('initialise: finished')
 
     def scan(self):  # called by 'run' button
+        logging.debug(f'scan: self.usb = {self.usb}')
         if self.usb is not None:
             if self.sweeping:  # if it's running, stop it
                 self.sweeping = False  # tells the measurement thread to stop once current scan complete
@@ -330,7 +329,8 @@ class analyser:
         if min(scanF) < 0:
             self.sweeping = False
             scanF = (88 * 1e6, 108 * 1e6)
-            logging.info('frequency offset error, check preferences')
+            logging.info('LO frequency offset error, check preferences')
+            popUp("LO frequency offset error, check preferences", QMessageBox.Ok, QMessageBox.Critical)
         logging.debug(f'freqOffset(): scanF = {scanF}')
         return scanF
 
@@ -377,6 +377,7 @@ class analyser:
         return timeout
 
     def measurement(self, frequencies, readings, maxima, minima):  # runs in a separate thread
+        sweepCount = 0
         updateTimer = QtCore.QElapsedTimer()
         points = np.size(frequencies)
         self.threadRunning = True
@@ -430,11 +431,15 @@ class analyser:
                     readings[-1] = readings[0]  # populate last row with current sweep before rolling
                     readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
                     if version >= 177:
-                        firstRun = False
                         if self.usb.read(2) != b'}{':  # the end of scan marker character is '}{'
                             logging.info('QtTinySA display is out of sync with tinySA frequency')
                             self.sweeping = False
                             break
+                        sweepCount += 1
+                        firstRun = False
+                        if sweepCount == self.scanMemory: # array is full so trigger CSV data file save
+                            self.signals.saveResults.emit(frequencies, readings)
+                            sweepCount = 0
 
                 # If a sweep setting has been changed by the user, the sweep must be re-started (+ new recording start)
                 if self.fifo.qsize() > 0 or not self.sweeping:
@@ -815,12 +820,13 @@ class limit:
         self.y = y
         self.movable = movable
 
-    def create(self, dash=False):
+    def create(self, dash=False, mark='', posn=0.99):
         label = ''
         if self.y:
             label = '{value:.1f}'
         self.line = ui.graphWidget.addLine(self.x, self.y, movable=self.movable, pen=self.pen, label=label,
                                            labelOpts={'position': 0.98, 'color': (self.pen), 'movable': True})
+        self.line.addMarker(mark, posn, 10)
         if dash:
             self.line.setPen(self.pen, width=0.5, style=QtCore.Qt.DashLine)
 
@@ -1033,6 +1039,7 @@ class WorkerSignals(QtCore.QObject):
     error = QtCore.pyqtSignal(str)
     result = QtCore.pyqtSignal(np.ndarray, np.ndarray, np.ndarray, np.ndarray, float)
     fullSweep = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    saveResults = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     finished = QtCore.pyqtSignal()
 
 
@@ -1296,7 +1303,7 @@ def dialogPrefs():  # called by clicking on the setup > preferences menu
 
 def about():
     message = ('TinySA Ultra GUI programme using Qt5 and PyQt\nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
-               .format(app.applicationVersion(), config.dbpath))
+               .format(app.applicationVersion(), config.databaseName()))
     popUp(message, QMessageBox.Ok, QMessageBox.Information)
 
 
@@ -1311,6 +1318,26 @@ def testComPort():
 
 ##############################################################################
 # other methods
+
+def saveFile(frequencies, readings):
+    if preferences.saveSweep.isChecked():
+        timeStamp = time.strftime('%d-%b-%Y-%H:%M:%S')
+        saver = Worker(writeSweep, timeStamp, frequencies, readings)  # workers deleted when thread ends
+        threadpool.start(saver)
+
+
+def writeSweep(timeStamp, frequencies, readings):
+    dBm = np.transpose(np.round(readings, decimals=2))
+    fileName = str(timeStamp + '.csv')
+    with open(fileName, "w") as fileOutput:
+        output = csv.writer(fileOutput)
+        header = [timeStamp, 'Start', frequencies[0], 'Stop', frequencies[-1], 'fStep', frequencies[1] - frequencies[0],
+                  'Points', len(frequencies), 'RBW', ui.rbw_box.currentText(), 'Each_Column=One_sweep']
+        output.writerow(header)
+        for rowNumber in range(0, np.shape(dBm)[0]):
+            fields = [dBm[rowNumber, columnNumber] for columnNumber in range(0, np.shape(dBm)[1])]
+            output.writerow(fields)
+
 
 def getPath(dbName):
     # check if a personal database file exists already
@@ -1475,11 +1502,9 @@ def setWaterfall():
     ui.waterfall.setMaximumSize(QtCore.QSize(16777215, ui.waterfallSize.value()))
 
 
-def clickConnect():
-    # Connect signals from buttons and sliders.  Called by 'initialise'.
+def connectActive():
+    # Connect signals from controls that send messages to tinySA.  Called by 'initialise'.
 
-    ui.scan_button.clicked.connect(tinySA.scan)
-    ui.run3D.clicked.connect(tinySA.scan)
     ui.atten_box.valueChanged.connect(attenuate_changed)
     ui.atten_auto.clicked.connect(attenuate_changed)
     ui.spur_box.clicked.connect(tinySA.spur)
@@ -1498,6 +1523,47 @@ def clickConnect():
     ui.stop_freq.editingFinished.connect(tinySA.freq_changed)
     ui.centre_freq.valueChanged.connect(lambda: tinySA.freq_changed(True))  # centre/span mode
     ui.span_freq.valueChanged.connect(lambda: tinySA.freq_changed(True))  # centre/span mode
+
+    ui.sampleRepeat.valueChanged.connect(tinySA.sampleRep)
+
+    # 3D graph controls
+    ui.orbitL.clicked.connect(lambda: tinySA.orbit3D(1, True))
+    ui.orbitR.clicked.connect(lambda: tinySA.orbit3D(-1, True))
+    ui.orbitU.clicked.connect(lambda: tinySA.orbit3D(-1, False))
+    ui.orbitD.clicked.connect(lambda: tinySA.orbit3D(1, False))
+    ui.timeF.clicked.connect(lambda: tinySA.axes3D(-1, 'X'))
+    ui.timeR.clicked.connect(lambda: tinySA.axes3D(1, 'X'))
+    ui.freqR.clicked.connect(lambda: tinySA.axes3D(-1, 'Y'))
+    ui.freqL.clicked.connect(lambda: tinySA.axes3D(1, 'Y'))
+    ui.signalUp.clicked.connect(lambda: tinySA.axes3D(-1, 'Z'))
+    ui.signalDown.clicked.connect(lambda: tinySA.axes3D(1, 'Z'))
+    ui.gridF.clicked.connect(lambda: tinySA.grid(1))
+    ui.gridR.clicked.connect(lambda: tinySA.grid(-1))
+    ui.zoom.sliderMoved.connect(tinySA.zoom3D)
+    ui.reset3D.clicked.connect(tinySA.reset3D)
+    ui.timeSpectrum.clicked.connect(lambda: ui.stackedWidget.setCurrentWidget(ui.View3D))
+    ui.analyser.clicked.connect(lambda: ui.stackedWidget.setCurrentWidget(ui.ViewNormal))
+
+    # preferences
+    ui.actionAbout_QtTinySA.triggered.connect(about)
+
+    # filebrowse
+    ui.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
+    filebrowse.download.clicked.connect(tinySA.fileDownload)
+    filebrowse.listWidget.itemClicked.connect(tinySA.fileShow)
+
+    # Quit
+    ui.actionQuit.triggered.connect(app.closeAllWindows)
+
+    # Sweep time
+    # ui.sweepTime.valueChanged.connect(lambda: tinySA.sweepTime(ui.sweepTime.value()))
+
+
+def connectPassive():
+    # Connect signals from GUI controls that don't cause messages to go to the tinySA
+
+    ui.scan_button.clicked.connect(tinySA.scan)
+    ui.run3D.clicked.connect(tinySA.scan)
 
     # marker associated trace
     ui.m1trace.valueChanged.connect(lambda: M1.traceLink(ui.m1trace.value()))
@@ -1549,50 +1615,18 @@ def clickConnect():
     ui.t3_type.activated.connect(T3.tType)
     ui.t4_type.activated.connect(T4.tType)
 
-    ui.sampleRepeat.valueChanged.connect(tinySA.sampleRep)
-
-    # 3D graph controls
-    ui.orbitL.clicked.connect(lambda: tinySA.orbit3D(1, True))
-    ui.orbitR.clicked.connect(lambda: tinySA.orbit3D(-1, True))
-    ui.orbitU.clicked.connect(lambda: tinySA.orbit3D(-1, False))
-    ui.orbitD.clicked.connect(lambda: tinySA.orbit3D(1, False))
-    ui.timeF.clicked.connect(lambda: tinySA.axes3D(-1, 'X'))
-    ui.timeR.clicked.connect(lambda: tinySA.axes3D(1, 'X'))
-    ui.freqR.clicked.connect(lambda: tinySA.axes3D(-1, 'Y'))
-    ui.freqL.clicked.connect(lambda: tinySA.axes3D(1, 'Y'))
-    ui.signalUp.clicked.connect(lambda: tinySA.axes3D(-1, 'Z'))
-    ui.signalDown.clicked.connect(lambda: tinySA.axes3D(1, 'Z'))
-    ui.gridF.clicked.connect(lambda: tinySA.grid(1))
-    ui.gridR.clicked.connect(lambda: tinySA.grid(-1))
-    ui.zoom.sliderMoved.connect(tinySA.zoom3D)
-    ui.reset3D.clicked.connect(tinySA.reset3D)
-    ui.timeSpectrum.clicked.connect(lambda: ui.stackedWidget.setCurrentWidget(ui.View3D))
-    ui.analyser.clicked.connect(lambda: ui.stackedWidget.setCurrentWidget(ui.ViewNormal))
-
     # preferences
     preferences.addRow.clicked.connect(bands.addRow)
     preferences.deleteRow.clicked.connect(lambda: bands.deleteRow(True))
     preferences.deleteAll.clicked.connect(lambda: bands.deleteRow(False))
     preferences.freqBands.clicked.connect(bands.tableClicked)
     preferences.filterBox.currentTextChanged.connect(lambda: bands.filterType(True, preferences.filterBox.currentText()))
-    ui.filterBox.currentTextChanged.connect(lambda: bandselect.filterType(False, ui.filterBox.currentText()))
-    ui.actionPreferences.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
-    ui.actionAbout_QtTinySA.triggered.connect(about)
     pwindow.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
     preferences.exportButton.pressed.connect(exportData)
     preferences.importButton.pressed.connect(importData)
     preferences.deviceBox.activated.connect(testComPort)
-
-    # filebrowse
-    ui.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
-    filebrowse.download.clicked.connect(tinySA.fileDownload)
-    filebrowse.listWidget.itemClicked.connect(tinySA.fileShow)
-
-    # Quit
-    ui.actionQuit.triggered.connect(app.closeAllWindows)
-
-    # Sweep time
-    # ui.sweepTime.valueChanged.connect(lambda: tinySA.sweepTime(ui.sweepTime.value()))
+    ui.filterBox.currentTextChanged.connect(lambda: bandselect.filterType(False, ui.filterBox.currentText()))
+    ui.actionPreferences.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
 
     # Waterfall
     ui.waterfallSize.valueChanged.connect(setWaterfall)
@@ -1606,7 +1640,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.12.9')
+app.setApplicationVersion(' v0.12.11')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1637,15 +1671,15 @@ M4 = marker('4', 1.7)
 best = limit('gold', None, -25, movable=False)
 maximum = limit('red', None, 0, movable=False)
 damage = limit('red', None, 6, movable=False)
-threshold = limit('red', None, preferences.peakThreshold.value(), movable=True)
-lowF = limit('red', (ui.start_freq.value() + ui.span_freq.value()/20)*1e6, None, movable=True)
-highF = limit('red', (ui.stop_freq.value() - ui.span_freq.value()/20)*1e6, None, movable=True)
-best.create(True)
-maximum.create(True)
-damage.create(False)
-threshold.create(True)
-lowF.create(True)
-highF.create(True)
+threshold = limit('cyan', None, preferences.peakThreshold.value(), movable=True)
+lowF = limit('cyan', (ui.start_freq.value() + ui.span_freq.value()/20)*1e6, None, movable=True)
+highF = limit('cyan', (ui.stop_freq.value() - ui.span_freq.value()/20)*1e6, None, movable=True)
+best.create(True, '|>', 0.99)
+maximum.create(True, '|>', 0.99)
+damage.create(False, '|>', 0.99)
+threshold.create(True, '<|', 0.99)
+lowF.create(True, '|>', 0.01)
+highF.create(True, '<|', 0.01)
 
 # Database and models for configuration settings
 config = connect("QtTSAprefs.db", "settings")
@@ -1796,6 +1830,9 @@ numbers.dwm.setCurrentIndex(0)
 window.show()
 window.setWindowTitle(app.applicationName() + app.applicationVersion())
 window.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
+
+# connect GUI controls that send messages to tinySA
+connectPassive()
 
 # try to open a USB connection to the TinySA hardware
 tinySA.usbCheck.start(500)  # check again every 500mS
