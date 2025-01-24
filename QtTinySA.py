@@ -57,6 +57,11 @@ import pyqtgraph.opengl as pyqtgl
 if system() == "Linux":
     os.environ['XDG_CONFIG_DIRS'] = '/etc:/usr/local/etc'
     os.environ['XDG_DATA_DIRS'] = '/usr/share:/usr/local/share'
+# Fix 3D Spectrum Rendering not working on Windows using DirectX by default
+elif system() == "Windows":
+    # force Qt to use OpenGL rather than DirectX for Windows OS
+    QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_UseDesktopOpenGL)
+
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 threadpool = QtCore.QThreadPool()
@@ -1353,14 +1358,6 @@ def colourID(shade):  # using the QSQLRelation directly doesn't work for colour.
 # Instantiate classes
 
 tinySA = analyser()
-
-# Fix 3D Spectrum Rendering not working on Windows using DirectX by default
-import platform
-if platform.system() == "Windows":
-    from PyQt5.QtCore import QCoreApplication
-    from PyQt5.QtCore import Qt
-    # force Qt to use OpenGL rather than DirectX for Windows OS
-    QCoreApplication.setAttribute(Qt.AA_UseDesktopOpenGL)
 
 app = QtWidgets.QApplication([])  # create QApplication for the GUI
 app.setApplicationName('QtTinySA')
