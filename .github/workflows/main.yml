@@ -1,20 +1,15 @@
 name: Package Application with Pyinstaller
 
-on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
-
 jobs:
-  build:
-
+  pyinstaller-build:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v2
-
-    - name: Package Application
-      uses: g4ixt/pyinstaller-action-linux@main
+    - name: Create executable
+      uses: sayyid5416/pyinstaller@v1.8.0
       with:
         path: src
+        python_ver: '3.12'
+        pyinstaller_ver: 'latest'
+        spec: 'QtTinySA.spec'
+        requirements: 'requirements.txt'
+        upload_exe_with_name: 'QtTinySA_Ubuntu'
