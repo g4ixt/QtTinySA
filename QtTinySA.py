@@ -56,6 +56,10 @@ if system() == "Linux":
     os.environ['XDG_CONFIG_DIRS'] = '/etc:/usr/local/etc'
     os.environ['XDG_DATA_DIRS'] = '/usr/share:/usr/local/share'
 
+# force Qt to use OpenGL rather than DirectX for Windows OS
+if system() == "Windows":
+    QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_UseDesktopOpenGL)
+
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 threadpool = QtCore.QThreadPool()
 basedir = os.path.dirname(__file__)
@@ -1321,7 +1325,7 @@ def testComPort():
 
 def saveFile(frequencies, readings):
     if preferences.saveSweep.isChecked():
-        timeStamp = time.strftime('%d-%b-%Y-%H:%M:%S')
+        timeStamp = time.strftime('%Y-%m-%d-%H%M%S')
         saver = Worker(writeSweep, timeStamp, frequencies, readings)  # workers deleted when thread ends
         threadpool.start(saver)
 
