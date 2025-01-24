@@ -50,14 +50,13 @@ from io import BytesIO
 #  For 3D
 import pyqtgraph.opengl as pyqtgl
 
-
 # Defaults to non local configuration/data dirs - needed for packaging
 if system() == "Linux":
     os.environ['XDG_CONFIG_DIRS'] = '/etc:/usr/local/etc'
     os.environ['XDG_DATA_DIRS'] = '/usr/share:/usr/local/share'
-
-# force Qt to use OpenGL rather than DirectX for Windows OS
-if system() == "Windows":
+# Fix 3D Spectrum Rendering not working on Windows using DirectX by default
+elif system() == "Windows":
+    # force Qt to use OpenGL rather than DirectX for Windows OS
     QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_UseDesktopOpenGL)
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
@@ -262,8 +261,8 @@ class analyser:
         self.sweep = Worker(self.measurement, frequencies, readings, maxima, minima)  # workers deleted when thread ends
         self.sweeping = True
         self.createTimeSpectrum(frequencies, readings)
-        self.reset3D()
         self.createWaterfall(frequencies, readings)
+        self.reset3D()
         threadpool.start(self.sweep)
 
     def usbSend(self):
@@ -453,6 +452,8 @@ class analyser:
                     self.setRBW()
                     frequencies, readings, maxima, minima = self.set_arrays()
                     points = np.size(frequencies)
+                    self.waterfall.clear()
+                    self.updateWaterfall(readings)
                     self.createTimeSpectrum(frequencies, readings)
                     self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
                     updateTimer.start()
@@ -1644,7 +1645,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.12.11')
+app.setApplicationVersion(' v0.12.12')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
