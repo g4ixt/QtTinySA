@@ -15,4 +15,5 @@ jobs:
         pyinstaller_ver: '==6.11.1'
         spec: 'src/QtTinySA.spec'
         requirements: 'src/requirements.txt'
+        exe_path: './dist'
         upload_exe_with_name: 'QtTinySA_Windows.exe'

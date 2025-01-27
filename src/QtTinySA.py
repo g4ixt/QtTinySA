@@ -219,7 +219,7 @@ class analyser:
         T4.setup()
 
         # set various defaults
-        ui.waterfallSize.setValue(ui.waterfallSize.value() + 1)
+        ui.waterfallSize.setValue(ui.waterfallSize.value() + 1)  # sets the height of the waterfall widget
         pointsChanged()
         setPreferences()
         band = ui.band_box.currentText()
@@ -520,7 +520,7 @@ class analyser:
         ui.waterfall.setYRange(0, ui.memBox.value())
 
         # Histogram associated with waterfall
-        self.histogram = pyqtgraph.HistogramLUTItem(gradientPosition='top', orientation='horizontal')
+        self.histogram = pyqtgraph.HistogramLUTItem(gradientPosition='right', orientation='vertical')
         self.histogram.setImageItem(self.waterfall)  # connects the histogram to the waterfall
         self.histogram.gradient.loadPreset('viridis')  # set the colour map
         self.waterfall.setLevels((-110, -20))  # needs to be here, after histogram is created
@@ -540,6 +540,9 @@ class analyser:
         if preferences.highLO.isChecked() and preferences.freqLO != 0:
             frequencies = frequencies[::-1]  # reverse the array
             np.fliplr(readings)
+            ui.waterfall.invertX(True)
+        else:
+            ui.waterfall.invertX(False)
 
         # update graph axes if in zero span
         if frequencies[0] == frequencies[-1]:
@@ -991,7 +994,7 @@ class marker:
                                                      'color': (colour)})
             else:
                 self.marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5,
-                                                     style=QtCore.Qt.DashLine), label=name, labelOpts={'position': 0.06,
+                                                     style=QtCore.Qt.DashLine), label=name, labelOpts={'position': 0.04,
                                                      'color': (colour), 'anchors': ((0, 0.2), (0, 0.2))})
             self.marker.label.setMovable(True)
         else:
@@ -1366,6 +1369,7 @@ def getPath(dbName):
     workingDirs = [os.path.dirname(__file__), os.path.dirname(os.path.realpath(__file__)), os.getcwd()]
     for directory in workingDirs:
         if os.path.exists(os.path.join(directory, dbName)):
+            os.mkdir(personalDir)
             shutil.copy(os.path.join(directory, dbName), personalDir)
             logging.info(f'{dbName} copied from {directory} to {personalDir}')
             return personalDir
@@ -1441,6 +1445,7 @@ def freqMarkers():
                 M1.addFreqMarker(startF, colour, name, band=False)
                 if ui.presetLabel.isChecked() and ui.presetLabel.checkState() == 2:
                     M1.marker.label.setAngle(90)
+                    M1.marker.label.setPosition(0)
             if ui.presetMarker.isChecked() and stopF not in (0, ''):  # it's a band marker
                 M1.addFreqMarker(startF, colour, name)
                 M2.addFreqMarker(stopF, colour, name)
@@ -1645,7 +1650,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.12.12')
+app.setApplicationVersion(' v0.12.13')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1720,17 +1725,15 @@ ui.graphWidget.setDefaultPadding(padding=0)
 ui.graphWidget.showGrid(x=True, y=True)
 ui.graphWidget.setLabel('bottom', '', units='Hz')
 
-# pyqtgraph settings for waterfall display
-# ui.waterfall.setYRange(0, ui.memBox.value())
+# pyqtgraph settings for waterfall and histogram display
 ui.waterfall.setDefaultPadding(padding=0)
 ui.waterfall.getPlotItem().hideAxis('bottom')
-ui.waterfall.setLabel('left', 'Time')
+ui.waterfall.setLabel('left', 'Time', **{'color': '#FFF', 'font-size': '3pt'})
 ui.waterfall.invertY(True)
 ui.histogram.setDefaultPadding(padding=0)
 ui.histogram.plotItem.invertY(True)
 ui.histogram.getPlotItem().hideAxis('bottom')
 ui.histogram.getPlotItem().hideAxis('left')
-
 
 ###############################################################################
 # set up the application
