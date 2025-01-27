@@ -6,7 +6,7 @@ on:
 
 jobs:
   pyinstaller-build:
-    runs-on: [ubuntu-latest]
+    runs-on: ubuntu-latest
     steps:
     - name: Create executable
       uses: sayyid5416/pyinstaller@v1.8.0
