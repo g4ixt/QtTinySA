@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright 2024 Ian Jefferson G4IXT
+# Copyright 2025 Ian Jefferson G4IXT
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # Compilation mode, support OS-specific options
@@ -16,9 +16,9 @@
 """TinySA Ultra GUI programme using Qt5 and PyQt.
 
 This code attempts to replicate some of the TinySA Ultra on-screen commands and to provide PC control.
-Development took place on Kubuntu 22.04LTS with Python 3.9 and PyQt5 using Spyder in Anaconda.
+Development took place on Kubuntu 24.04LTS with Python 3.11 and PyQt5 using Spyder in Anaconda.
 
-TinySA and TinySA Ultra are trademarks of Erik Kaashoek and are used with permission.
+TinySA, TinySA Ultra and the tinysa icon are trademarks of Erik Kaashoek and are used with permission.
 
 TinySA commands are based on Erik's Python examples: http://athome.kaashoek.com/tinySA/python/
 
@@ -202,6 +202,12 @@ class analyser:
         self.setAbort(True)
         self.fifoTimer.start(500)  # calls self.usbSend() every 500mS to execute serial commands whilst not scanning
 
+        # Traces
+        T1.setup()
+        T2.setup()
+        T3.setup()
+        T4.setup()
+
         # Markers
         M1.setLevel(ui.m1track.value())
         M2.setLevel(ui.m2track.value())
@@ -212,11 +218,11 @@ class analyser:
         M3.setup('yellow', 'm3f')
         M4.setup('yellow', 'm4f')
 
-        # Traces
-        T1.setup()
-        T2.setup()
-        T3.setup()
-        T4.setup()
+        # # Traces
+        # T1.setup()
+        # T2.setup()
+        # T3.setup()
+        # T4.setup()
 
         # set various defaults
         ui.waterfallSize.setValue(ui.waterfallSize.value() + 1)  # sets the height of the waterfall widget
@@ -880,6 +886,7 @@ class marker:
         self.line.label.setMovable(True)
         self.line.setPen(color=colour, width=0.5)
         self.mType()
+        self.traceLink(self.linked.name)
         self.deltaline.hide()
         self.deltaline.setValue(0)
         self.deltaF = 0
@@ -1575,12 +1582,6 @@ def connectPassive():
     ui.scan_button.clicked.connect(tinySA.scan)
     ui.run3D.clicked.connect(tinySA.scan)
 
-    # marker associated trace
-    ui.m1trace.valueChanged.connect(lambda: M1.traceLink(ui.m1trace.value()))
-    ui.m2trace.valueChanged.connect(lambda: M2.traceLink(ui.m2trace.value()))
-    ui.m3trace.valueChanged.connect(lambda: M3.traceLink(ui.m3trace.value()))
-    ui.m4trace.valueChanged.connect(lambda: M4.traceLink(ui.m4trace.value()))
-
     # marker dragging
     M1.line.sigPositionChanged.connect(M1.setDelta)
     M2.line.sigPositionChanged.connect(M2.setDelta)
@@ -1650,7 +1651,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v0.12.13')
+app.setApplicationVersion(' v1.0.0')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1796,6 +1797,12 @@ preferences.freqBands.setModel(bands.tm)
 preferences.freqBands.hideColumn(0)  # ID
 preferences.freqBands.verticalHeader().setVisible(True)
 
+# connect GUI controls that set marker associated trace - has to go here so that colours initialise
+ui.m1trace.valueChanged.connect(lambda: M1.traceLink(ui.m1trace.value()))
+ui.m2trace.valueChanged.connect(lambda: M2.traceLink(ui.m2trace.value()))
+ui.m3trace.valueChanged.connect(lambda: M3.traceLink(ui.m3trace.value()))
+ui.m4trace.valueChanged.connect(lambda: M4.traceLink(ui.m4trace.value()))
+
 # Map database tables to preferences/GUI fields * lines need to be in this order and here or the mapping doesn't work *
 checkboxes.createTableModel()
 checkboxes.mapWidget('checkboxes')  # uses mapping table from database
@@ -1816,6 +1823,7 @@ ui.t2_type.setModel(tracetext.tm)
 ui.t3_type.setModel(tracetext.tm)
 ui.t4_type.setModel(tracetext.tm)
 tracetext.tm.select()
+
 
 # populate the marker comboboxes
 markertext.createTableModel()
