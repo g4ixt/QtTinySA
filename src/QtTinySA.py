@@ -1342,13 +1342,11 @@ def saveFile(frequencies, readings):
 
 
 def writeSweep(timeStamp, frequencies, readings):
-    dBm = np.transpose(np.round(readings, decimals=2))
-    fileName = str(timeStamp + '.csv')
-    with open(fileName, "w") as fileOutput:
+    array = np.insert(readings, 0, frequencies, axis=0)  # insert the measurement freqs at the top of the readings array
+    dBm = np.transpose(np.round(array, decimals=2))  # transpose columns and rows
+    fileName = str(timeStamp + '_RBW' + ui.rbw_box.currentText() + '.csv')
+    with open(fileName, "w", newline='') as fileOutput:
         output = csv.writer(fileOutput)
-        header = [timeStamp, 'Start', frequencies[0], 'Stop', frequencies[-1], 'fStep', frequencies[1] - frequencies[0],
-                  'Points', len(frequencies), 'RBW', ui.rbw_box.currentText(), 'Each_Column=One_sweep']
-        output.writerow(header)
         for rowNumber in range(0, np.shape(dBm)[0]):
             fields = [dBm[rowNumber, columnNumber] for columnNumber in range(0, np.shape(dBm)[1])]
             output.writerow(fields)
@@ -1357,26 +1355,24 @@ def writeSweep(timeStamp, frequencies, readings):
 def getPath(dbName):
     # check if a personal database file exists already
     personalDir = platformdirs.user_config_dir(appname=app.applicationName(), appauthor=False)
-    if os.path.exists(os.path.join(personalDir, dbName)):
+    if not os.path.exists(personalDir):
+        os.mkdir(personalDir)
+
+    if os.path.isfile(os.path.join(personalDir, dbName)):
         logging.info(f'Database {dbName} found at {personalDir}')
         return personalDir
 
     # if not, then check if a global database file exists
     globalDir = platformdirs.site_config_dir(appname=app.applicationName(), appauthor=False)
-    if os.path.exists(os.path.join(globalDir, dbName)):
-        logging.info(f'Database {dbName} found at {globalDir}')
-        os.mkdir(personalDir)
+    if os.path.isfile(os.path.join(globalDir, dbName)):
         shutil.copy(os.path.join(globalDir, dbName), personalDir)
         logging.info(f'Database {dbName} copied from {globalDir} to {personalDir}')
         return personalDir
 
-    logging.info(f'No database file {dbName} exists in {personalDir} or {globalDir}')
-
     # If not, then look in current working folder & where the python file is stored/linked from
     workingDirs = [os.path.dirname(__file__), os.path.dirname(os.path.realpath(__file__)), os.getcwd()]
     for directory in workingDirs:
-        if os.path.exists(os.path.join(directory, dbName)):
-            os.mkdir(personalDir)
+        if os.path.isfile(os.path.join(directory, dbName)):
             shutil.copy(os.path.join(directory, dbName), personalDir)
             logging.info(f'{dbName} copied from {directory} to {personalDir}')
             return personalDir
@@ -1651,7 +1647,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.0.1')
+app.setApplicationVersion(' v1.0.2')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
