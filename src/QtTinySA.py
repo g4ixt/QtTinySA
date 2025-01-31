@@ -86,6 +86,7 @@ class analyser:
         self.signals.result.connect(self.updateGUI)
         self.signals.finished.connect(self.threadEnds)
         self.signals.saveResults.connect(saveFile)
+        self.signals.resetGUI.connect(self.resetGUI)
         self.runTimer = QtCore.QElapsedTimer()
         self.scale = 174
         self.scanMemory = 50
@@ -173,7 +174,7 @@ class analyser:
 
     def initialise(self, product):
         # product = 'tinySA'  # used for testing
-        logging.debug(f'initialise: started')
+        logging.debug('initialise: started')
         if product[0] == 'tinySA4':  # It's an Ultra
             self.tinySA4 = True
             self.maxF = preferences.maxFreqBox.value()
@@ -217,12 +218,6 @@ class analyser:
         M2.setup('yellow', 'm2f')
         M3.setup('yellow', 'm3f')
         M4.setup('yellow', 'm4f')
-
-        # # Traces
-        # T1.setup()
-        # T2.setup()
-        # T3.setup()
-        # T4.setup()
 
         # set various defaults
         ui.waterfallSize.setValue(ui.waterfallSize.value() + 1)  # sets the height of the waterfall widget
@@ -446,7 +441,7 @@ class analyser:
                             break
                         sweepCount += 1
                         firstRun = False
-                        if sweepCount == self.scanMemory: # array is full so trigger CSV data file save
+                        if sweepCount == self.scanMemory:  # array is full so trigger CSV data file save
                             self.signals.saveResults.emit(frequencies, readings)
                             sweepCount = 0
 
@@ -455,12 +450,10 @@ class analyser:
                     self.serialWrite('abort\r')
                     self.clearBuffer()
                     firstRun = True
-                    self.setRBW()
-                    frequencies, readings, maxima, minima = self.set_arrays()
+                    self.setRBW()  # reads GUI rbw box value
+                    frequencies, readings, maxima, minima = self.set_arrays()  # reads GUI values
                     points = np.size(frequencies)
-                    self.waterfall.clear()
-                    self.updateWaterfall(readings)
-                    self.createTimeSpectrum(frequencies, readings)
+                    self.signals.resetGUI.emit(frequencies, readings)
                     self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
                     updateTimer.start()
                     break
@@ -540,6 +533,12 @@ class analyser:
         # readings_max = mean + 2*sigma
         # self.waterfall.setLevels((readings_min, readings_max))
         # self.histogram.setLevels((readings_min, readings_max))
+
+    def resetGUI(self, frequencies, readings):
+        self.waterfall.clear()
+        ui.waterfall.setXRange(np.size(readings, axis=1), 0)
+        self.updateWaterfall(readings)
+        self.createTimeSpectrum(frequencies, readings)
 
     def updateGUI(self, frequencies, readings, maxima, minima, runtime):  # called by signal from measurement() thread
         # for LNB/Mixer mode when LO is above measured freq the scan is reversed, i.e. low TinySA freq = high meas freq
@@ -1055,6 +1054,7 @@ class WorkerSignals(QtCore.QObject):
     result = QtCore.pyqtSignal(np.ndarray, np.ndarray, np.ndarray, np.ndarray, float)
     fullSweep = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     saveResults = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    resetGUI = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     finished = QtCore.pyqtSignal()
 
 
@@ -1651,7 +1651,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.0.0')
+app.setApplicationVersion(' v1.0.1')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1711,8 +1711,9 @@ bandselect = modelView('frequencies', config)
 
 # Database and models for recording and playback (can't get multiple databases to work)
 # saveData = connect("QtTSArecording.db", "measurements")
-# data = modelView('data', saveData.database())
-# settings = modelView('settings', saveData.database())
+
+# data = modelView('data', saveData)
+# settings = modelView('settings', saveData)
 # data.tm.select()
 # settings.tm.select()
 
