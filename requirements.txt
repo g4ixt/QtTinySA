@@ -1,9 +1,0 @@
-altgraph
-numpy
-platformdirs
-PyOpenGL==3.1.1a1
-PyQt5==5.15.10
-PyQt5-sip
-pyqtgraph
-pyserial
-pillow==11.1.0
