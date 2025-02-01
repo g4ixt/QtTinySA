@@ -16,4 +16,4 @@ jobs:
         spec: 'src/QtTinySA.spec'
         requirements: 'src/requirements.txt'
         exe_path: './dist'
-        upload_exe_with_name: 'QtTinySA_Ubuntu'
+        upload_exe_with_name: 'QtTinySA'
