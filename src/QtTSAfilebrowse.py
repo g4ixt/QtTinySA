@@ -14,7 +14,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_Filebrowse(object):
     def setupUi(self, Filebrowse):
         Filebrowse.setObjectName("Filebrowse")
-        Filebrowse.resize(818, 405)
+        Filebrowse.resize(800, 400)
         self.listWidget = QtWidgets.QListWidget(Filebrowse)
         self.listWidget.setGeometry(QtCore.QRect(10, 20, 301, 311))
         self.listWidget.setObjectName("listWidget")
@@ -22,7 +22,7 @@ class Ui_Filebrowse(object):
         self.download.setGeometry(QtCore.QRect(10, 350, 80, 26))
         self.download.setObjectName("download")
         self.picture = QtWidgets.QLabel(Filebrowse)
-        self.picture.setGeometry(QtCore.QRect(320, 20, 481, 321))
+        self.picture.setGeometry(QtCore.QRect(320, 20, 471, 321))
         self.picture.setText("")
         self.picture.setScaledContents(False)
         self.picture.setObjectName("picture")
