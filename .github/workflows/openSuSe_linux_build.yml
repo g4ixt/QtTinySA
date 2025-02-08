@@ -1,10 +1,10 @@
-name: Ubuntu Linux Build
+name: openSUSE Linux Build
 
 on:
   workflow_dispatch:
     inputs:
       tags:
-        description: 'ubuntu latest'
+        description: 'openSUSE latest'
 
 jobs:
   pyinstaller-build:
