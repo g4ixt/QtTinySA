@@ -1,14 +1,14 @@
-name: openSUSE Linux Build
+name: Windows Build
 
 on:
   workflow_dispatch:
     inputs:
       tags:
-        description: 'openSUSE latest'
+        description: 'windows latest'
 
 jobs:
   pyinstaller-build:
-    runs-on: opensuse-latest
+    runs-on: windows-latest
     steps:
     - name: Create executable
       uses: sayyid5416/pyinstaller@v1.8.0
@@ -18,4 +18,4 @@ jobs:
         spec: 'src/QtTinySA.spec'
         requirements: 'src/requirements.txt'
         exe_path: './dist'
-        upload_exe_with_name: 'QtTinySA'
+        upload_exe_with_name: 'QtTinySA_win'

@@ -1,8 +1,10 @@
 name: macOS Build
 
 on:
-  push:
-    branches: [ development ]
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'macOS latest'
 
 jobs:
   pyinstaller-build:
