@@ -2,6 +2,6 @@ numpy==2.2.2
 Pillow==11.1.0
 platformdirs==4.3.6
 PyQt5==5.15.11
-PyQt5_sip==12.15.0
-pyqtgraph==0.13.7
+PyQt5_sip==12.13.0
+pyqtgraph==0.13.1
 pyserial==3.5
