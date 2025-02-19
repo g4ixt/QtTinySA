@@ -17,6 +17,5 @@ https://github.com/Ho-Ro
   
 For running the Python code, install the modules listed in the 'requirements.txt' file.  
 You may need to add the Qt5 SQLite 3 database driver (libqt5sql5-sqlite) and Python3 bindings for QT5's SQL Module.
-The 3D (time) spectrum requires OpenGL
 
 The GUI was originally designed for a 7" 1024 x 600 screen but should maximise properly.  The GUI appearence may change significantly due to development.
