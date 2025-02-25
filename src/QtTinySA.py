@@ -35,7 +35,7 @@ import csv
 from platform import system
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit
-from PyQt5.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate
+from PyQt5.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
 from PyQt5.QtGui import QPixmap, QIcon
 from datetime import datetime
 import pyqtgraph
@@ -1379,8 +1379,7 @@ def getPath(dbName):
     raise FileNotFoundError("Unable to find the database {self.dbName}")
 
 
-def connect(dbFile, con):
-
+def connect(dbFile, con, target):
     db = QSqlDatabase.addDatabase('QSQLITE', connectionName=con)
     dbPath = getPath(dbFile)
     if QtCore.QFile.exists(os.path.join(dbPath, dbFile)):
@@ -1388,7 +1387,7 @@ def connect(dbFile, con):
         db.open()
         logging.info(f'{dbFile} open: {db.isOpen()}  Connection = "{db.connectionName()}"')
         logging.debug(f'tables available = {db.tables()}')
-        # database.setConnectOptions('PRAGMA foreign_keys = ON;')
+        checkVersion(db, target, dbFile)
     else:
         logging.info('Database file {dbPath}{dbFile} is missing')
         popUp('Database file is missing', QMessageBox.Ok, QMessageBox.Critical)
@@ -1400,6 +1399,23 @@ def disconnect(db):
     db.close()
     logging.info(f'Database {db.databaseName()} open: {db.isOpen()}')
     QSqlDatabase.removeDatabase(db.databaseName())
+
+
+def checkVersion(db, target, dbFile):
+    query = QSqlQuery(db)
+    query.exec_("PRAGMA user_version;")  # execute PRAGMA command to fetch the user-defined version number
+    query.next()  # advances to the result row, and query.value(0) retrieves the user version.
+    logging.info(f'database version = {query.value(0)}')
+    if query.value(0) != target:
+        message = "The configuration database version is incompatible.\n Do you wish to replace it?"
+        replace = popUp(message, QMessageBox.Ok | QMessageBox.Cancel, QMessageBox.Question)
+        query.clear()
+        if replace == 0x00000400:  # 'ok' was clicked
+            disconnect(db)
+            logging.info(f'Deleting {db.databaseName()}')
+            os.remove(db.databaseName())
+            getPath(dbFile)
+            db.open()
 
 
 def exit_handler():
@@ -1432,7 +1448,7 @@ def popUp(message, button, icon):
     msg.setIcon(icon)
     msg.setText(message)
     msg.setStandardButtons(button)
-    msg.exec_()
+    return msg.exec()
 
 
 def freqMarkers():
@@ -1647,7 +1663,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.0.2')
+app.setApplicationVersion(' v1.0.3')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1689,7 +1705,7 @@ lowF.create(True, '|>', 0.01)
 highF.create(True, '<|', 0.01)
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings")
+config = connect("QtTSAprefs.db", "settings", 103)  # third parameter is the database version
 
 checkboxes = modelView('checkboxes', config)
 numbers = modelView('numbers', config)
