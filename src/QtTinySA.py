@@ -1387,7 +1387,7 @@ def connect(dbFile, con, target):
         db.open()
         logging.info(f'{dbFile} open: {db.isOpen()}  Connection = "{db.connectionName()}"')
         logging.debug(f'tables available = {db.tables()}')
-        checkVersion(db, target, dbFile)
+        checkVersion(db, target, dbFile)  # check that the actual database version matches the target version
     else:
         logging.info('Database file {dbPath}{dbFile} is missing')
         popUp('Database file is missing', QMessageBox.Ok, QMessageBox.Critical)
@@ -1405,17 +1405,17 @@ def checkVersion(db, target, dbFile):
     query = QSqlQuery(db)
     query.exec_("PRAGMA user_version;")  # execute PRAGMA command to fetch the user-defined version number
     query.next()  # advances to the result row, and query.value(0) retrieves the user version.
-    logging.info(f'database version = {query.value(0)}')
+    logging.info(f'database version = {query.value(0)}, expected {target}')
     if query.value(0) != target:
-        message = "The configuration database version is incompatible.\n Do you wish to replace it?"
+        message = "Configuration database is incompatible.\n\nClick OK to automatically replace it, or Cancel."
         replace = popUp(message, QMessageBox.Ok | QMessageBox.Cancel, QMessageBox.Question)
         query.clear()
         if replace == 0x00000400:  # 'ok' was clicked
             disconnect(db)
-            logging.info(f'Deleting {db.databaseName()}')
-            os.remove(db.databaseName())
-            getPath(dbFile)
-            db.open()
+            logging.info(f'Deleting file {db.databaseName()}')
+            os.remove(db.databaseName())  # delete the old database file
+            getPath(dbFile)  # this ought to return the same path as when it was run earlier in connect()
+            db.open()  # the database connection has not changed, only the file, so we can re-open it with the new file
 
 
 def exit_handler():
