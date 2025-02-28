@@ -1407,15 +1407,33 @@ def checkVersion(db, target, dbFile):
     query.next()  # advances to the result row, and query.value(0) retrieves the user version.
     logging.info(f'database version = {query.value(0)}, expected {target}')
     if query.value(0) != target:
-        message = "Configuration database is incompatible.\n\nClick OK to automatically replace it, or Cancel."
+        message = "Database " + db.databaseName() + "\nversion " + str(query.value(0)) + \
+            " is incompatible with this version of QtTinySA.\n" + \
+            "\nClicking OK will replace it with version " + str(target) + \
+            " and will reset \nALL preferences to default."
         replace = popUp(message, QMessageBox.Ok | QMessageBox.Cancel, QMessageBox.Question)
         query.clear()
         if replace == 0x00000400:  # 'ok' was clicked
+
+            impex = modelView('frequencies', db)
+            impex.createTableModel()
+            impex.tm.select()
+            personalDir = platformdirs.user_config_dir(appname=app.applicationName(), appauthor=False)
+            fileName = personalDir + "/frequencies_" + str(target) + ".csv"
+            impex.writeCSV(fileName)
+
             disconnect(db)
             logging.info(f'Deleting file {db.databaseName()}')
             os.remove(db.databaseName())  # delete the old database file
             getPath(dbFile)  # this ought to return the same path as when it was run earlier in connect()
             db.open()  # the database connection has not changed, only the file, so we can re-open it with the new file
+            message = "Restore your previous frequency and marker preferences to the updated database?"
+            replace = popUp(message, QMessageBox.Ok | QMessageBox.Cancel, QMessageBox.Question)
+            if replace == 0x00000400:  # 'ok' was clicked
+                impex.deleteRow(False)
+                impex.tm.submit()
+                impex.readCSV(fileName)
+
 
 
 def exit_handler():
@@ -1427,7 +1445,7 @@ def exit_handler():
         record.setValue('m3f', float(M3.line.value()))
         record.setValue('m4f', float(M4.line.value()))
         numbers.tm.setRecord(0, record)
-        # save the gui field values and checkbox states
+
         if tinySA.sweeping:
             tinySA.sweeping = False  # tell the measurement thread to stop
             while tinySA.threadRunning:
@@ -1436,6 +1454,7 @@ def exit_handler():
         tinySA.usbSend()
         tinySA.closePort()  # close USB connection
 
+    # save the gui field values and checkbox states
     checkboxes.dwm.submit()
     disconnect(config)
 
