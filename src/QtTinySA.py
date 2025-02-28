@@ -1428,8 +1428,8 @@ def checkVersion(db, target, dbFile):
             getPath(dbFile)  # this ought to return the same path as when it was run earlier in connect()
             db.open()  # the database connection has not changed, only the file, so we can re-open it with the new file
             message = "Restore your previous frequency and marker preferences to the updated database?"
-            replace = popUp(message, QMessageBox.Ok | QMessageBox.Cancel, QMessageBox.Question)
-            if replace == 0x00000400:  # 'ok' was clicked
+            restore = popUp(message, QMessageBox.Ok | QMessageBox.Cancel, QMessageBox.Question)
+            if restore == 0x00000400:  # 'ok' was clicked
                 impex.deleteRow(False)
                 impex.tm.submit()
                 impex.readCSV(fileName)
