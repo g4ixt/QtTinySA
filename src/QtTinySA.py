@@ -1420,6 +1420,7 @@ def checkVersion(db, target, dbFile):
             impex.tm.select()
             personalDir = platformdirs.user_config_dir(appname=app.applicationName(), appauthor=False)
             fileName = personalDir + "/frequencies_" + str(target) + ".csv"
+            logging.info(f'writing {fileName}')
             impex.writeCSV(fileName)
 
             disconnect(db)
@@ -1431,9 +1432,10 @@ def checkVersion(db, target, dbFile):
             restore = popUp(message, QMessageBox.Ok | QMessageBox.Cancel, QMessageBox.Question)
             if restore == 0x00000400:  # 'ok' was clicked
                 impex.deleteRow(False)
+                logging.info('deleting records from default database frequencies table')
                 impex.tm.submit()
+                logging.info(f'importing {fileName} to frequencies table in new personal database')
                 impex.readCSV(fileName)
-
 
 
 def exit_handler():
