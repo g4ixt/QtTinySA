@@ -7,7 +7,7 @@ and Windows.
 For information on how to install it and how to use some of the features, see the Wiki pages.
 https://github.com/g4ixt/QtTinySA/wiki
   
-The code attempts to replicate some of the TinySA Ultra on-screen commands on the PC.  Generator control seemed pointless so I have not added it.
+The code attempts to replicate some of the TinySA Ultra on-screen commands on the PC.
 Development and testing are now on Kubuntu 24.04LTS with Python 3.11.8 and PyQt5 using Spyder.
 
 'TinySA', 'TinySA Ultra' and the TinySA icon are trademarks of Erik Kaashoek and are used with his permission.
@@ -17,8 +17,5 @@ http://athome.kaashoek.com/tinySA/python/
 
 The serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset
 https://github.com/Ho-Ro
-  
-For running the Python code, install the modules listed in the 'requirements.txt' file.  
-You may need to add the Qt5 SQLite 3 database driver (libqt5sql5-sqlite) and Python3 bindings for QT5's SQL Module.
 
 The GUI was originally designed for a 7" 1024 x 600 screen but should maximise properly.  The GUI appearence may change significantly due to development.
