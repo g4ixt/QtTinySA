@@ -4,7 +4,8 @@
 A Python 'TinySA Ultra' (and original 'TinySA') GUI programme using Qt5 and PyQt5. Designed to run in Linux but also works in mac (no testing)
 and Windows.
   
-For information on how to install it and how to use some of the features, see the Wiki pages (link above).
+For information on how to install it and how to use some of the features, see the Wiki pages.
+https://github.com/g4ixt/QtTinySA/wiki
   
 The code attempts to replicate some of the TinySA Ultra on-screen commands on the PC.  Generator control seemed pointless so I have not added it.
 Development and testing are now on Kubuntu 24.04LTS with Python 3.11.8 and PyQt5 using Spyder.
