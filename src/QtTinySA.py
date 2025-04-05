@@ -558,10 +558,14 @@ class analyser:
         # update the swept traces
         readingsAvg = np.nanmean(readings[0:ui.avgBox.value()], axis=0)
         options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': maxima, 'Min': minima}
-        T1.trace.setData(frequencies, options.get(T1.traceType))
-        T2.trace.setData(frequencies, options.get(T2.traceType))
-        T3.trace.setData(frequencies, options.get(T3.traceType))
-        T4.trace.setData(frequencies, options.get(T4.traceType))
+        if not ui.hold1.isChecked():
+            T1.trace.setData(frequencies, options.get(T1.traceType))
+        if not ui.hold2.isChecked():
+            T2.trace.setData(frequencies, options.get(T2.traceType))
+        if not ui.hold3.isChecked():
+            T3.trace.setData(frequencies, options.get(T3.traceType))
+        if not ui.hold4.isChecked():
+            T4.trace.setData(frequencies, options.get(T4.traceType))
 
         if ui.waterfallSize.value() != 0:
             self.updateWaterfall(readings)
@@ -1428,7 +1432,7 @@ def checkVersion(db, target, dbFile):
             os.remove(db.databaseName())  # delete the old database file
             getPath(dbFile)  # this ought to return the same path as when it was run earlier in connect()
             db.open()  # the database connection has not changed, only the file, so we can re-open it with the new file
-            message = "Restore your previous frequency and marker preferences to the updated database?"
+            message = "Restore your previous frequency and markers to the updated database?"
             restore = popUp(message, QMessageBox.Ok | QMessageBox.Cancel, QMessageBox.Question)
             if restore == 0x00000400:  # 'ok' was clicked
                 impex.deleteRow(False)
@@ -1684,7 +1688,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.0.3')
+app.setApplicationVersion(' v1.0.4')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
