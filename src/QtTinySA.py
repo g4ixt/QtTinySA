@@ -276,6 +276,10 @@ class analyser:
             command = self.fifo.get(block=True, timeout=None)
             logging.debug(command)
             self.serialWrite(command)
+        M1.updateMarker()
+        M2.updateMarker()
+        M3.updateMarker()
+        M4.updateMarker()
 
     def serialQuery(self, command):
         self.usb.write(command.encode())
@@ -557,15 +561,13 @@ class analyser:
 
         # update the swept traces
         readingsAvg = np.nanmean(readings[0:ui.avgBox.value()], axis=0)
-        options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': maxima, 'Min': minima}
-        if not ui.hold1.isChecked():
-            T1.trace.setData(frequencies, options.get(T1.traceType))
-        if not ui.hold2.isChecked():
-            T2.trace.setData(frequencies, options.get(T2.traceType))
-        if not ui.hold3.isChecked():
-            T3.trace.setData(frequencies, options.get(T3.traceType))
-        if not ui.hold4.isChecked():
-            T4.trace.setData(frequencies, options.get(T4.traceType))
+        # options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': maxima, 'Min': minima}
+        options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': maxima, 'Min': minima, 'Freeze': readings[0]}
+
+        T1.update(frequencies, options.get(T1.traceType))
+        T2.update(frequencies, options.get(T2.traceType))
+        T3.update(frequencies, options.get(T3.traceType))
+        T4.update(frequencies, options.get(T4.traceType))
 
         if ui.waterfallSize.value() != 0:
             self.updateWaterfall(readings)
@@ -573,10 +575,10 @@ class analyser:
         # update markers (if not in zero span, where they are not relevant)  # being called too often?
         if frequencies[0] != frequencies[-1]:
             ui.graphWidget.setLabel('bottom', units='Hz')
-            M1.updateMarker(frequencies, readings, maxima, minima)
-            M2.updateMarker(frequencies, readings, maxima, minima)
-            M3.updateMarker(frequencies, readings, maxima, minima)
-            M4.updateMarker(frequencies, readings, maxima, minima)
+            M1.updateMarker()
+            M2.updateMarker()
+            M3.updateMarker()
+            M4.updateMarker()
 
         # update 3D graph if enabled
         if ui.stackedWidget.currentWidget() == ui.View3D:
@@ -829,6 +831,18 @@ class trace:
         self.tType()
         self.enable()
 
+    def update(self, frequencies, levels):
+        if self.traceType != 'Freeze':
+            self.trace.setData(frequencies, levels)
+
+    def fetchData(self):
+        # return the plotted data from the first trace listDataItems[0]
+        frequencies = ui.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[0]  # getData[0] freq
+        levels = ui.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[1]  # getData[0] is level
+        logging.debug(f'freq array = {frequencies}')
+        logging.debug(f'level array = {levels}')
+        return frequencies, levels
+
 
 class limit:
     def __init__(self, pen, x, y, movable):  # x = None, horizontal.  y = None, vertical
@@ -878,6 +892,7 @@ class marker:
         traces = {'1': T1, '2': T2, '3': T3, '4': T4}
         self.linked = traces.get(str(setting))
         tint = str("background-color: '" + self.linked.pen + "';")
+        self.guiRef(0).setStyleSheet(tint)
         self.guiRef(1).setStyleSheet(tint)
         checkboxes.dwm.submit()
 
@@ -954,15 +969,19 @@ class marker:
         Ref = guiFields[opt].get(self.name)
         return Ref
 
-    def updateMarker(self, frequencies, readings, maxima, minima):  # called by updateGUI()
+    def updateMarker(self):  # called by updateGUI()
         if self.markerType == 'Off':
             self.markerBox.setVisible(False)
             return
         else:
             self.markerBox.setVisible(True)
 
+        frequencies, levels = self.linked.fetchData()
+        if frequencies is None or levels is None:
+            return
+
         if self.markerType in ('Max', 'Min'):
-            maxmin = self.maxMin(frequencies, readings, maxima, minima)
+            maxmin = self.maxMin(frequencies, levels)
             # maxmin is a tuple of lists where [0, x] are indices in the frequency array of the max and [1, x] are min
             logging.debug(f'updateMarker: maxmin = {maxmin}')
             if self.markerType == 'Max':
@@ -973,13 +992,6 @@ class marker:
                 self.line.setValue(maxmin[1][self.level])
                 if self.deltaline.value != 0:
                     self.deltaline.setValue(maxmin[1][self.level] + self.deltaF)  # needs to be index delta not F
-
-        options = {'Normal': readings[0],
-                   'Average': np.nanmean(readings[:ui.avgBox.value()], axis=0),
-                   'Max': maxima,
-                   'Min': minima}
-
-        levels = options.get(self.linked.traceType)
 
         lineIndex = np.argmin(np.abs(frequencies - (self.line.value())))  # find closest value in freq array
         linedBm = levels[lineIndex]
@@ -1016,13 +1028,7 @@ class marker:
         for i in range(0, self.fifo.qsize()):
             ui.graphWidget.removeItem(self.fifo.get())  # remove the marker and its corresponding object in the queue
 
-    def maxMin(self, frequencies, readings, maxima, minima):  # finds the signal max/min (indexes) for setting markers
-        options = {'Normal': readings[0],
-                   'Average': np.nanmean(readings[:ui.avgBox.value()], axis=0),
-                   'Max': maxima,
-                   'Min': minima}
-        levels = options.get(self.linked.traceType)
-
+    def maxMin(self, frequencies, levels):  # finds the signal max/min (indexes) for setting markers
         logging.debug(f'maxmin: linked tracetype = {self.linked.traceType}')
 
         # mask outside high/low freq boundary lines
@@ -1688,7 +1694,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.0.4')
+app.setApplicationVersion(' v1.0.5')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1730,12 +1736,10 @@ lowF.create(True, '|>', 0.01)
 highF.create(True, '<|', 0.01)
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 103)  # third parameter is the database version
+config = connect("QtTSAprefs.db", "settings", 104)  # third parameter is the database version
 
 checkboxes = modelView('checkboxes', config)
 numbers = modelView('numbers', config)
-markers = modelView('marker', config)
-traces = modelView('trace', config)
 tracetext = modelView('combo', config)
 markertext = modelView('combo', config)
 rbwtext = modelView('combo', config)
@@ -1873,9 +1877,6 @@ ui.m4_type.setModel(markertext.tm)
 markertext.tm.select()
 
 # The models for saving number, marker and trace settings
-markers.createTableModel()
-traces.createTableModel()
-traces.tm.select()
 numbers.createTableModel()
 numbers.mapWidget('numbers')  # uses mapping table from database
 numbers.tm.select()
