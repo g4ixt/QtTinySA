@@ -94,7 +94,7 @@ class analyser:
         self.usbCheck.timeout.connect(self.isConnected)
         self.fifo = queue.SimpleQueue()
         self.fifoTimer = QtCore.QTimer()
-        self.fifoTimer.timeout.connect(self.usbSend)
+        self.fifoTimer.timeout.connect(self.timerTasks)
         self.maxF = 6000
         self.memF = BytesIO()
         self.ports = []
@@ -266,6 +266,13 @@ class analyser:
         self.reset3D()
         threadpool.start(self.sweep)
 
+    def timerTasks(self):
+        self.usbSend()
+        M1.updateMarker()
+        M2.updateMarker()
+        M3.updateMarker()
+        M4.updateMarker()
+
     def usbSend(self):
         try:
             self.usb.timeout = 1
@@ -276,10 +283,6 @@ class analyser:
             command = self.fifo.get(block=True, timeout=None)
             logging.debug(command)
             self.serialWrite(command)
-        M1.updateMarker()
-        M2.updateMarker()
-        M3.updateMarker()
-        M4.updateMarker()
 
     def serialQuery(self, command):
         self.usb.write(command.encode())
@@ -1694,7 +1697,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.0.5')
+app.setApplicationVersion(' v1.0.6')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
