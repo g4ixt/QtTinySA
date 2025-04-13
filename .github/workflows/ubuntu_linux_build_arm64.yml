@@ -1,4 +1,4 @@
-name: Ubuntu Linux Build for arm64
+name: Ubuntu ARM64
 
 on:
   workflow_dispatch:
@@ -6,45 +6,16 @@ on:
       tags:
         description: 'ubuntu arm64'
 
-permissions:
-  contents: read
-  actions: read
-
 jobs:
-  build:
+  pyinstaller-build:
     runs-on: ubuntu-24.04-arm
     steps:
-    # Check-out repository
-    - uses: actions/checkout@v4
-    
-    # Setup Python
-    - uses: actions/setup-python@v5
+    - name: Create executable
+      uses: sayyid5416/pyinstaller@v1.8.0
       with:
-        python-version: '3.12' # Version range or exact version of a Python version to use, using SemVer's version range syntax
-        architecture: 'arm64' # optional x64 or x86. Defaults to x64 if not specified
-        cache: 'pip'
-        cache-dependency-path: |
-            **/requirements*.txt
-
-    - name: Install Dependencies
-      run: |
-          sudo sudo apt install -y qtbase5-dev python3-pyqt5 python3-pyqt5.sip python3-pyqtgraph python3-pyqt5.qtsql
-          dpkg -s python3-pyqt5 | grep Status
-          pip install -r src/requirements_arm64.txt
-
-    
-    # Build python script into a single executable
-    - uses: Nuitka/Nuitka-Action@main
-      with:
-        nuitka-version: main
-        script-name: QtTinySA.py
-        working-directory: ./src
-        mode: app
-
-    # Uploads artifact
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: QtTinySA_arm64
-        path: ~/work/QtTinySA/QtTinySA/src/build
-        include-hidden-files: true
+        python_ver: '3.12'
+        pyinstaller_ver: '==6.12.0'
+        spec: 'src/QtTinySA.spec'
+        requirements: 'src/requirements.txt'
+        exe_path: './dist'
+        upload_exe_with_name: 'QtTinySA'
