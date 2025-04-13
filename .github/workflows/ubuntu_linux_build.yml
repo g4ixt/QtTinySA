@@ -14,7 +14,7 @@ jobs:
       uses: sayyid5416/pyinstaller@v1.8.0
       with:
         python_ver: '3.12'
-        pyinstaller_ver: '==6.11.1'
+        pyinstaller_ver: '==6.12.0'
         spec: 'src/QtTinySA.spec'
         requirements: 'src/requirements.txt'
         exe_path: './dist'
