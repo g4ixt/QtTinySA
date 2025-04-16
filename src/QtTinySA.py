@@ -1893,7 +1893,7 @@ window.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 connectPassive()
 
 # try to open a USB connection to the TinySA hardware
-tinySA.usbCheck.start(200)  # check again every 200mS, also updates markers when scan stopped
+tinySA.usbCheck.start(500)  # check again every 500mS
 
 ###############################################################################
 # run the application until the user closes it
