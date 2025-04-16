@@ -201,7 +201,7 @@ class analyser:
 
         self.setTime()
         self.setAbort(True)
-        self.fifoTimer.start(500)  # calls self.usbSend() every 500mS to execute serial commands whilst not scanning
+        self.fifoTimer.start(200)  # call self.usbSend() every 200mS to commands & updates markers when scan is stopped
 
         # Traces
         T1.setup()
