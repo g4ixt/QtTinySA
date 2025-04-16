@@ -16,28 +16,28 @@ jobs:
     
     # Setup Python
     - uses: actions/setup-python@v5
-        with:
+      with:
         python-version: '3.12' # Version range or exact version of a Python version to use, using SemVer's version range syntax
         architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
         cache: 'pip'
         cache-dependency-path: |
             **/requirements*.txt
 
-      - name: Install Dependencies
-        run: |
+    - name: Install Dependencies
+      run: |
           pip install -r requirements.txt -r requirements-dev.txt
     
     # Build python script into a single executable
     - uses: Nuitka/Nuitka-Action@main
-        with:
+      with:
         nuitka-version: main
         script-name: src/QtTinySA.py
         mode: app
 
     # Uploads artifact
     - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
+      uses: actions/upload-artifact@v4
+      with:
         name: bin
         path: build/QtTinySA_arm64.bin
         include-hidden-files: true
