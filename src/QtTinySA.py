@@ -6,12 +6,12 @@
 
 # Compilation mode, support OS-specific options
 # nuitka-project-if: {OS} in ("Windows", "Linux", "Darwin", "FreeBSD"):
-#    nuitka-project: --onefile
+#    nuitka-project: --mode=onefile
 #    nuitka-project: --enable-plugin=pyqt5
 #    nuitka-project: --include-qt-plugins=sqldrivers
 #    nuitka-project: --include-data-file=./QtTSAprefs.db=./
 # nuitka-project-else:
-#    nuitka-project: --standalone
+#    nuitka-project: --mode=standalone
 
 """TinySA Ultra GUI programme using Qt5 and PyQt.
 
