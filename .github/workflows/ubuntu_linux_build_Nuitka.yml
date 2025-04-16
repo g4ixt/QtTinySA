@@ -1,14 +1,14 @@
-name: Ubuntu Linux Build for arm64
+name: Ubuntu Linux Build with Nuitka
 
 on:
   workflow_dispatch:
     inputs:
       tags:
-        description: 'ubuntu arm64'
+        description: 'ubuntu nuitka'
 
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-latest
     steps:
     # Check-out repository
     - uses: actions/checkout@v4
