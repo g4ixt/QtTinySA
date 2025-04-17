@@ -10,7 +10,9 @@
 #    nuitka-project: --enable-plugin=pyqt5
 #    nuitka-project: --include-qt-plugins=sqldrivers
 #    nuitka-project: --include-data-file=./src/QtTSAprefs.db=./
-#    nuitka-project: --include-distribution-metadata
+#    nuitka-project: --include-module=./src/QtTSApreferences.py
+#    nuitka-project: --include-module=./src/QtTSAfilebrowse.py
+#    nuitka-project: --include-module=./src/QtTinySpectrum.py
 # nuitka-project-else:
 #    nuitka-project: --mode=standalone
 
