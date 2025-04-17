@@ -6,11 +6,10 @@
 
 # Compilation mode, support OS-specific options
 # nuitka-project-if: {OS} in ("Windows", "Linux", "Darwin", "FreeBSD"):
-#    nuitka-project: --mode=onefile
+#    nuitka-project: --mode=standalone
 #    nuitka-project: --enable-plugin=pyqt5
 #    nuitka-project: --include-qt-plugins=sqldrivers
 #    nuitka-project: --include-data-file=./src/QtTSAprefs.db=./
-#    nuitka-project: --follow-imports
 # nuitka-project-else:
 #    nuitka-project: --mode=standalone
 
