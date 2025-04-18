@@ -11,7 +11,6 @@
 #    nuitka-project: --include-qt-plugins=sqldrivers
 #    nuitka-project: --include-data-file=./src/QtTSAprefs.db=./
 #    nuitka-project: --remove-output
-#    nuitka-project: --user-plugin=./src
 # nuitka-project-else:
 #    nuitka-project: --mode=standalone
 
