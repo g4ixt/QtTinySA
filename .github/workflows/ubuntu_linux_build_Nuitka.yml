@@ -44,4 +44,5 @@ jobs:
         # path: ~/bin/work/QtTinySA/QtTinySA/src/build
         # path: /work/QtTinySA/QtTinySA/src/build
         path: ~/work/QtTinySA/QtTinySA/src/build
+        # path: ~/work/QtTinySA/QtTinySA/src/build/QtTinySA.bin
         include-hidden-files: true
