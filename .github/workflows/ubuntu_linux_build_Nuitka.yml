@@ -40,5 +40,5 @@ jobs:
       with:
         name: bin
         # path: ~/
-        path: ~/bin/work/QtTinySA/QtTinySA/src/build/
+        path: ~/bin/work/QtTinySA/QtTinySA/src/build
         include-hidden-files: true
