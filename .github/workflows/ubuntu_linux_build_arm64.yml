@@ -30,13 +30,14 @@ jobs:
     - uses: Nuitka/Nuitka-Action@main
       with:
         nuitka-version: main
-        script-name: src/QtTinySA.py
+        script-name: QtTinySA.py
+        working-directory: ./src
         mode: app
 
     # Uploads artifact
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: bin
-        path: build/QtTinySA.bin
+        name: QtTinySA_arm64
+        path: ~/work/QtTinySA/QtTinySA/src/build
         include-hidden-files: true

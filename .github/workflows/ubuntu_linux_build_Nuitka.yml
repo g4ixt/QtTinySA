@@ -39,10 +39,6 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         # name: bin
-        # path: ~/
-        # path: ~/bin/work/QtTinySA/QtTinySA/src/build/
-        # path: ~/bin/work/QtTinySA/QtTinySA/src/build
-        # path: /work/QtTinySA/QtTinySA/src/build
+        name: QtTinySA_ubuntu_latest
         path: ~/work/QtTinySA/QtTinySA/src/build
-        # path: ~/work/QtTinySA/QtTinySA/src/build/QtTinySA.bin
         include-hidden-files: true
