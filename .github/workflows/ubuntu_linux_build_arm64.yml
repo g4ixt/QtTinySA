@@ -24,7 +24,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
-          sudo apt-get update && sudo apt-get install -y qtbase5-dev  # copilot
+          sudo sudo apt install -y qtbase5-dev  # copilot
           pip install -r src/requirements.txt
 
     
