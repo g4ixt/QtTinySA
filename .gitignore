@@ -4,4 +4,5 @@ __pycache__
 /QtTinySA-Win_11/
 build/
 dist/
+venv/
 firmware_possible_issue.txt
