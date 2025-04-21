@@ -24,7 +24,9 @@ jobs:
 
     - name: Install Dependencies
       run: |
+          apt list pyqt5
           sudo sudo apt install -y qtbase5-dev python3-pyqt5 python3-pyqt5.sip python3-pyqtgraph python3-pyqt5.qtsql
+          apt list pyqt5
           pip install -r src/requirements_arm64.txt
 
     

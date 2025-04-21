@@ -1047,6 +1047,7 @@ class marker:
             fWidth = preferences.rbw_x.value() * 850 * 1e3
         else:
             fWidth = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3
+            logging.info(f'maxmin: masking factor = {fWidth}kHz')
 
         maxi = [np.argmax(levels)]  # the index of the highest peak in the masked readings array
         mini = [np.argmin(levels)]  # the index of the deepest minimum in the masked readings array
