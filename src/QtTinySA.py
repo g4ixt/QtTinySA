@@ -42,7 +42,7 @@ import pyqtgraph
 import QtTinySpectrum  # the main GUI
 import QtTSApreferences  # the preferences GUI
 import QtTSAfilebrowse  # the tinySA SD card browser GUI
-from QtTinyExporters import WWBExporter
+from QtTinyExporters import WWBExporter, WSMExporter
 import struct
 import serial
 from serial.tools import list_ports
@@ -70,6 +70,7 @@ blue_dash = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
 
 # pyqtgraph custom exporters
 WWBExporter.register()
+WSMExporter.register()
 
 
 ###############################################################################
