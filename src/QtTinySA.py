@@ -88,6 +88,7 @@ class analyser:
         self.signals.finished.connect(self.threadEnds)
         self.signals.saveResults.connect(saveFile)
         self.signals.resetGUI.connect(self.resetGUI)
+        self.signals.sweepEnds.connect(self.sweepComplete)
         self.runTimer = QtCore.QElapsedTimer()
         self.scale = 174
         self.scanMemory = 50
@@ -346,11 +347,41 @@ class analyser:
         logging.debug(f'freqOffset(): scanF = {scanF}')
         return scanF
 
+    def rbwChanged(self):
+        if ui.rbw_auto.isChecked():  # can't calculate Points because we don't know what the RBW will be
+            ui.rbw_box.setEnabled(False)
+            ui.points_auto.setChecked(False)
+            ui.points_auto.setEnabled(False)
+        else:
+            ui.rbw_box.setEnabled(True)
+            ui.points_auto.setEnabled(True)
+        self.setRBW()  # if measurement thread is running, calling setRBW() will force it to update scan parameters
+
     def setRBW(self):  # may be called by measurement thread as well as normally
-        rbw = ui.rbw_box.currentText()  # ui values are discrete ones in kHz
+        if ui.rbw_auto.isChecked():
+            rbw = 'auto'
+        else:
+            rbw = ui.rbw_box.currentText()  # ui values are discrete ones in kHz
         logging.debug(f'rbw = {rbw}')
         command = f'rbw {rbw}\r'
         self.fifo.put(command)
+
+    def calcMaskFreq(self, frequencies):
+        # calculate a frequency width factor to use to mask readings near each max/min frequency
+        if ui.rbw_auto.isChecked():
+            # auto rbw is ~7 kHz per 1 MHz scan frequency span
+            approx_rbw = 7 * (frequencies[-1] - frequencies[0]) / 1e6  # kHz
+            # find the nearest lower discrete rbw value
+            for i in range(0, rbwtext.tm.rowCount() - 1):
+                rbw = float(rbwtext.tm.record(i).value('value'))  # kHz
+                if approx_rbw <= float(rbwtext.tm.record(i).value('value')):
+                    break
+            self.maskFreq = preferences.rbw_x.value() * rbw * 1e3  # Hz
+            logging.debug(f'auto rbw = {rbw}kHz masking factor = {self.maskFreq/1e3}kHz')
+        else:
+            # manual rbw setting
+            self.maskFreq = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3  # Hz
+            logging.debug(f'manual rbw masking factor = {self.maskFreq/1e3}kHz')
 
     def setPoints(self):  # may be called by measurement thread as well as normally
         if ui.points_auto.isChecked():
@@ -452,6 +483,7 @@ class analyser:
                         if sweepCount == self.scanMemory:  # array is full so trigger CSV data file save
                             self.signals.saveResults.emit(frequencies, readings)
                             sweepCount = 0
+                    self.signals.sweepEnds.emit(frequencies)
 
                 # If a sweep setting has been changed by the user, the sweep must be re-started (+ new recording start)
                 if self.fifo.qsize() > 0 or not self.sweeping:
@@ -548,6 +580,16 @@ class analyser:
         self.updateWaterfall(readings)
         self.createTimeSpectrum(frequencies, readings)
 
+    def sweepComplete(self, frequencies):
+        # calculate a frequency width factor to mask peaks/mins that fall within the rbw of an existing marker
+        self.calcMaskFreq(frequencies)
+        # update markers if not in zero span, where they are not relevant
+        if frequencies[0] != frequencies[-1]:
+            M1.updateMarker()
+            M2.updateMarker()
+            M3.updateMarker()
+            M4.updateMarker()
+
     def updateGUI(self, frequencies, readings, maxima, minima, runtime):  # called by signal from measurement() thread
         # for LNB/Mixer mode when LO is above measured freq the scan is reversed, i.e. low TinySA freq = high meas freq
         if preferences.highLO.isChecked() and preferences.freqLO != 0:
@@ -562,6 +604,8 @@ class analyser:
             ui.graphWidget.setLabel('bottom', 'Time')
             frequencies = np.arange(1, len(frequencies) + 1, dtype=int)
             ui.graphWidget.setXRange(frequencies[0], frequencies[-1])
+        else:
+            ui.graphWidget.setLabel('bottom', units='Hz')
 
         # update the swept traces
         readingsAvg = np.nanmean(readings[0:ui.avgBox.value()], axis=0)
@@ -575,14 +619,6 @@ class analyser:
 
         if ui.waterfallSize.value() != 0:
             self.updateWaterfall(readings)
-
-        # update markers (if not in zero span, where they are not relevant)  # being called too often?
-        if frequencies[0] != frequencies[-1]:
-            ui.graphWidget.setLabel('bottom', units='Hz')
-            M1.updateMarker()
-            M2.updateMarker()
-            M3.updateMarker()
-            M4.updateMarker()
 
         # update 3D graph if enabled
         if ui.stackedWidget.currentWidget() == ui.View3D:
@@ -973,7 +1009,7 @@ class marker:
         Ref = guiFields[opt].get(self.name)
         return Ref
 
-    def updateMarker(self):  # called by updateGUI()
+    def updateMarker(self):  # called by sweepComplete()
         if self.markerType == 'Off':
             self.markerBox.setVisible(False)
             return
@@ -1006,7 +1042,7 @@ class marker:
             if self.deltaRelative:
                 deltaLinedBm = levels[deltaLineIndex]
                 dBm = deltaLinedBm - linedBm
-                self.deltaline.label.setText(f'{chr(916)}{self.line.name()} {dBm:.1f}dBm\n{self.deltaF/1e6:.{3}f}MHz')
+                self.deltaline.label.setText(f'{chr(916)}{self.line.name()} {dBm:.1f}dB\n{self.deltaF/1e6:.{3}f}MHz')
             else:
                 dBm = levels[deltaLineIndex]
                 self.deltaline.label.setText(
@@ -1036,27 +1072,20 @@ class marker:
         logging.debug(f'maxmin: linked tracetype = {self.linked.traceType}')
 
         # mask outside high/low freq boundary lines
-        levels = np.ma.masked_where(frequencies < lowF.line.value(), levels)
         levels = np.ma.masked_where(frequencies > highF.line.value(), levels)
+        levels = np.ma.masked_where(frequencies < lowF.line.value(), levels)
 
         # mask readings below threshold line
         levels = np.ma.masked_where(levels <= threshold.line.value(), levels)
-
-        # calculate a frequency width factor to use to mask readings near each max/min frequency
-        if ui.rbw_auto.isChecked():
-            fWidth = preferences.rbw_x.value() * 850 * 1e3
-        else:
-            fWidth = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3
-            logging.info(f'maxmin: masking factor = {fWidth}kHz')
 
         maxi = [np.argmax(levels)]  # the index of the highest peak in the masked readings array
         mini = [np.argmin(levels)]  # the index of the deepest minimum in the masked readings array
         nextMax = nextMin = levels
         for i in range(8):
             # mask frequencies around detected peaks and find the next 8 highest/lowest peaks
-            nextMax = np.ma.masked_where(np.abs(frequencies[maxi[-1]] - frequencies) < fWidth, nextMax)
+            nextMax = np.ma.masked_where(np.abs(frequencies[maxi[-1]] - frequencies) < tinySA.maskFreq, nextMax)
             maxi.append(np.argmax(nextMax))
-            nextMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < fWidth, nextMin)
+            nextMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < tinySA.maskFreq, nextMin)
             mini.append(np.argmin(nextMin))
         return (list(frequencies[maxi]), list(frequencies[mini]))
 
@@ -1071,6 +1100,7 @@ class WorkerSignals(QtCore.QObject):
     saveResults = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     resetGUI = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     finished = QtCore.pyqtSignal()
+    sweepEnds = QtCore.pyqtSignal(np.ndarray)
 
 
 class Worker(QtCore.QRunnable):
@@ -1261,17 +1291,6 @@ def attenuate_changed():
             ui.atten_box.setEnabled(True)
     command = f'attenuate {str(atten)}\r'
     tinySA.fifo.put(command)
-
-
-def rbwChanged():
-    if ui.rbw_auto.isChecked():  # can't calculate Points because we don't know what the RBW will be
-        ui.rbw_box.setEnabled(False)
-        ui.points_auto.setChecked(False)
-        ui.points_auto.setEnabled(False)
-    else:
-        ui.rbw_box.setEnabled(True)
-        ui.points_auto.setEnabled(True)
-    tinySA.setRBW()  # if measurement thread is running, calling setRBW() will force it to update scan parameters
 
 
 def pointsChanged():
@@ -1580,8 +1599,10 @@ def connectActive():
     ui.setRange.clicked.connect(tinySA.mouseScaled)
     ui.band_box.currentIndexChanged.connect(band_changed)
     ui.band_box.activated.connect(band_changed)
-    ui.rbw_box.currentIndexChanged.connect(rbwChanged)
-    ui.rbw_auto.clicked.connect(rbwChanged)
+    # ui.rbw_box.currentIndexChanged.connect(rbwChanged)
+    # ui.rbw_auto.clicked.connect(rbwChanged)
+    ui.rbw_box.currentIndexChanged.connect(tinySA.rbwChanged)
+    ui.rbw_auto.clicked.connect(tinySA.rbwChanged)
 
     # frequencies
     ui.start_freq.editingFinished.connect(tinySA.freq_changed)
@@ -1699,7 +1720,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.0.6')
+app.setApplicationVersion(' v1.0.7')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1741,7 +1762,7 @@ lowF.create(True, '|>', 0.01)
 highF.create(True, '<|', 0.01)
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 104)  # third parameter is the database version
+config = connect("QtTSAprefs.db", "settings", 107)  # third parameter is the database version
 
 checkboxes = modelView('checkboxes', config)
 numbers = modelView('numbers', config)
