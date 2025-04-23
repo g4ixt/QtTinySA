@@ -366,23 +366,6 @@ class analyser:
         command = f'rbw {rbw}\r'
         self.fifo.put(command)
 
-    def calcMaskFreq(self, frequencies):
-        # calculate a frequency width factor to use to mask readings near each max/min frequency
-        if ui.rbw_auto.isChecked():
-            # auto rbw is ~7 kHz per 1 MHz scan frequency span
-            approx_rbw = 7 * (frequencies[-1] - frequencies[0]) / 1e6  # kHz
-            # find the nearest lower discrete rbw value
-            for i in range(0, rbwtext.tm.rowCount() - 1):
-                rbw = float(rbwtext.tm.record(i).value('value'))  # kHz
-                if approx_rbw <= float(rbwtext.tm.record(i).value('value')):
-                    break
-            self.maskFreq = preferences.rbw_x.value() * rbw * 1e3  # Hz
-            logging.debug(f'auto rbw = {rbw}kHz masking factor = {self.maskFreq/1e3}kHz')
-        else:
-            # manual rbw setting
-            self.maskFreq = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3  # Hz
-            logging.debug(f'manual rbw masking factor = {self.maskFreq/1e3}kHz')
-
     def setPoints(self):  # may be called by measurement thread as well as normally
         if ui.points_auto.isChecked():
             rbw = float(ui.rbw_box.currentText())
@@ -581,8 +564,6 @@ class analyser:
         self.createTimeSpectrum(frequencies, readings)
 
     def sweepComplete(self, frequencies):
-        # calculate a frequency width factor to mask peaks/mins that fall within the rbw of an existing marker
-        self.calcMaskFreq(frequencies)
         # update markers if not in zero span, where they are not relevant
         if frequencies[0] != frequencies[-1]:
             M1.updateMarker()
@@ -1021,6 +1002,7 @@ class marker:
             return
 
         if self.markerType in ('Max', 'Min'):
+            self.calcMaskFreq(frequencies)
             maxmin = self.maxMin(frequencies, levels)
             # maxmin is a tuple of lists where [0, x] are indices in the frequency array of the max and [1, x] are min
             logging.debug(f'updateMarker: maxmin = {maxmin}')
@@ -1083,14 +1065,31 @@ class marker:
         nextMax = nextMin = levels
         for i in range(8):
             # mask frequencies around detected peaks and find the next 8 highest/lowest peaks
-            nextMax = np.ma.masked_where(np.abs(frequencies[maxi[-1]] - frequencies) < tinySA.maskFreq, nextMax)
+            nextMax = np.ma.masked_where(np.abs(frequencies[maxi[-1]] - frequencies) < self.maskFreq, nextMax)
             maxi.append(np.argmax(nextMax))
-            nextMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < tinySA.maskFreq, nextMin)
+            nextMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < self.maskFreq, nextMin)
             mini.append(np.argmin(nextMin))
         return (list(frequencies[maxi]), list(frequencies[mini]))
 
     def setLevel(self, setting):
         self.level = setting - 1  # array indexes start at 0 not 1
+
+    def calcMaskFreq(self, frequencies):
+        # calculate a frequency width factor to use to mask readings near each max/min frequency
+        if ui.rbw_auto.isChecked():
+            # auto rbw is ~7 kHz per 1 MHz scan frequency span
+            approx_rbw = 7 * (frequencies[-1] - frequencies[0]) / 1e6  # kHz
+            # find the nearest lower discrete rbw value
+            for i in range(0, rbwtext.tm.rowCount() - 1):
+                rbw = float(rbwtext.tm.record(i).value('value'))  # kHz
+                if approx_rbw <= float(rbwtext.tm.record(i).value('value')):
+                    break
+            self.maskFreq = preferences.rbw_x.value() * rbw * 1e3  # Hz
+            logging.info(f'{frequencies[0]} {frequencies[-1]} auto rbw = {rbw}kHz masking factor = {self.maskFreq/1e3}kHz')
+        else:
+            # manual rbw setting
+            self.maskFreq = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3  # Hz
+            logging.info(f'manual rbw masking factor = {self.maskFreq/1e3}kHz')
 
 
 class WorkerSignals(QtCore.QObject):
