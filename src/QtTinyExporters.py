@@ -3,9 +3,15 @@ import itertools
 
 import numpy as np
 
+from PyQt5.QtWidgets import QMessageBox
+
 from pyqtgraph import ErrorBarItem, PlotItem
 from pyqtgraph.exporters import CSVExporter
 from pyqtgraph.parametertree import Parameter
+
+
+class QtTinySAExportException(Exception):
+    """Custom exception for custom pyqtgraph exporters."""
 
 
 class WWBExporter(CSVExporter):
@@ -13,8 +19,10 @@ class WWBExporter(CSVExporter):
 
     def __init__(self, item):
         CSVExporter.__init__(self, item)
-        self.params = Parameter.create(name='trace', title='Export trace', type='list',
-                                       value=1, limits=[1, 2, 3, 4])
+        self.params = Parameter.create(name='params', type='group', children=[
+            {'name': 'trace', 'title': 'Export trace', 'type': 'list',
+             'value': 1, 'limits': [1, 2, 3, 4]}
+        ])
         self.index_counter = itertools.count(start=0)
         self.header = []
         self.data = []
@@ -43,36 +51,57 @@ class WWBExporter(CSVExporter):
                 self._exportErrorBarItem(item)
             elif hasattr(item, 'implements') and item.implements('plotData'):
                 self._exportPlotDataItem(item)
-        # we want to flatten the nested arrays of data into columns
-        columns = [column for dataset in self.data for column in dataset]
-        trace = self.params['trace']
-        row_x = 0
-        row_y = 1
-        if trace == 1:
+        try:
+            # we want to flatten the nested arrays of data into columns
+            columns = [column for dataset in self.data for column in dataset]
+            if len(columns) == 0:
+                raise QtTinySAExportException(
+                    'No column data to export / empty graph!')
+            if len(columns) <= self.params['trace'] * 2:
+                raise QtTinySAExportException(
+                    "Missing column data for selected trace - can't export!")
             row_x = 0
             row_y = 1
-        elif trace == 2:
-            row_x = 2
-            row_y = 3
-        elif trace == 3:
-            row_x = 4
-            row_y = 5
-        elif trace == 4:
-            row_x = 6
-            row_y = 7
-        with open(fileName, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_MINIMAL)
-            for row in itertools.zip_longest(*columns, fillvalue=""):
-                if isinstance(row[row_x], str):
-                    x = row[row_x]
-                else:
-                    x = np.format_float_positional(row[row_x] / 1000000, precision=3, unique=True, min_digits=3, fractional=True)
-                if isinstance(row[row_y], str):
-                    y = row[row_y]
-                else:
-                    y = np.format_float_positional(row[row_y], precision=4, unique=True, min_digits=4, fractional=True)
-                row_to_write = [x, y]
-                writer.writerow(row_to_write)
+            if self.params['trace'] == 1:
+                row_x = 0
+                row_y = 1
+            elif self.params['trace'] == 2:
+                row_x = 2
+                row_y = 3
+            elif self.params['trace'] == 3:
+                row_x = 4
+                row_y = 5
+            elif self.params['trace'] == 4:
+                row_x = 6
+                row_y = 7
+            with open(fileName, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile, delimiter=',',
+                                    quoting=csv.QUOTE_MINIMAL)
+                for row in itertools.zip_longest(*columns, fillvalue=""):
+                    if isinstance(row[row_x], str):
+                        x = row[row_x]
+                    else:
+                        x = np.format_float_positional(row[row_x] / 1000000,
+                                                       precision=3,
+                                                       unique=True,
+                                                       min_digits=3,
+                                                       fractional=True)
+                    if isinstance(row[row_y], str):
+                        y = row[row_y]
+                    else:
+                        y = np.format_float_positional(row[row_y],
+                                                       precision=4,
+                                                       unique=True,
+                                                       min_digits=4,
+                                                       fractional=True)
+                    row_to_write = [x, y]
+                    writer.writerow(row_to_write)
+        except QtTinySAExportException as e:
+            error_dialog = QMessageBox()
+            error_dialog.setIcon(QMessageBox.Icon.Critical)
+            error_dialog.setText(str(e))
+            error_dialog.setWindowTitle('Error')
+            error_dialog.exec()
         self.header.clear()
         self.data.clear()
 
@@ -82,8 +111,10 @@ class WSMExporter(CSVExporter):
 
     def __init__(self, item):
         CSVExporter.__init__(self, item)
-        self.params = Parameter.create(name='trace', title='Export trace', type='list',
-                                       value=1, limits=[1, 2, 3, 4])
+        self.params = Parameter.create(name='params', type='group', children=[
+            {'name': 'trace', 'title': 'Export trace', 'type': 'list',
+             'value': 1, 'limits': [1, 2, 3, 4]}
+        ])
         self.index_counter = itertools.count(start=0)
         self.header = []
         self.data = []
@@ -112,54 +143,66 @@ class WSMExporter(CSVExporter):
                 self._exportErrorBarItem(item)
             elif hasattr(item, 'implements') and item.implements('plotData'):
                 self._exportPlotDataItem(item)
-        # we want to flatten the nested arrays of data into columns
-        columns = [column for dataset in self.data for column in dataset]
-        trace = self.params['trace']
-        row_x = 0
-        row_y = 1
-        if trace == 1:
+        try:
+            # we want to flatten the nested arrays of data into columns
+            columns = [column for dataset in self.data for column in dataset]
+            if len(columns) == 0:
+                raise QtTinySAExportException(
+                    "No column data to export / empty graph!")
+            if len(columns) <= self.params['trace'] * 2:
+                raise QtTinySAExportException(
+                    "Missing column data for selected trace - can't export!")
             row_x = 0
             row_y = 1
-        elif trace == 2:
-            row_x = 2
-            row_y = 3
-        elif trace == 3:
-            row_x = 4
-            row_y = 5
-        elif trace == 4:
-            row_x = 6
-            row_y = 7
-        self.header = [["Receiver", ''],
-                       ["Date/Time", ''],
-                       ["RFUnit", "dBm"],
-                       ["Owner", ''],
-                       ["ScanCity", ''],
-                       ["ScanComment", ''],
-                       ["ScanCountry", ''],
-                       ["ScanDescription", ''],
-                       ["ScanInteriorExterior", ''],
-                       ["ScanLatitude", ''],
-                       ["ScanLongitude", ''],
-                       ["ScanName", ''],
-                       ["ScanPostalCode", ''],
-                       ["Frequency Range [kHz]",
-                        f"{int(columns[row_x][0] / 1000)}",
-                        f"{int(columns[row_x][-1] / 1000)}",
-                        f"{len(columns[row_x])}"],
-                       ["Frequency", "RF level (%)", "RF level"]]
-        with open(fileName, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.writer(csvfile, delimiter=';', quoting=csv.QUOTE_MINIMAL)
-            writer.writerows(self.header)
-            for row in itertools.zip_longest(*columns, fillvalue=""):
-                if isinstance(row[row_x], str):
-                    x = row[row_x]
-                else:
-                    x = int(row[row_x] / 1000)
-                if isinstance(row[row_y], str):
-                    y = row[row_y]
-                else:
-                    y = np.format_float_positional(row[row_y], precision=5)
-                row_to_write = [x, '', y]
-                writer.writerow(row_to_write)
+            if self.params['trace'] == 1:
+                row_x = 0
+                row_y = 1
+            elif self.params['trace'] == 2:
+                row_x = 2
+                row_y = 3
+            elif self.params['trace'] == 3:
+                row_x = 4
+                row_y = 5
+            elif self.params['trace'] == 4:
+                row_x = 6
+                row_y = 7
+            self.header = [["Receiver", ''],
+                        ["Date/Time", ''],
+                        ["RFUnit", "dBm"],
+                        ["Owner", ''],
+                        ["ScanCity", ''],
+                        ["ScanComment", ''],
+                        ["ScanCountry", ''],
+                        ["ScanDescription", ''],
+                        ["ScanInteriorExterior", ''],
+                        ["ScanLatitude", ''],
+                        ["ScanLongitude", ''],
+                        ["ScanName", ''],
+                        ["ScanPostalCode", ''],
+                        ["Frequency Range [kHz]",
+                            f"{int(columns[row_x][0] / 1000)}",
+                            f"{int(columns[row_x][-1] / 1000)}",
+                            f"{len(columns[row_x])}"],
+                        ["Frequency", "RF level (%)", "RF level"]]
+            with open(fileName, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile, delimiter=';', quoting=csv.QUOTE_MINIMAL)
+                writer.writerows(self.header)
+                for row in itertools.zip_longest(*columns, fillvalue=""):
+                    if isinstance(row[row_x], str):
+                        x = row[row_x]
+                    else:
+                        x = int(row[row_x] / 1000)
+                    if isinstance(row[row_y], str):
+                        y = row[row_y]
+                    else:
+                        y = np.format_float_positional(row[row_y], precision=5)
+                    row_to_write = [x, '', y]
+                    writer.writerow(row_to_write)
+        except QtTinySAExportException as e:
+            error_dialog = QMessageBox()
+            error_dialog.setIcon(QMessageBox.Icon.Critical)
+            error_dialog.setText(str(e))
+            error_dialog.setWindowTitle('Error')
+            error_dialog.exec()
         self.header.clear()
         self.data.clear()
