@@ -570,6 +570,7 @@ class analyser:
             M2.updateMarker()
             M3.updateMarker()
             M4.updateMarker()
+        M1.phaseNoise()
 
     def updateGUI(self, frequencies, readings, maxima, minima, runtime):  # called by signal from measurement() thread
         # for LNB/Mixer mode when LO is above measured freq the scan is reversed, i.e. low TinySA freq = high meas freq
@@ -860,8 +861,6 @@ class trace:
         # return the plotted data from the first trace listDataItems[0]
         frequencies = ui.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[0]  # getData[0] freq
         levels = ui.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[1]  # getData[0] is level
-        logging.debug(f'freq array = {frequencies}')
-        logging.debug(f'level array = {levels}')
         return frequencies, levels
 
 
@@ -959,6 +958,23 @@ class marker:
 
     def deltaMoved(self):  # set the delta freq offset
         self.deltaF = self.deltaline.value() - self.line.value()
+        # test
+        self.updateMarker()
+
+    def phaseNoise(self):
+        # assuming M1 is used in peak mode as the signal reference
+        frequencies, levels = self.linked.fetchData()
+        sigIndex = np.argmin(np.abs(frequencies - (self.line.value())))  # find index of peak signal
+
+        # normalised Noise Power for RBW (factor) ignoring shape of filter for now
+        rbw = float(ui.rbw_box.currentText()) * 1e3
+        factor = 10 * np.log10(rbw)
+        lsbNP = np.flip(factor + levels[sigIndex] - levels[:sigIndex])
+        usbNP = factor + levels[sigIndex] - levels[sigIndex:-1]
+        freqOffset = frequencies[(sigIndex + 1):] - frequencies[sigIndex]
+
+        for i in range(len(freqOffset)):
+            logging.info(f'{freqOffset[i]} {lsbNP[i]} {usbNP[i]}')
 
     def mType(self):
         self.markerType = self.guiRef(0).currentText()  # current combobox value from appropriate GUI field
@@ -981,6 +997,8 @@ class marker:
 
     def setDelta(self):  # delta marker locking to reference marker
         self.deltaline.setValue(self.line.value() + self.deltaF)
+        # test
+        self.updateMarker()
 
     def guiRef(self, opt):
         guiFields = ({'1': ui.m1_type, '2': ui.m2_type, '3': ui.m3_type, '4': ui.m4_type},
@@ -1000,6 +1018,9 @@ class marker:
         frequencies, levels = self.linked.fetchData()
         if frequencies is None or levels is None:
             return
+
+        frequencies.reshape(-1)
+        levels.reshape(-1)
 
         if self.markerType in ('Max', 'Min'):
             self.calcMaskFreq(frequencies)
@@ -1085,11 +1106,11 @@ class marker:
                 if approx_rbw <= float(rbwtext.tm.record(i).value('value')):
                     break
             self.maskFreq = preferences.rbw_x.value() * rbw * 1e3  # Hz
-            logging.info(f'{frequencies[0]} {frequencies[-1]} auto rbw = {rbw}kHz masking factor = {self.maskFreq/1e3}kHz')
+            logging.debug(f'{frequencies[0]} {frequencies[-1]} auto rbw = {rbw}kHz masking factor = {self.maskFreq/1e3}kHz')
         else:
             # manual rbw setting
             self.maskFreq = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3  # Hz
-            logging.info(f'manual rbw masking factor = {self.maskFreq/1e3}kHz')
+            logging.debug(f'manual rbw masking factor = {self.maskFreq/1e3}kHz')
 
 
 class WorkerSignals(QtCore.QObject):
@@ -1719,7 +1740,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.0.7')
+app.setApplicationVersion(' v1.0.8')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
