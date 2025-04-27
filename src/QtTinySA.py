@@ -43,6 +43,7 @@ import pyqtgraph
 import QtTinySpectrum  # the main GUI
 import QtTSApreferences  # the preferences GUI
 import QtTSAfilebrowse  # the tinySA SD card browser GUI
+import QtTSAnoise  # the phase noise graph GUI
 import struct
 import serial
 from serial.tools import list_ports
@@ -570,7 +571,9 @@ class analyser:
             M2.updateMarker()
             M3.updateMarker()
             M4.updateMarker()
-        M1.phaseNoise()
+        if pnwindow.isVisible():
+            T1.phaseNoise(True)
+            T2.phaseNoise(False)
 
     def updateGUI(self, frequencies, readings, maxima, minima, runtime):  # called by signal from measurement() thread
         # for LNB/Mixer mode when LO is above measured freq the scan is reversed, i.e. low TinySA freq = high meas freq
@@ -827,6 +830,7 @@ class trace:
         self.pen = pen
         self.trace = ui.graphWidget.plot([], [], name=name, pen=self.pen, width=1, padding=0)
         self.fifo = queue.SimpleQueue()
+        self.noise = phasenoise.noiseWidget.plot([], [], name=name, pen=self.pen, width=1, padding=0)
 
     def guiRef(self, opt):
         guiFields = ({'1': ui.m1_type, '2': ui.m2_type, '3': ui.m3_type, '4': ui.m4_type},
@@ -862,6 +866,33 @@ class trace:
         frequencies = ui.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[0]  # getData[0] freq
         levels = ui.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[1]  # getData[0] is level
         return frequencies, levels
+
+    def phaseNoise(self, lsb):
+        # assumes M1, T1 and M2, T2 are both used in max tracking mode as the signal reference
+        frequencies, levels = self.fetchData()
+        if frequencies is None or levels is None:
+            return
+        rbw = float(ui.rbw_box.currentText())  # kHz
+        tone = np.argmin(np.abs(frequencies - (M1.line.value())))  # find freq array index of peak of signal
+        mask = np.count_nonzero(frequencies[tone:] < frequencies[tone] + (rbw * 1e3 * preferences.rbw_x.value()))
+
+        # From https://github.com/Hagtronics/tinySA-Ultra-Phase-Noise
+        shapeFactor = {0.2: -5.3, 1: -0.6, 3: 3.4, 10: 0, 30: 0, 100: 0, 300: 0, 600: 0, 850: 0}
+        eqnbw = shapeFactor.get(rbw)
+
+        # Calculate Noise Power 1Hz bandwidth normalising factor for the RBW
+        factor = 10 * np.log10(rbw * 1e3)
+
+        if lsb:
+            delta = levels[:tone-mask+1] - levels[tone]  # relative level of sideband points to the lsb_tone
+            dBcHz = delta + eqnbw - factor
+            freqOffset = (frequencies[tone] - frequencies[:tone-mask+1])
+        else:
+            delta = levels[tone+mask:] - levels[tone]  # relative level of sideband points to the usb_tone
+            dBcHz = delta + eqnbw - factor
+            freqOffset = (frequencies[tone+mask:] - frequencies[tone])
+
+        self.noise.setData(freqOffset, dBcHz)
 
 
 class limit:
@@ -960,21 +991,6 @@ class marker:
         self.deltaF = self.deltaline.value() - self.line.value()
         # test
         self.updateMarker()
-
-    def phaseNoise(self):
-        # assuming M1 is used in peak mode as the signal reference
-        frequencies, levels = self.linked.fetchData()
-        sigIndex = np.argmin(np.abs(frequencies - (self.line.value())))  # find index of peak signal
-
-        # normalised Noise Power for RBW (factor) ignoring shape of filter for now
-        rbw = float(ui.rbw_box.currentText()) * 1e3
-        factor = 10 * np.log10(rbw)
-        lsbNP = np.flip(factor + levels[sigIndex] - levels[:sigIndex])
-        usbNP = factor + levels[sigIndex] - levels[sigIndex:-1]
-        freqOffset = frequencies[(sigIndex + 1):] - frequencies[sigIndex]
-
-        for i in range(len(freqOffset)):
-            logging.info(f'{freqOffset[i]} {lsbNP[i]} {usbNP[i]}')
 
     def mType(self):
         self.markerType = self.guiRef(0).currentText()  # current combobox value from appropriate GUI field
@@ -1343,6 +1359,11 @@ def markerToCentre():
     M4.spread()
 
 
+def centreToMarker():
+    centreF = M1.line.value() * 1e-6
+    ui.centre_freq.setValue(centreF)
+
+
 def markerLevel():
     M1.setLevel(ui.m1track.value())
     M2.setLevel(ui.m2track.value())
@@ -1606,6 +1627,10 @@ def setWaterfall():
     ui.waterfall.setMaximumSize(QtCore.QSize(16777215, ui.waterfallSize.value()))
 
 
+def showPhaseNoise():
+    pnwindow.show()
+
+
 def connectActive():
     # Connect signals from controls that send messages to tinySA.  Called by 'initialise'.
 
@@ -1731,6 +1756,10 @@ def connectPassive():
     # Waterfall
     ui.waterfallSize.valueChanged.connect(setWaterfall)
 
+    # phase noise
+    ui.actionPhNoise.triggered.connect(showPhaseNoise)
+    phasenoise.centre.clicked.connect(centreToMarker)
+
 
 ###############################################################################
 # Instantiate classes
@@ -1740,20 +1769,28 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.0.8')
+app.setApplicationVersion(' v1.0.9')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
 
 # pwindow is the preferences dialogue box
 pwindow = QtWidgets.QDialog()
+pwindow.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 preferences = QtTSApreferences.Ui_Preferences()
 preferences.setupUi(pwindow)
 
 # fwindow is the filebrowse dialogue box
 fwindow = QtWidgets.QDialog()
+fwindow.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 filebrowse = QtTSAfilebrowse.Ui_Filebrowse()
 filebrowse.setupUi(fwindow)
+
+# pnwindow is the phase noise display window
+pnwindow = QtWidgets.QDialog()
+pnwindow.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
+phasenoise = QtTSAnoise.Ui_Phasenoise()
+phasenoise.setupUi(pnwindow)
 
 # Traces
 T1 = trace('1', 'lightblue')
@@ -1823,6 +1860,14 @@ ui.histogram.setDefaultPadding(padding=0)
 ui.histogram.plotItem.invertY(True)
 ui.histogram.getPlotItem().hideAxis('bottom')
 ui.histogram.getPlotItem().hideAxis('left')
+
+# pyqtgraph settings for Phase Noise
+phasenoise.noiseWidget.setYRange(-120, -40)
+phasenoise.noiseWidget.plotItem.showGrid(x=True, y=True, alpha=1.0)
+phasenoise.noiseWidget.plotItem.setLogMode(x=True)
+phasenoise.noiseWidget.setLabel('bottom', 'Offset Frequency Hz')
+phasenoise.noiseWidget.setLabel('left', 'Phase Noise', units='dBc/Hz')
+
 
 ###############################################################################
 # set up the application
@@ -1911,7 +1956,6 @@ ui.t2_type.setModel(tracetext.tm)
 ui.t3_type.setModel(tracetext.tm)
 ui.t4_type.setModel(tracetext.tm)
 tracetext.tm.select()
-
 
 # populate the marker comboboxes
 markertext.createTableModel()

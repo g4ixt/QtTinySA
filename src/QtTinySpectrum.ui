@@ -2336,8 +2336,15 @@ and Colours</string>
     <addaction name="actionBrowse_TinySA"/>
     <addaction name="actionQuit"/>
    </widget>
+   <widget class="QMenu" name="menuMeasurements">
+    <property name="title">
+     <string>Measurements</string>
+    </property>
+    <addaction name="actionPhNoise"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuSettings"/>
+   <addaction name="menuMeasurements"/>
    <addaction name="menu_Help"/>
   </widget>
   <action name="actionsetting">
@@ -2383,6 +2390,16 @@ and Colours</string>
   <action name="actionTracesMarkers">
    <property name="text">
     <string>TracesMarkers</string>
+   </property>
+  </action>
+  <action name="actionPhaseNoise">
+   <property name="text">
+    <string>PhaseNoise</string>
+   </property>
+  </action>
+  <action name="actionPhNoise">
+   <property name="text">
+    <string>PhaseNoise</string>
    </property>
   </action>
  </widget>
