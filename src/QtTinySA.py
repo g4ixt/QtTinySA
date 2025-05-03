@@ -784,17 +784,29 @@ class analyser:
         else:
             popUp('TinySA not found', QMessageBox.Ok, QMessageBox.Critical)
 
-    def fileDownload(self):
-        selected = filebrowse.listWidget.currentItem().text()  # the file selected in the list widget
-        if self.directory:  # already saved a file so use the same folder path as the default
-            folder = os.path.join(self.directory, selected)
-            fileName = QFileDialog.getSaveFileName(caption="Save As", directory=folder)
-        else:
-            fileName = QFileDialog.getSaveFileName(caption="Save As", directory=selected)
-        with open(str(fileName[0]), "wb") as file:
-            file.write(self.memF.getvalue())
-        self.directory = os.path.dirname(fileName[0])
-        filebrowse.downloadInfo.setText(self.directory)  # show the path where the file was saved
+    def saveFile(self, saveSingle=True):
+        filebrowse.saveProgress.setValue(0)
+        SD = self.listSD()
+        for i in range(len(SD.splitlines())):
+            if not self.directory:  # have not already saved a file, or ask for folder was checked
+                self.directory = QFileDialog.getExistingDirectory(caption="Select folder to save SD card file")
+            if not self.directory:
+                break
+            if saveSingle:
+                fileName = filebrowse.listWidget.currentItem().text()  # the file selected in the list widget
+            else:
+                fileName = SD.splitlines()[i].split(" ")[0]
+            with open(os.path.join(self.directory, fileName), "wb") as file:
+                data = self.readSD(fileName)
+                file.write(data)
+            filebrowse.saveProgress.setValue(int(100 * (i+1)/len(SD.splitlines())))
+            filebrowse.downloadInfo.setText(self.directory)  # show the path where the file was saved
+            if filebrowse.askForPath.isChecked():
+                self.directory = None
+            if saveSingle:
+                filebrowse.saveProgress.setValue(100)
+                break
+
 
     def fileShow(self):
         self.memF.seek(0, 0)  # set the memory buffer pointer to the start
@@ -1482,10 +1494,11 @@ def checkVersion(db, target, dbFile):
     query.next()  # advances to the result row, and query.value(0) retrieves the user version.
     logging.info(f'database version = {query.value(0)}, expected {target}')
     if query.value(0) != target:
-        message = "Database " + db.databaseName() + "\nversion " + str(query.value(0)) + \
-            " is incompatible with this version of QtTinySA.\n" + \
-            "\nClicking OK will replace it with version " + str(target) + \
-            " and will reset \nALL preferences to default."
+        message = "This version of QtTinySA needs database version " + str(target) + ".\n\n" + \
+                "Database " + db.databaseName() + "\nversion " + str(query.value(0)) + \
+                " is incompatible.\n" + \
+                "\nClicking OK will replace it with version " + str(target) + \
+                " and will reset \nALL preferences to default."
         replace = popUp(message, QMessageBox.Ok | QMessageBox.Cancel, QMessageBox.Question)
         query.clear()
         if replace == 0x00000400:  # 'ok' was clicked
@@ -1675,12 +1688,14 @@ def connectActive():
     ui.timeSpectrum.clicked.connect(lambda: ui.stackedWidget.setCurrentWidget(ui.View3D))
     ui.analyser.clicked.connect(lambda: ui.stackedWidget.setCurrentWidget(ui.ViewNormal))
 
-    # preferences
-    ui.actionAbout_QtTinySA.triggered.connect(about)
-
     # filebrowse
-    ui.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
-    filebrowse.download.clicked.connect(tinySA.fileDownload)
+    # ui.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
+    # filebrowse.download.clicked.connect(tinySA.fileDownload)
+    # filebrowse.saveAll.clicked.connect(tinySA.filesDownload)
+
+    filebrowse.download.clicked.connect(lambda: tinySA.saveFile(True))
+    filebrowse.saveAll.clicked.connect(lambda: tinySA.saveFile(False))
+
     filebrowse.listWidget.itemClicked.connect(tinySA.fileShow)
 
     # Quit
@@ -1753,12 +1768,17 @@ def connectPassive():
     ui.filterBox.currentTextChanged.connect(lambda: bandselect.filterType(False, ui.filterBox.currentText()))
     ui.actionPreferences.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
 
+    # preferences
+    ui.actionAbout_QtTinySA.triggered.connect(about)
+
     # Waterfall
     ui.waterfallSize.valueChanged.connect(setWaterfall)
 
     # phase noise
     ui.actionPhNoise.triggered.connect(showPhaseNoise)
     phasenoise.centre.clicked.connect(centreToMarker)
+
+    ui.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
 
 
 ###############################################################################
@@ -1769,7 +1789,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.0.9')
+app.setApplicationVersion(' v1.0.10')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1819,7 +1839,7 @@ lowF.create(True, '|>', 0.01)
 highF.create(True, '<|', 0.01)
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 107)  # third parameter is the database version
+config = connect("QtTSAprefs.db", "settings", 1010)  # third parameter is the database version
 
 checkboxes = modelView('checkboxes', config)
 numbers = modelView('numbers', config)
