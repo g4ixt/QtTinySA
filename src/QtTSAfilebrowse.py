@@ -14,7 +14,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_Filebrowse(object):
     def setupUi(self, Filebrowse):
         Filebrowse.setObjectName("Filebrowse")
-        Filebrowse.resize(762, 436)
+        Filebrowse.resize(800, 600)
         self.gridLayout_3 = QtWidgets.QGridLayout(Filebrowse)
         self.gridLayout_3.setObjectName("gridLayout_3")
         self.formLayout = QtWidgets.QFormLayout()
@@ -28,7 +28,7 @@ class Ui_Filebrowse(object):
         self.listWidget.setObjectName("listWidget")
         self.formLayout.setWidget(0, QtWidgets.QFormLayout.LabelRole, self.listWidget)
         self.picture = QtWidgets.QLabel(Filebrowse)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.picture.sizePolicy().hasHeightForWidth())

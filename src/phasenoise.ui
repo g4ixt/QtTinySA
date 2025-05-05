@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>857</width>
-    <height>528</height>
+    <width>800</width>
+    <height>600</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -16,10 +16,10 @@
   <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
-     <x>20</x>
-     <y>30</y>
-     <width>811</width>
-     <height>481</height>
+     <x>10</x>
+     <y>20</y>
+     <width>781</width>
+     <height>551</height>
     </rect>
    </property>
    <layout class="QGridLayout" name="gridLayout_3">

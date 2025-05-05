@@ -14,7 +14,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_Preferences(object):
     def setupUi(self, Preferences):
         Preferences.setObjectName("Preferences")
-        Preferences.resize(950, 600)
+        Preferences.resize(960, 600)
         self.layoutWidget = QtWidgets.QWidget(Preferences)
         self.layoutWidget.setGeometry(QtCore.QRect(11, 11, 571, 581))
         self.layoutWidget.setObjectName("layoutWidget")
@@ -110,7 +110,7 @@ class Ui_Preferences(object):
         spacerItem2 = QtWidgets.QSpacerItem(30, 20, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
         self.gridLayout.addItem(spacerItem2, 4, 7, 1, 1)
         self.layoutWidget1 = QtWidgets.QWidget(Preferences)
-        self.layoutWidget1.setGeometry(QtCore.QRect(590, 11, 346, 581))
+        self.layoutWidget1.setGeometry(QtCore.QRect(600, 11, 346, 581))
         self.layoutWidget1.setObjectName("layoutWidget1")
         self.gridLayout_2 = QtWidgets.QGridLayout(self.layoutWidget1)
         self.gridLayout_2.setContentsMargins(0, 0, 0, 0)

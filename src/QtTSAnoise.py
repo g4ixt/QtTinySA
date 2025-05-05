@@ -14,9 +14,9 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_Phasenoise(object):
     def setupUi(self, Phasenoise):
         Phasenoise.setObjectName("Phasenoise")
-        Phasenoise.resize(857, 528)
+        Phasenoise.resize(800, 600)
         self.layoutWidget = QtWidgets.QWidget(Phasenoise)
-        self.layoutWidget.setGeometry(QtCore.QRect(20, 30, 811, 481))
+        self.layoutWidget.setGeometry(QtCore.QRect(10, 20, 781, 551))
         self.layoutWidget.setObjectName("layoutWidget")
         self.gridLayout_3 = QtWidgets.QGridLayout(self.layoutWidget)
         self.gridLayout_3.setContentsMargins(0, 0, 0, 0)

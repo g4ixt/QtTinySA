@@ -742,14 +742,6 @@ class analyser:
         command = f'repeat {ui.sampleRepeat.value()}\r'
         self.fifo.put(command)
 
-    def fPrecision(self, frequencies):  # sets the marker indicated frequency precision
-        fInc = frequencies[1] - frequencies[0]
-        if fInc > 0:
-            self.dp = np.clip(int(np.log10(frequencies[0] / fInc)), 0, 5)  # number of decicimal places required
-            logging.info(f'fPrecision: fInc = {fInc} dp = {self.dp}')
-        else:
-            self.dp = 6
-
     def listSD(self):
         if self.usb:
             self.clearBuffer()  # clear the USB serial buffer
@@ -806,7 +798,6 @@ class analyser:
             if saveSingle:
                 filebrowse.saveProgress.setValue(100)
                 break
-
 
     def fileShow(self):
         self.memF.seek(0, 0)  # set the memory buffer pointer to the start
@@ -1001,7 +992,6 @@ class marker:
 
     def deltaMoved(self):  # set the delta freq offset
         self.deltaF = self.deltaline.value() - self.line.value()
-        # test
         self.updateMarker()
 
     def mType(self):
@@ -1043,11 +1033,11 @@ class marker:
         else:
             self.markerBox.setVisible(True)
 
-        frequencies, levels = self.linked.fetchData()
+        frequencies, levels = self.linked.fetchData()  # fetch data from the graph
         if frequencies is None or levels is None:
             return
 
-        frequencies.reshape(-1)
+        frequencies.reshape(-1)  # flatten the array
         levels.reshape(-1)
 
         if self.markerType in ('Max', 'Min'):
@@ -1064,20 +1054,26 @@ class marker:
                 if self.deltaline.value != 0:
                     self.deltaline.setValue(maxmin[1][self.level] + self.deltaF)  # needs to be index delta not F
 
+        decimal = self.setPrecision(frequencies, frequencies[0])  # set decimal places
+        unit, multiple = self.setUnit(frequencies[0])  # set units
+
         lineIndex = np.argmin(np.abs(frequencies - (self.line.value())))  # find closest value in freq array
         linedBm = levels[lineIndex]
-        self.markerBox.setText(f'M{self.line.name()} {self.line.value()/1e6:.{4}f} {linedBm:.1f}dBm')
+        self.markerBox.setText(f'M{self.line.name()} {self.line.value()/multiple:.{decimal}f}{unit} {linedBm:.1f}dBm')
 
-        if self.deltaline.value != 0:
+        if self.deltaF != 0:
             deltaLineIndex = np.argmin(np.abs(frequencies - (self.deltaline.value())))  # closest value in freq array
             if self.deltaRelative:
                 deltaLinedBm = levels[deltaLineIndex]
                 dBm = deltaLinedBm - linedBm
-                self.deltaline.label.setText(f'{chr(916)}{self.line.name()} {dBm:.1f}dB\n{self.deltaF/1e6:.{3}f}MHz')
+                decimal = self.setPrecision(frequencies, self.deltaF)  # deltaF can be negative
+                unit, multiple = self.setUnit(self.deltaF)
+                self.deltaline.label.setText(
+                    f'{chr(916)}{self.line.name()} {dBm:.1f}dB\n{(self.deltaF / multiple):.{decimal}f}{unit}')
             else:
                 dBm = levels[deltaLineIndex]
                 self.deltaline.label.setText(
-                    f'{chr(916)}{self.line.name()} {dBm:.1f}dBm\n{self.deltaline.value()/1e6:.{3}f}MHz')
+                    f'{chr(916)}{self.line.name()} {dBm:.1f}dBm\n{(self.deltaline.value()/multiple):.{decimal}f}{unit}')
 
     def addFreqMarker(self, freq, colour, name, band=True):  # adds simple freq marker without full marker capability
         if ui.presetLabel.isChecked():
@@ -1134,11 +1130,30 @@ class marker:
                 if approx_rbw <= float(rbwtext.tm.record(i).value('value')):
                     break
             self.maskFreq = preferences.rbw_x.value() * rbw * 1e3  # Hz
-            logging.debug(f'{frequencies[0]} {frequencies[-1]} auto rbw = {rbw}kHz masking factor = {self.maskFreq/1e3}kHz')
         else:
             # manual rbw setting
             self.maskFreq = preferences.rbw_x.value() * float(ui.rbw_box.currentText()) * 1e3  # Hz
             logging.debug(f'manual rbw masking factor = {self.maskFreq/1e3}kHz')
+
+    def setPrecision(self, frequencies, spotF):  # sets the marker indicated frequency precision
+        span = frequencies[-1] - frequencies[0]
+        HzPp = span / len(frequencies)  # Hz per point
+        spotF = abs(spotF)  # delta markers can be 'negative' f
+        if span > 0:
+            if spotF < 1000:
+                decimal = 0
+            else:
+                decimal = np.clip(int(np.log10(spotF)) - int(np.log10(HzPp)), 0, 6)  # number of decicimals
+                logging.debug(f'fPrecision: pF = {HzPp} dp = {decimal}')
+        else:
+            decimal = 6
+        return decimal
+
+    def setUnit(self, spotF):
+        index = int(np.log10(abs(spotF)))
+        suffix = ['Hz', 'Hz', 'Hz', 'kHz', 'kHz', 'kHz', 'MHz', 'MHz', 'MHz', 'GHz', 'GHz']
+        multiple = [1, 1, 1, 1e3, 1e3, 1e3, 1e6, 1e6, 1e6, 1e9, 1e9]
+        return suffix[index], multiple[index]
 
 
 class WorkerSignals(QtCore.QObject):
@@ -1303,7 +1318,7 @@ def band_changed():
     freqMarkers()
 
 
-def addBandPressed():  # this is not going to work now ################################################################
+def addBand():
     if ui.m1_type.currentText() == 'Off':
         message = 'Please enable Marker 1'
         popUp(message, QMessageBox.Ok, QMessageBox.Information)
@@ -1317,16 +1332,16 @@ def addBandPressed():  # this is not going to work now #########################
         title = "New Frequency Band"
         message = "Enter a name for the new band."
         bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=bandName, type=ID, startF=f'{M1.line.value()}',
-                         stopF=f'{M2.line.value()}', visible=1, colour=colourID('green'))  # colourID(value)
-    else:  # If only Marker 1 is enabled then this creates a spot Frequency marker
-        title = "New Spot Frequency Marker"
-        message = "Enter a name for the Spot Frequency"
-        spotName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        bands.insertData(name=spotName, type=12, startF=f'{M1.line.value()}',
-                         stopF='', visible=1, colour=colourID('orange'))  # preset 12 is Marker (spot frequency).
-    bands.tm.select()
-    bandselect.tm.select()
+        bands.insertData(name=bandName, type=ID, startF=f'{int(M1.line.value())}',
+                         stopF=f'{int(M2.line.value())}', visible=1, colour=colourID('green'))  # colourID(value)
+
+
+def addFixed():
+    title = "New fixed frequency Marker"
+    message = "Enter a name for the fixed Marker"
+    fixedMkr, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
+    bands.insertData(name=fixedMkr, type=12, startF=f'{int(M1.line.value())}',
+                     stopF=0, visible=1, colour=colourID('orange'))  # preset type=12 is a fixed Marker
 
 
 def attenuate_changed():
@@ -1498,7 +1513,7 @@ def checkVersion(db, target, dbFile):
                 "Database " + db.databaseName() + "\nversion " + str(query.value(0)) + \
                 " is incompatible.\n" + \
                 "\nClicking OK will replace it with version " + str(target) + \
-                " and will reset \nALL preferences to default."
+                " and will reset \n preferences to default."
         replace = popUp(message, QMessageBox.Ok | QMessageBox.Cancel, QMessageBox.Question)
         query.clear()
         if replace == 0x00000400:  # 'ok' was clicked
@@ -1689,13 +1704,8 @@ def connectActive():
     ui.analyser.clicked.connect(lambda: ui.stackedWidget.setCurrentWidget(ui.ViewNormal))
 
     # filebrowse
-    # ui.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
-    # filebrowse.download.clicked.connect(tinySA.fileDownload)
-    # filebrowse.saveAll.clicked.connect(tinySA.filesDownload)
-
     filebrowse.download.clicked.connect(lambda: tinySA.saveFile(True))
     filebrowse.saveAll.clicked.connect(lambda: tinySA.saveFile(False))
-
     filebrowse.listWidget.itemClicked.connect(tinySA.fileShow)
 
     # Quit
@@ -1737,10 +1747,11 @@ def connectPassive():
     ui.m3_type.activated.connect(M3.mType)
     ui.m4_type.activated.connect(M4.mType)
 
-    # frequency band markers
+    # frequency band and fixed markers
     ui.presetMarker.clicked.connect(freqMarkers)
     ui.presetLabel.clicked.connect(freqMarkerLabel)
-    ui.mToBand.clicked.connect(addBandPressed)
+    ui.addBandPreset.clicked.connect(addBand)
+    ui.addFix.clicked.connect(addFixed)
     ui.filterBox.currentTextChanged.connect(freqMarkers)
 
     # trace checkboxes
@@ -1789,7 +1800,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.0.10')
+app.setApplicationVersion(' v1.1.0')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1839,7 +1850,7 @@ lowF.create(True, '|>', 0.01)
 highF.create(True, '<|', 0.01)
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 1010)  # third parameter is the database version
+config = connect("QtTSAprefs.db", "settings", 110)  # third parameter is the database version
 
 checkboxes = modelView('checkboxes', config)
 numbers = modelView('numbers', config)
