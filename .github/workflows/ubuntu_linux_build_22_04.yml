@@ -1,10 +1,13 @@
 name: Ubuntu 22.04 Linux Build
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
       tags:
-        description: 'ubuntu 22.04'
+       description: 'ubuntu 22.04'
 
 jobs:
   pyinstaller-build:
