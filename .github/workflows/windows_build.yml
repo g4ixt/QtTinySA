@@ -1,10 +1,13 @@
 name: Windows Build
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
       tags:
-        description: 'windows latest'
+       description: 'windows latest'
 
 jobs:
   pyinstaller-build:
