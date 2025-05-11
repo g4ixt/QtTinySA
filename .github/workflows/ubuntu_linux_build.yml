@@ -1,5 +1,8 @@
 name: Ubuntu Linux Build
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
