@@ -1,5 +1,9 @@
 name: Ubuntu Linux Build with Nuitka
 
+permissions:
+  contents: read
+  actions: read
+
 on:
   workflow_dispatch:
     inputs:
