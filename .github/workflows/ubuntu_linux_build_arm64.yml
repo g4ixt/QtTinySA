@@ -6,6 +6,10 @@ on:
       tags:
         description: 'ubuntu arm64'
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   build:
     runs-on: ubuntu-24.04-arm
