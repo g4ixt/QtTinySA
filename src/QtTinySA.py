@@ -282,7 +282,6 @@ class analyser:
             logging.debug(command)
             self.serialWrite(command)
 
-
     def serialQuery(self, command):
         self.usb.write(command.encode())
         self.usb.read_until(command.encode() + b'\n')  # skip command echo
