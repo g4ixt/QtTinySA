@@ -277,15 +277,11 @@ class analyser:
         M4.updateMarker()
 
     def usbSend(self):
-        try:
-            self.usb.timeout = 1
-        except (serial.SerialException, AttributeError):
-            self.usbCheck.start()
-            return
         while self.fifo.qsize() > 0:
             command = self.fifo.get(block=True, timeout=None)
             logging.debug(command)
             self.serialWrite(command)
+
 
     def serialQuery(self, command):
         self.usb.write(command.encode())
@@ -295,7 +291,7 @@ class analyser:
         return response[:-6].decode()  # remove prompt
 
     def serialWrite(self, command):
-        self.usb.timeout = 1
+        # self.usb.timeout = 1
         logging.debug(command)
         self.usb.write(command.encode())
         self.usb.read_until(b'ch> ')  # skip command echo and prompt
@@ -378,7 +374,7 @@ class analyser:
         return points
 
     def clearBuffer(self):
-        self.usb.timeout = 1
+        # self.usb.timeout = 1
         while self.usb.inWaiting():
             self.usb.read_all()  # keep the serial buffer clean
             time.sleep(0.01)
@@ -541,6 +537,7 @@ class analyser:
         self.waterfall.setAutoDownsample(True)
         ui.waterfall.addItem(self.waterfall)
         ui.waterfall.setYRange(0, ui.memBox.value())
+        ui.waterfall.setXRange(np.size(readings, axis=1), 0)
 
         # Histogram associated with waterfall
         self.histogram = pyqtgraph.HistogramLUTItem(gradientPosition='right', orientation='vertical')
@@ -550,7 +547,9 @@ class analyser:
         ui.histogram.addItem(self.histogram)
 
     def updateWaterfall(self, readings):
+        ui.waterfall.setXRange(np.size(readings, axis=1), 0)
         self.waterfall.setImage(readings, autoLevels=False)
+        #
         # sigma = np.std(readings)
         # mean = np.mean(readings)
         # readings_min = mean - 2*sigma  # save to window state
@@ -560,7 +559,6 @@ class analyser:
 
     def resetGUI(self, frequencies, readings):
         self.waterfall.clear()
-        ui.waterfall.setXRange(np.size(readings, axis=1), 0)
         self.updateWaterfall(readings)
         self.createTimeSpectrum(frequencies, readings)
 
@@ -594,9 +592,7 @@ class analyser:
 
         # update the swept traces
         readingsAvg = np.nanmean(readings[0:ui.avgBox.value()], axis=0)
-        # options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': maxima, 'Min': minima}
         options = {'Normal': readings[0], 'Average': readingsAvg, 'Max': maxima, 'Min': minima, 'Freeze': readings[0]}
-
         T1.update(frequencies, options.get(T1.traceType))
         T2.update(frequencies, options.get(T2.traceType))
         T3.update(frequencies, options.get(T3.traceType))
