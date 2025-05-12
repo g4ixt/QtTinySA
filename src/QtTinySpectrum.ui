@@ -230,7 +230,7 @@
              </font>
             </property>
             <property name="toolTip">
-             <string>Set Resolution Bandwidth</string>
+             <string>Set Resolution Bandwidth in kHz</string>
             </property>
             <property name="editable">
              <bool>true</bool>
@@ -309,7 +309,7 @@ and Colours</string>
              </font>
             </property>
             <property name="text">
-             <string>RBW</string>
+             <string>RBW kHz</string>
             </property>
            </widget>
           </item>
