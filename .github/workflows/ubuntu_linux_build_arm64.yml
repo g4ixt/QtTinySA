@@ -24,7 +24,6 @@ jobs:
 
     - name: Install Dependencies
       run: |
-          sudo apt remove -y PyQt6 PyQt6-sip
           sudo apt install -y PyQt5 PyQt5-sip qtbase5-dev python3-pyqt5 python3-pyqt5.sip python3-pyqtgraph python3-pyqt5.qtsql
           dpkg -s python3-pyqt5 | grep Status
           pip install -r src/requirements_arm64.txt
