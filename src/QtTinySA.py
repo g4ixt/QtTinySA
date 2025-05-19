@@ -1468,7 +1468,7 @@ def getPath(dbName):
         return personalDir
     
     # 3. if not, check if database file exists in the app directorey
-    if getattr(sys, 'frozen', False):  # 判断是否打包
+    if getattr(sys, 'frozen', False):
         base_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(sys.executable)
         bundled_db = os.path.join(base_path, dbName)
         if os.path.isfile(bundled_db):
