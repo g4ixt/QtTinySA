@@ -1,4 +1,4 @@
-name: ARM64 Build
+name: ARM64 Build pyinstaller
 
 permissions:
   contents: read
@@ -7,19 +7,34 @@ on:
   workflow_dispatch:
     inputs:
       tags:
-       description: 'PiOS arm64'
+       description: 'PiOS arm64 pyinstaller'
 
 jobs:
-  pyinstaller-build:
+  build:
     runs-on: ubuntu-24.04-arm
     steps:
-    - name: Create executable
-      uses: sayyid5416/pyinstaller@v1.8.0
-      with:
-        python_ver: '3.10'
-        architecture: 'arm64' # optional x64 or x86. Defaults to x64 if not specified
-        pyinstaller_ver: '==6.12.0'
-        spec: 'src/QtTinySA.spec'
-        requirements: 'src/requirements.txt'
-        exe_path: './dist'
-        upload_exe_with_name: 'QtTinySA_arm64'
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install -r src/requirements.txt
+
+      - name: Build with PyInstaller
+        run: |
+          cd src
+          pyinstaller QtTinySA.spec
+          cd ..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QtTinySA-arm64.bin
+          path: src/dist/QtTinySA
