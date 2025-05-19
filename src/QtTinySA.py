@@ -26,6 +26,7 @@ TinySA commands are based on Erik's Python examples: http://athome.kaashoek.com/
 Serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset: https://github.com/Ho-Ro"""
 
 import os
+import sys
 import time
 import logging
 import numpy as np
@@ -1450,7 +1451,7 @@ def writeSweep(timeStamp, frequencies, readings):
 
 
 def getPath(dbName):
-    # check if a personal database file exists already
+    # 1. check if a personal database file exists already
     personalDir = platformdirs.user_config_dir(appname=app.applicationName(), appauthor=False)
     if not os.path.exists(personalDir):
         os.mkdir(personalDir)
@@ -1459,20 +1460,30 @@ def getPath(dbName):
         logging.info(f'Database {dbName} found at {personalDir}')
         return personalDir
 
-    # if not, then check if a global database file exists
+    # 2. if not, then check if a global database file exists
     globalDir = platformdirs.site_config_dir(appname=app.applicationName(), appauthor=False)
     if os.path.isfile(os.path.join(globalDir, dbName)):
         shutil.copy(os.path.join(globalDir, dbName), personalDir)
         logging.info(f'Database {dbName} copied from {globalDir} to {personalDir}')
         return personalDir
+    
+    # 3. if not, check if database file exists in the app directorey
+    if getattr(sys, 'frozen', False):
+        base_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(sys.executable)
+        bundled_db = os.path.join(base_path, dbName)
+        if os.path.isfile(bundled_db):
+            shutil.copy(bundled_db, personalDir)
+            logging.info(f'{dbName} copied from {bundled_db} to {personalDir}')
+            return personalDir
 
-    # If not, then look in current working folder & where the python file is stored/linked from
+    # 4. If not, then look in current working folder & where the python file is stored/linked from
     workingDirs = [os.path.dirname(__file__), os.path.dirname(os.path.realpath(__file__)), os.getcwd()]
     for directory in workingDirs:
         if os.path.isfile(os.path.join(directory, dbName)):
             shutil.copy(os.path.join(directory, dbName), personalDir)
             logging.info(f'{dbName} copied from {directory} to {personalDir}')
             return personalDir
+        
     raise FileNotFoundError("Unable to find the database {self.dbName}")
 
 

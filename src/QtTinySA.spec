@@ -7,7 +7,7 @@ block_cipher = None
 common = {
     'pathex': [],
     'binaries': [],
-    'datas': [],
+    'datas': [('QtTSAprefs.db', '.')],
     'hiddenimports': [],
     'hookspath': [],
     'hooksconfig': {},
