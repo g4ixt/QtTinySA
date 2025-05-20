@@ -9,6 +9,9 @@ on:
 jobs:
   build:
     runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: ["x86_64", "arm64"]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -18,35 +21,42 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install dependencies
+      - name: Install dependencies (${{ matrix.arch }})
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller==6.12.0
-          pip install -r src/requirements.txt
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            arch -arm64 pip install pyinstaller==6.12.0 -r src/requirements.txt
+          else
+            arch -x86_64 pip install pyinstaller==6.12.0 -r src/requirements.txt
+          fi
 
-      - name: Build with PyInstaller
+      - name: Build with PyInstaller (${{ matrix.arch }})
         run: |
           cd src
-          pyinstaller QtTinySA.spec
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            arch -arm64 pyinstaller QtTinySA.spec
+          else
+            arch -x86_64 pyinstaller QtTinySA.spec
+          fi
           cd ..
 
-      - name: Create DMG
+      - name: Create DMG (${{ matrix.arch }})
         run: |
           brew install create-dmg
           mkdir -p dist_dmg
           create-dmg \
-            --volname "QtTinySA" \
+            --volname "QtTinySA (${{ matrix.arch }})" \
             --window-pos 200 120 \
             --window-size 600 400 \
             --icon-size 100 \
             --icon "QtTinySA.app" 180 130 \
             --hide-extension "QtTinySA.app" \
             --app-drop-link 400 130 \
-            "dist_dmg/QtTinySA_mac.dmg" \
+            "dist_dmg/QtTinySA_mac_${{ matrix.arch }}.dmg" \
             "src/dist/QtTinySA.app"
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: QtTinySA_mac.dmg
-          path: dist_dmg/QtTinySA_mac.dmg
+          name: QtTinySA_mac_${{ matrix.arch }}.dmg
+          path: dist_dmg/QtTinySA_mac_${{ matrix.arch }}.dmg
