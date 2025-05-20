@@ -34,7 +34,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: QtTinySA_mac
-          path: dist/QtTinySA_mac
+          path: src/dist/QtTinySA_mac
           
       - name: Create DMG
         run: |
