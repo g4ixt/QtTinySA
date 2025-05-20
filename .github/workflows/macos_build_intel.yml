@@ -30,6 +30,12 @@ jobs:
           pyinstaller QtTinySA.spec
           cd ..
 
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QtTinySA_mac
+          path: dist/QtTinySA_mac
+          
       - name: Create DMG
         run: |
           brew install create-dmg
