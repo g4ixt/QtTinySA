@@ -24,20 +24,12 @@ jobs:
       - name: Install dependencies (${{ matrix.arch }})
         run: |
           python -m pip install --upgrade pip
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            arch -arm64 pip install pyinstaller==6.12.0 -r src/requirements.txt
-          else
-            arch -x86_64 pip install pyinstaller==6.12.0 -r src/requirements.txt
-          fi
+          arch -${{ matrix.arch }} pip install pyinstaller==6.12.0 -r src/requirements.txt
 
       - name: Build with PyInstaller (${{ matrix.arch }})
         run: |
           cd src
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            arch -arm64 pyinstaller QtTinySA.spec
-          else
-            arch -x86_64 pyinstaller QtTinySA.spec
-          fi
+          arch -${{ matrix.arch }} pyinstaller QtTinySA.spec
           cd ..
 
       - name: Create DMG (${{ matrix.arch }})
