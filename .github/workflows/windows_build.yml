@@ -37,4 +37,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: QtTinySA_win.exe
-          path: src/dist/QtTinySA
+          path: ~/work/QtTinySA/QtTinySA/src/dist
