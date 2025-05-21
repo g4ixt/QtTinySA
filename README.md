@@ -18,4 +18,4 @@ http://athome.kaashoek.com/tinySA/python/
 The serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset
 https://github.com/Ho-Ro
 
-The GUI was originally designed for a 7" 1024 x 600 screen but should maximise properly.  The GUI appearence may change significantly due to development.
+The GUI is now designed for a 1024 x 768 screen but should maximise properly.  The GUI appearence may change significantly due to development.
