@@ -213,27 +213,28 @@ class WSMExporter(CSVExporter):
                 row_x = 6
                 row_y = 7
             self.header = [["Receiver", ''],
-                        ["Date/Time", ''],
-                        ["RFUnit", "dBm"],
-                        ["Owner", ''],
-                        ["ScanCity", ''],
-                        ["ScanComment", ''],
-                        ["ScanCountry", ''],
-                        ["ScanDescription", ''],
-                        ["ScanInteriorExterior", ''],
-                        ["ScanLatitude", ''],
-                        ["ScanLongitude", ''],
-                        ["ScanName", ''],
-                        ["ScanPostalCode", ''],
-                        ["Frequency Range [kHz]",
-                            f"{int(columns[row_x][0] / 1000)}",
-                            f"{int(columns[row_x][-1] / 1000)}",
-                            f"{len(columns[row_x])}"],
-                        ["Frequency", "RF level (%)", "RF level"]]
+                           ["Date/Time", ''],
+                           ["RFUnit", "dBm"],
+                           ["Owner", ''],
+                           ["ScanCity", ''],
+                           ["ScanComment", ''],
+                           ["ScanCountry", ''],
+                           ["ScanDescription", ''],
+                           ["ScanInteriorExterior", ''],
+                           ["ScanLatitude", ''],
+                           ["ScanLongitude", ''],
+                           ["ScanName", ''],
+                           ["ScanPostalCode", ''],
+                           ["Frequency Range [kHz]",
+                               f"{int(columns[row_x][0] / 1000)}",
+                               f"{int(columns[row_x][-1] / 1000)}",
+                               f"{len(columns[row_x])}"],
+                           ["Frequency", "RF level (%)", "RF level"]]
             # write CSV file
             with open(fileName, 'w', newline='', encoding='utf-8') as csvfile:
                 # set CSV flavor to use ; instead of , (required by WSM)
-                writer = csv.writer(csvfile, delimiter=';', quoting=csv.QUOTE_MINIMAL)
+                writer = csv.writer(csvfile, delimiter=';',
+                                    quoting=csv.QUOTE_MINIMAL)
                 writer.writerows(self.header)
                 # iterate thru data and write row by row
                 for row in itertools.zip_longest(*columns, fillvalue=""):
@@ -242,14 +243,15 @@ class WSMExporter(CSVExporter):
                         x = row[row_x]
                     else:
                         # convert frequency to kHz
-                        x = int(row[row_x]) / 1000
+                        x = int(int(row[row_x]) / 1000)
                     if isinstance(row[row_y], str):
                         # data is string -> do nothing
                         y = row[row_y]
                     else:
                         # convert level to float with precision 0.00000
-                        y = np.format_float_positional(int(row[row_y]), precision=5)
-                     # prepare row to write
+                        y = np.format_float_positional(float(row[row_y]),
+                                                       precision=5)
+                    # prepare row to write
                     row_to_write = [x, '', y]
                     # write row to file
                     writer.writerow(row_to_write)
