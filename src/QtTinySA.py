@@ -41,6 +41,7 @@ from PyQt5.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QS
 from PyQt5.QtGui import QPixmap, QIcon
 from datetime import datetime
 import pyqtgraph
+from QtTinyExporters import WWBExporter, WSMExporter
 import QtTinySpectrum  # the main GUI
 import QtTSApreferences  # the preferences GUI
 import QtTSAfilebrowse  # the tinySA SD card browser GUI
@@ -69,6 +70,11 @@ basedir = os.path.dirname(__file__)
 # pyqtgraph pens
 red_dash = pyqtgraph.mkPen(color='r', width=0.5, style=QtCore.Qt.DashLine)
 blue_dash = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
+
+# pyqtgraph custom exporters
+WWBExporter.register()
+WSMExporter.register()
+
 
 
 ###############################################################################
