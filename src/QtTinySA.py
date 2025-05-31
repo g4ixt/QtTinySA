@@ -76,7 +76,6 @@ WWBExporter.register()
 WSMExporter.register()
 
 
-
 ###############################################################################
 # classes
 
@@ -1472,7 +1471,7 @@ def getPath(dbName):
         shutil.copy(os.path.join(globalDir, dbName), personalDir)
         logging.info(f'Database {dbName} copied from {globalDir} to {personalDir}')
         return personalDir
-    
+
     # 3. if not, check if database file exists in the app directorey
     if getattr(sys, 'frozen', False):
         base_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(sys.executable)
@@ -1489,7 +1488,7 @@ def getPath(dbName):
             shutil.copy(os.path.join(directory, dbName), personalDir)
             logging.info(f'{dbName} copied from {directory} to {personalDir}')
             return personalDir
-        
+
     raise FileNotFoundError("Unable to find the database {self.dbName}")
 
 
