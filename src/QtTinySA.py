@@ -138,7 +138,7 @@ class analyser:
             popUp('Serial port exception',
                   QMessageBox.Ok, QMessageBox.Critical)
         if self.usb:
-            for i in range(4):  # try 3 times to communicate with tinySA over USB serial
+            for i in range(4):  # try 4 times to communicate with tinySA over USB serial
                 firmware = self.version()
                 if firmware[:6] == 'tinySA':
                     logging.info(f'{port.device} test {i} : {firmware[:16]}')
@@ -148,11 +148,11 @@ class analyser:
             # split firmware into a list of [device, major version number, minor version number, other stuff]
             self.firmware = firmware.replace('_', '-').split('-')
             if firmware[:6] == 'tinySA':
-                if float(self.firmware[1][-3:] + self.firmware[2]) < 1.4177:
+                if firmware[0] == 'tinySA4' and float(self.firmware[1][-3:] + self.firmware[2]) < 1.4177:
                     logging.info('for fastest possible scan speed, upgrade firmware to v1.4-177 or later')
-                if self.firmware[0] in ('tinySA4',  'tinySA_') and self.firmware[1][0] == "v":
+                if self.firmware[1][0] == "v":
                     self.initialise(self.firmware)
-                if self.firmware[1][0] != "v":
+                else:
                     logging.info(f'{port.device} test found firmware {firmware}. Expected to find tinySA_vn.n-nnn')
             else:
                 logging.info(f'firmware {firmware} for {self.identify(port)} on {port.device} is not a tinySA')
@@ -697,6 +697,8 @@ class analyser:
 
     def version(self):
         version = self.serialQuery('version\r')
+        # version = 'tinySA_v1.4-175-g1419a93'   # for testing. tinySA basic
+        # version = 'tinySA4_v1.4-199-gde12ba2'  # for testing. tinySA ultra
         return version
 
     def spur(self):
@@ -1811,7 +1813,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.1.0')
+app.setApplicationVersion(' v1.1.1')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
