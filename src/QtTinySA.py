@@ -247,9 +247,8 @@ class analyser:
     def setGUI(self):
         startF = ui.start_freq.value()
         stopF = ui.stop_freq.value()
-        ui.centre_freq.setValue(startF + (stopF - startF) / 2)
-        ui.span_freq.setValue(stopF - startF)
-        ui.graphWidget.setXRange(startF * 1e6, stopF * 1e6)
+        self.setCentreFreq()
+        self.setGraphFreq(startF, stopF)
 
         # Traces
         T1.setup()
@@ -378,24 +377,34 @@ class analyser:
         readings[0] = -200
         return frequencies, readings, maxima, minima
 
-    def freq_changed(self, centre=False):
-        if centre:
-            startF = ui.centre_freq.value()-ui.span_freq.value()/2
-            stopF = ui.centre_freq.value()+ui.span_freq.value()/2
-            ui.start_freq.setValue(startF)
+    def setCentreFreq(self):
+        startF = ui.centre_freq.value()-ui.span_freq.value()/2
+        stopF = ui.centre_freq.value()+ui.span_freq.value()/2
+        ui.start_freq.setValue(startF)
+        ui.stop_freq.setValue(stopF)
+        self.setGraphFreq(startF, stopF)
+
+    def setStartFreq(self):
+        startF = ui.start_freq.value()  # freq in MHz
+        stopF = ui.stop_freq.value()
+        if startF > stopF:
+            stopF = startF
             ui.stop_freq.setValue(stopF)
-        else:
-            startF = ui.start_freq.value()  # freq in MHz
-            stopF = ui.stop_freq.value()
-            if startF > stopF:
-                stopF = startF
-                ui.stop_freq.setValue(stopF)
-            ui.centre_freq.setValue(startF + (stopF - startF) / 2)
-            ui.span_freq.setValue(stopF - startF)
+        ui.centre_freq.setValue(startF + (stopF - startF) / 2)
+        ui.span_freq.setValue(stopF - startF)
+        self.setGraphFreq(startF, stopF)
+
+    def setGraphFreq(self, startF, stopF):
         ui.graphWidget.setXRange(startF * 1e6, stopF * 1e6)
         if ui.span_freq.value() != 0:
             lowF.line.setValue((startF + ui.span_freq.value()/20) * 1e6)
             highF.line.setValue((stopF - ui.span_freq.value()/20) * 1e6)
+
+    def freq_changed(self, centre=False):
+        if centre:
+            self.setCentreFreq()
+        else:
+            self.setStartFreq()
         self.resume()  # puts a message in the fifo buffer so the measurement thread spots it and updates its settings
 
     def freqOffset(self, frequencies):  # for mixers or LNBs external to TinySA
