@@ -101,11 +101,7 @@ class analyser:
         self.runTimer = QtCore.QElapsedTimer()
         self.scale = 174
         self.scanMemory = 50
-        # self.usbCheck = QtCore.QTimer()
-        # self.usbCheck.timeout.connect(self.isConnected)
         self.fifo = queue.SimpleQueue()
-        self.fifoTimer = QtCore.QTimer()
-        self.fifoTimer.timeout.connect(self.timerTasks)
         self.maxF = 6000
         self.memF = BytesIO()
         self.ports = []
@@ -130,7 +126,6 @@ class analyser:
             settings.deviceBox.setCurrentIndex(0)
             popUp("Several devices detected.  Choose device in Settings",
                   QMessageBox.Ok, QMessageBox.Information)
-            # self.usbCheck.stop()
             usbCheck.stop()
 
     def testPort(self, port):  # tests comms and initialises tinySA if found
@@ -186,69 +181,8 @@ class analyser:
                 else:
                     self.openPort()
 
-    # def initialise(self, product):
-    #     # product = 'tinySA'  # used for testing
-    #     logging.debug('initialise: started')
-    #     if product[0] == 'tinySA4':  # It's an Ultra
-    #         self.tinySA4 = True
-    #         self.maxF = settings.maxFreqBox.value()
-    #         self.scale = 174
-    #         ui.spur_box.setTristate(True)  # TinySA Ultra has 'auto', 'on' and 'off' setting for Spur
-    #         ui.spur_box.setCheckState(checkboxes.tm.record(0).value("spur"))
-    #     else:
-    #         self.tinySA4 = False  # It's a Basic
-    #         self.maxF = 960
-    #         self.scale = 128
-    #         rbwtext.tm.setFilter('type = "rbw" and value != "0.2" and value != "1" and value != "850"')  # fewer RBWs
-    #         ui.spur_box.setTristate(False)  # TinySA Basic has only 'on' and 'off' setting for Spur'
-    #         ui.spur_box.setChecked(True)  # on
-
-    #     self.spur()
-    #     # Basic has no lna
-    #     ui.lna_box.setVisible(self.tinySA4)
-    #     ui.lna_box.setEnabled(self.tinySA4)
-    #     self.lna()
-    #     self.setTime()
-    #     self.setAbort(True)
-
-    #     # Traces
-    #     T1.setup()
-    #     T2.setup()
-    #     T3.setup()
-    #     T4.setup()
-
-    #     # Markers
-    #     M1.setup('yellow')
-    #     M2.setup('yellow')
-    #     M3.setup('yellow')
-    #     M4.setup('yellow')
-
-    #     # show device information in GUI
-    #     ui.battery.setText(self.battery())
-    #     ui.version.setText(product[0] + " " + product[1] + " " + product[2])
-
-    #     # set various defaults
-    #     ui.waterfallSize.setValue(ui.waterfallSize.value())  # sets the height of the waterfall widget
-    #     pointsChanged()
-    #     setPreferences()
-    #     band = ui.band_box.currentText()
-    #     bandselect.filterType(False, ui.filterBox.currentText())  # setting the filter overwrites the band
-    #     self.freq_changed(False)
-
-    #     # restore the band
-    #     ui.band_box.setCurrentText(band)
-
-    #     # connect GUI controls that send messages to tinySA
-    #     connectActive()
-    #     self.fifoTimer.start(200)  # call self.usbSend() every 200mS to commands & update markers when scan is stopped
-
-    #     logging.debug('initialise: finished')
-
     def setGUI(self):
-        startF = ui.start_freq.value()
-        stopF = ui.stop_freq.value()
-        self.setCentreFreq()
-        self.setGraphFreq(startF, stopF)
+        self.setStartFreq()
 
         # Traces
         T1.setup()
@@ -265,11 +199,15 @@ class analyser:
         # set various defaults
         ui.waterfallSize.setValue(ui.waterfallSize.value())  # sets the height of the waterfall widget
         setPreferences()
-
         bandselect.filterType(False, ui.filterBox.currentText())  # setting the filter overwrites the band
 
-        # how to update markers without usbsend?
-        self.fifoTimer.start(200)  # call self.usbSend() every 200mS to commands & update markers when scan is stopped
+        # now connect GUI controls that would interfere with restoration of data at startup
+        connectActive()
+
+        # call self.usbSend() every 200mS to send commands & update markers if not scanning
+        self.fifoTimer = QtCore.QTimer()
+        self.fifoTimer.timeout.connect(self.timerTasks)
+        self.fifoTimer.start(200)
 
     def setForDevice(self, product):
         # product = 'tinySA'  # used for testing
@@ -287,6 +225,7 @@ class analyser:
             rbwtext.tm.setFilter('type = "rbw" and value != "0.2" and value != "1" and value != "850"')  # fewer RBWs
             ui.spur_box.setTristate(False)  # TinySA Basic has only 'on' and 'off' setting for Spur'
             ui.spur_box.setChecked(True)  # on
+
         # Basic has no lna
         ui.lna_box.setVisible(self.tinySA4)
         ui.lna_box.setEnabled(self.tinySA4)
@@ -298,9 +237,7 @@ class analyser:
         ui.battery.setText(self.battery())
         ui.version.setText(product[0] + " " + product[1] + " " + product[2])
 
-        # connect GUI controls that send messages to tinySA
-        connectActive()
-        self.fifoTimer.start(200)  # call self.usbSend() every 200mS to commands & update markers when scan is stopped
+        # self.fifoTimer.start(200)  # call self.usbSend() every 200mS to commands & update markers when scan is stopped
 
         logging.debug('initialise: finished')
 
@@ -316,6 +253,7 @@ class analyser:
                 try:  # start measurements
                     self.fifoTimer.stop()
                     self.clearBuffer()
+                    self.attenuator()
                     self.lna()
                     self.spur()
                     self.setRBW()
@@ -340,7 +278,8 @@ class analyser:
         threadpool.start(self.sweep)
 
     def timerTasks(self):
-        self.usbSend()
+        if self.usb:
+            self.usbSend()
         M1.updateMarker()
         M2.updateMarker()
         M3.updateMarker()
@@ -801,6 +740,17 @@ class analyser:
             self.fifo.put('attenuate auto\r')
         self.fifo.put(command)
 
+    def attenuator(self):
+        atten = ui.atten_box.value()
+        if ui.atten_auto.isChecked():
+            atten = 'auto'
+            ui.atten_box.setEnabled(False)
+        else:
+            if not ui.lna_box.isChecked():  # attenuator and lna are switched so mutually exclusive
+                ui.atten_box.setEnabled(True)
+        command = f'attenuate {str(atten)}\r'
+        self.fifo.put(command)
+
     def setTime(self):
         if self.tinySA4 and settings.syncTime.isChecked():
             dt = datetime.now()
@@ -1084,7 +1034,8 @@ class marker:
         else:
             self.deltaline.show()
             self.deltaline.setValue(self.line.value() + ui.span_freq.value() * 2.5e4)
-            self.deltaF = 0
+            # self.deltaF = 0
+            self.deltaF = self.deltaline.value() - self.line.value()
 
     def deltaClicked(self):  # toggle relative or absolute labelling
         if self.deltaRelative:
@@ -1118,6 +1069,10 @@ class marker:
         else:
             self.markerBox.setVisible(True)
 
+        # if self.linked:
+        #     frequencies, levels = self.linked.fetchData()  # fetch data from the graph
+        # else:
+        #     return
         frequencies, levels = self.linked.fetchData()  # fetch data from the graph
         if frequencies is None or levels is None:
             return
@@ -1431,25 +1386,13 @@ def addFixed():
                      stopF=0, visible=1, colour=colourID('orange'))  # preset type=12 is a fixed Marker
 
 
-def attenuate_changed():
-    atten = ui.atten_box.value()
-    if ui.atten_auto.isChecked():
-        atten = 'auto'
-        ui.atten_box.setEnabled(False)
-    else:
-        if not ui.lna_box.isChecked():  # attenuator and lna are switched so mutually exclusive
-            ui.atten_box.setEnabled(True)
-    command = f'attenuate {str(atten)}\r'
-    tinySA.fifo.put(command)
-
-
 def pointsChanged():
     if ui.points_auto.isChecked():
         ui.points_box.setEnabled(False)
         ui.rbw_box.setEnabled(True)
     else:
         ui.points_box.setEnabled(True)
-    tinySA.resume()  # without this command, the trace doesn't update
+    tinySA.resume()  # puts a message in the fifo buffer so the measurement thread spots it and updates its settings
 
 
 def memChanged():
@@ -1457,6 +1400,7 @@ def memChanged():
     if depth < ui.avgBox.value():
         ui.avgBox.setValue(depth)
     tinySA.scanMemory = depth
+    tinySA.resume()  # puts a message in the fifo buffer so the measurement thread spots it and updates its settings
 
 
 def markerToStart():
@@ -1757,13 +1701,12 @@ def showPhaseNoise():
 
 
 def connectActive():
-    # Connect signals from controls that send messages to tinySA.  Called by 'initialise'.
+    # Connect signals from controls that send messages to tinySA or use trace data.  Called by 'setGUI'.
 
-    ui.atten_box.valueChanged.connect(attenuate_changed)
-    ui.atten_auto.clicked.connect(attenuate_changed)
+    ui.atten_box.valueChanged.connect(tinySA.attenuator)
+    ui.atten_auto.clicked.connect(tinySA.attenuator)
     ui.spur_box.clicked.connect(tinySA.spur)
     ui.lna_box.clicked.connect(tinySA.lna)
-    ui.memBox.valueChanged.connect(memChanged)
     ui.points_auto.stateChanged.connect(pointsChanged)
     ui.points_box.editingFinished.connect(pointsChanged)
     ui.setRange.clicked.connect(tinySA.mouseScaled)
@@ -1803,9 +1746,6 @@ def connectActive():
     filebrowse.saveAll.clicked.connect(lambda: tinySA.saveFile(False))
     filebrowse.listWidget.itemClicked.connect(tinySA.fileShow)
 
-    # Quit
-    ui.actionQuit.triggered.connect(app.closeAllWindows)
-
     # marker dragging
     M1.line.sigPositionChanged.connect(M1.setDelta)
     M2.line.sigPositionChanged.connect(M2.setDelta)
@@ -1821,8 +1761,11 @@ def connectActive():
 
 
 def connectPassive():
-    # Connect signals from GUI controls that don't cause messages to go to the tinySA
+    ui.memBox.valueChanged.connect(memChanged)
+    # Quit
+    ui.actionQuit.triggered.connect(app.closeAllWindows)
 
+    # Connect signals from GUI controls that don't cause messages to go to the tinySA
     ui.scan_button.clicked.connect(tinySA.scan)
     ui.run3D.clicked.connect(tinySA.scan)
 
@@ -2127,7 +2070,7 @@ window.show()
 window.setWindowTitle(app.applicationName() + app.applicationVersion())
 window.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 
-# connect GUI controls that send messages to tinySA
+# connect GUI controls that don't interfere with restoration of data at startup
 connectPassive()
 
 tinySA.setGUI()
