@@ -317,7 +317,7 @@ class analyser:
         readings[0] = -200
 
         # signal fading window
-        self.timeMarkVals = np.full((86400, 5), None, dtype=float)
+        self.timeMarkVals = np.full((1000, 5), None, dtype=float)
         self.timeIndex = 0
         return frequencies, readings, maxima, minima
 
