@@ -67,7 +67,7 @@
   <customwidget>
    <class>PlotWidget</class>
    <extends>QWidget</extends>
-   <header>pyqtgraph</header>
+   <header location="global">pyqtgraph</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

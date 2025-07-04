@@ -1148,12 +1148,15 @@ class Ui_MainWindow(object):
         self.actionPhNoise.setObjectName("actionPhNoise")
         self.actionSettings = QtWidgets.QAction(MainWindow)
         self.actionSettings.setObjectName("actionSettings")
+        self.actionFading = QtWidgets.QAction(MainWindow)
+        self.actionFading.setObjectName("actionFading")
         self.menu_Help.addAction(self.actionAbout_QtTinySA)
         self.menuSettings.addAction(self.actionPresets)
         self.menuSettings.addAction(self.actionSettings)
         self.menuFile.addAction(self.actionBrowse_TinySA)
         self.menuFile.addAction(self.actionQuit)
         self.menuMeasurements.addAction(self.actionPhNoise)
+        self.menuMeasurements.addAction(self.actionFading)
         self.menuBar.addAction(self.menuFile.menuAction())
         self.menuBar.addAction(self.menuSettings.menuAction())
         self.menuBar.addAction(self.menuMeasurements.menuAction())
@@ -1281,5 +1284,6 @@ class Ui_MainWindow(object):
         self.actionPhaseNoise.setText(_translate("MainWindow", "PhaseNoise"))
         self.actionPhNoise.setText(_translate("MainWindow", "PhaseNoise"))
         self.actionSettings.setText(_translate("MainWindow", "Preferences"))
+        self.actionFading.setText(_translate("MainWindow", "Fading"))
 from pyqtgraph import PlotWidget
 from pyqtgraph.opengl import GLViewWidget

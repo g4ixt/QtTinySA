@@ -16,16 +16,6 @@
   <layout class="QGridLayout" name="gridLayout">
    <item row="0" column="0">
     <layout class="QGridLayout" name="gridLayout_3">
-     <item row="0" column="0" colspan="3">
-      <widget class="QPolarChart" name="plotWidget" native="true">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-      </widget>
-     </item>
      <item row="1" column="2">
       <spacer name="horizontalSpacer_2">
        <property name="orientation">
@@ -52,18 +42,20 @@
        </property>
       </spacer>
      </item>
+     <item row="0" column="0" colspan="3">
+      <widget class="QWidget" name="polarplot" native="true">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+      </widget>
+     </item>
     </layout>
    </item>
   </layout>
  </widget>
- <customwidgets>
-  <customwidget>
-   <class>QPolarChart</class>
-   <extends>QWidget</extends>
-   <header>qpolarchart.h</header>
-   <container>1</container>
-  </customwidget>
- </customwidgets>
  <resources/>
  <connections/>
 </ui>

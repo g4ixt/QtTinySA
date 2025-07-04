@@ -48,6 +48,7 @@ import QtTSAfilebrowse  # the tinySA SD card browser window
 import QtTSAnoise  # the phase noise graph window
 import QtTSAbands  # the bands & markers window GUI
 import QtTSAsettings  # the settings window
+import QtTSAfading
 import struct
 import serial
 from serial.tools import list_ports
@@ -314,6 +315,10 @@ class analyser:
         logging.debug(f'set_arrays: frequencies = {frequencies}')
         readings = np.full((self.scanMemory, points), None, dtype=float)
         readings[0] = -200
+
+        # signal fading window
+        self.timeMarkVals = np.full((86400, 5), None, dtype=float)
+        self.timeIndex = 0
         return frequencies, readings, maxima, minima
 
     def setCentreFreq(self):
@@ -590,6 +595,14 @@ class analyser:
             M2.updateMarker()
             M3.updateMarker()
             M4.updateMarker()
+            timeNow = time.time()
+            if fading.grView.isVisible():
+                M1.updateMarkerTimePlot(timeNow)
+                M2.updateMarkerTimePlot(timeNow)
+                M3.updateMarkerTimePlot(timeNow)
+                M4.updateMarkerTimePlot(timeNow)
+                self.timeIndex += 1
+
         if pnwindow.isVisible():  # fetches trace data from the graph and displays it in the phase noise window
             T1.phaseNoise(True)   # lsb
             T2.phaseNoise(False)  # usb
@@ -984,6 +997,8 @@ class marker:
         self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(-0.5, -box))  # box is vertical posn
         self.markerBox.setParentItem(ui.graphWidget.plotItem)
         self.fifo = queue.SimpleQueue()
+        self.dBm = -140
+        self.createMarkerTimePlot()
 
     def guiRef(self, opt):
         guiFields = ({'1': ui.m1_type, '2': ui.m2_type, '3': ui.m3_type, '4': ui.m4_type},
@@ -1069,10 +1084,6 @@ class marker:
         else:
             self.markerBox.setVisible(True)
 
-        # if self.linked:
-        #     frequencies, levels = self.linked.fetchData()  # fetch data from the graph
-        # else:
-        #     return
         frequencies, levels = self.linked.fetchData()  # fetch data from the graph
         if frequencies is None or levels is None:
             return
@@ -1099,14 +1110,14 @@ class marker:
         unit, multiple = self.setUnit(frequencies[0])  # set units
 
         lineIndex = np.argmin(np.abs(frequencies - (self.line.value())))  # find closest value in freq array
-        linedBm = levels[lineIndex]
-        self.markerBox.setText(f'M{self.line.name()} {self.line.value()/multiple:.{decimal}f}{unit} {linedBm:.1f}dBm')
+        self.dBm = levels[lineIndex]
+        self.markerBox.setText(f'M{self.line.name()} {self.line.value()/multiple:.{decimal}f}{unit} {self.dBm:.1f}dBm')
 
         if self.deltaF != 0:
             deltaLineIndex = np.argmin(np.abs(frequencies - (self.deltaline.value())))  # closest value in freq array
             if self.deltaRelative:
                 deltaLinedBm = levels[deltaLineIndex]
-                dBm = deltaLinedBm - linedBm
+                dBm = deltaLinedBm - self.Bm
                 decimal = self.setPrecision(frequencies, self.deltaF)  # deltaF can be negative
                 unit, multiple = self.setUnit(self.deltaF)
                 self.deltaline.label.setText(
@@ -1195,6 +1206,19 @@ class marker:
         suffix = ['Hz', 'Hz', 'Hz', 'kHz', 'kHz', 'kHz', 'MHz', 'MHz', 'MHz', 'GHz', 'GHz']
         multiple = [1, 1, 1, 1e3, 1e3, 1e3, 1e6, 1e6, 1e6, 1e9, 1e9]
         return suffix[index], multiple[index]
+
+    def createMarkerTimePlot(self):
+        self.tplot = multiplot.addPlot(title='Marker ' + self.name)
+        self.tplot.hideAxis('bottom')
+        self.tplot.enableAutoRange('y')
+        self.tplot.showGrid(x=True, y=True)
+        multiplot.nextRow()
+        self.tplot.plot([], [])
+
+    def updateMarkerTimePlot(self, timeNow):
+        tinySA.timeMarkVals[tinySA.timeIndex, 0] = timeNow
+        tinySA.timeMarkVals[tinySA.timeIndex, int(self.name)] = self.dBm
+        self.tplot.plot(tinySA.timeMarkVals[:, 0], tinySA.timeMarkVals[:, int(self.name)], pen='y')
 
 
 class WorkerSignals(QtCore.QObject):
@@ -1357,7 +1381,9 @@ def band_changed():
         ui.centre_freq.setValue(centreF)
         ui.span_freq.setValue(int(centreF / 10))  # default span to a tenth of the centre freq
         tinySA.freq_changed(True)  # centre mode
+    numbers.dwm.submit()
     freqMarkers()
+
 
 
 def addBand():
@@ -1835,6 +1861,9 @@ def connectPassive():
     ui.actionPhNoise.triggered.connect(showPhaseNoise)
     phasenoise.centre.clicked.connect(centreToMarker)
 
+    # fading
+    ui.actionFading.triggered.connect(lambda: twindow.show())
+
     ui.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
 
 
@@ -1846,7 +1875,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.1.2')
+app.setApplicationVersion(' v1.1.3')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1875,11 +1904,20 @@ pnwindow.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 phasenoise = QtTSAnoise.Ui_Phasenoise()
 phasenoise.setupUi(pnwindow)
 
+# twindow is the signal vs time display window
+twindow = QtWidgets.QDialog()
+twindow.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
+fading = QtTSAfading.Ui_fading()
+fading.setupUi(twindow)
+
 # Markers
+multiplot = pyqtgraph.GraphicsLayout()  # for plotting marker signal level over time
+fading.grView.setCentralItem(multiplot)
 M1 = marker('1', 0.1)
 M2 = marker('2', 0.6)
 M3 = marker('3', 1.1)
 M4 = marker('4', 1.7)
+M4.tplot.setAxisItems({'bottom': pyqtgraph.DateAxisItem()})
 
 # Traces
 T1 = trace('1')
@@ -1905,7 +1943,7 @@ highF.create(True, '<|', 0.01)
 reference.create(True, '<|>', 0.99)
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 111)  # third parameter is the database version
+config = connect("QtTSAprefs.db", "settings", 112)  # third parameter is the database version
 
 checkboxes = modelView('checkboxes', config)
 numbers = modelView('numbers', config)

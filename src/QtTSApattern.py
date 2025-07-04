@@ -19,18 +19,18 @@ class Ui_Pattern(object):
         self.gridLayout.setObjectName("gridLayout")
         self.gridLayout_3 = QtWidgets.QGridLayout()
         self.gridLayout_3.setObjectName("gridLayout_3")
-        self.plotWidget = QPolarChart(Pattern)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.plotWidget.sizePolicy().hasHeightForWidth())
-        self.plotWidget.setSizePolicy(sizePolicy)
-        self.plotWidget.setObjectName("plotWidget")
-        self.gridLayout_3.addWidget(self.plotWidget, 0, 0, 1, 3)
         spacerItem = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         self.gridLayout_3.addItem(spacerItem, 1, 2, 1, 1)
         spacerItem1 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         self.gridLayout_3.addItem(spacerItem1, 1, 1, 1, 1)
+        self.polarplot = QtWidgets.QWidget(Pattern)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.polarplot.sizePolicy().hasHeightForWidth())
+        self.polarplot.setSizePolicy(sizePolicy)
+        self.polarplot.setObjectName("polarplot")
+        self.gridLayout_3.addWidget(self.polarplot, 0, 0, 1, 3)
         self.gridLayout.addLayout(self.gridLayout_3, 0, 0, 1, 1)
 
         self.retranslateUi(Pattern)
@@ -39,4 +39,3 @@ class Ui_Pattern(object):
     def retranslateUi(self, Pattern):
         _translate = QtCore.QCoreApplication.translate
         Pattern.setWindowTitle(_translate("Pattern", "Antenna pattern"))
-from qpolarchart import QPolarChart

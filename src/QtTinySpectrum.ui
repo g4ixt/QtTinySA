@@ -2365,6 +2365,7 @@ and Colours</string>
      <string>Measurements</string>
     </property>
     <addaction name="actionPhNoise"/>
+    <addaction name="actionFading"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuSettings"/>
@@ -2432,6 +2433,11 @@ and Colours</string>
   <action name="actionSettings">
    <property name="text">
     <string>Preferences</string>
+   </property>
+  </action>
+  <action name="actionFading">
+   <property name="text">
+    <string>Fading</string>
    </property>
   </action>
  </widget>
