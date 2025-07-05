@@ -317,7 +317,7 @@ class analyser:
         readings[0] = -200
 
         # signal fading window
-        self.timeMarkVals = np.full((1000, 5), None, dtype=float)
+        self.timeMarkVals = np.full(((self.scanMemory * 20), 5), None, dtype=float)
         self.timeIndex = 0
         return frequencies, readings, maxima, minima
 
@@ -1216,6 +1216,7 @@ class marker:
         self.tplot.plot([], [])
 
     def updateMarkerTimePlot(self, timeNow):
+        self.tplot.clear()
         tinySA.timeMarkVals[tinySA.timeIndex, 0] = timeNow
         tinySA.timeMarkVals[tinySA.timeIndex, int(self.name)] = self.dBm
         self.tplot.plot(tinySA.timeMarkVals[:, 0], tinySA.timeMarkVals[:, int(self.name)], pen='y')
