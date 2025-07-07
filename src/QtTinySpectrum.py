@@ -1224,7 +1224,7 @@ class Ui_MainWindow(object):
         self.span_freq.setToolTip(_translate("MainWindow", "Sweep Span"))
         self.m1_type.setToolTip(_translate("MainWindow", "Marker 1 type"))
         self.band_box.setToolTip(_translate("MainWindow", "<html><head/><body><p>Preset Frequency list</p></body></html>"))
-        self.mkr_centre.setToolTip(_translate("MainWindow", "Set markers in range"))
+        self.mkr_centre.setToolTip(_translate("MainWindow", "Set off-screen markers in range"))
         self.mkr_centre.setText(_translate("MainWindow", "..."))
         self.avgBox.setToolTip(_translate("MainWindow", "Trace Averaging"))
         self.addFix.setToolTip(_translate("MainWindow", "Add a fixed frequency marker at the frequency of Marker 1"))

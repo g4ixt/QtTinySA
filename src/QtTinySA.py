@@ -1042,8 +1042,9 @@ class marker:
 
     def spread(self):  # spread markers equally across scan range
         if self.markerType != 'Off':
-            self.line.setValue(ui.start_freq.value() * 1e6 + (0.2 * int(self.name) * ui.span_freq.value() * 1e6))
-            self.mType()
+            if self.line.value() <= ui.start_freq.value() * 1e6 or self.line.value() > ui.stop_freq.value() * 1e6:
+                self.line.setValue(ui.start_freq.value() * 1e6 + (0.2 * int(self.name) * ui.span_freq.value() * 1e6))
+                self.mType()
 
     def lineClicked(self):  # toggle visibility of associated delta marker
         if self.deltaline.value() != 0:
@@ -1887,7 +1888,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.1.3.2')
+app.setApplicationVersion(' v1.1.3.3')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)

@@ -1302,7 +1302,7 @@ and Colours</string>
              </font>
             </property>
             <property name="toolTip">
-             <string extracomment="Marker to Start">Set markers in range</string>
+             <string extracomment="Marker to Start">Set off-screen markers in range</string>
             </property>
             <property name="toolTipDuration">
              <number>1</number>
