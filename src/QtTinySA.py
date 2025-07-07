@@ -33,15 +33,21 @@ import queue
 import shutil
 import platformdirs
 import csv
-
 import numpy as np
+import pyqtgraph
+import struct
+import serial
 from platform import system
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit
 from PyQt5.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
 from PyQt5.QtGui import QPixmap, QIcon
 from datetime import datetime
-import pyqtgraph
+from serial.tools import list_ports
+from io import BytesIO
+
+import pyqtgraph.opengl as pyqtgl  # For 3D
+
 from QtTinyExporters import WWBExporter, WSMExporter
 import QtTinySpectrum  # the main GUI
 import QtTSAfilebrowse  # the tinySA SD card browser window
@@ -49,13 +55,7 @@ import QtTSAnoise  # the phase noise graph window
 import QtTSAbands  # the bands & markers window GUI
 import QtTSAsettings  # the settings window
 import QtTSAfading
-import struct
-import serial
-from serial.tools import list_ports
-from io import BytesIO
 
-#  For 3D
-import pyqtgraph.opengl as pyqtgl
 
 # Defaults to non local configuration/data dirs - needed for packaging
 if system() == "Linux":
@@ -1031,6 +1031,9 @@ class marker:
         self.deltaF = 0
         self.deltaline.label.setPosition(0.05)
         self.deltaline.label.setMovable(True)
+        M1.tplot.setXLink(M4.tplot)
+        M2.tplot.setXLink(M4.tplot)
+        M3.tplot.setXLink(M4.tplot)
 
     def start(self):  # set marker to the sweep start frequency
         if self.markerType != 'Off':
@@ -1110,6 +1113,7 @@ class marker:
         unit, multiple = self.setUnit(frequencies[0])  # set units
 
         lineIndex = np.argmin(np.abs(frequencies - (self.line.value())))  # find closest value in freq array
+        logging.debug(f'updateMarker(): index={lineIndex} frequency={frequencies[lineIndex]}')
         self.dBm = levels[lineIndex]
         self.markerBox.setText(f'M{self.line.name()} {self.line.value()/multiple:.{decimal}f}{unit} {self.dBm:.1f}dBm')
 
@@ -1217,6 +1221,11 @@ class marker:
 
     def updateMarkerTimePlot(self, timeNow):
         self.tplot.clear()
+        # decimal = self.setPrecision(frequencies, frequencies[0])  # set decimal places
+        unit, multiple = self.setUnit(self.line.value())  # set units
+
+        self.tplot.setTitle(str(self.line.value()/multiple) + unit)
+
         tinySA.timeMarkVals[tinySA.timeIndex, 0] = timeNow
         tinySA.timeMarkVals[tinySA.timeIndex, int(self.name)] = self.dBm
         self.tplot.plot(tinySA.timeMarkVals[:, 0], tinySA.timeMarkVals[:, int(self.name)], pen='y')
@@ -1384,7 +1393,6 @@ def band_changed():
         tinySA.freq_changed(True)  # centre mode
     numbers.dwm.submit()
     freqMarkers()
-
 
 
 def addBand():
@@ -1876,7 +1884,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.1.3')
+app.setApplicationVersion(' v1.1.3.1')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1913,6 +1921,7 @@ fading.setupUi(twindow)
 
 # Markers
 multiplot = pyqtgraph.GraphicsLayout()  # for plotting marker signal level over time
+# fading.grView.setCentralItem(multiplot)
 fading.grView.setCentralItem(multiplot)
 M1 = marker('1', 0.1)
 M2 = marker('2', 0.6)
