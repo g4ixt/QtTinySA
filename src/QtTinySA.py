@@ -596,12 +596,12 @@ class analyser:
             M3.updateMarker()
             M4.updateMarker()
             timeNow = time.time()
-            if fading.grView.isVisible():
-                M1.updateMarkerTimePlot(timeNow)
-                M2.updateMarkerTimePlot(timeNow)
-                M3.updateMarkerTimePlot(timeNow)
-                M4.updateMarkerTimePlot(timeNow)
-                self.timeIndex += 1
+
+            M1.updateMarkerTimePlot(frequencies, timeNow)
+            M2.updateMarkerTimePlot(frequencies, timeNow)
+            M3.updateMarkerTimePlot(frequencies, timeNow)
+            M4.updateMarkerTimePlot(frequencies, timeNow)
+            self.timeIndex += 1
 
         if pnwindow.isVisible():  # fetches trace data from the graph and displays it in the phase noise window
             T1.phaseNoise(True)   # lsb
@@ -1077,7 +1077,6 @@ class marker:
 
     def setDelta(self):  # delta marker locking to reference marker
         self.deltaline.setValue(self.line.value() + self.deltaF)
-        # test
         self.updateMarker()
 
     def updateMarker(self):  # called by sweepComplete() and fifo timer
@@ -1099,7 +1098,7 @@ class marker:
             self.calcMaskFreq(frequencies)
             maxmin = self.maxMin(frequencies, levels)
             # maxmin is a tuple of lists where [0, x] are indices in the frequency array of the max and [1, x] are min
-            logging.debug(f'updateMarker: maxmin = {maxmin}')
+            logging.debug(f'updateMarker(): maxmin = {maxmin}')
             if self.markerType == 'Max':
                 self.line.setValue(maxmin[0][self.level])
                 if self.deltaline.value != 0:
@@ -1109,12 +1108,14 @@ class marker:
                 if self.deltaline.value != 0:
                     self.deltaline.setValue(maxmin[1][self.level] + self.deltaF)  # needs to be index delta not F
 
+        lineIndex = np.argmin(np.abs(frequencies - (self.line.value())))  # find closest value in freq array
+        logging.debug(f'updateMarker(): index={lineIndex} frequency={frequencies[lineIndex]}')
+        self.line.setValue(frequencies[lineIndex])
+        self.dBm = levels[lineIndex]
+
         decimal = self.setPrecision(frequencies, frequencies[0])  # set decimal places
         unit, multiple = self.setUnit(frequencies[0])  # set units
 
-        lineIndex = np.argmin(np.abs(frequencies - (self.line.value())))  # find closest value in freq array
-        logging.debug(f'updateMarker(): index={lineIndex} frequency={frequencies[lineIndex]}')
-        self.dBm = levels[lineIndex]
         self.markerBox.setText(f'M{self.line.name()} {self.line.value()/multiple:.{decimal}f}{unit} {self.dBm:.1f}dBm')
 
         if self.deltaF != 0:
@@ -1219,13 +1220,15 @@ class marker:
         multiplot.nextRow()
         self.tplot.plot([], [])
 
-    def updateMarkerTimePlot(self, timeNow):
+    def updateMarkerTimePlot(self, frequencies, timeNow):
         self.tplot.clear()
-        # decimal = self.setPrecision(frequencies, frequencies[0])  # set decimal places
+        if self.markerType == 'Off':
+            self.tplot.hide()
+        else:
+            self.tplot.show()
+        decimal = self.setPrecision(frequencies, frequencies[0])  # set decimal places
         unit, multiple = self.setUnit(self.line.value())  # set units
-
-        self.tplot.setTitle(str(self.line.value()/multiple) + unit)
-
+        self.tplot.setTitle(f'{(self.line.value()/multiple):.{decimal}f}' + unit)
         tinySA.timeMarkVals[tinySA.timeIndex, 0] = timeNow
         tinySA.timeMarkVals[tinySA.timeIndex, int(self.name)] = self.dBm
         self.tplot.plot(tinySA.timeMarkVals[:, 0], tinySA.timeMarkVals[:, int(self.name)], pen='y')
@@ -1884,7 +1887,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.1.3.1')
+app.setApplicationVersion(' v1.1.3.2')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
