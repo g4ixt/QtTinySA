@@ -560,19 +560,19 @@ class analyser:
         self.waterfall.setAutoDownsample(True)
         ui.waterfall.addItem(self.waterfall)
         ui.waterfall.setYRange(0, ui.memBox.value())
-        ui.waterfall.setXRange(np.size(readings, axis=1), 0)
+        # ui.waterfall.setXLink(ui.graphWidget)
 
         # Histogram associated with waterfall
         self.histogram = pyqtgraph.HistogramLUTItem(gradientPosition='right', orientation='vertical')
         self.histogram.setImageItem(self.waterfall)  # connects the histogram to the waterfall
-        self.histogram.gradient.loadPreset('inferno')  # set the colour map
+        self.histogram.gradient.loadPreset('plasma')  # set the colour map
+
         self.histogram.autoHistogramRange()
         self.waterfall.setLevels((-100, -25))  # needs to be here, after histogram is created
         ui.histogram.addItem(self.histogram)
 
     def updateWaterfall(self, readings):
-        # ui.waterfall.setXRange(np.size(readings, axis=1), 0)
-        ui.waterfall.setXRange(0, np.size(readings, axis=1))
+        ui.waterfall.setXRange(np.size(readings, axis=1), 0)
         self.waterfall.setImage(readings, autoLevels=False)
 
         #
@@ -585,7 +585,9 @@ class analyser:
 
     def resetGUI(self, frequencies, readings):
         self.waterfall.clear()
-        self.updateWaterfall(readings)
+        self.histogram.close()
+        self.createWaterfall(frequencies, readings)
+        # self.updateWaterfall(readings)
         self.createTimeSpectrum(frequencies, readings)
 
     def sweepComplete(self, frequencies):
@@ -1148,6 +1150,7 @@ class marker:
             self.marker = ui.graphWidget.addLine(freq, 90,
                                                  pen=pyqtgraph.mkPen(colour, width=0.5, style=QtCore.Qt.DashLine))
         self.fifo.put(self.marker)  # store the marker object in a queue
+        logging.debug(f'addFreqMarker(): fifo size = {self.fifo.qsize()}')
 
     def delFreqMarkers(self):
         for i in range(0, self.fifo.qsize()):
@@ -1333,6 +1336,7 @@ class modelView():
         with open(fileName, "r") as fileInput:
             reader = csv.DictReader(fileInput)
             for row in reader:
+                logging.debug(f'readCSV(): row = {row}')
                 record = self.tm.record()
                 for key, value in row.items():
                     logging.debug(f'readCSV: key = {key} value = {value}')
@@ -1658,6 +1662,8 @@ def popUp(message, button, icon):
 def freqMarkers():
     M1.delFreqMarkers()
     M2.delFreqMarkers()
+    while presetmarker.tm.canFetchMore():  # remove 256 row limit for QSql Query
+        presetmarker.tm.fetchMore()
     for i in range(0, presetmarker.tm.rowCount()):
         try:
             startF = presetmarker.tm.record(i).value('StartF')
@@ -1673,6 +1679,7 @@ def freqMarkers():
                 M1.addFreqMarker(startF, colour, name)
                 M2.addFreqMarker(stopF, colour, name)
         except ValueError:
+            logging.info('freqMarkers(): value error')
             continue
 
 
@@ -1888,7 +1895,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.1.3.3')
+app.setApplicationVersion(' v1.1.3.4')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1925,7 +1932,6 @@ fading.setupUi(twindow)
 
 # Markers
 multiplot = pyqtgraph.GraphicsLayout()  # for plotting marker signal level over time
-# fading.grView.setCentralItem(multiplot)
 fading.grView.setCentralItem(multiplot)
 M1 = marker('1', 0.1)
 M2 = marker('2', 0.6)
@@ -1993,7 +1999,7 @@ ui.graphWidget.setLabel('bottom', '', units='Hz')
 # pyqtgraph settings for waterfall and histogram display
 ui.waterfall.setDefaultPadding(padding=0)
 ui.waterfall.getPlotItem().hideAxis('bottom')
-ui.waterfall.setLabel('left', 'Time', **{'color': '#FFF', 'font-size': '3pt'})
+ui.waterfall.setLabel('left', ' ', **{'color': '#FFF', 'font-size': '3pt'})
 ui.waterfall.invertY(True)
 ui.histogram.setDefaultPadding(padding=0)
 ui.histogram.plotItem.invertY(True)
