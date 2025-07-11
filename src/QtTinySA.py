@@ -315,9 +315,8 @@ class analyser:
         logging.debug(f'set_arrays: frequencies = {frequencies}')
         readings = np.full((self.scanMemory, points), None, dtype=float)
         readings[0] = -200
-
-        # signal fading window
-        self.timeMarkVals = np.full(((self.scanMemory * 20), 5), None, dtype=float)
+        # signal fading window.  timeMarkVals is a 2D array with time in col 0 and dBm levels of each marker in 1 - 4
+        self.timeMarkVals = np.full((int(settings.timePoints.value()), 5), None, dtype=float)
         self.timeIndex = 0
         return frequencies, readings, maxima, minima
 
@@ -597,13 +596,17 @@ class analyser:
             M2.updateMarker()
             M3.updateMarker()
             M4.updateMarker()
-            timeNow = time.time()
-
-            M1.updateMarkerTimePlot(frequencies, timeNow)
-            M2.updateMarkerTimePlot(frequencies, timeNow)
-            M3.updateMarkerTimePlot(frequencies, timeNow)
-            M4.updateMarkerTimePlot(frequencies, timeNow)
-            self.timeIndex += 1
+            if twindow.isVisible():
+                timeNow = time.time()
+                M1.updateMarkerTimePlot(frequencies, timeNow)
+                M2.updateMarkerTimePlot(frequencies, timeNow)
+                M3.updateMarkerTimePlot(frequencies, timeNow)
+                M4.updateMarkerTimePlot(frequencies, timeNow)
+                if self.timeIndex < np.size(self.timeMarkVals, axis=0) - 1:
+                    self.timeIndex += 1
+                else:
+                    # array of values is full so start rolling to the left and stop incrementing the index
+                    self.timeMarkVals = np.roll(self.timeMarkVals, -1, axis=0)
 
         if pnwindow.isVisible():  # fetches trace data from the graph and displays it in the phase noise window
             T1.phaseNoise(True)   # lsb
@@ -1125,7 +1128,7 @@ class marker:
             deltaLineIndex = np.argmin(np.abs(frequencies - (self.deltaline.value())))  # closest value in freq array
             if self.deltaRelative:
                 deltaLinedBm = levels[deltaLineIndex]
-                dBm = deltaLinedBm - self.Bm
+                dBm = deltaLinedBm - self.dBm
                 decimal = self.setPrecision(frequencies, self.deltaF)  # deltaF can be negative
                 unit, multiple = self.setUnit(self.deltaF)
                 self.deltaline.label.setText(
@@ -1217,25 +1220,32 @@ class marker:
         return suffix[index], multiple[index]
 
     def createMarkerTimePlot(self):
+        # multiplot is the name of the graphics layout grid widget in the fading dialogue window
         self.tplot = multiplot.addPlot(title='Marker ' + self.name)
-        self.tplot.hideAxis('bottom')
+        self.tplot.setAxisItems({'bottom': pyqtgraph.DateAxisItem()})
         self.tplot.enableAutoRange('y')
         self.tplot.showGrid(x=True, y=True)
         multiplot.nextRow()
         self.tplot.plot([], [])
 
     def updateMarkerTimePlot(self, frequencies, timeNow):
-        self.tplot.clear()
+        self.tplot.clear()  # if it's not cleared the GUI runs slower and slower
         if self.markerType == 'Off':
             self.tplot.hide()
         else:
             self.tplot.show()
         decimal = self.setPrecision(frequencies, frequencies[0])  # set decimal places
         unit, multiple = self.setUnit(self.line.value())  # set units
-        self.tplot.setTitle(f'{(self.line.value()/multiple):.{decimal}f}' + unit)
+        self.tplot.setTitle(f'Marker {self.name} = {(self.line.value()/multiple):.{decimal}f}' + unit)
+
         tinySA.timeMarkVals[tinySA.timeIndex, 0] = timeNow
         tinySA.timeMarkVals[tinySA.timeIndex, int(self.name)] = self.dBm
         self.tplot.plot(tinySA.timeMarkVals[:, 0], tinySA.timeMarkVals[:, int(self.name)], pen='y')
+
+            # if self.timeIndex < np.size(self.timeMarkVals, axis=0) - 1:
+            #     self.timeIndex += 1
+            # else:
+            #     self.timeMarkVals = np.roll(self.timeMarkVals, 1, axis=0)
 
 
 class WorkerSignals(QtCore.QObject):
@@ -1280,13 +1290,12 @@ class modelView():
         self.dwm.setSubmitPolicy(QDataWidgetMapper.AutoSubmit)
 
     def addRow(self):  # adds a blank row to the frequency bands table widget above current row
+        logging.info(f'addRow(): currentRow = {self.currentRow}')
         if self.currentRow == 0:
             self.tm.insertRow(0)
         else:
             self.tm.insertRow(self.currentRow)
-            bands.tm.select()
-            bandstype.tm.select()
-        bandsmkr.freqBands.selectRow(self.currentRow)
+        self.tm.layoutChanged.emit()
 
     def saveChanges(self):
         self.dwm.submit()
@@ -1298,9 +1307,7 @@ class modelView():
         else:
             for i in range(0, self.tm.rowCount()):
                 self.tm.removeRow(i)
-        self.tm.select()
         self.tm.layoutChanged.emit()
-        self.dwm.submit()
 
     def tableClicked(self):
         self.currentRow = bandsmkr.freqBands.currentIndex().row()  # the row index from the QModelIndexObject
@@ -1588,41 +1595,54 @@ def disconnect(db):
 
 
 def checkVersion(db, target, dbFile):
-    query = QSqlQuery(db)
-    query.exec_("PRAGMA user_version;")  # execute PRAGMA command to fetch the user-defined version number
-    query.next()  # advances to the result row, and query.value(0) retrieves the user version.
-    logging.info(f'database version = {query.value(0)}, expected {target}')
-    if query.value(0) != target:
+    existing = fetchVersion(db)
+    logging.info(f'database version is {existing}, expected {target}')
+    if existing != target:
         message = "This version of QtTinySA needs database version " + str(target) + ".\n\n" + \
-                "Database " + db.databaseName() + "\nversion " + str(query.value(0)) + \
+                "Database " + db.databaseName() + "\nversion " + str(existing) + \
                 " is incompatible.\n" + \
                 "\nClicking OK will replace it with version " + str(target) + \
                 " and will reset \n preferences to default."
         replace = popUp(message, QMessageBox.Ok | QMessageBox.Cancel, QMessageBox.Question)
-        query.clear()
         if replace == 0x00000400:  # 'ok' was clicked
-
             impex = modelView('frequencies', db)
             impex.createTableModel()
             impex.tm.select()
+            while impex.tm.canFetchMore():  # remove 256 row limit for QSql Query
+                impex.tm.fetchMore()
             personalDir = platformdirs.user_config_dir(appname=app.applicationName(), appauthor=False)
             fileName = personalDir + "/frequencies_" + str(target) + ".csv"
             logging.info(f'writing {fileName}')
             impex.writeCSV(fileName)
-
+            logging.info(f'Renaming file {db.databaseName()} to {db.databaseName()} + "." + {str(existing)}')
             disconnect(db)
-            logging.info(f'Deleting file {db.databaseName()}')
-            os.remove(db.databaseName())  # delete the old database file
+            os.rename(db.databaseName(), db.databaseName() + '.' + str(existing))
+
             getPath(dbFile)  # this ought to return the same path as when it was run earlier in connect()
-            db.open()  # the database connection has not changed, only the file, so we can re-open it with the new file
-            message = "Restore your previous frequency and markers to the updated database?"
-            restore = popUp(message, QMessageBox.Ok | QMessageBox.Cancel, QMessageBox.Question)
+            db.open()  # the database connection has not changed, only the file, so can re-open it with the new file
+            found = fetchVersion(db)
+            logging.info(f'found new database version {found}')
+            if found == target:
+                message = "Restore your previous frequency and markers to the updated database?"
+                restore = popUp(message, QMessageBox.Ok | QMessageBox.Cancel, QMessageBox.Question)
             if restore == 0x00000400:  # 'ok' was clicked
+                impex.tm.select()
+                while impex.tm.canFetchMore():  # remove 256 row limit for QSql Query
+                    impex.tm.fetchMore()
                 impex.deleteRow(False)
                 logging.info('deleting records from default database frequencies table')
                 impex.tm.submit()
                 logging.info(f'importing {fileName} to frequencies table in new personal database')
                 impex.readCSV(fileName)
+
+
+def fetchVersion(db):
+    query = QSqlQuery(db)
+    query.exec_("PRAGMA user_version;")  # execute PRAGMA command to fetch the user-defined version number
+    query.next()  # advances to the result row, and query.value(0) retrieves the user version.
+    version = query.value(0)
+    query.clear()
+    return version
 
 
 def exit_handler():
@@ -1895,7 +1915,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.1.3.4')
+app.setApplicationVersion(' v1.1.4')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1937,7 +1957,6 @@ M1 = marker('1', 0.1)
 M2 = marker('2', 0.6)
 M3 = marker('3', 1.1)
 M4 = marker('4', 1.7)
-M4.tplot.setAxisItems({'bottom': pyqtgraph.DateAxisItem()})
 
 # Traces
 T1 = trace('1')
@@ -2030,7 +2049,8 @@ bands.tm.select()
 bands.tm.setSort(3, QtCore.Qt.AscendingOrder)
 bands.tm.setHeaderData(5, QtCore.Qt.Horizontal, 'visible')
 bands.tm.setHeaderData(7, QtCore.Qt.Horizontal, 'LO')
-bands.tm.setEditStrategy(QSqlRelationalTableModel.OnFieldChange)
+# bands.tm.setEditStrategy(QSqlRelationalTableModel.OnFieldChange)
+bands.tm.setEditStrategy(QSqlRelationalTableModel.OnRowChange)
 bands.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))  # set 'type' column to a freq type choice combo box
 bands.tm.setRelation(5, QSqlRelation('boolean', 'ID', 'value'))  # set 'view' column to a True/False choice combo box
 bands.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))  # set 'marker' column to a colours choice combo box
