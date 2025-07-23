@@ -118,14 +118,13 @@ class analyser:
                     settings.deviceBox.addItem(self.identify(port) + " on " + port.device)
                     self.ports.append(port)
         if len(self.ports) == 1:  # found only one device so just test it
-            # self.usbCheck.stop()
             usbCheck.stop()
             self.testPort(self.ports[0])
             return
         if len(self.ports) > 1:  # several devices found
             settings.deviceBox.insertItem(0, "Select device")
             settings.deviceBox.setCurrentIndex(0)
-            popUp("Several devices detected.  Choose device in Settings",
+            popUp("Several devices detected.  Choose device in Settings > Preferences",
                   QMessageBox.Ok, QMessageBox.Information)
             usbCheck.stop()
 
@@ -353,8 +352,8 @@ class analyser:
     def freqOffset(self, frequencies):  # for mixers or LNBs external to TinySA
         startF = frequencies[0]
         spanF = frequencies[-1] - startF
-        loF = settings.freqLO.value() * 1e6
-        if settings.highLO.isChecked() and settings.freqLO != 0:
+        loF = bandstype.freq
+        if bandstype.freq > frequencies[0]:  # LNB LO is higher in freq than wanted signal
             scanF = (loF - startF - spanF, loF - startF)
         else:
             scanF = (startF - loF, startF - loF + spanF)
@@ -433,7 +432,7 @@ class analyser:
         updateTimer.start()  # used to trigger the signal that sends measurements to updateGUI()
 
         while self.sweeping:
-            if settings.freqLO != 0:
+            if bandstype.freq != 0:
                 startF, stopF = self.freqOffset(frequencies)
                 command = f'scanraw {int(startF)} {int(stopF)} {int(points)} 3\r'
             else:
@@ -614,7 +613,7 @@ class analyser:
 
     def updateGUI(self, frequencies, readings, maxima, minima, runtime):  # called by signal from measurement() thread
         # for LNB/Mixer mode when LO is above measured freq the scan is reversed, i.e. low TinySA freq = high meas freq
-        if settings.highLO.isChecked() and settings.freqLO != 0:
+        if bandstype.freq > frequencies[0]:
             frequencies = frequencies[::-1]  # reverse the array
             np.fliplr(readings)
             ui.waterfall.invertX(True)
@@ -1242,10 +1241,10 @@ class marker:
         tinySA.timeMarkVals[tinySA.timeIndex, int(self.name)] = self.dBm
         self.tplot.plot(tinySA.timeMarkVals[:, 0], tinySA.timeMarkVals[:, int(self.name)], pen='y')
 
-            # if self.timeIndex < np.size(self.timeMarkVals, axis=0) - 1:
-            #     self.timeIndex += 1
-            # else:
-            #     self.timeMarkVals = np.roll(self.timeMarkVals, 1, axis=0)
+        # if self.timeIndex < np.size(self.timeMarkVals, axis=0) - 1:
+        #     self.timeIndex += 1
+        # else:
+        #     self.timeMarkVals = np.roll(self.timeMarkVals, 1, axis=0)
 
 
 class WorkerSignals(QtCore.QObject):
@@ -1283,35 +1282,54 @@ class modelView():
         self.tm = QSqlRelationalTableModel(db=dbName)
         self.dwm = QDataWidgetMapper()
         self.currentRow = 0
+        self.ID = 0
+        self.freq = 0
 
     def createTableModel(self):
         self.tm.setTable(self.tableName)
         self.dwm.setModel(self.tm)
         self.dwm.setSubmitPolicy(QDataWidgetMapper.AutoSubmit)
 
-    def addRow(self):  # adds a blank row to the frequency bands table widget above current row
-        logging.info(f'addRow(): currentRow = {self.currentRow}')
+    def addRow(self):  # adds a blank row to the table widget above current row
+        logging.debug(f'addRow(): currentRow = {self.currentRow}')
         if self.currentRow == 0:
             self.tm.insertRow(0)
         else:
             self.tm.insertRow(self.currentRow)
-        self.tm.layoutChanged.emit()
+        self.tm.layoutChanged.emit()  # don't invoke select() because the row has not yet been populated or saved
 
     def saveChanges(self):
         self.dwm.submit()
 
-    def deleteRow(self, single=True):  # deletes rows in the frequency bands table widget
+    def deleteRow(self, single=True):  # deletes rows in the table widget
         if single:
-            logging.info(f'deleteRow: current row = {self.currentRow}')
+            logging.debug(f'deleteRow: current row = {self.currentRow}')
             self.tm.removeRow(self.currentRow)
         else:
             for i in range(0, self.tm.rowCount()):
                 self.tm.removeRow(i)
+        self.tm.select()
         self.tm.layoutChanged.emit()
 
-    def tableClicked(self):
-        self.currentRow = bandsmkr.freqBands.currentIndex().row()  # the row index from the QModelIndexObject
+    def deletePsType(self):
+        record = self.tm.record(self.currentRow)
+        if record.value('ID') == bandstype.ID:
+            popUp("Cannot delete a preset type that is selected on main screen", QMessageBox.Ok, QMessageBox.Critical)
+            return
+        bands.filterType(True, record.value('preset'))
+        bands.deleteRow(False)
+        if bands.tm.rowCount() == 0:
+            # now no freq records with the preset type, so can delete it and keep database referential integrity
+            self.deleteRow(True)
+
+    def tableClicked(self, table):
+        self.currentRow = table.currentIndex().row()  # the row index from the QModelIndexObject
         logging.debug(f'row {self.currentRow} clicked')
+        if table == presetFreqs.typeTable:
+            record = self.tm.record(self.currentRow)
+            bands.filterType(True, record.value('preset'))
+            bands.unlimited()
+            presetFreqs.psCount.setValue(bands.tm.rowCount())
 
     def insertData(self, **data):
         record = self.tm.record()
@@ -1320,25 +1338,32 @@ class modelView():
             logging.info(f'insertData: key = {key} value={value}')
             record.setValue(str(key), value)
         self.tm.insertRecord(-1, record)
+        self.tm.select()
         self.tm.layoutChanged.emit()
         self.dwm.submit()
 
     def filterType(self, prefsDialog, boxText):
         sql = 'preset = "' + boxText + '"'
         if prefsDialog:
-            if boxText == 'show all':
-                sql = ''
             self.tm.setFilter(sql)
         else:
             sql = 'visible = "1" AND preset = "' + boxText + '"'
-            if boxText == 'show all':
-                sql = 'visible = "1"'
             if tinySA.tinySA4 is False:  # It's a tinySA basic with limited frequency range
                 sql = sql + ' AND startF <= "960000000"'
-            index = ui.band_box.currentIndex()
             self.tm.setFilter(sql)
-            ui.band_box.setCurrentIndex(index)
+            ui.band_box.activated.emit(0)
 
+            # find and store the ID of the preset type selected in the combobox
+            bandstype.unlimited()
+            for index in range(0, bandstype.tm.rowCount()):
+                record = bandstype.tm.record(index)
+                if record.value('preset') == boxText:
+                    bandstype.ID = record.value('ID')
+                    bandstype.freq = record.value('LO')
+                    isMixerMode()
+                    break
+
+# this is now broken ###########################################################
     def readCSV(self, fileName):
         with open(fileName, "r") as fileInput:
             reader = csv.DictReader(fileInput)
@@ -1363,7 +1388,7 @@ class modelView():
                 if record.value('value') not in (0, 1):  # because it's not present in RF mic CSV files
                     record.setValue('value', 1)
                 if record.value('preset') == '':  # preset missing so use current preferences filterbox text
-                    record.setValue('preset', presetID(bandsmkr.filterBox.currentText()))
+                    record.setValue('preset', presetID(presetFreqs.filterBox.currentText()))
                 self.tm.insertRecord(-1, record)
         self.tm.select()
         self.tm.layoutChanged.emit()
@@ -1388,6 +1413,15 @@ class modelView():
             column = maps.tm.record(index).value('column')
             self.dwm.addMapping(eval(gui), int(column))
 
+    def unlimited(self):
+        while self.tm.canFetchMore():  # remove 256 row limit for QSql Query
+            self.tm.fetchMore()
+
+    def showAll(self):
+        presetFreqs.typeTable.clearSelection()
+        self.tm.setFilter('')
+        self.unlimited()
+        presetFreqs.psCount.setValue(bands.tm.rowCount())
 
 ###############################################################################
 # respond to GUI signals
@@ -1397,7 +1431,7 @@ def band_changed():
     index = ui.band_box.currentIndex()
     startF = bandselect.tm.record(index).value('StartF')
     stopF = bandselect.tm.record(index).value('StopF')
-    if stopF not in (0, ''):
+    if stopF not in (0, '', startF):
         ui.start_freq.setValue(startF / 1e6)
         ui.stop_freq.setValue(stopF / 1e6)
         tinySA.freq_changed(False)  # start/stop mode
@@ -1489,14 +1523,11 @@ def setPreferences():  # called when the preferences window is closed
 
     if ui.presetMarker.isChecked():
         freqMarkers()
-    isMixerMode()
 
 
 def dialogPrefs():  # called by clicking on the setup > preferences menu
-    bands.filterType(True, bandsmkr.filterBox.currentText())
-    bands.currentRow = 0
-    bandsmkr.freqBands.selectRow(bands.currentRow)
     bwindow.show()
+    presetFreqs.psCount.setValue(bands.tm.rowCount())
 
 
 def about():
@@ -1608,8 +1639,7 @@ def checkVersion(db, target, dbFile):
             impex = modelView('frequencies', db)
             impex.createTableModel()
             impex.tm.select()
-            while impex.tm.canFetchMore():  # remove 256 row limit for QSql Query
-                impex.tm.fetchMore()
+            impex.unlimited()
             personalDir = platformdirs.user_config_dir(appname=app.applicationName(), appauthor=False)
             fileName = personalDir + "/frequencies_" + str(target) + ".csv"
             logging.info(f'writing {fileName}')
@@ -1627,8 +1657,7 @@ def checkVersion(db, target, dbFile):
                 restore = popUp(message, QMessageBox.Ok | QMessageBox.Cancel, QMessageBox.Question)
             if restore == 0x00000400:  # 'ok' was clicked
                 impex.tm.select()
-                while impex.tm.canFetchMore():  # remove 256 row limit for QSql Query
-                    impex.tm.fetchMore()
+                impex.unlimited()
                 impex.deleteRow(False)
                 logging.info('deleting records from default database frequencies table')
                 impex.tm.submit()
@@ -1682,8 +1711,7 @@ def popUp(message, button, icon):
 def freqMarkers():
     M1.delFreqMarkers()
     M2.delFreqMarkers()
-    while presetmarker.tm.canFetchMore():  # remove 256 row limit for QSql Query
-        presetmarker.tm.fetchMore()
+    presetmarker.unlimited()
     for i in range(0, presetmarker.tm.rowCount()):
         try:
             startF = presetmarker.tm.record(i).value('StartF')
@@ -1695,7 +1723,7 @@ def freqMarkers():
                 if ui.presetLabel.isChecked() and ui.presetLabel.checkState() == 2:
                     M1.marker.label.setAngle(90)
                     M1.marker.label.setPosition(0)
-            if ui.presetMarker.isChecked() and stopF not in (0, ''):  # it's a band marker
+            if ui.presetMarker.isChecked() and stopF not in (0, '', startF):  # it's a band marker
                 M1.addFreqMarker(startF, colour, name)
                 M2.addFreqMarker(stopF, colour, name)
         except ValueError:
@@ -1722,7 +1750,8 @@ def importData():
 
 
 def isMixerMode():
-    if settings.freqLO.value() == 0:
+    logging.info(f'isMixerMode(): loF = {bandstype.freq}')
+    if bandstype.freq == 0:
         ui.mixerMode.setVisible(False)
         ui.start_freq.setStyleSheet('background-color:None')
         ui.stop_freq.setStyleSheet('background-color:None')
@@ -1776,7 +1805,6 @@ def connectActive():
     ui.points_auto.stateChanged.connect(pointsChanged)
     ui.points_box.editingFinished.connect(pointsChanged)
     ui.setRange.clicked.connect(tinySA.mouseScaled)
-    ui.band_box.currentIndexChanged.connect(band_changed)
     ui.band_box.activated.connect(band_changed)
     ui.rbw_box.currentIndexChanged.connect(tinySA.rbwChanged)
     ui.rbw_auto.clicked.connect(tinySA.rbwChanged)
@@ -1827,11 +1855,13 @@ def connectActive():
 
 
 def connectPassive():
+    # Connect signals from GUI controls that don't cause messages to go to the tinySA
+
     ui.memBox.valueChanged.connect(memChanged)
+
     # Quit
     ui.actionQuit.triggered.connect(app.closeAllWindows)
 
-    # Connect signals from GUI controls that don't cause messages to go to the tinySA
     ui.scan_button.clicked.connect(tinySA.scan)
     ui.run3D.clicked.connect(tinySA.scan)
 
@@ -1876,18 +1906,22 @@ def connectPassive():
     ui.t3_type.activated.connect(T3.tType)
     ui.t4_type.activated.connect(T4.tType)
 
-    # preferences
-    bandsmkr.addRow.clicked.connect(bands.addRow)
-    bandsmkr.deleteRow.clicked.connect(lambda: bands.deleteRow(True))
-    bandsmkr.deleteAll.clicked.connect(lambda: bands.deleteRow(False))
-    bandsmkr.freqBands.clicked.connect(bands.tableClicked)
-    bandsmkr.filterBox.currentTextChanged.connect(lambda: bands.filterType(True, bandsmkr.filterBox.currentText()))
-    bwindow.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
-    bandsmkr.exportButton.pressed.connect(exportData)
-    bandsmkr.importButton.pressed.connect(importData)
-    settings.deviceBox.activated.connect(testComPort)
-    ui.filterBox.currentTextChanged.connect(lambda: bandselect.filterType(False, ui.filterBox.currentText()))
+    # preset freqs and settings
+    presetFreqs.addPs.clicked.connect(bands.addRow)
+    presetFreqs.deletePs.clicked.connect(lambda: bands.deleteRow(True))
+    presetFreqs.deleteAll.clicked.connect(lambda: bands.deleteRow(False))
+    presetFreqs.freqTable.clicked.connect(lambda: bands.tableClicked(presetFreqs.freqTable))
+    presetFreqs.typeTable.clicked.connect(lambda: bandstype.tableClicked(presetFreqs.typeTable))
+    presetFreqs.addPsType.clicked.connect(bandstype.addRow)
+    presetFreqs.deletePsType.clicked.connect(bandstype.deletePsType)
+    presetFreqs.clearFilter.clicked.connect(bands.showAll)
 
+    bwindow.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
+    presetFreqs.exportPs.pressed.connect(exportData)
+    presetFreqs.importPs.pressed.connect(importData)
+    settings.deviceBox.activated.connect(testComPort)
+
+    ui.filterBox.currentTextChanged.connect(lambda: bandselect.filterType(False, ui.filterBox.currentText()))
     ui.actionPresets.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
     ui.actionSettings.triggered.connect(swindow.show)
 
@@ -1923,8 +1957,8 @@ ui.setupUi(window)
 # bwindow is the preset frequencies dialogue box
 bwindow = QtWidgets.QDialog()
 bwindow.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
-bandsmkr = QtTSAbands.Ui_BandsMarkers()
-bandsmkr.setupUi(bwindow)
+presetFreqs = QtTSAbands.Ui_BandsMarkers()
+presetFreqs.setupUi(bwindow)
 
 # swindow is the settings dialogue box
 swindow = QtWidgets.QDialog()
@@ -1982,7 +2016,7 @@ highF.create(True, '<|', 0.01)
 reference.create(True, '<|>', 0.99)
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 112)  # third parameter is the database version
+config = connect("QtTSAprefs.db", "settings", 114)  # third parameter is the database version
 
 checkboxes = modelView('checkboxes', config)
 numbers = modelView('numbers', config)
@@ -2043,7 +2077,7 @@ logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 maps.createTableModel()
 maps.tm.select()
 
-# populate the preset bands and markers relational table in the preset frequencies window (bandsmkr)
+# populate the preset frequencies relational table in the presetFreqs window
 bands.createTableModel()
 bands.tm.select()
 bands.tm.setSort(3, QtCore.Qt.AscendingOrder)
@@ -2054,14 +2088,17 @@ bands.tm.setEditStrategy(QSqlRelationalTableModel.OnRowChange)
 bands.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))  # set 'type' column to a freq type choice combo box
 bands.tm.setRelation(5, QSqlRelation('boolean', 'ID', 'value'))  # set 'view' column to a True/False choice combo box
 bands.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))  # set 'marker' column to a colours choice combo box
-presets = QSqlRelationalDelegate(bandsmkr.freqBands)
-bandsmkr.freqBands.setItemDelegate(presets)
-colHeader = bandsmkr.freqBands.horizontalHeader()
+presets = QSqlRelationalDelegate(presetFreqs.freqTable)
+presetFreqs.freqTable.setItemDelegate(presets)
+colHeader = presetFreqs.freqTable.horizontalHeader()
 colHeader.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
 
-# for the filter combo box in the preset frequencies window
+# populate the preset Types table in the preset frequencies window
 bandstype.createTableModel()
 bandstype.tm.select()
+presetFreqs.typeTable.setModel(bandstype.tm)
+presetFreqs.typeTable.hideColumn(0)  # hide primary key so user can't change it
+#
 
 # to lookup the preset bands and markers colours because can't get the relationships to work
 colours.createTableModel()
@@ -2085,15 +2122,12 @@ ui.band_box.setModelColumn(1)
 bandselect.tm.select()
 
 # populate the preset bands and markers dialogue and ui filter combo boxes
-bandsmkr.filterBox.setModel(bandstype.tm)
-bandsmkr.filterBox.setModelColumn(1)
 ui.filterBox.setModel(bandstype.tm)
 ui.filterBox.setModelColumn(1)
 
 # connect the preset frequencies window table widget to the data model
-bandsmkr.freqBands.setModel(bands.tm)
-bandsmkr.freqBands.hideColumn(0)  # ID
-bandsmkr.freqBands.verticalHeader().setVisible(True)
+presetFreqs.freqTable.setModel(bands.tm)
+presetFreqs.freqTable.hideColumn(0)  # ID
 
 # connect the settings window trace colours widget to the data model
 tracecolours.createTableModel()
