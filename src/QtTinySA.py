@@ -20,9 +20,7 @@ This code attempts to replicate some of the TinySA Ultra on-screen commands and 
 Development took place on Kubuntu 24.04LTS with Python 3.11 and PyQt5 using Spyder in Anaconda.
 
 TinySA, TinySA Ultra and the tinysa icon are trademarks of Erik Kaashoek and are used with permission.
-
 TinySA commands are based on Erik's Python examples: http://athome.kaashoek.com/tinySA/python/
-
 Serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset: https://github.com/Ho-Ro"""
 
 import os
@@ -54,8 +52,8 @@ import QtTSAfilebrowse  # the tinySA SD card browser window
 import QtTSAnoise  # the phase noise graph window
 import QtTSAbands  # the bands & markers window GUI
 import QtTSAsettings  # the settings window
-import QtTSAfading
-
+import QtTSAfading  # the signal level over time graph window
+import QtTSApattern  # the antenna pattern graph window
 
 # Defaults to non local configuration/data dirs - needed for packaging
 if system() == "Linux":
@@ -70,18 +68,12 @@ logging.basicConfig(format="%(message)s", level=logging.INFO)
 threadpool = QtCore.QThreadPool()
 basedir = os.path.dirname(__file__)
 
-# pyqtgraph pens
-red_dash = pyqtgraph.mkPen(color='r', width=0.5, style=QtCore.Qt.DashLine)
-blue_dash = pyqtgraph.mkPen(color='b', width=0.5,  style=QtCore.Qt.DashLine)
-
 # pyqtgraph custom exporters
 WWBExporter.register()
 WSMExporter.register()
 
 
-###############################################################################
-# classes
-
+# classes ##############################################################################
 
 class analyser:
     def __init__(self):
@@ -573,19 +565,10 @@ class analyser:
         ui.waterfall.setXRange(np.size(readings, axis=1), 0)
         self.waterfall.setImage(readings, autoLevels=False)
 
-        #
-        # sigma = np.std(readings)
-        # mean = np.mean(readings)
-        # readings_min = mean - 2*sigma  # save to window state
-        # readings_max = mean + 2*sigma
-        # self.waterfall.setLevels((readings_min, readings_max))
-        # self.histogram.setLevels((readings_min, readings_max))
-
     def resetGUI(self, frequencies, readings):
         self.waterfall.clear()
         self.histogram.close()
         self.createWaterfall(frequencies, readings)
-        # self.updateWaterfall(readings)
         self.createTimeSpectrum(frequencies, readings)
 
     def sweepComplete(self, frequencies):
@@ -597,10 +580,11 @@ class analyser:
             M4.updateMarker()
             if twindow.isVisible():
                 timeNow = time.time()
-                M1.updateMarkerTimePlot(frequencies, timeNow)
-                M2.updateMarkerTimePlot(frequencies, timeNow)
-                M3.updateMarkerTimePlot(frequencies, timeNow)
-                M4.updateMarkerTimePlot(frequencies, timeNow)
+                if twindow.isVisible():
+                    M1.updateMarkerTimePlot(frequencies, timeNow)
+                    M2.updateMarkerTimePlot(frequencies, timeNow)
+                    M3.updateMarkerTimePlot(frequencies, timeNow)
+                    M4.updateMarkerTimePlot(frequencies, timeNow)
                 if self.timeIndex < np.size(self.timeMarkVals, axis=0) - 1:
                     self.timeIndex += 1
                 else:
@@ -921,14 +905,14 @@ class trace:
             self.trace.setData(frequencies, levels)
 
     def fetchData(self):
-        # return the plotted data from the first trace listDataItems[0]
+        '''return the plotted data from the first trace listDataItems[0]'''
         frequencies = ui.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[0]  # getData[0] freq
         levels = ui.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[1]  # getData[0] is level
         return frequencies, levels
 
     def phaseNoise(self, lsb):
-        # M1 is used in max tracking mode to find the frequency and level reference of the signal to be measured
-        # T1 data is used for the LSB measurement and T2 data is used for USB
+        '''M1 is used in max tracking mode to find the frequency and level reference of the signal to be measured
+           T1 data is used for the LSB measurement and T2 data is used for USB'''
         frequencies, levels = self.fetchData()
         if frequencies is None or levels is None:
             return
@@ -976,7 +960,7 @@ class limit:
                                            labelOpts={'position': 0.98, 'color': (self.pen), 'movable': True})
         self.line.addMarker(mark, posn, 10)
         if dash:
-            self.line.setPen(self.pen, width=0.5, style=QtCore.Qt.DashLine)
+            self.line.setPen(self.pen, width=0.5, style=QtCore.Qt.PenStyle.DashLine)
 
     def visible(self, show=True):
         if show:
@@ -994,7 +978,7 @@ class marker:
         self.line = ui.graphWidget.addLine(88, 90, movable=True, name=name,
                                            pen=pyqtgraph.mkPen('y', width=0.5), label=self.name)
         self.deltaline = ui.graphWidget.addLine(0, 90, movable=True, name=name,
-                                                pen=pyqtgraph.mkPen('y', width=0.5, style=QtCore.Qt.DashLine),
+                                                pen=pyqtgraph.mkPen('y', width=0.5, style=QtCore.Qt.PenStyle.DashLine),
                                                 label=self.name)
         self.line.addMarker('^', 0, 10)
         self.deltaF = 0  # the delta marker frequency difference
@@ -1006,6 +990,10 @@ class marker:
         self.fifo = queue.SimpleQueue()
         self.dBm = -140
         self.createMarkerTimePlot()
+        self.polar = pattern.plotwidget.plot([], [], name=name, width=1, padding=0)
+        self.runTimer = QtCore.QElapsedTimer()  # for polar plot
+        self.sweeptime = []  # for polar plot
+        self.amplitude = []  # for polar plot
 
     def guiRef(self, opt):
         guiFields = ({'1': ui.m1_type, '2': ui.m2_type, '3': ui.m3_type, '4': ui.m4_type},
@@ -1024,7 +1012,7 @@ class marker:
         checkboxes.dwm.submit()
 
     def setup(self, colour):
-        # restore the marker frequencies from the configuration database and set starting conditions
+        '''restore the marker frequencies from the configuration database and set starting conditions'''
         self.line.setValue(numbers.tm.record(0).value(self.guiRef(2)))
         self.line.label.setColor(colour)
         self.line.label.setPosition(0.02)
@@ -1038,9 +1026,9 @@ class marker:
         self.deltaF = 0
         self.deltaline.label.setPosition(0.05)
         self.deltaline.label.setMovable(True)
-        M1.tplot.setXLink(M4.tplot)
-        M2.tplot.setXLink(M4.tplot)
-        M3.tplot.setXLink(M4.tplot)
+        M2.tplot.setXLink(M1.tplot)
+        M3.tplot.setXLink(M1.tplot)
+        M4.tplot.setXLink(M1.tplot)
 
     def start(self):  # set marker to the sweep start frequency
         if self.markerType != 'Off':
@@ -1123,7 +1111,6 @@ class marker:
 
         decimal = self.setPrecision(frequencies, frequencies[0])  # set decimal places
         unit, multiple = self.setUnit(frequencies[0])  # set units
-
         self.markerBox.setText(f'M{self.line.name()} {self.line.value()/multiple:.{decimal}f}{unit} {self.dBm:.1f}dBm')
 
         if self.deltaF != 0:
@@ -1144,16 +1131,16 @@ class marker:
         if ui.presetLabel.isChecked():
             if band:
                 self.marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5,
-                                                     style=QtCore.Qt.DashLine), label=name, labelOpts={'position': 0.97,
+                                                     style=QtCore.Qt.PenStyle.DashLine), label=name, labelOpts={'position': 0.97,
                                                      'color': (colour)})
             else:
                 self.marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5,
-                                                     style=QtCore.Qt.DashLine), label=name, labelOpts={'position': 0.04,
+                                                     style=QtCore.Qt.PenStyle.DashLine), label=name, labelOpts={'position': 0.04,
                                                      'color': (colour), 'anchors': ((0, 0.2), (0, 0.2))})
             self.marker.label.setMovable(True)
         else:
             self.marker = ui.graphWidget.addLine(freq, 90,
-                                                 pen=pyqtgraph.mkPen(colour, width=0.5, style=QtCore.Qt.DashLine))
+                                                 pen=pyqtgraph.mkPen(colour, width=0.5, style=QtCore.Qt.PenStyle.DashLine))
         self.fifo.put(self.marker)  # store the marker object in a queue
         logging.debug(f'addFreqMarker(): fifo size = {self.fifo.qsize()}')
 
@@ -1186,7 +1173,7 @@ class marker:
         self.level = setting - 1  # array indexes start at 0 not 1
 
     def calcMaskFreq(self, frequencies):
-        # calculate a frequency width factor to use to mask readings near each max/min frequency
+        '''calculate a frequency width factor to use to mask readings near each max/min frequency'''
         if ui.rbw_auto.isChecked():
             # auto rbw is ~7 kHz per 1 MHz scan frequency span
             approx_rbw = 7 * (frequencies[-1] - frequencies[0]) / 1e6  # kHz
@@ -1222,18 +1209,19 @@ class marker:
         return suffix[index], multiple[index]
 
     def createMarkerTimePlot(self):
-        # multiplot is the name of the graphics layout grid widget in the fading dialogue window
+        '''multiplot is the name of the graphics layout grid widget in the fading dialogue window'''
         self.tplot = multiplot.addPlot(title='Marker ' + self.name)
         self.tplot.setAxisItems({'bottom': pyqtgraph.DateAxisItem()})
-        self.tplot.enableAutoRange('y')
         self.tplot.showGrid(x=True, y=True)
         multiplot.nextRow()
         self.tplot.plot([], [])
 
-    def updateMarkerTimePlot(self, frequencies, timeNow):
+    def updateMarkerTimePlot(self, frequencies, timeNow):  # called by sweepComplete()
         self.tplot.clear()  # if it's not cleared the GUI runs slower and slower
         if self.markerType == 'Off':
             self.tplot.hide()
+            self.runTimer.invalidate()
+            return
         else:
             self.tplot.show()
         decimal = self.setPrecision(frequencies, frequencies[0])  # set decimal places
@@ -1242,12 +1230,54 @@ class marker:
 
         tinySA.timeMarkVals[tinySA.timeIndex, 0] = timeNow
         tinySA.timeMarkVals[tinySA.timeIndex, int(self.name)] = self.dBm
-        self.tplot.plot(tinySA.timeMarkVals[:, 0], tinySA.timeMarkVals[:, int(self.name)], pen='y')
+        self.tplot.plot(tinySA.timeMarkVals[:, 0], tinySA.timeMarkVals[:, int(self.name)], pen=self.linked.pen)
 
-        # if self.timeIndex < np.size(self.timeMarkVals, axis=0) - 1:
-        #     self.timeIndex += 1
-        # else:
-        #     self.timeMarkVals = np.roll(self.timeMarkVals, 1, axis=0)
+        if self.runTimer.isValid():  # polar pattern plot is active
+            if self.sweeptime == []:  # plot has just been started
+                self.sweeptime.append(0)
+            else:
+                elapsed = self.runTimer.restart()/1000
+                self.sweeptime.append(self.sweeptime[-1] + elapsed)
+            self.amplitude.append(self.dBm)
+            self.updatePolarPlot()
+
+    def startPolarPlot(self):
+        if self.markerType != 'Off':
+            self.sweeptime = []
+            self.amplitude = []
+            self.runTimer.start()
+
+    def updatePolarPlot(self):
+        peak = max(np.max(self.amplitude), pattern.refdBm.value())  # peak is maximum when antenna points at the source
+        factor = 40 - peak  # correction factor to make the max signal amplitude read 40 units on the polar grid
+        dBm = np.round(np.add(self.amplitude, factor), decimals=1)
+        r = np.clip(dBm, 0, 40)  # clip the signal vector to a max amplitude of 40 and minimum of 0
+        if pattern.clockwise.isChecked():
+            theta = np.divide((np.multiply(self.sweeptime, 2 * np.pi)), pattern.rotateTime.value())
+            pattern.heading.setValue(int(360*(theta[-1] / (2 * np.pi))))
+        else:
+            theta = np.divide((np.multiply(self.sweeptime, -2 * np.pi)), pattern.rotateTime.value())
+            pattern.heading.setValue(360 + int(360*(theta[-1] / (2 * np.pi))))
+        x = np.multiply(r, np.sin(theta))
+        y = np.multiply(r, np.cos(theta))
+        self.polar.setData(x, y, pen=self.linked.pen)
+
+        if self.sweeptime[-1] >= pattern.rotateTime.value():  # rotation is complete
+            self.runTimer.invalidate()
+
+            # find width of a main lobe peak, assuming the antenna main beam is symmetrical
+            pkIndex = np.argmax(self.amplitude)
+            for i in range(pkIndex + 1, len(self.amplitude)):
+                if self.amplitude[i] < self.amplitude[pkIndex]:
+                    logging.info(f'width = {i}')
+                    pkIndex += int(0.5 * (i - pkIndex))  # antenna main beam centre should be half the peak beamwidth
+                    break
+
+            pkBearing = 2 * np.pi * pkIndex / len(self.amplitude)
+            theta = np.subtract(theta, pkBearing)
+            x = np.multiply(r, np.sin(theta))
+            y = np.multiply(r, np.cos(theta))
+            self.polar.setData(x, y, pen=self.linked.pen)
 
 
 class WorkerSignals(QtCore.QObject):
@@ -1366,7 +1396,6 @@ class modelView():
                     isMixerMode()
                     break
 
-# this is now broken ###########################################################
     def readCSV(self, fileName):
         with open(fileName, "r") as fileInput:
             reader = csv.DictReader(fileInput)
@@ -1374,18 +1403,19 @@ class modelView():
                 logging.debug(f'readCSV(): row = {row}')
                 record = self.tm.record()
                 for key, value in row.items():
-                    logging.debug(f'readCSV: key = {key} value = {value}')
-                    # don't understand how to make relation work for these fields
+                    logging.info(f'readCSV: key = {key} value = {value}')
+                    # I don't understand why the Qsqlrelation doesn't work for these three fields:
                     if key == 'preset':
                         value = presetID(value)
                     if key == 'colour':
                         value = colourID(value)
                     if key == 'value':
                         value = int(eval(value))
-                    # to match RF mic CSV files
-                    if key == 'Frequency':
+
+                    if key == 'Frequency':  # to match RF mic CSV files
                         key = 'startF'
                         value = str(float(value) / 1e3)
+
                     if key != 'ID':  # ID is the table primary key and is auto-populated
                         record.setValue(str(key), value)
                 if record.value('value') not in (0, 1):  # because it's not present in RF mic CSV files
@@ -1406,7 +1436,7 @@ class modelView():
             output.writerow(header)
             for rowNumber in range(self.tm.rowCount()):
                 fields = [self.tm.data(self.tm.index(rowNumber, columnNumber))
-                          for columnNumber in range(1, 8)]
+                          for columnNumber in range(1, 7)]
                 output.writerow(fields)
 
     def mapWidget(self, modelName):  # maps the widget combo-box fields to the database tables, using the mapping table
@@ -1670,7 +1700,7 @@ def checkVersion(db, target, dbFile):
 
 def fetchVersion(db):
     query = QSqlQuery(db)
-    query.exec_("PRAGMA user_version;")  # execute PRAGMA command to fetch the user-defined version number
+    query.exec("PRAGMA user_version;")  # execute PRAGMA command to fetch the user-defined version number
     query.next()  # advances to the result row, and query.value(0) retrieves the user version.
     version = query.value(0)
     query.clear()
@@ -1794,12 +1824,33 @@ def setWaterfall():
     ui.waterfall.setMaximumSize(QtCore.QSize(16777215, ui.waterfallSize.value()))
 
 
-def showPhaseNoise():
-    pnwindow.show()
+def createPolarGrid(rings, radius):
+    ''''Draw concentric circles and radial lines to simulate polar axes.'''
+    pattern.plotwidget.setAspectLocked(True)
+    pattern.plotwidget.hideAxis('bottom')
+    pattern.plotwidget.hideAxis('left')
+    for i in range(1, rings + 1):
+        r = i * radius / rings
+        circle = QtWidgets.QGraphicsEllipseItem(-r, -r, 2 * r, 2 * r)
+        circle.setPen(pyqtgraph.mkPen('grey', width=0.3))
+        pattern.plotwidget.addItem(circle)
+    r = radius - (radius/(rings*3))
+    circle = QtWidgets.QGraphicsEllipseItem(-r, -r, 2 * r, 2 * r)
+    circle.setPen(pyqtgraph.mkPen('red', width=0.3))
+    pattern.plotwidget.addItem(circle)
+
+    # Add radial lines
+    for angle_deg in range(0, 360, 15):
+        angle_rad = np.deg2rad(angle_deg)
+        x = radius * np.cos(angle_rad)
+        y = radius * np.sin(angle_rad)
+        line = QtWidgets.QGraphicsLineItem(0, 0, x, y)
+        line.setPen(pyqtgraph.mkPen('grey', width=0.5))
+        pattern.plotwidget.addItem(line)
 
 
 def connectActive():
-    # Connect signals from controls that send messages to tinySA or use trace data.  Called by 'setGUI'.
+    '''Connect signals from controls that send messages to tinySA or use trace data.  Called by setGUI().'''
 
     ui.atten_box.valueChanged.connect(tinySA.attenuator)
     ui.atten_auto.clicked.connect(tinySA.attenuator)
@@ -1934,14 +1985,22 @@ def connectPassive():
     # Waterfall
     ui.waterfallSize.valueChanged.connect(setWaterfall)
 
+    # Measurement menu
+    ui.actionPhNoise.triggered.connect(lambda: pnwindow.show())
+    ui.actionFading.triggered.connect(lambda: twindow.show())
+    ui.actionPattern.triggered.connect(lambda: ptwindow.show())
+
     # phase noise
-    ui.actionPhNoise.triggered.connect(showPhaseNoise)
     phasenoise.centre.clicked.connect(centreToMarker)
 
-    # fading
-    ui.actionFading.triggered.connect(lambda: twindow.show())
-
+    # File menu
     ui.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
+
+    # polar pattern
+    pattern.rotating.clicked.connect(M1.startPolarPlot)
+    pattern.rotating.clicked.connect(M2.startPolarPlot)
+    pattern.rotating.clicked.connect(M3.startPolarPlot)
+    pattern.rotating.clicked.connect(M4.startPolarPlot)
 
 
 ###############################################################################
@@ -1952,7 +2011,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.1.4')
+app.setApplicationVersion(' v1.1.5')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
@@ -1986,6 +2045,12 @@ twindow = QtWidgets.QDialog()
 twindow.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 fading = QtTSAfading.Ui_fading()
 fading.setupUi(twindow)
+
+# ptwindow is the pattern display window
+ptwindow = QtWidgets.QDialog()
+ptwindow.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
+pattern = QtTSApattern.Ui_Pattern()
+pattern.setupUi(ptwindow)
 
 # Markers
 multiplot = pyqtgraph.GraphicsLayout()  # for plotting marker signal level over time
@@ -2069,6 +2134,9 @@ phasenoise.plotWidget.plotItem.setLogMode(x=True)
 phasenoise.plotWidget.setLabel('bottom', 'Offset Frequency', units='Hz')
 phasenoise.plotWidget.setLabel('left', 'Phase Noise', units='dBc/Hz')
 
+# pyqtgraph settings for antenna pattern display
+createPolarGrid(4, 40)
+
 
 ###############################################################################
 # set up the application
@@ -2082,19 +2150,18 @@ maps.tm.select()
 
 # populate the preset frequencies relational table in the presetFreqs window
 bands.createTableModel()
-bands.tm.select()
-bands.tm.setSort(3, QtCore.Qt.AscendingOrder)
-bands.tm.setHeaderData(5, QtCore.Qt.Horizontal, 'visible')
-bands.tm.setHeaderData(7, QtCore.Qt.Horizontal, 'LO')
-# bands.tm.setEditStrategy(QSqlRelationalTableModel.OnFieldChange)
-bands.tm.setEditStrategy(QSqlRelationalTableModel.OnRowChange)
-bands.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))  # set 'type' column to a freq type choice combo box
-bands.tm.setRelation(5, QSqlRelation('boolean', 'ID', 'value'))  # set 'view' column to a True/False choice combo box
-bands.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))  # set 'marker' column to a colours choice combo box
+bands.tm.setSort(3, QtCore.Qt.SortOrder.AscendingOrder)
+bands.tm.setHeaderData(5, QtCore.Qt.Orientation.Horizontal, "visible")
+bands.tm.setHeaderData(7, QtCore.Qt.Orientation.Horizontal, "LO")
+bands.tm.setEditStrategy(QSqlRelationalTableModel.EditStrategy.OnRowChange)
+bands.tm.setRelation(2, QSqlRelation("freqtype", "ID", "preset"))  # set "type" column to a freq type choice combo box
+bands.tm.setRelation(5, QSqlRelation("boolean", "ID", "value"))  # set "view" column to a True/False choice combo box
+bands.tm.setRelation(6, QSqlRelation("SVGColour", "ID", "colour"))  # set "marker" column to a colours choice combo box
 presets = QSqlRelationalDelegate(presetFreqs.freqTable)
 presetFreqs.freqTable.setItemDelegate(presets)
 colHeader = presetFreqs.freqTable.horizontalHeader()
-colHeader.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
+colHeader.setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+bands.tm.select()
 
 # populate the preset Types table in the preset frequencies window
 bandstype.createTableModel()
@@ -2111,7 +2178,7 @@ colours.tm.select()
 presetmarker.createTableModel()
 presetmarker.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))
 presetmarker.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))
-presetmarker.tm.setSort(3, QtCore.Qt.AscendingOrder)
+presetmarker.tm.setSort(3, QtCore.Qt.SortOrder.AscendingOrder)
 presetmarker.tm.select()
 
 # populate the ui band selection combo box; needs different filter to the main and preset frequencies window
@@ -2119,7 +2186,7 @@ bandselect.createTableModel()
 bandselect.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))
 bandselect.tm.setRelation(5, QSqlRelation('boolean', 'ID', 'value'))
 bandselect.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))
-bandselect.tm.setSort(3, QtCore.Qt.AscendingOrder)
+bandselect.tm.setSort(3, QtCore.Qt.SortOrder.AscendingOrder)
 ui.band_box.setModel(bandselect.tm)
 ui.band_box.setModelColumn(1)
 bandselect.tm.select()
@@ -2135,11 +2202,11 @@ presetFreqs.freqTable.hideColumn(0)  # ID
 # connect the settings window trace colours widget to the data model
 tracecolours.createTableModel()
 tracecolours.tm.setRelation(2, QSqlRelation('SVGColour', 'ID', 'colour'))
-tracecolours.tm.setEditStrategy(QSqlRelationalTableModel.OnFieldChange)
+tracecolours.tm.setEditStrategy(QSqlRelationalTableModel.EditStrategy.OnFieldChange)
 tracesettings = QSqlRelationalDelegate(settings.colourTable)
 settings.colourTable.setItemDelegate(tracesettings)
 traceHeader = settings.colourTable.horizontalHeader()
-traceHeader.setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
+traceHeader.setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
 settings.colourTable.setModel(tracecolours.tm)
 settings.colourTable.hideColumn(0)  # ID
 settings.colourTable.verticalHeader().setVisible(True)

@@ -2356,8 +2356,8 @@ and Colours</string>
     <property name="title">
      <string>&amp;Settings</string>
     </property>
-    <addaction name="actionPresets"/>
     <addaction name="actionSettings"/>
+    <addaction name="actionPresets"/>
    </widget>
    <widget class="QMenu" name="menuFile">
     <property name="title">
@@ -2372,6 +2372,7 @@ and Colours</string>
     </property>
     <addaction name="actionPhNoise"/>
     <addaction name="actionFading"/>
+    <addaction name="actionPattern"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuSettings"/>
@@ -2444,6 +2445,11 @@ and Colours</string>
   <action name="actionFading">
    <property name="text">
     <string>Fading</string>
+   </property>
+  </action>
+  <action name="actionPattern">
+   <property name="text">
+    <string>Pattern</string>
    </property>
   </action>
  </widget>
