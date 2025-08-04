@@ -795,7 +795,7 @@ class analyser:
     def dialogBrowse(self):
         if not self.tinySA4:
             popUp("TinySA basic does not have file storage", QMessageBox.Ok, QMessageBox.Information)
-        return
+            return
         if self.threadRunning:
             popUp("Cannot browse tinySA whilst a scan is running", QMessageBox.Ok, QMessageBox.Information)
             return
