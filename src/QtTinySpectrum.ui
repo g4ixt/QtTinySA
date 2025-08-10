@@ -2434,7 +2434,7 @@ and Colours</string>
   </action>
   <action name="actionPhNoise">
    <property name="text">
-    <string>PhaseNoise</string>
+    <string>Phase Noise</string>
    </property>
   </action>
   <action name="actionSettings">
@@ -2444,12 +2444,12 @@ and Colours</string>
   </action>
   <action name="actionFading">
    <property name="text">
-    <string>Fading</string>
+    <string>Signal Level Monitor</string>
    </property>
   </action>
   <action name="actionPattern">
    <property name="text">
-    <string>Pattern</string>
+    <string>Antenna Pattern</string>
    </property>
   </action>
  </widget>
@@ -2457,7 +2457,7 @@ and Colours</string>
   <customwidget>
    <class>PlotWidget</class>
    <extends>QWidget</extends>
-   <header>pyqtgraph</header>
+   <header location="global">pyqtgraph</header>
    <container>1</container>
   </customwidget>
   <customwidget>

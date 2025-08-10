@@ -1287,9 +1287,9 @@ class Ui_MainWindow(object):
         self.actionQuit.setText(_translate("MainWindow", "Quit"))
         self.actionTracesMarkers.setText(_translate("MainWindow", "TracesMarkers"))
         self.actionPhaseNoise.setText(_translate("MainWindow", "PhaseNoise"))
-        self.actionPhNoise.setText(_translate("MainWindow", "PhaseNoise"))
+        self.actionPhNoise.setText(_translate("MainWindow", "Phase Noise"))
         self.actionSettings.setText(_translate("MainWindow", "Preferences"))
-        self.actionFading.setText(_translate("MainWindow", "Fading"))
-        self.actionPattern.setText(_translate("MainWindow", "Pattern"))
+        self.actionFading.setText(_translate("MainWindow", "Signal Level Monitor"))
+        self.actionPattern.setText(_translate("MainWindow", "Antenna Pattern"))
 from pyqtgraph import PlotWidget
 from pyqtgraph.opengl import GLViewWidget

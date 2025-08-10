@@ -33,6 +33,7 @@ import platformdirs
 import csv
 import numpy as np
 import pyqtgraph
+import pyqtgraph.opengl as pyqtgl  # For 3D
 import struct
 import serial
 from platform import system
@@ -43,9 +44,6 @@ from PyQt5.QtGui import QPixmap, QIcon
 from datetime import datetime
 from serial.tools import list_ports
 from io import BytesIO
-
-import pyqtgraph.opengl as pyqtgl  # For 3D
-
 from QtTinyExporters import WWBExporter, WSMExporter
 import QtTinySpectrum  # the main GUI
 import QtTSAfilebrowse  # the tinySA SD card browser window
@@ -793,7 +791,7 @@ class analyser:
         return data
 
     def dialogBrowse(self):
-        if not self.tinySA4:
+        if self.usb and not self.tinySA4:
             popUp("TinySA basic does not have file storage", QMessageBox.Ok, QMessageBox.Information)
             return
         if self.threadRunning:
@@ -994,6 +992,7 @@ class marker:
         self.runTimer = QtCore.QElapsedTimer()  # for polar plot
         self.sweeptime = []  # for polar plot
         self.amplitude = []  # for polar plot
+        self.samples = []  # for polar plot
 
     def guiRef(self, opt):
         guiFields = ({'1': ui.m1_type, '2': ui.m2_type, '3': ui.m3_type, '4': ui.m4_type},
@@ -1131,16 +1130,18 @@ class marker:
         if ui.presetLabel.isChecked():
             if band:
                 self.marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5,
-                                                     style=QtCore.Qt.PenStyle.DashLine), label=name, labelOpts={'position': 0.97,
-                                                     'color': (colour)})
+                                                     style=QtCore.Qt.PenStyle.DashLine), label=name,
+                                                     labelOpts={'position': 0.97, 'color': (colour)})
             else:
                 self.marker = ui.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5,
-                                                     style=QtCore.Qt.PenStyle.DashLine), label=name, labelOpts={'position': 0.04,
-                                                     'color': (colour), 'anchors': ((0, 0.2), (0, 0.2))})
+                                                     style=QtCore.Qt.PenStyle.DashLine), label=name,
+                                                     labelOpts={'position': 0.04, 'color': (colour),
+                                                                'anchors': ((0, 0.2), (0, 0.2))})
             self.marker.label.setMovable(True)
         else:
             self.marker = ui.graphWidget.addLine(freq, 90,
-                                                 pen=pyqtgraph.mkPen(colour, width=0.5, style=QtCore.Qt.PenStyle.DashLine))
+                                                 pen=pyqtgraph.mkPen(colour, width=0.5,
+                                                                     style=QtCore.Qt.PenStyle.DashLine))
         self.fifo.put(self.marker)  # store the marker object in a queue
         logging.debug(f'addFreqMarker(): fifo size = {self.fifo.qsize()}')
 
@@ -1233,51 +1234,76 @@ class marker:
         self.tplot.plot(tinySA.timeMarkVals[:, 0], tinySA.timeMarkVals[:, int(self.name)], pen=self.linked.pen)
 
         if self.runTimer.isValid():  # polar pattern plot is active
-            if self.sweeptime == []:  # plot has just been started
-                self.sweeptime.append(0)
-            else:
-                elapsed = self.runTimer.restart()/1000
-                self.sweeptime.append(self.sweeptime[-1] + elapsed)
-            self.amplitude.append(self.dBm)
             self.updatePolarPlot()
 
-    def startPolarPlot(self):
+    def setPolarPlot(self):
         if self.markerType != 'Off':
-            self.sweeptime = []
-            self.amplitude = []
+            pattern.progress.setValue(0)
+            if pattern.manual.isChecked():
+                self.samples = []
+            else:
+                self.sweeptime = []
+                self.amplitude = []
             self.runTimer.start()
 
     def updatePolarPlot(self):
+        if pattern.manual.isChecked():
+            if len(self.samples) < pattern.scanCount.value():
+                self.samples.append(self.dBm)
+                pattern.progress.setValue(int(100 * len(self.samples) / pattern.scanCount.value()))
+                return
+            else:
+                if pattern.max.isChecked():
+                    self.amplitude.append(np.max(self.samples))
+                if pattern.avg.isChecked():
+                    self.amplitude.append(np.average(self.samples))
+                if pattern.min.isChecked():
+                    self.amplitude.append(np.min(self.samples))
+                self.sweeptime.append(pattern.heading.value())  # append the current heading (instead of rotation time)
+                self.runTimer.invalidate()
+                theta = np.divide((np.multiply(self.sweeptime, np.pi)), 180)  # convert heading in degrees to radians
+        else:
+            if self.sweeptime == []:  # auto plot has just been started
+                self.sweeptime.append(0)
+            else:
+                self.sweeptime.append(self.runTimer.elapsed() / 1000)
+            self.amplitude.append(self.dBm)
+            if pattern.clockwise.isChecked():
+                theta = np.divide((np.multiply(self.sweeptime, 2 * np.pi)), pattern.rotateTime.value())
+                pattern.heading.setValue(int(360*(theta[-1] / (2 * np.pi))))
+            else:
+                theta = np.divide((np.multiply(self.sweeptime, -2 * np.pi)), pattern.rotateTime.value())
+                pattern.heading.setValue(360 + int(360*(theta[-1] / (2 * np.pi))))
+            pattern.progress.setValue(int(100 * (abs(theta[-1]) / (2 * np.pi))))
+
         peak = max(np.max(self.amplitude), pattern.refdBm.value())  # peak is maximum when antenna points at the source
         factor = 40 - peak  # correction factor to make the max signal amplitude read 40 units on the polar grid
         dBm = np.round(np.add(self.amplitude, factor), decimals=1)
+
         r = np.clip(dBm, 0, 40)  # clip the signal vector to a max amplitude of 40 and minimum of 0
-        if pattern.clockwise.isChecked():
-            theta = np.divide((np.multiply(self.sweeptime, 2 * np.pi)), pattern.rotateTime.value())
-            pattern.heading.setValue(int(360*(theta[-1] / (2 * np.pi))))
-        else:
-            theta = np.divide((np.multiply(self.sweeptime, -2 * np.pi)), pattern.rotateTime.value())
-            pattern.heading.setValue(360 + int(360*(theta[-1] / (2 * np.pi))))
         x = np.multiply(r, np.sin(theta))
         y = np.multiply(r, np.cos(theta))
         self.polar.setData(x, y, pen=self.linked.pen)
 
         if self.sweeptime[-1] >= pattern.rotateTime.value():  # rotation is complete
             self.runTimer.invalidate()
+            if pattern.beamUp.isChecked() and not pattern.manual.isChecked():
+                self.rotatePolarPlot(r, theta)
 
-            # find width of a main lobe peak, assuming the antenna main beam is symmetrical
-            pkIndex = np.argmax(self.amplitude)
-            for i in range(pkIndex + 1, len(self.amplitude)):
-                if self.amplitude[i] < self.amplitude[pkIndex]:
-                    logging.info(f'width = {i}')
-                    pkIndex += int(0.5 * (i - pkIndex))  # antenna main beam centre should be half the peak beamwidth
-                    break
+    def rotatePolarPlot(self, r, theta):
+        pkIndex = np.argmax(self.amplitude)  # find the array index of the maximum signal
+        width = 0
+        for i in range(pkIndex, len(self.amplitude) - 1):
+            if self.amplitude[i] == self.amplitude[pkIndex]:
+                width += 1
+        pkIndex = pkIndex + int(width / 2)  # beam centre is half the width of a symetrical antenna main lobe
+        pkBearing = 2 * np.pi * pkIndex / len(self.amplitude)
 
-            pkBearing = 2 * np.pi * pkIndex / len(self.amplitude)
-            theta = np.subtract(theta, pkBearing)
-            x = np.multiply(r, np.sin(theta))
-            y = np.multiply(r, np.cos(theta))
-            self.polar.setData(x, y, pen=self.linked.pen)
+        # calculate new values to rotate display
+        theta = np.subtract(theta, pkBearing)
+        x = np.multiply(r, np.sin(theta))
+        y = np.multiply(r, np.cos(theta))
+        self.polar.setData(x, y, pen=self.linked.pen)
 
 
 class WorkerSignals(QtCore.QObject):
@@ -1825,7 +1851,7 @@ def setWaterfall():
 
 
 def createPolarGrid(rings, radius):
-    ''''Draw concentric circles and radial lines to simulate polar axes.'''
+    '''Draw concentric circles and radial lines to simulate polar axes.'''
     pattern.plotwidget.setAspectLocked(True)
     pattern.plotwidget.hideAxis('bottom')
     pattern.plotwidget.hideAxis('left')
@@ -1847,6 +1873,13 @@ def createPolarGrid(rings, radius):
         line = QtWidgets.QGraphicsLineItem(0, 0, x, y)
         line.setPen(pyqtgraph.mkPen('grey', width=0.5))
         pattern.plotwidget.addItem(line)
+
+
+def startPolarPlot():
+    M1.setPolarPlot()
+    M2.setPolarPlot()
+    M3.setPolarPlot()
+    M4.setPolarPlot()
 
 
 def connectActive():
@@ -1997,10 +2030,7 @@ def connectPassive():
     ui.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
 
     # polar pattern
-    pattern.rotating.clicked.connect(M1.startPolarPlot)
-    pattern.rotating.clicked.connect(M2.startPolarPlot)
-    pattern.rotating.clicked.connect(M3.startPolarPlot)
-    pattern.rotating.clicked.connect(M4.startPolarPlot)
+    pattern.measure.clicked.connect(startPolarPlot)
 
 
 ###############################################################################
@@ -2011,7 +2041,7 @@ tinySA = analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.1.5')
+app.setApplicationVersion(' v1.1.7')
 window = QtWidgets.QMainWindow()
 ui = QtTinySpectrum.Ui_MainWindow()
 ui.setupUi(window)
