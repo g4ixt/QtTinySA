@@ -51,7 +51,7 @@
      <item row="1" column="8">
       <widget class="QPushButton" name="measure">
        <property name="toolTip">
-        <string>Click when rotating starts</string>
+        <string>Start auto or manual measurement</string>
        </property>
        <property name="text">
         <string>Measure</string>
@@ -70,6 +70,9 @@
      </item>
      <item row="2" column="0">
       <widget class="QRadioButton" name="manual">
+       <property name="toolTip">
+        <string>Plot the value for the set heading when measure is pressed</string>
+       </property>
        <property name="text">
         <string>Man</string>
        </property>
@@ -83,6 +86,9 @@
      </item>
      <item row="2" column="1">
       <widget class="QRadioButton" name="max">
+       <property name="toolTip">
+        <string>Plot the largest scan value</string>
+       </property>
        <property name="text">
         <string>Max</string>
        </property>
@@ -96,6 +102,9 @@
      </item>
      <item row="2" column="2">
       <widget class="QRadioButton" name="avg">
+       <property name="toolTip">
+        <string>Plot the average of all scans</string>
+       </property>
        <property name="text">
         <string>Avg</string>
        </property>
@@ -123,6 +132,9 @@
      </item>
      <item row="1" column="0">
       <widget class="QRadioButton" name="radioButton">
+       <property name="toolTip">
+        <string>Plot a full circle when measure is pressed</string>
+       </property>
        <property name="text">
         <string>Auto</string>
        </property>
@@ -136,6 +148,12 @@
      </item>
      <item row="2" column="8">
       <widget class="QProgressBar" name="progress">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
        <property name="font">
         <font>
          <pointsize>9</pointsize>
@@ -170,6 +188,9 @@
      </item>
      <item row="2" column="3">
       <widget class="QRadioButton" name="min">
+       <property name="toolTip">
+        <string>Plot the smallest scan value</string>
+       </property>
        <property name="text">
         <string>Min</string>
        </property>
@@ -264,6 +285,19 @@
         <bool>true</bool>
        </property>
       </widget>
+     </item>
+     <item row="1" column="9">
+      <spacer name="horizontalSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
      </item>
     </layout>
    </item>

@@ -513,7 +513,7 @@
     <item row="16" column="0">
      <widget class="QLabel" name="label_21">
       <property name="text">
-       <string>Fading display time axis points</string>
+       <string>Signal Level Monitor points</string>
       </property>
      </widget>
     </item>
