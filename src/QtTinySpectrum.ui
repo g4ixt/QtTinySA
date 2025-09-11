@@ -2560,6 +2560,7 @@ and Colours</string>
     </property>
     <addaction name="actionSettings"/>
     <addaction name="actionPresets"/>
+    <addaction name="actionCorrection"/>
    </widget>
    <widget class="QMenu" name="menuFile">
     <property name="title">
@@ -2652,6 +2653,11 @@ and Colours</string>
   <action name="actionPattern">
    <property name="text">
     <string>Antenna Pattern</string>
+   </property>
+  </action>
+  <action name="actionCorrection">
+   <property name="text">
+    <string>Correction</string>
    </property>
   </action>
  </widget>

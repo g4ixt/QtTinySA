@@ -38,7 +38,7 @@ try:
     from PyQt6.QtGui import QPixmap, QIcon
 except ModuleNotFoundError:
     from PyQt5 import QtWidgets, QtCore, uic
-    from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit
+    from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit, QTableWidgetItem
     from PyQt5.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
     from PyQt5.QtGui import QPixmap, QIcon
 
@@ -906,8 +906,8 @@ class Trace:
 
     def fetchData(self):
         '''return the plotted data from the first trace listDataItems[0]'''
-        frequencies = QtTSA.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[0]  # getData[0] freq
-        levels = QtTSA.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[1]  # getData[0] is level
+        frequencies = QtTSA.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[0]  # [0] = freq
+        levels = QtTSA.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[1]  # [1] = level
         return frequencies, levels
 
     def phaseNoise(self, lsb):
@@ -957,7 +957,7 @@ class Limit:
         if self.y:
             label = '{value:.1f}'
         self.line = QtTSA.graphWidget.addLine(self.x, self.y, movable=self.movable, pen=self.pen, label=label,
-                                           labelOpts={'position': 0.98, 'color': (self.pen), 'movable': True})
+                                              labelOpts={'position': 0.98, 'color': (self.pen), 'movable': True})
         self.line.addMarker(mark, posn, 10)
         if dash:
             self.line.setPen(self.pen, width=0.5, style=QtCore.Qt.PenStyle.DashLine)
@@ -976,10 +976,9 @@ class Marker:
         self.level = 1  # marker tracking level (min or max), set per marker from GUI
         self.markerType = 'Normal'
         self.line = QtTSA.graphWidget.addLine(88, 90, movable=True, name=name,
-                                           pen=pyqtgraph.mkPen('y', width=0.5), label=self.name)
+                                              pen=pyqtgraph.mkPen('y', width=0.5), label=self.name)
         self.deltaline = QtTSA.graphWidget.addLine(0, 90, movable=True, name=name,
-                                                pen=pyqtgraph.mkPen('y', width=0.5, style=QtCore.Qt.PenStyle.DashLine),
-                                                label=self.name)
+                                                   pen=pyqtgraph.mkPen('y', width=0.5, style=QtCore.Qt.PenStyle.DashLine), label=self.name)
         self.line.addMarker('^', 0, 10)
         self.deltaF = 0  # the delta marker frequency difference
         self.deltaRelative = True
@@ -1132,18 +1131,17 @@ class Marker:
         if QtTSA.presetLabel.isChecked():
             if band:
                 self.marker = QtTSA.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5,
-                                                     style=QtCore.Qt.PenStyle.DashLine), label=name,
-                                                     labelOpts={'position': 0.97, 'color': (colour)})
+                                                        style=QtCore.Qt.PenStyle.DashLine), label=name,
+                                                        labelOpts={'position': 0.97, 'color': (colour)})
             else:
                 self.marker = QtTSA.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5,
-                                                     style=QtCore.Qt.PenStyle.DashLine), label=name,
-                                                     labelOpts={'position': 0.04, 'color': (colour),
-                                                                'anchors': ((0, 0.2), (0, 0.2))})
+                                                        style=QtCore.Qt.PenStyle.DashLine), label=name,
+                                                        labelOpts={'position': 0.04, 'color': (colour),
+                                                        'anchors': ((0, 0.2), (0, 0.2))})
             self.marker.label.setMovable(True)
         else:
-            self.marker = QtTSA.graphWidget.addLine(freq, 90,
-                                                 pen=pyqtgraph.mkPen(colour, width=0.5,
-                                                                     style=QtCore.Qt.PenStyle.DashLine))
+            self.marker = QtTSA.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5,
+                                                    style=QtCore.Qt.PenStyle.DashLine))
         self.fifo.put(self.marker)  # store the marker object in a queue
         logging.debug(f'addFreqMarker(): fifo size = {self.fifo.qsize()}')
 
@@ -1375,7 +1373,8 @@ class ModelView():
     def deletePsType(self):
         record = self.tm.record(self.currentRow)
         if record.value('ID') == bandstype.ID:
-            popUp("Cannot delete a preset type that is selected on main screen", QMessageBox.StandardButton.Ok, QMessageBox.Icon.Critical)
+            popUp("Cannot delete a preset type that is selected on main screen",
+                  QMessageBox.StandardButton.Ok, QMessageBox.Icon.Critical)
             return
         bands.filterType(True, record.value('preset'))
         bands.deleteRow(False)
@@ -1431,12 +1430,10 @@ class ModelView():
                 logging.debug(f'readCSV(): row = {row}')
                 record = self.tm.record()
                 for key, value in row.items():
-                    logging.info(f'readCSV: key = {key} value = {value}')
-                    # I don't understand why the Qsqlrelation doesn't work for these three fields:
                     if key == 'preset':
-                        value = presetID(value)
+                        value = bandstype.fetch_ID('preset', value)
                     if key == 'colour':
-                        value = colourID(value)
+                        value = colours.fetch_ID('colour', value)
                     if key == 'value':
                         value = int(eval(value))
 
@@ -1446,14 +1443,23 @@ class ModelView():
 
                     if key != 'ID':  # ID is the table primary key and is auto-populated
                         record.setValue(str(key), value)
+
                 if record.value('value') not in (0, 1):  # because it's not present in RF mic CSV files
                     record.setValue('value', 1)
                 if record.value('preset') == '':  # preset missing so use current preferences filterbox text
-                    record.setValue('preset', presetID(presetFreqs.filterBox.currentText()))
+                    record.setValue('preset', bandstype.fetch_ID('preset', presetFreqs.filterBox.currentText()))
                 self.tm.insertRecord(-1, record)
         self.tm.select()
         self.tm.layoutChanged.emit()
-        self.dwm.submit()
+        # self.dwm.submit()
+
+    def fetch_ID(self, field, lookup_value):
+        for i in range(0, self.tm.rowCount()):
+            record = self.tm.record(i).value(field)
+            if record == lookup_value:
+                ID = self.tm.record(i).value('ID')
+                return ID
+        return 1
 
     def writeCSV(self, fileName):
         header = []
@@ -1466,6 +1472,18 @@ class ModelView():
                 fields = [self.tm.data(self.tm.index(rowNumber, columnNumber))
                           for columnNumber in range(1, 7)]
                 output.writerow(fields)
+
+    def exportData(self):
+        filename = QFileDialog.getSaveFileName(caption="Save As", filter="Comma Separated Values (*.csv)")
+        logging.info(f'export filename is {filename[0]}')
+        if filename[0] != '':
+            self.writeCSV(filename[0])
+
+    def importData(self):
+        filename = QFileDialog.getOpenFileName(caption="Select File to Import", filter="Comma Separated Values (*.csv)")
+        logging.info(f'import filename is {filename[0]}')
+        if filename[0] != '':
+            self.readCSV(filename[0])
 
     def mapWidget(self, modelName):  # maps the widget combo-box fields to the database tables, using the mapping table
         maps.tm.setFilter('model = "' + modelName + '"')
@@ -1483,6 +1501,51 @@ class ModelView():
         self.tm.setFilter('')
         self.unlimited()
         presetFreqs.psCount.setValue(bands.tm.rowCount())
+
+    def update_row(self, row, **data):
+        record = self.tm.record(row)
+        for key, value in data.items():
+            logging.debug(f'update_row: key = {key} value={value}')
+            record.setValue(str(key), value)
+        self.tm.setRecord(row, record)
+        self.updateModel()
+
+    def read_tables(self):
+        if tinySA.usb is not None:
+            self.unlimited()
+            offset.tsa_table.setRowCount(200)
+            offset.tsa_table.setColumnCount(4)
+            offset.tsa_table.setHorizontalHeaderLabels(['mode', 'entry', 'frequency', 'dB'])
+            offset.tsa_table.show()
+            offset.tsa_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+
+            k = 0
+            for i in range(correctiontext.tm.rowCount()):
+                # step through each correction mode, fetch its table from the tinySA
+                command = 'correction ' + correctiontext.tm.record(i).value('value') + '\r'
+                data = tinySA.serialQuery(command)
+                mode_table = data.splitlines()[1:]  # make a list of the rows, discard the mode header
+                mode_rows = [row.split(' ')[1:] for row in mode_table]  # split each row into a list, discard first col
+                for j in range(20):
+                    # step through each row of the current mode and write the fields to the tablewidget 'tsa_table'
+                    mode = QTableWidgetItem(str(mode_rows[j][0]))
+                    entry = QTableWidgetItem(str(mode_rows[j][1]))
+                    frequency = QTableWidgetItem(str(mode_rows[j][2]))
+                    dB = QTableWidgetItem(str(mode_rows[j][3]))
+                    offset.tsa_table.setItem(k+j, 0, mode)
+                    offset.tsa_table.setItem(k+j, 1, entry)
+                    offset.tsa_table.setItem(k+j, 2, frequency)
+                    offset.tsa_table.setItem(k+j, 3, dB)
+                    if offset.save_box.isChecked():
+                        self.insertData()
+                k += 20
+            # record = bands.tm.record(1)
+            # for m in range(7):
+            #     name = record.fieldName(m)
+            #     logging.info(f'{m} {name} {record.value("colour")}')
+        else:
+            popUp('TinySA not found', QMessageBox.StandardButton.Ok, QMessageBox.Icon.Critical)
+
 
 ###############################################################################
 # respond to GUI signals
@@ -1515,12 +1578,13 @@ def addBand():
             message = 'M1 frequency >= M2 frequency'
             popUp(message, QMessageBox.StandardButton.Ok, QMessageBox.Icon.Information)
             return
-        ID = presetID(str(QtTSA.filterBox.currentText()))
+        # ID = presetID(str(QtTSA.filterBox.currentText()))
+        ID = bandstype.fetch_ID('preset', str(QtTSA.filterBox.currentText()))
         title = "New Frequency Band"
         message = "Enter a name for the new band."
         bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
         bands.insertData(name=bandName, type=ID, startF=f'{int(M1.line.value())}',
-                         stopF=f'{int(M2.line.value())}', visible=1, colour=colourID('green'))  # colourID(value)
+                         stopF=f'{int(M2.line.value())}', visible=1, colour=colours.fetch_ID('colour', 'green'))
 
 
 def addFixed():
@@ -1528,7 +1592,7 @@ def addFixed():
     message = "Enter a name for the fixed Marker"
     fixedMkr, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
     bands.insertData(name=fixedMkr, type=12, startF=f'{int(M1.line.value())}',
-                     stopF=0, visible=1, colour=colourID('orange'))  # preset type=12 is a fixed Marker
+                     stopF=0, visible=1, colour=colours.fetch_ID('colour', 'orange'))  # preset type 12 = fixed Marker
 
 
 def pointsChanged():
@@ -1605,6 +1669,14 @@ def clickEvent():
 def testComPort():
     index = settings.deviceBox.currentIndex()
     tinySA.testPort(tinySA.ports[index - 1])  # allow for 'select device' entry
+
+
+def correction_filter():
+    if offset.filter_box.isChecked():
+        sql = 'mode = "' + offset.correction_mode.currentText() + '"'
+        correction.tm.setFilter(sql)
+    else:
+        correction.tm.setFilter('')
 
 
 ##############################################################################
@@ -1764,7 +1836,8 @@ def exit_handler():
 
 
 def popUp(message, button, icon):
-    # icon can = QMessageBox.Icon.Warning, QMessageBox.Icon.Information, QMessageBox.Icon.Critical, QMessageBox.Icon.Question
+    # icon can = QMessageBox.Icon.Warning, QMessageBox.Icon.Information,
+    #            QMessageBox.Icon.Critical, QMessageBox.Icon.Question
     # button can = QMessageBox.StandardButton.Ok, QMessageBox.StandardButton.Cancel
     msg = QMessageBox(parent=(QtTSA))
     msg.setIcon(icon)
@@ -1800,20 +1873,6 @@ def freqMarkerLabel():
     freqMarkers()
 
 
-def exportData():
-    filename = QFileDialog.getSaveFileName(caption="Save As", filter="Comma Separated Values (*.csv)")
-    logging.info(f'export filename is {filename[0]}')
-    if filename[0] != '':
-        bands.writeCSV(filename[0])
-
-
-def importData():
-    filename = QFileDialog.getOpenFileName(caption="Select File to Import", filter="Comma Separated Values (*.csv)")
-    logging.info(f'import filename is {filename[0]}')
-    if filename[0] != '':
-        bands.readCSV(filename[0])
-
-
 def isMixerMode():
     if bandstype.freq == 0:
         QtTSA.mixerMode.setVisible(False)
@@ -1831,24 +1890,6 @@ def isMixerMode():
         QtTSA.start_freq.setMaximum(100000)
         QtTSA.centre_freq.setMaximum(100000)
         QtTSA.stop_freq.setMaximum(100000)
-
-
-def presetID(typeF):  # using the QSQLRelation directly doesn't work for preset.  Can't see why.
-    for i in range(0, bandstype.tm.rowCount()):
-        preset = bandstype.tm.record(i).value('preset')
-        if preset == typeF:
-            ID = bandstype.tm.record(i).value('ID')
-            return ID
-    return 1
-
-
-def colourID(shade):  # using the QSQLRelation directly doesn't work for colour.  Can't see why.
-    for i in range(0, colours.tm.rowCount()):
-        colour = colours.tm.record(i).value('colour')
-        if colour == shade.lower():
-            ID = colours.tm.record(i).value('ID')
-            return ID
-    return 1
 
 
 def setWaterfall():
@@ -1945,6 +1986,11 @@ def connectActive():
     # Sweep time
     # QtTSA.sweepTime.valueChanged.connect(lambda: tinySA.sweepTime(QtTSA.sweepTime.value()))
 
+    # level calibration
+    offset.correction_mode.currentTextChanged.connect(correction_filter)
+    offset.filter_box.stateChanged.connect(correction_filter)
+    offset.read_button.clicked.connect(correction.read_tables)
+
 
 def connectPassive():
     # Connect signals from GUI controls that don't cause messages to go to the tinySA
@@ -2009,13 +2055,14 @@ def connectPassive():
 
     presetFreqs.ui.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
 
-    presetFreqs.exportPs.pressed.connect(exportData)
-    presetFreqs.importPs.pressed.connect(importData)
+    presetFreqs.exportPs.pressed.connect(bands.exportData)
+    presetFreqs.importPs.pressed.connect(bands.importData)
     settings.deviceBox.activated.connect(testComPort)
 
     QtTSA.filterBox.currentTextChanged.connect(lambda: bandselect.filterType(False, QtTSA.filterBox.currentText()))
     QtTSA.actionPresets.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
     QtTSA.actionSettings.triggered.connect(settings.ui.show)
+    QtTSA.actionCorrection.triggered.connect(offset.ui.show)
 
     # preferences
     QtTSA.actionAbout_QtTinySA.triggered.connect(about)
@@ -2038,6 +2085,10 @@ def connectPassive():
     # polar pattern
     pattern.measure.clicked.connect(startPolarPlot)
 
+    # correction
+    offset.export_button.clicked.connect(correction.exportData)
+    offset.import_button.clicked.connect(correction.importData)
+
 
 ###############################################################################
 # Instantiate classes
@@ -2047,7 +2098,7 @@ tinySA = Analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.1.9')
+app.setApplicationVersion(' v1.1.10')
 QtTSA = uic.loadUi("QtTinySpectrum.ui")
 
 
@@ -2057,6 +2108,7 @@ filebrowse = CustomDialogue("filebrowse.ui")
 phasenoise = CustomDialogue("phasenoise.ui")
 fading = CustomDialogue("fading.ui")
 pattern = CustomDialogue("pattern.ui")
+offset = CustomDialogue(("offset.ui"))
 
 # Markers
 multiplot = pyqtgraph.GraphicsLayout()  # for plotting marker signal level over time
@@ -2090,7 +2142,7 @@ highF.create(True, '<|', 0.01)
 reference.create(True, '<|>', 0.99)
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 119)  # third parameter is the database version
+config = connect("QtTSAprefs.db", "settings", 120)  # third parameter is the database version
 
 checkboxes = ModelView('checkboxes', config)
 numbers = ModelView('numbers', config)
@@ -2104,6 +2156,9 @@ bands = ModelView('frequencies', config)
 presetmarker = ModelView('frequencies', config)
 bandselect = ModelView('frequencies', config)
 tracecolours = ModelView('trace', config)
+correctiontext = ModelView('combo', config)
+correction = ModelView('correction', config)
+settingstext = ModelView('settings', config)
 
 # Database and models for recording and playback (can't get multiple databases to work)
 # saveData = connect("QtTSArecording.db", "measurements")
@@ -2174,6 +2229,15 @@ bandstype.createTableModel()
 bandstype.tm.select()
 presetFreqs.typeTable.setModel(bandstype.tm)
 presetFreqs.typeTable.hideColumn(0)  # hide primary key so user can't change it
+
+# populate the correction values table in the correction window
+correction.createTableModel()
+c_header = offset.c_table.horizontalHeader()
+c_header.setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+correction.tm.select()
+offset.c_table.setModel(correction.tm)
+offset.c_table.hideColumn(0)
+offset.c_table.hideColumn(2)
 
 # to lookup the preset bands and markers colours because can't get the relationships to work
 colours.createTableModel()
@@ -2249,6 +2313,13 @@ QtTSA.m2_type.setModel(markertext.tm)
 QtTSA.m3_type.setModel(markertext.tm)
 QtTSA.m4_type.setModel(markertext.tm)
 markertext.tm.select()
+
+# populate the correction comboboxes
+correctiontext.createTableModel()
+correctiontext.tm.setFilter('type = "correction"')
+offset.correction_mode.setModel(correctiontext.tm)
+correctiontext.tm.select()
+
 
 # The models for saving number, marker and trace settings
 numbers.createTableModel()
