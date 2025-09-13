@@ -122,8 +122,7 @@ class Analyser:
         if len(self.ports) > 1:  # several devices found
             settings.deviceBox.insertItem(0, "Select device")
             settings.deviceBox.setCurrentIndex(0)
-            popUp("Several devices detected.  Choose device in Settings > Preferences",
-                  QMessageBox.StandardButton.Ok, QMessageBox.Icon.Information)
+            popUp(QtTSA, "Several devices detected.  Choose device in Settings > Preferences", 'OK', 'Info')
             usbCheck.stop()
 
     def testPort(self, port):  # tests comms and initialises tinySA if found
@@ -132,8 +131,7 @@ class Analyser:
             logging.info(f'Serial port {port.device} open: {self.usb.isOpen()}')
         except serial.SerialException:
             logging.info('Serial port exception. A possible cause is that your username is not in the "dialout" group.')
-            popUp('Serial port exception',
-                  QMessageBox.StandardButton.Ok, QMessageBox.Icon.Critical)
+            popUp(QtTSA, 'Serial port exception', 'OK', 'Critical')
         if self.usb:
             for i in range(4):  # try 4 times to communicate with tinySA over USB serial
                 firmware = self.version()
@@ -260,7 +258,7 @@ class Analyser:
                     self.ports = []
                     self.closePort()
         else:
-            popUp('TinySA not found', QMessageBox.StandardButton.Ok, QMessageBox.Icon.Critical)
+            popUp(QtTSA, 'TinySA not found', 'Ok', 'Critical')
 
     def startMeasurement(self):
         frequencies, readings, maxima, minima = self.set_arrays()
@@ -354,7 +352,7 @@ class Analyser:
             self.sweeping = False
             scanF = (88 * 1e6, 108 * 1e6)
             logging.info('LO frequency offset error, check settings')
-            popUp("LO frequency offset error, check settings", QMessageBox.StandardButton.Ok, QMessageBox.Icon.Critical)
+            popUp(QtTSA, "LO frequency offset error, check settings", 'Ok', 'Critical')
         logging.debug(f'freqOffset(): scanF = {scanF}')
         return scanF
 
@@ -794,10 +792,10 @@ class Analyser:
 
     def dialogBrowse(self):
         if self.usb and not self.tinySA4:
-            popUp("TinySA basic does not have file storage", QMessageBox.StandardButton.Ok, QMessageBox.Icon.Information)
+            popUp(QtTSA, "TinySA basic does not have file storage", 'Ok', 'Info')
             return
         if self.threadRunning:
-            popUp("Cannot browse tinySA whilst a scan is running", QMessageBox.StandardButton.Ok, QMessageBox.Icon.Information)
+            popUp(QtTSA, "Cannot browse tinySA whilst a scan is running", 'Ok', 'Info')
             return
         elif self.usb:
             SD = self.listSD()
@@ -808,7 +806,7 @@ class Analyser:
             filebrowse.listWidget.insertItems(0, ls)
             filebrowse.ui.show()
         else:
-            popUp('TinySA not found', QMessageBox.StandardButton.Ok, QMessageBox.Icon.Critical)
+            popUp(QtTSA, 'TinySA not found', 'Ok', 'Critical')
 
     def saveFile(self, saveSingle=True):
         filebrowse.saveProgress.setValue(0)
@@ -984,7 +982,7 @@ class Marker:
         self.deltaRelative = True
         self.deltaline.sigClicked.connect(self.deltaClicked)
         self.line.sigClicked.connect(self.lineClicked)
-        self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(-0.5, -box))  # box is vertical posn
+        self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(-0.7, -box))  # box is vertical posn
         self.markerBox.setParentItem(QtTSA.graphWidget.plotItem)
         self.fifo = queue.SimpleQueue()
         self.dBm = -140
@@ -1373,8 +1371,7 @@ class ModelView():
     def deletePsType(self):
         record = self.tm.record(self.currentRow)
         if record.value('ID') == bandstype.ID:
-            popUp("Cannot delete a preset type that is selected on main screen",
-                  QMessageBox.StandardButton.Ok, QMessageBox.Icon.Critical)
+            popUp(presetFreqs, "Cannot delete a preset type that is selected on main screen", 'Ok', 'Critical')
             return
         bands.filterType(True, record.value('preset'))
         bands.deleteRow(False)
@@ -1395,7 +1392,7 @@ class ModelView():
         record = self.tm.record()
         logging.debug(f'insertData: record = {record}')
         for key, value in data.items():
-            logging.info(f'insertData: key = {key} value={value}')
+            logging.debug(f'insertData: key = {key} value={value}')
             record.setValue(str(key), value)
         self.tm.insertRecord(-1, record)
         self.tm.select()
@@ -1453,7 +1450,7 @@ class ModelView():
         self.tm.layoutChanged.emit()
         # self.dwm.submit()
 
-    def fetch_ID(self, field, lookup_value):
+    def fetch_ID(self, field, lookup_value):  # find the relation table ID from an aliased field name
         for i in range(0, self.tm.rowCount()):
             record = self.tm.record(i).value(field)
             if record == lookup_value:
@@ -1492,8 +1489,8 @@ class ModelView():
             column = maps.tm.record(index).value('column')
             self.dwm.addMapping(eval(gui), int(column))
 
-    def unlimited(self):
-        while self.tm.canFetchMore():  # remove 256 row limit for QSql Query
+    def unlimited(self):  # remove 256 row limit for QSql Query
+        while self.tm.canFetchMore():
             self.tm.fetchMore()
 
     def showAll(self):
@@ -1510,42 +1507,67 @@ class ModelView():
         self.tm.setRecord(row, record)
         self.updateModel()
 
-    def read_tables(self):
-        if tinySA.usb is not None:
-            self.unlimited()
-            offset.tsa_table.setRowCount(200)
-            offset.tsa_table.setColumnCount(4)
-            offset.tsa_table.setHorizontalHeaderLabels(['mode', 'entry', 'frequency', 'dB'])
-            offset.tsa_table.show()
-            offset.tsa_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+    def read_tables(self):  # read the correction tables from the tinySA and display in a table widget
+        if tinySA.usb is None:
+            popUp(offset, 'TinySA not found', 'Ok', 'Critical')
+            return
+        self.unlimited()
+        write_config = QMessageBox.StandardButton.Ok
+        if self.tm.rowCount() > 0 and offset.save_box.isChecked():
+            message = ('OK to over-write config database table with\rcorrection data from tinySA?')
+            write_config = popUp(offset, message, 'OkC', 'Question')
+            if write_config == QMessageBox.StandardButton.Ok:
+                correction.deleteRow(single=False)
+        offset.tsa_table.clear()
+        offset.tsa_table.setRowCount(200)
+        offset.tsa_table.setColumnCount(4)
+        offset.tsa_table.setHorizontalHeaderLabels(['mode', 'entry', 'frequency', 'dB'])
+        offset.tsa_table.show()
+        offset.tsa_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
 
-            k = 0
-            for i in range(correctiontext.tm.rowCount()):
-                # step through each correction mode, fetch its table from the tinySA
-                command = 'correction ' + correctiontext.tm.record(i).value('value') + '\r'
-                data = tinySA.serialQuery(command)
-                mode_table = data.splitlines()[1:]  # make a list of the rows, discard the mode header
-                mode_rows = [row.split(' ')[1:] for row in mode_table]  # split each row into a list, discard first col
-                for j in range(20):
-                    # step through each row of the current mode and write the fields to the tablewidget 'tsa_table'
-                    mode = QTableWidgetItem(str(mode_rows[j][0]))
-                    entry = QTableWidgetItem(str(mode_rows[j][1]))
-                    frequency = QTableWidgetItem(str(mode_rows[j][2]))
-                    dB = QTableWidgetItem(str(mode_rows[j][3]))
-                    offset.tsa_table.setItem(k+j, 0, mode)
-                    offset.tsa_table.setItem(k+j, 1, entry)
-                    offset.tsa_table.setItem(k+j, 2, frequency)
-                    offset.tsa_table.setItem(k+j, 3, dB)
-                    if offset.save_box.isChecked():
-                        self.insertData()
-                k += 20
-            # record = bands.tm.record(1)
-            # for m in range(7):
-            #     name = record.fieldName(m)
-            #     logging.info(f'{m} {name} {record.value("colour")}')
-        else:
-            popUp('TinySA not found', QMessageBox.StandardButton.Ok, QMessageBox.Icon.Critical)
+        k = 0
+        for i in range(correctiontext.tm.rowCount()):
+            # step through each correction mode, fetch its table from the tinySA
+            command = 'correction ' + correctiontext.tm.record(i).value('value') + '\r'
+            data = tinySA.serialQuery(command)
+            mode_table = data.splitlines()[1:]  # make a list of the rows, discard the mode header
+            mode_rows = [row.split(' ')[1:] for row in mode_table]  # split each row into a list, discard first col
+            for j in range(20):
+                # step through each row of the current mode and write the fields to the tablewidget 'tsa_table'
+                mode = str(mode_rows[j][0])
+                entry = str(mode_rows[j][1])
+                frequency = str(mode_rows[j][2])
+                dB = str(mode_rows[j][3])
+                offset.tsa_table.setItem(k+j, 0, QTableWidgetItem(mode))
+                offset.tsa_table.setItem(k+j, 1, QTableWidgetItem(entry))
+                offset.tsa_table.setItem(k+j, 2, QTableWidgetItem(frequency))
+                offset.tsa_table.setItem(k+j, 3, QTableWidgetItem(dB))
 
+                if offset.save_box.isChecked() and write_config == QMessageBox.StandardButton.Ok:
+                    self.insertData(mode=mode, entry=entry, frequency=frequency, dB=dB)
+            k += 20
+
+    def upload_correction(self):  # upload the correction table(s) from the config database to the tinySA
+        if tinySA.threadRunning:
+            popUp(offset, "Cannot update tinySA whilst a scan is running", 'Ok', 'Info')
+            return
+        self.unlimited()
+        update_failed = False
+        for i in range(self.tm.rowCount()):
+            record = self.tm.record(i)
+            mode = str(record.value('mode')) + ' '
+            entry = str(record.value('entry')) + ' '
+            frequency = str(record.value('frequency')) + ' '
+            dB = str(record.value('dB'))
+            command = 'correction ' + mode + entry + frequency + dB + '\r'
+            response = tinySA.serialQuery(command)
+            logging.debug(f'upload_correction(): {response}')
+            if response != 'updated ' + entry + 'to ' + frequency + dB:
+                # the error trapping on the tinySA is not comprehensive so this may not work for all scenarios
+                update_failed = True
+                logging.info(f'Update failure: {command}')
+        if update_failed:
+            popUp(offset, "One or more of the updates failed.", 'Ok', 'Critical')
 
 ###############################################################################
 # respond to GUI signals
@@ -1571,14 +1593,13 @@ def band_changed():
 def addBand():
     if QtTSA.m1_type.currentText() == 'Off':
         message = 'Please enable Marker 1'
-        popUp(message, QMessageBox.StandardButton.Ok, QMessageBox.Icon.Information)
+        popUp(QtTSA, message, 'Ok', 'Info')
         return
     if QtTSA.m1_type.currentText() != 'Off' and QtTSA.m2_type.currentText() != 'Off':  # Two markers to set a band limit
         if M1.line.value() >= M2.line.value():
             message = 'M1 frequency >= M2 frequency'
-            popUp(message, QMessageBox.StandardButton.Ok, QMessageBox.Icon.Information)
+            popUp(QtTSA, message, 'Ok', 'Info')
             return
-        # ID = presetID(str(QtTSA.filterBox.currentText()))
         ID = bandstype.fetch_ID('preset', str(QtTSA.filterBox.currentText()))
         title = "New Frequency Band"
         message = "Enter a name for the new band."
@@ -1651,7 +1672,6 @@ def setPreferences():  # called when the preferences window is closed
 
 
 def dialogPrefs():  # called by clicking on the setup > preferences menu
-    # bwindow.show()
     presetFreqs.ui.show()
     presetFreqs.psCount.setValue(bands.tm.rowCount())
 
@@ -1659,7 +1679,7 @@ def dialogPrefs():  # called by clicking on the setup > preferences menu
 def about():
     message = ('TinySA Ultra GUI programme using Qt5 and PyQt\nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
                .format(app.applicationVersion(), config.databaseName()))
-    popUp(message, QMessageBox.StandardButton.Ok, QMessageBox.Icon.Information)
+    popUp(QtTSA, message, 'Ok', 'Info')
 
 
 def clickEvent():
@@ -1748,7 +1768,7 @@ def connect(dbFile, con, target):
         checkVersion(db, target, dbFile)  # check that the actual database version matches the target version
     else:
         logging.info('Database file {dbPath}{dbFile} is missing')
-        popUp('Database file is missing', QMessageBox.StandardButton.Ok, QMessageBox.Icon.Critical)
+        popUp(QtTSA, 'Database file is missing', 'Ok', 'Critical')
         return
     return db
 
@@ -1768,8 +1788,8 @@ def checkVersion(db, target, dbFile):
                 " is incompatible.\n" + \
                 "\nClicking OK will replace it with version " + str(target) + \
                 " and will reset \n preferences to default."
-        replace = popUp(message, QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel, QMessageBox.Icon.Question)
-        if replace == 0x00000400:  # 'ok' was clicked
+        replace = popUp(QtTSA, message, 'OkC', 'Question')
+        if replace == QMessageBox.StandardButton.Ok:
             impex = ModelView('frequencies', db)
             impex.createTableModel()
             impex.tm.select()
@@ -1788,9 +1808,8 @@ def checkVersion(db, target, dbFile):
             logging.info(f'found new database version {found}')
             if found == target:
                 message = "Restore your previous frequency and markers to the updated database?"
-                restore = popUp(message, QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
-                                QMessageBox.Icon.Question)
-                if restore == 0x00000400:  # 'ok' was clicked
+                restore = popUp(QtTSA, message, 'OkC', 'Question')
+                if restore == QMessageBox.StandardButton.Ok:
                     impex.tm.select()
                     impex.unlimited()
                     impex.deleteRow(False)
@@ -1835,14 +1854,15 @@ def exit_handler():
     logging.info('QtTinySA Closed')
 
 
-def popUp(message, button, icon):
-    # icon can = QMessageBox.Icon.Warning, QMessageBox.Icon.Information,
-    #            QMessageBox.Icon.Critical, QMessageBox.Icon.Question
-    # button can = QMessageBox.StandardButton.Ok, QMessageBox.StandardButton.Cancel
-    msg = QMessageBox(parent=(QtTSA))
-    msg.setIcon(icon)
+def popUp(window, message, button, icon):
+    icons = {'Warn': QMessageBox.Icon.Warning, 'Info': QMessageBox.Icon.Information,
+             'Critical': QMessageBox.Icon.Critical, 'Question': QMessageBox.Icon.Question}
+    buttons = {'Ok': QMessageBox.StandardButton.Ok, 'Cancel': QMessageBox.StandardButton.Cancel,
+               'OkC': QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel}
+    msg = QMessageBox(parent=(window))
+    msg.setIcon(icons.get(icon))
     msg.setText(message)
-    msg.setStandardButtons(button)
+    msg.setStandardButtons(buttons.get(button))
     return msg.exec()
 
 
@@ -1990,6 +2010,7 @@ def connectActive():
     offset.correction_mode.currentTextChanged.connect(correction_filter)
     offset.filter_box.stateChanged.connect(correction_filter)
     offset.read_button.clicked.connect(correction.read_tables)
+    offset.upload_button.clicked.connect(correction.upload_correction)
 
 
 def connectPassive():
@@ -2098,7 +2119,7 @@ tinySA = Analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.1.10')
+app.setApplicationVersion(' v1.1.11')
 QtTSA = uic.loadUi("QtTinySpectrum.ui")
 
 
