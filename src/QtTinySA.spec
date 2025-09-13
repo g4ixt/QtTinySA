@@ -1,14 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-presetFreqs = CustomDialogue("bands.ui")
-settings = CustomDialogue("settings.ui")
-filebrowse = CustomDialogue("filebrowse.ui")
-phasenoise = CustomDialogue("phasenoise.ui")
-fading = CustomDialogue("fading.ui")
-pattern = CustomDialogue("pattern.ui")
-offset = CustomDialogue(("offset.ui"))
-
-
 import sys
 
 block_cipher = None
