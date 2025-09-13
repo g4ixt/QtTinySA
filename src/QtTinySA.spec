@@ -1,5 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+presetFreqs = CustomDialogue("bands.ui")
+settings = CustomDialogue("settings.ui")
+filebrowse = CustomDialogue("filebrowse.ui")
+phasenoise = CustomDialogue("phasenoise.ui")
+fading = CustomDialogue("fading.ui")
+pattern = CustomDialogue("pattern.ui")
+offset = CustomDialogue(("offset.ui"))
+
+
 import sys
 
 block_cipher = None
@@ -7,7 +16,7 @@ block_cipher = None
 common = {
     'pathex': [],
     'binaries': [],
-    'datas': [('QtTSAprefs.db', '.')],
+    'datas': [('QtTSAprefs.db', 'bands.ui', 'settings.ui', 'filebrowse.ui', 'phasenoise.ui', 'fading.ui', 'pattern.ui', 'offset.ui',  '.')],
     'hiddenimports': [],
     'hookspath': [],
     'hooksconfig': {},

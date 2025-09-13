@@ -2119,12 +2119,11 @@ tinySA = Analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.1.11')
-QtTSA = uic.loadUi("QtTinySpectrum.ui")
+app.setApplicationVersion(' v1.1.12')
+QtTSA = uic.loadUi("spectrum.ui")
 
-
-presetFreqs = CustomDialogue("QtTSAbands.ui")
-settings = CustomDialogue("QtTSAsettings.ui")
+presetFreqs = CustomDialogue("bands.ui")
+settings = CustomDialogue("settings.ui")
 filebrowse = CustomDialogue("filebrowse.ui")
 phasenoise = CustomDialogue("phasenoise.ui")
 fading = CustomDialogue("fading.ui")
