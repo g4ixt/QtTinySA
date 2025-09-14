@@ -1737,13 +1737,11 @@ def getPath(dbName):
         logging.info(f'Database {dbName} copied from {globalDir} to {personalDir}')
         return personalDir
 
-    # 3. if not, check if database file exists in the app directorey
-    if getattr(sys, 'frozen', False):
-        base_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(sys.executable)
-        bundled_db = os.path.join(base_path, dbName)
-        if os.path.isfile(bundled_db):
-            shutil.copy(bundled_db, personalDir)
-            logging.info(f'{dbName} copied from {bundled_db} to {personalDir}')
+    # 3. if not, check if database file exists in the app directory
+        file_path = app_dir(dbName)
+        if os.path.isfile(file_path):
+            shutil.copy(file_path, personalDir)
+            logging.info(f'{dbName} copied from {app_dir} to {personalDir}')
             return personalDir
 
     # 4. If not, then look in current working folder & where the python file is stored/linked from
@@ -1755,6 +1753,16 @@ def getPath(dbName):
             return personalDir
 
     raise FileNotFoundError("Unable to find the database {self.dbName}")
+
+
+def app_dir(filename):
+    # 'meipass' is used by pyinstaller to flag executable/file bundles
+    if getattr(sys, 'frozen', True):
+        base_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(__file__)
+        logging.info(f'base path = {base_path} {os.path.dirname(__file__)}')
+        bundled_file = os.path.join(base_path, filename)
+        if os.path.isfile(bundled_file):
+            return bundled_file
 
 
 def connect(dbFile, con, target):
@@ -2120,15 +2128,15 @@ tinySA = Analyser()
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
 app.setApplicationVersion(' v1.1.12')
-QtTSA = uic.loadUi("spectrum.ui")
+QtTSA = uic.loadUi(app_dir('spectrum.ui'))
 
-presetFreqs = CustomDialogue("bands.ui")
-settings = CustomDialogue("settings.ui")
-filebrowse = CustomDialogue("filebrowse.ui")
-phasenoise = CustomDialogue("phasenoise.ui")
-fading = CustomDialogue("fading.ui")
-pattern = CustomDialogue("pattern.ui")
-offset = CustomDialogue(("offset.ui"))
+presetFreqs = CustomDialogue(app_dir('bands.ui'))
+settings = CustomDialogue(app_dir('settings.ui'))
+filebrowse = CustomDialogue(app_dir('filebrowse.ui'))
+phasenoise = CustomDialogue(app_dir('phasenoise.ui'))
+fading = CustomDialogue(app_dir('fading.ui'))
+pattern = CustomDialogue(app_dir('pattern.ui'))
+offset = CustomDialogue(app_dir('offset.ui'))
 
 # Markers
 multiplot = pyqtgraph.GraphicsLayout()  # for plotting marker signal level over time
