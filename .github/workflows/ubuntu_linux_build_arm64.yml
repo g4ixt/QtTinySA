@@ -25,7 +25,9 @@ jobs:
     - name: Install Dependencies
       run: |
           sudo apt install -y qtbase5-dev python3-pyqt5 python3-pyqt5.sip python3-pyqtgraph python3-pyqt5.qtsql
+          python -m pip install --upgrade pip
           pip install -r src/requirements_arm64.txt
+          pip install pyinstaller
     
     # Build python script into a single executable
     - uses: Nuitka/Nuitka-Action@main

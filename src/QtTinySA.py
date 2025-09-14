@@ -1511,6 +1511,9 @@ class ModelView():
         if tinySA.usb is None:
             popUp(offset, 'TinySA not found', 'Ok', 'Critical')
             return
+        if tinySA.threadRunning:
+            popUp(offset, "Cannot read from tinySA whilst a scan is running", 'Ok', 'Info')
+            return
         self.unlimited()
         write_config = QMessageBox.StandardButton.Ok
         if self.tm.rowCount() > 0 and offset.save_box.isChecked():
