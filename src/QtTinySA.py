@@ -33,7 +33,7 @@ from platform import system
 
 try:
     from PyQt6 import QtWidgets, QtCore, uic
-    from PyQt6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit
+    from PyQt6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit, QTableWidgetItem
     from PyQt6.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
     from PyQt6.QtGui import QPixmap, QIcon
 except ModuleNotFoundError:
@@ -1331,19 +1331,33 @@ class Worker(QtCore.QRunnable):
         logging.info(f'{self.fn.__name__} thread stopped')
 
 
+class CustomTableModel(QSqlRelationalTableModel):
+    def __init__(self, parent=None, db=None, ro_columns=tuple()):
+        super().__init__(parent, db)
+        self.read_only = ro_columns
+
+    def flags(self, index):
+        if index.column() in self.read_only:
+            return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable
+        else:
+            return super().flags(index)
+
+
 class ModelView():
     '''set up and process data models bound to the GUI widgets'''
 
-    def __init__(self, tableName, dbName):
-        self.tableName = tableName
-        self.tm = QSqlRelationalTableModel(db=dbName)
-        self.dwm = QDataWidgetMapper()
+    def __init__(self, table_name, db_name, ro_columns):
         self.currentRow = 0
         self.ID = 0
         self.freq = 0
+        self.createTableModel(table_name, db_name, ro_columns)
 
-    def createTableModel(self):
-        self.tm.setTable(self.tableName)
+    def createTableModel(self, table_name, db_name, limit_edit):
+        self.tm = CustomTableModel(db=db_name, ro_columns=limit_edit)
+        self.tm.setTable(table_name)
+
+    def createMapper(self):
+        self.dwm = QDataWidgetMapper()
         self.dwm.setModel(self.tm)
         self.dwm.setSubmitPolicy(QDataWidgetMapper.SubmitPolicy.AutoSubmit)
 
@@ -1470,17 +1484,19 @@ class ModelView():
                           for columnNumber in range(1, 7)]
                 output.writerow(fields)
 
-    def exportData(self):
-        filename = QFileDialog.getSaveFileName(caption="Save As", filter="Comma Separated Values (*.csv)")
-        logging.info(f'export filename is {filename[0]}')
-        if filename[0] != '':
-            self.writeCSV(filename[0])
+    def exportData(self, filename=''):
+        if filename == '':
+            filename = QFileDialog.getSaveFileName(caption="Save As", filter="Comma Separated Values (*.csv)")[0]
+        logging.info(f'exporting data to {filename}')
+        if filename != '':
+            self.writeCSV(filename)
 
-    def importData(self):
-        filename = QFileDialog.getOpenFileName(caption="Select File to Import", filter="Comma Separated Values (*.csv)")
-        logging.info(f'import filename is {filename[0]}')
-        if filename[0] != '':
-            self.readCSV(filename[0])
+    def importData(self, filename=''):
+        if filename == '':
+            filename = QFileDialog.getOpenFileName(caption="Open File", filter="Comma Separated Values (*.csv)")[0]
+        logging.info(f'importing data from {filename}')
+        if filename != '':
+            self.readCSV(filename)
 
     def mapWidget(self, modelName):  # maps the widget combo-box fields to the database tables, using the mapping table
         maps.tm.setFilter('model = "' + modelName + '"')
@@ -1762,7 +1778,7 @@ def app_dir(filename):
     # 'meipass' is used by pyinstaller to flag executable/file bundles
     if getattr(sys, 'frozen', True):
         base_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(__file__)
-        logging.info(f'base path = {base_path} {os.path.dirname(__file__)}')
+        logging.debug(f'base path = {base_path} or {os.path.dirname(__file__)}')
         bundled_file = os.path.join(base_path, filename)
         if os.path.isfile(bundled_file):
             return bundled_file
@@ -1792,42 +1808,41 @@ def disconnect(db):
 
 def checkVersion(db, target, dbFile):
     existing = fetchVersion(db)
-    logging.info(f'database version is {existing}, expected {target}')
+    logging.info(f'Database version is {existing}, expected {target}')
     if existing != target:
         message = "This version of QtTinySA needs database version " + str(target) + ".\n\n" + \
                 "Database " + db.databaseName() + "\nversion " + str(existing) + \
-                " is incompatible.\n" + \
+                " may not be compatible.\n" + \
                 "\nClicking OK will replace it with version " + str(target) + \
-                " and will reset \n preferences to default."
+                " and will reset some settings."
         replace = popUp(QtTSA, message, 'OkC', 'Question')
         if replace == QMessageBox.StandardButton.Ok:
-            impex = ModelView('frequencies', db)
-            impex.createTableModel()
+            impex = ModelView('frequencies', db, ())
             impex.tm.select()
             impex.unlimited()
             personalDir = platformdirs.user_config_dir(appname=app.applicationName(), appauthor=False)
             fileName = personalDir + "/frequencies_" + str(target) + ".csv"
-            logging.info(f'writing {fileName}')
-            impex.writeCSV(fileName)
-            logging.info(f'Renaming file {db.databaseName()} to {db.databaseName()} + "." + {str(existing)}')
+            impex.exportData(fileName)
+            logging.info(f'Renaming file {db.databaseName()} to {db.databaseName()}.{str(existing)}')
             disconnect(db)
             os.rename(db.databaseName(), db.databaseName() + '.' + str(existing))
 
             getPath(dbFile)  # this ought to return the same path as when it was run earlier in connect()
             db.open()  # the database connection has not changed, only the file, so can re-open it with the new file
             found = fetchVersion(db)
-            logging.info(f'found new database version {found}')
-            if found == target:
-                message = "Restore your previous frequency and markers to the updated database?"
-                restore = popUp(QtTSA, message, 'OkC', 'Question')
-                if restore == QMessageBox.StandardButton.Ok:
-                    impex.tm.select()
-                    impex.unlimited()
-                    impex.deleteRow(False)
-                    logging.info('deleting records from default database frequencies table')
-                    impex.tm.submit()
-                    logging.info(f'importing {fileName} to frequencies table in new personal database')
-                    impex.readCSV(fileName)
+            logging.info(f'Found new database version {found}')
+            if found != target:
+                message = "Found new database version " + str(found) + "\nbut expected version " + str(target)
+                restore = popUp(QtTSA, message, 'Ok', 'Info')
+            message = "Restore your previous preset frequencies to the new database?"
+            restore = popUp(QtTSA, message, 'OkC', 'Question')
+            if restore == QMessageBox.StandardButton.Ok:
+                impex.tm.select()
+                impex.unlimited()
+                impex.deleteRow(False)
+                logging.info(f'Deleting records from frequencies table of database version {found}')
+                impex.tm.submit()
+                impex.importData(fileName)
 
 
 def fetchVersion(db):
@@ -2087,8 +2102,8 @@ def connectPassive():
 
     presetFreqs.ui.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
 
-    presetFreqs.exportPs.pressed.connect(bands.exportData)
-    presetFreqs.importPs.pressed.connect(bands.importData)
+    presetFreqs.exportPs.pressed.connect(lambda: bands.exportData(''))
+    presetFreqs.importPs.pressed.connect(lambda: bands.importData(''))
     settings.deviceBox.activated.connect(testComPort)
 
     QtTSA.filterBox.currentTextChanged.connect(lambda: bandselect.filterType(False, QtTSA.filterBox.currentText()))
@@ -2118,8 +2133,8 @@ def connectPassive():
     pattern.measure.clicked.connect(startPolarPlot)
 
     # correction
-    offset.export_button.clicked.connect(correction.exportData)
-    offset.import_button.clicked.connect(correction.importData)
+    offset.export_button.clicked.connect(lambda: correction.exportData(''))
+    offset.import_button.clicked.connect(lambda: correction.importData(''))
 
 
 ###############################################################################
@@ -2130,7 +2145,7 @@ tinySA = Analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.1.12')
+app.setApplicationVersion(' v1.1.14')
 QtTSA = uic.loadUi(app_dir('spectrum.ui'))
 
 presetFreqs = CustomDialogue(app_dir('bands.ui'))
@@ -2172,24 +2187,6 @@ lowF.create(True, '|>', 0.01)
 highF.create(True, '<|', 0.01)
 reference.create(True, '<|>', 0.99)
 
-# Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 120)  # third parameter is the database version
-
-checkboxes = ModelView('checkboxes', config)
-numbers = ModelView('numbers', config)
-tracetext = ModelView('combo', config)
-markertext = ModelView('combo', config)
-rbwtext = ModelView('combo', config)
-bandstype = ModelView('freqtype', config)
-colours = ModelView('SVGColour', config)
-maps = ModelView('mapping', config)
-bands = ModelView('frequencies', config)
-presetmarker = ModelView('frequencies', config)
-bandselect = ModelView('frequencies', config)
-tracecolours = ModelView('trace', config)
-correctiontext = ModelView('combo', config)
-correction = ModelView('correction', config)
-settingstext = ModelView('settings', config)
 
 # Database and models for recording and playback (can't get multiple databases to work)
 # saveData = connect("QtTSArecording.db", "measurements")
@@ -2234,17 +2231,17 @@ createPolarGrid(4, 40)
 # set up the application
 logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 
-# table models - read/write views of the configuration data
+# Database and models for configuration settings
+config = connect("QtTSAprefs.db", "settings", 120)  # third parameter is the database version
 
 # field mapping of the checkboxes and numbers database tables, for storing startup configuration
-maps.createTableModel()
+maps = ModelView('mapping', config, ())
 maps.tm.select()
 
 # populate the preset frequencies relational table in the presetFreqs window
-bands.createTableModel()
+bands = ModelView('frequencies', config, ())
 bands.tm.setSort(3, QtCore.Qt.SortOrder.AscendingOrder)
 bands.tm.setHeaderData(5, QtCore.Qt.Orientation.Horizontal, "visible")
-bands.tm.setHeaderData(7, QtCore.Qt.Orientation.Horizontal, "LO")
 bands.tm.setEditStrategy(QSqlRelationalTableModel.EditStrategy.OnRowChange)
 bands.tm.setRelation(2, QSqlRelation("freqtype", "ID", "preset"))  # set "type" column to a freq type choice combo box
 bands.tm.setRelation(5, QSqlRelation("boolean", "ID", "value"))  # set "view" column to a True/False choice combo box
@@ -2256,33 +2253,32 @@ colHeader.setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.ResizeToContents
 bands.tm.select()
 
 # populate the preset Types table in the preset frequencies window
-bandstype.createTableModel()
+bandstype = ModelView('freqtype', config, ())
 bandstype.tm.select()
 presetFreqs.typeTable.setModel(bandstype.tm)
 presetFreqs.typeTable.hideColumn(0)  # hide primary key so user can't change it
 
 # populate the correction values table in the correction window
-correction.createTableModel()
+correction = ModelView('correction', config, (0, 1, 2, 3))
 c_header = offset.c_table.horizontalHeader()
 c_header.setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
 correction.tm.select()
 offset.c_table.setModel(correction.tm)
 offset.c_table.hideColumn(0)
-offset.c_table.hideColumn(2)
 
 # to lookup the preset bands and markers colours because can't get the relationships to work
-colours.createTableModel()
+colours = ModelView('SVGColour', config, ())
 colours.tm.select()
 
 # for the main screen preset markers, which need different filtering to the preset frequencies window
-presetmarker.createTableModel()
+presetmarker = ModelView('frequencies', config, ())
 presetmarker.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))
 presetmarker.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))
 presetmarker.tm.setSort(3, QtCore.Qt.SortOrder.AscendingOrder)
 presetmarker.tm.select()
 
 # populate the ui band selection combo box; needs different filter to the main and preset frequencies window
-bandselect.createTableModel()
+bandselect = ModelView('frequencies', config, ())
 bandselect.tm.setRelation(2, QSqlRelation('freqtype', 'ID', 'preset'))
 bandselect.tm.setRelation(5, QSqlRelation('boolean', 'ID', 'value'))
 bandselect.tm.setRelation(6, QSqlRelation('SVGColour', 'ID', 'colour'))
@@ -2300,7 +2296,7 @@ presetFreqs.freqTable.setModel(bands.tm)
 presetFreqs.freqTable.hideColumn(0)  # ID
 
 # connect the settings window trace colours widget to the data model
-tracecolours.createTableModel()
+tracecolours = ModelView('trace', config, (0, 1))
 tracecolours.tm.setRelation(2, QSqlRelation('SVGColour', 'ID', 'colour'))
 tracecolours.tm.setEditStrategy(QSqlRelationalTableModel.EditStrategy.OnFieldChange)
 tracesettings = QSqlRelationalDelegate(settings.colourTable)
@@ -2312,8 +2308,11 @@ settings.colourTable.hideColumn(0)  # ID
 settings.colourTable.verticalHeader().setVisible(True)
 tracecolours.tm.select()
 
+settingstext = ModelView('settings', config, ())
+
 # Map data tables to presets/settings/GUI fields *lines need to be in this order and here or the mapping doesn't work*
-checkboxes.createTableModel()
+checkboxes = ModelView('checkboxes', config, ())
+checkboxes.createMapper()
 checkboxes.mapWidget('checkboxes')  # uses mapping table from database
 checkboxes.tm.select()
 checkboxes.dwm.setCurrentIndex(0)  # 0 = (last used) default settings
@@ -2322,13 +2321,13 @@ checkboxes.dwm.setCurrentIndex(0)  # 0 = (last used) default settings
 QtTSA.spur_box.addItems(['off', 'on', 'auto'])
 
 # populate the rbw combobox
-rbwtext.createTableModel()
+rbwtext = ModelView('combo', config, ())
 rbwtext.tm.setFilter('type = "rbw"')
 QtTSA.rbw_box.setModel(rbwtext.tm)
 rbwtext.tm.select()
 
 # populate the trace comboboxes
-tracetext.createTableModel()
+tracetext = ModelView('combo', config, ())
 tracetext.tm.setFilter('type = "trace"')
 QtTSA.t1_type.setModel(tracetext.tm)
 QtTSA.t2_type.setModel(tracetext.tm)
@@ -2337,7 +2336,7 @@ QtTSA.t4_type.setModel(tracetext.tm)
 tracetext.tm.select()
 
 # populate the marker comboboxes
-markertext.createTableModel()
+markertext = ModelView('combo', config, ())
 markertext.tm.setFilter('type = "marker"')
 QtTSA.m1_type.setModel(markertext.tm)
 QtTSA.m2_type.setModel(markertext.tm)
@@ -2346,14 +2345,14 @@ QtTSA.m4_type.setModel(markertext.tm)
 markertext.tm.select()
 
 # populate the correction comboboxes
-correctiontext.createTableModel()
+correctiontext = ModelView('combo', config, ())
 correctiontext.tm.setFilter('type = "correction"')
 offset.correction_mode.setModel(correctiontext.tm)
 correctiontext.tm.select()
 
-
 # The models for saving number, marker and trace settings
-numbers.createTableModel()
+numbers = ModelView('numbers', config, ())
+numbers.createMapper()
 numbers.mapWidget('numbers')  # uses mapping table from database
 numbers.tm.select()
 numbers.dwm.setCurrentIndex(0)

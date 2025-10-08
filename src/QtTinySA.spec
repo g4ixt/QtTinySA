@@ -12,7 +12,7 @@ common = {
     'hookspath': [],
     'hooksconfig': {},
     'runtime_hooks': [],
-    'excludes': ['pandas', 'setuptools', 'tk', 'wheel', 'zipp', 'pyyaml', 'packaging', 'altgraph', 'mkl', 'fortran', 'matlab'],
+    'excludes': ['tkinter', 'pandas', 'setuptools', 'tk', 'wheel', 'zipp', 'pyyaml', 'packaging', 'altgraph', 'mkl', 'fortran', 'matlab'],
     'win_no_prefer_redirects': False,
     'win_private_assemblies': False,
     'cipher': block_cipher,
