@@ -193,9 +193,9 @@ class Analyser:
         M4.setup('yellow')
 
         # set various defaults
-        QtTSA.waterfallSize.setValue(QtTSA.waterfallSize.value())  # sets the height of the waterfall widget
         setPreferences()
         bandselect.filterType(False, QtTSA.filterBox.currentText())  # setting the filter overwrites the band
+        setWaterfall()
 
         # now connect GUI controls that would interfere with restoration of data at startup
         connectActive()
@@ -555,19 +555,18 @@ class Analyser:
         self.histogram = pyqtgraph.HistogramLUTItem(gradientPosition='right', orientation='vertical')
         self.histogram.setImageItem(self.waterfall)  # connects the histogram to the waterfall
         self.histogram.gradient.loadPreset('plasma')  # set the colour map
-
-        self.histogram.autoHistogramRange()
         self.waterfall.setLevels((-100, -25))  # needs to be here, after histogram is created
         QtTSA.histogram.addItem(self.histogram)
 
-    def updateWaterfall(self, readings):
-        QtTSA.waterfall.setXRange(np.size(readings, axis=1), 0)
-        self.waterfall.setImage(readings, autoLevels=False)
+    def updateWaterfall(self, frequencies, readings):
+        if QtTSA.waterfall_on.isChecked():
+            QtTSA.waterfall.setXRange(0, np.size(readings, axis=1))
+            self.waterfall.setImage(readings, autoLevels=QtTSA.waterfall_auto.isChecked())
 
     def resetGUI(self, frequencies, readings):
         self.waterfall.clear()
-        self.histogram.close()
-        self.createWaterfall(frequencies, readings)
+        # self.histogram.close()
+        # self.createWaterfall(frequencies, readings)
         self.createTimeSpectrum(frequencies, readings)
 
     def sweepComplete(self, frequencies):
@@ -619,8 +618,8 @@ class Analyser:
         T3.update(frequencies, options.get(T3.traceType))
         T4.update(frequencies, options.get(T4.traceType))
 
-        if QtTSA.waterfallSize.value() != 0:
-            self.updateWaterfall(readings)
+        # self.updateWaterfall(readings)
+        self.updateWaterfall(frequencies, readings)
 
         # update 3D graph if enabled
         if QtTSA.stackedWidget.currentWidget() == QtTSA.View3D:
@@ -982,7 +981,7 @@ class Marker:
         self.deltaRelative = True
         self.deltaline.sigClicked.connect(self.deltaClicked)
         self.line.sigClicked.connect(self.lineClicked)
-        self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(-0.7, -box))  # box is vertical posn
+        self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(-0.7, -box), fill='k')  # box is vertical posn
         self.markerBox.setParentItem(QtTSA.graphWidget.plotItem)
         self.fifo = queue.SimpleQueue()
         self.dBm = -140
@@ -1338,7 +1337,7 @@ class CustomTableModel(QSqlRelationalTableModel):
 
     def flags(self, index):
         if index.column() in self.read_only:
-            return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable
+            return QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable
         else:
             return super().flags(index)
 
@@ -1939,7 +1938,12 @@ def isMixerMode():
 
 
 def setWaterfall():
-    QtTSA.waterfall.setMaximumSize(QtCore.QSize(16777215, QtTSA.waterfallSize.value()))
+    if QtTSA.waterfall_on.isChecked():
+        QtTSA.waterfall.show()
+        QtTSA.histogram.show()
+    else:
+        QtTSA.waterfall.hide()
+        QtTSA.histogram.hide()
 
 
 def createPolarGrid(rings, radius):
@@ -2115,7 +2119,7 @@ def connectPassive():
     QtTSA.actionAbout_QtTinySA.triggered.connect(about)
 
     # Waterfall
-    QtTSA.waterfallSize.valueChanged.connect(setWaterfall)
+    QtTSA.waterfall_on.stateChanged.connect(setWaterfall)
 
     # Measurement menu
     QtTSA.actionPhNoise.triggered.connect(phasenoise.ui.show)
@@ -2145,7 +2149,7 @@ tinySA = Analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.1.14')
+app.setApplicationVersion(' v1.1.15')
 QtTSA = uic.loadUi(app_dir('spectrum.ui'))
 
 presetFreqs = CustomDialogue(app_dir('bands.ui'))
@@ -2160,9 +2164,9 @@ offset = CustomDialogue(app_dir('offset.ui'))
 multiplot = pyqtgraph.GraphicsLayout()  # for plotting marker signal level over time
 fading.grView.setCentralItem(multiplot)
 M1 = Marker('1', 0.1)
-M2 = Marker('2', 0.6)
-M3 = Marker('3', 1.1)
-M4 = Marker('4', 1.7)
+M2 = Marker('2', 0.9)
+M3 = Marker('3', 1.7)
+M4 = Marker('4', 2.5)
 
 # Traces
 T1 = Trace('1')
@@ -2202,15 +2206,16 @@ reference.create(True, '<|>', 0.99)
 
 # pyqtgraph settings for spectrum display
 QtTSA.graphWidget.setYRange(-112, -20)
-QtTSA.graphWidget.setDefaultPadding(padding=0)
+QtTSA.graphWidget.setDefaultPadding(padding=0.005)
 QtTSA.graphWidget.showGrid(x=True, y=True)
 QtTSA.graphWidget.setLabel('bottom', '', units='Hz')
 
 # pyqtgraph settings for waterfall and histogram display
-QtTSA.waterfall.setDefaultPadding(padding=0)
+QtTSA.waterfall.setDefaultPadding(padding=0.005)
 QtTSA.waterfall.getPlotItem().hideAxis('bottom')
-QtTSA.waterfall.setLabel('left', ' ', **{'color': '#FFF', 'font-size': '3pt'})
+QtTSA.waterfall.setLabel('left', '.', **{'color': '#FFF', 'font-size': '2pt'})
 QtTSA.waterfall.invertY(True)
+
 QtTSA.histogram.setDefaultPadding(padding=0)
 QtTSA.histogram.plotItem.invertY(True)
 QtTSA.histogram.getPlotItem().hideAxis('bottom')
@@ -2232,7 +2237,7 @@ createPolarGrid(4, 40)
 logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 120)  # third parameter is the database version
+config = connect("QtTSAprefs.db", "settings", 121)  # third parameter is the database version
 
 # field mapping of the checkboxes and numbers database tables, for storing startup configuration
 maps = ModelView('mapping', config, ())
@@ -2319,6 +2324,7 @@ checkboxes.dwm.setCurrentIndex(0)  # 0 = (last used) default settings
 
 # populate the spur combo box
 QtTSA.spur_box.addItems(['off', 'on', 'auto'])
+QtTSA.spur_box.setCurrentIndex(2)
 
 # populate the rbw combobox
 rbwtext = ModelView('combo', config, ())
