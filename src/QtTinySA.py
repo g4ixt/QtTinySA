@@ -14,7 +14,7 @@
 # nuitka-project-else:
 #    nuitka-project: --mode=standalone
 
-"""TinySA Ultra GUI programme using Qt5 and PyQt.
+"""TinySA GUI programme using Qt, PyQt and PyQtGraph.
 
 This code attempts to replicate some of the TinySA Ultra on-screen commands and to provide PC control.
 Development took place on Kubuntu 24.04LTS with Python 3.11 and PyQt6 using Spyder in Anaconda.
@@ -1570,6 +1570,7 @@ class ModelView():
             popUp(offset, "Cannot update tinySA whilst a scan is running", 'Ok', 'Info')
             return
         self.unlimited()
+        offset.progress.setValue(0)
         update_failed = False
         for i in range(self.tm.rowCount()):
             record = self.tm.record(i)
@@ -1584,8 +1585,11 @@ class ModelView():
                 # the error trapping on the tinySA is not comprehensive so this may not work for all scenarios
                 update_failed = True
                 logging.info(f'Update failure: {command}')
+            else:
+                offset.progress.setValue(100 * int(i / (self.tm.rowCount() - 1)))
         if update_failed:
             popUp(offset, "One or more of the updates failed.", 'Ok', 'Critical')
+
 
 ###############################################################################
 # respond to GUI signals
@@ -1978,6 +1982,11 @@ def startPolarPlot():
     M4.setPolarPlot()
 
 
+def correction_window():
+    offset.progress.setValue(0)
+    offset.ui.show()
+
+
 def connectActive():
     '''Connect signals from controls that send messages to tinySA or use trace data.  Called by setGUI().'''
 
@@ -2113,7 +2122,7 @@ def connectPassive():
     QtTSA.filterBox.currentTextChanged.connect(lambda: bandselect.filterType(False, QtTSA.filterBox.currentText()))
     QtTSA.actionPresets.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
     QtTSA.actionSettings.triggered.connect(settings.ui.show)
-    QtTSA.actionCorrection.triggered.connect(offset.ui.show)
+    QtTSA.actionCorrection.triggered.connect(correction_window)
 
     # preferences
     QtTSA.actionAbout_QtTinySA.triggered.connect(about)
@@ -2149,7 +2158,7 @@ tinySA = Analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.1.15')
+app.setApplicationVersion(' v1.2.0')
 QtTSA = uic.loadUi(app_dir('spectrum.ui'))
 
 presetFreqs = CustomDialogue(app_dir('bands.ui'))
