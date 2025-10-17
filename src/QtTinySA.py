@@ -1,3 +1,11 @@
+
+
+
+
+
+
+
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
@@ -18,7 +26,6 @@
 
 This code attempts to replicate some of the TinySA Ultra on-screen commands and to provide PC control.
 Development took place on Kubuntu 24.04LTS with Python 3.11 and PyQt6 using Spyder in Anaconda.
-
 TinySA, TinySA Ultra and the tinysa icon are trademarks of Erik Kaashoek and are used with permission.
 TinySA commands are based on Erik's Python examples: http://athome.kaashoek.com/tinySA/python/
 Serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset: https://github.com/Ho-Ro"""
@@ -122,7 +129,7 @@ class Analyser:
         if len(self.ports) > 1:  # several devices found
             settings.deviceBox.insertItem(0, "Select device")
             settings.deviceBox.setCurrentIndex(0)
-            popUp(QtTSA, "Several devices detected.  Choose device in Settings > Preferences", 'OK', 'Info')
+            popUp(QtTSA, "Several devices detected.  Choose device in Settings > Preferences", 'Ok', 'Info')
             usbCheck.stop()
 
     def testPort(self, port):  # tests comms and initialises tinySA if found
@@ -131,7 +138,7 @@ class Analyser:
             logging.info(f'Serial port {port.device} open: {self.usb.isOpen()}')
         except serial.SerialException:
             logging.info('Serial port exception. A possible cause is that your username is not in the "dialout" group.')
-            popUp(QtTSA, 'Serial port exception', 'OK', 'Critical')
+            popUp(QtTSA, 'Serial port exception', 'Ok', 'Critical')
         if self.usb:
             for i in range(4):  # try 4 times to communicate with tinySA over USB serial
                 firmware = self.version()
@@ -1976,10 +1983,13 @@ def createPolarGrid(rings, radius):
 
 
 def startPolarPlot():
-    M1.setPolarPlot()
-    M2.setPolarPlot()
-    M3.setPolarPlot()
-    M4.setPolarPlot()
+    if not fading.ui.isVisible():
+        popUp(QtTSA, 'Measurement requires Signal Level Monitor window to be open', 'Ok', 'Critical')
+    else:
+        M1.setPolarPlot()
+        M2.setPolarPlot()
+        M3.setPolarPlot()
+        M4.setPolarPlot()
 
 
 def correction_window():
