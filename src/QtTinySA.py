@@ -1,11 +1,3 @@
-
-
-
-
-
-
-
-
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
@@ -202,7 +194,7 @@ class Analyser:
         # set various defaults
         setPreferences()
         bandselect.filterType(False, QtTSA.filterBox.currentText())  # setting the filter overwrites the band
-        setWaterfall()
+        setSize()
 
         # now connect GUI controls that would interfere with restoration of data at startup
         connectActive()
@@ -553,7 +545,6 @@ class Analyser:
 
     def createWaterfall(self, frequencies, readings):
         self.waterfall = pyqtgraph.ImageItem(axisOrder='row-major')
-        self.waterfall.setAutoDownsample(True)
         QtTSA.waterfall.addItem(self.waterfall)
         QtTSA.waterfall.setYRange(0, QtTSA.memBox.value())
         # QtTSA.waterfall.setXLink(QtTSA.graphWidget)
@@ -566,14 +557,12 @@ class Analyser:
         QtTSA.histogram.addItem(self.histogram)
 
     def updateWaterfall(self, frequencies, readings):
-        if QtTSA.waterfall_on.isChecked():
+        if QtTSA.waterfall_size.value() > 0:
             QtTSA.waterfall.setXRange(0, np.size(readings, axis=1))
             self.waterfall.setImage(readings, autoLevels=QtTSA.waterfall_auto.isChecked())
 
     def resetGUI(self, frequencies, readings):
         self.waterfall.clear()
-        # self.histogram.close()
-        # self.createWaterfall(frequencies, readings)
         self.createTimeSpectrum(frequencies, readings)
 
     def sweepComplete(self, frequencies):
@@ -625,7 +614,6 @@ class Analyser:
         T3.update(frequencies, options.get(T3.traceType))
         T4.update(frequencies, options.get(T4.traceType))
 
-        # self.updateWaterfall(readings)
         self.updateWaterfall(frequencies, readings)
 
         # update 3D graph if enabled
@@ -1948,13 +1936,8 @@ def isMixerMode():
         QtTSA.stop_freq.setMaximum(100000)
 
 
-def setWaterfall():
-    if QtTSA.waterfall_on.isChecked():
-        QtTSA.waterfall.show()
-        QtTSA.histogram.show()
-    else:
-        QtTSA.waterfall.hide()
-        QtTSA.histogram.hide()
+def setSize():
+    QtTSA.waterfall.setMaximumSize(QtCore.QSize(16777215, QtTSA.waterfall_size.value()))
 
 
 def createPolarGrid(rings, radius):
@@ -2138,7 +2121,7 @@ def connectPassive():
     QtTSA.actionAbout_QtTinySA.triggered.connect(about)
 
     # Waterfall
-    QtTSA.waterfall_on.stateChanged.connect(setWaterfall)
+    QtTSA.waterfall_size.valueChanged.connect(setSize)
 
     # Measurement menu
     QtTSA.actionPhNoise.triggered.connect(phasenoise.ui.show)
@@ -2168,9 +2151,9 @@ tinySA = Analyser()
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.2.0')
-QtTSA = uic.loadUi(app_dir('spectrum.ui'))
+app.setApplicationVersion(' v1.2.2')
 
+QtTSA = uic.loadUi(app_dir('spectrum.ui'))
 presetFreqs = CustomDialogue(app_dir('bands.ui'))
 settings = CustomDialogue(app_dir('settings.ui'))
 filebrowse = CustomDialogue(app_dir('filebrowse.ui'))
@@ -2256,7 +2239,7 @@ createPolarGrid(4, 40)
 logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 121)  # third parameter is the database version
+config = connect("QtTSAprefs.db", "settings", 122)  # third parameter is the database version
 
 # field mapping of the checkboxes and numbers database tables, for storing startup configuration
 maps = ModelView('mapping', config, ())
