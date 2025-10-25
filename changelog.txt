@@ -1,3 +1,55 @@
+v1.2.0
+
+enhancements
+
+    Antenna pattern manual measurement feature added
+    Signal Level Monitor measurement feature added
+    Correction tables feature added
+    Added user-selectable trace colours to preferences/settings
+    Added feature to allow user to create/modify preset types
+
+    Made GUI controls work when tinySA is not connected
+    Code changes for PyQt6 with PyQt5 backwards compatibility
+    LNB Mode now uses config database and new user-preset types
+
+    Changed waterfall size slider to a show/hide checkbox (unable to fix errors caused by size adjustment) and added auto-range checkbox
+    Filled marker on-screen text values background with black
+    Set spur combobox default to auto
+    Removed some repetitive code into the ModelView class
+    Tweaks to dialogue and logging text
+    Sub-window updates to make layout of buttons more consistent
+    PopUp message function improved
+    Linting changes
+    Some functions merged into modelview class
+    Change to using uic.loadUi instead of needing to create .py files with pyuic
+    Improvements to view updates of tables
+    * database structure changes *
+    Only off-screen markers are set in window if ^ button is pressed
+    Frequency precision and units added to fading graphs
+    Turning a marker off hides its fading graph
+    improved GUI initialisation
+
+fixes
+
+    fixed waterfall index errors by removing resize slider and replacing it with a checkbox to show/hide
+    fix issue #113
+    fix issue #111
+    fix issue #112
+    Enhancement #103
+    ui bugfix
+    nuitka-project pyqt6 bugfix
+    fixed auto-update config database
+    fixed add row / delete row in preset marker settings
+    fixed marker dragging displayed freq
+    separated settings and fixed bands/markers screens
+    fix shape factor for Phase Noise calculation
+    fix database update
+    Fixed bug when clicking browse tinySA and is not connected
+
+
+v1.1.0
+?
+
 v0.11.9
 
 Bugfixes
