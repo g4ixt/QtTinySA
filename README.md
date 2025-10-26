@@ -1,5 +1,5 @@
 # QtTinySA  
-<img width="1045" height="824" alt="image" src="https://github.com/user-attachments/assets/57118eb1-1673-413f-9f6a-e5e41331c1fa" />
+<img width="1063" height="831" alt="image" src="https://github.com/user-attachments/assets/809dcdf3-7ac3-430b-9dce-1b4f9c9354e8" />
   
 A Python 'TinySA Ultra' (and original 'TinySA') GUI programme using Qt5 and PyQt5. Designed to run in Linux but also works in mac (no testing)
 and Windows.
