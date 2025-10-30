@@ -214,7 +214,7 @@
        </font>
       </property>
       <property name="text">
-       <string>Colours</string>
+       <string>GUI</string>
       </property>
      </widget>
     </item>
@@ -474,7 +474,7 @@
     <item row="11" column="0" colspan="2">
      <widget class="QLabel" name="label_12">
       <property name="text">
-       <string>Colour changes take effect when QtTinySA is re-started</string>
+       <string>Changes take effect when QtTinySA is re-started</string>
       </property>
      </widget>
     </item>
@@ -521,17 +521,17 @@
       </property>
      </widget>
     </item>
-    <item row="9" column="4">
-     <widget class="QCheckBox" name="bold_text">
-      <property name="text">
-       <string/>
-      </property>
-     </widget>
-    </item>
-    <item row="9" column="3">
+    <item row="9" column="0">
      <widget class="QLabel" name="label_16">
       <property name="text">
        <string>Set all text to Bold</string>
+      </property>
+     </widget>
+    </item>
+    <item row="9" column="1">
+     <widget class="QCheckBox" name="bold_text">
+      <property name="text">
+       <string/>
       </property>
      </widget>
     </item>
