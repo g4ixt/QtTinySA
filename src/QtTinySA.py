@@ -2381,6 +2381,8 @@ usbCheck.start(500)  # check again every 500mS
 
 ###############################################################################
 # run the application until the user closes it
+if settings.bold_text.isChecked():
+    app.setStyleSheet("QWidget { font-weight: bold; }")  # enhancement issue 118
 
 try:
     app.exec()
