@@ -193,6 +193,7 @@ class Analyser:
 
         # set various defaults
         setPreferences()
+        applyMarkerCount()  # Apply marker count setting
         bandselect.filterType(False, QtTSA.filterBox.currentText())  # setting the filter overwrites the band
         setSize()
 
@@ -2077,6 +2078,9 @@ def connectPassive():
     QtTSA.m3_type.activated.connect(M3.mType)
     QtTSA.m4_type.activated.connect(M4.mType)
 
+    # marker count configuration
+    settings.markerCount.valueChanged.connect(applyMarkerCount)
+
     # frequency band and fixed markers
     QtTSA.presetMarker.clicked.connect(freqMarkers)
     QtTSA.presetLabel.clicked.connect(freqMarkerLabel)
@@ -2169,6 +2173,24 @@ M1 = Marker('1', 0.1)
 M2 = Marker('2', 0.9)
 M3 = Marker('3', 1.7)
 M4 = Marker('4', 2.5)
+
+# List of all markers for dynamic configuration
+ALL_MARKERS = [M1, M2, M3, M4]
+
+def applyMarkerCount():
+    """Apply marker count setting by showing/hiding marker widgets"""
+    marker_count = settings.markerCount.value()
+    marker_widgets = [
+        (QtTSA.m1_type, QtTSA.m1track, QtTSA.m1trace),
+        (QtTSA.m2_type, QtTSA.m2track, QtTSA.m2trace),
+        (QtTSA.m3_type, QtTSA.m3track, QtTSA.m3trace),
+        (QtTSA.m4_type, QtTSA.m4track, QtTSA.m4trace)
+    ]
+
+    for i, widgets in enumerate(marker_widgets):
+        visible = i < marker_count
+        for widget in widgets:
+            widget.setVisible(visible)
 
 # Traces
 T1 = Trace('1')
