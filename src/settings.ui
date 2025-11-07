@@ -101,6 +101,41 @@
       </property>
      </widget>
     </item>
+    <item row="8" column="3">
+     <widget class="QLabel" name="label_23">
+      <property name="text">
+       <string>Auto-marker peak separation</string>
+      </property>
+     </widget>
+    </item>
+    <item row="8" column="4">
+     <widget class="QSpinBox" name="peakSeparation">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>100</width>
+        <height>16777215</height>
+       </size>
+      </property>
+      <property name="toolTip">
+       <string>Minimum separation between auto-detected peaks as multiple of RBW (1-10)</string>
+      </property>
+      <property name="minimum">
+       <number>1</number>
+      </property>
+      <property name="maximum">
+       <number>10</number>
+      </property>
+      <property name="value">
+       <number>2</number>
+      </property>
+     </widget>
+    </item>
     <item row="9" column="0">
      <widget class="QLabel" name="label_5">
       <property name="font">

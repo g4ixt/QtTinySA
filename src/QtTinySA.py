@@ -1665,6 +1665,72 @@ def markerToCentre():
     M4.spread()
 
 
+def autoMarkersToPeaks():
+    """Automatically place markers on the highest peaks in the current trace"""
+    # Get the number of active markers
+    marker_count = settings.markerCount.value()
+    markers = [M1, M2, M3, M4][:marker_count]
+
+    if not markers:
+        return
+
+    # Get the primary marker's linked trace for peak detection
+    primary_marker = markers[0]
+    linked_trace = primary_marker.linked
+
+    # Get current frequencies and levels from the linked trace
+    frequencies = linked_trace.freq
+    levels = linked_trace.level
+
+    if frequencies is None or levels is None or len(frequencies) == 0:
+        logging.warning("No trace data available for auto-marker placement")
+        return
+
+    # Calculate the mask frequency for peak separation
+    primary_marker.calcMaskFreq(frequencies)
+
+    # Apply user-configured peak separation multiplier
+    peak_separation = settings.peakSeparation.value()
+    mask_freq = primary_marker.maskFreq * peak_separation
+
+    # Copy levels for masking operations
+    masked_levels = np.copy(levels)
+
+    # Mask outside high/low freq boundary lines
+    masked_levels = np.ma.masked_where(frequencies > highF.line.value(), masked_levels)
+    masked_levels = np.ma.masked_where(frequencies < lowF.line.value(), masked_levels)
+
+    # Mask readings below threshold line
+    masked_levels = np.ma.masked_where(masked_levels <= threshold.line.value(), masked_levels)
+
+    # Find the top N peaks
+    peak_indices = []
+    working_levels = masked_levels
+
+    for i in range(marker_count):
+        if np.ma.count(working_levels) == 0:
+            # No more valid peaks
+            break
+
+        # Find the highest peak
+        peak_idx = np.argmax(working_levels)
+        peak_indices.append(peak_idx)
+
+        # Mask frequencies around this peak to find the next distinct peak
+        working_levels = np.ma.masked_where(
+            np.abs(frequencies - frequencies[peak_idx]) < mask_freq,
+            working_levels
+        )
+
+    # Set markers to the found peaks
+    for i, peak_idx in enumerate(peak_indices):
+        if i < len(markers):
+            markers[i].line.setValue(frequencies[peak_idx])
+            logging.info(f"Marker {i+1} set to peak at {frequencies[peak_idx]/1e6:.6f} MHz ({levels[peak_idx]:.1f} dBm)")
+
+    logging.info(f"Auto-markers placed {len(peak_indices)} markers on peaks")
+
+
 def centreToMarker():
     centreF = M1.line.value() * 1e-6
     QtTSA.centre_freq.setValue(centreF)
@@ -2059,6 +2125,7 @@ def connectPassive():
     # marker setting within span range
     QtTSA.mkr_start.clicked.connect(markerToStart)
     QtTSA.mkr_centre.clicked.connect(markerToCentre)
+    QtTSA.mkr_auto.clicked.connect(autoMarkersToPeaks)
 
     # marker tracking level
     QtTSA.m1track.valueChanged.connect(lambda: M1.setLevel(QtTSA.m1track.value()))
