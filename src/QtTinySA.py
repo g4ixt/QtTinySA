@@ -28,6 +28,7 @@ import time
 import logging
 import struct
 import serial
+
 from platform import system
 
 try:
@@ -2315,7 +2316,7 @@ settings.colourTable.hideColumn(0)  # ID
 settings.colourTable.verticalHeader().setVisible(True)
 tracecolours.tm.select()
 
-settingstext = ModelView('settings', config, ())
+# settingstext = ModelView('settings', config, ())
 
 # Map data tables to presets/settings/GUI fields *lines need to be in this order and here or the mapping doesn't work*
 checkboxes = ModelView('checkboxes', config, ())
