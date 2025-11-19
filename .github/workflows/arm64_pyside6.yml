@@ -1,0 +1,47 @@
+name: Ubuntu Linux Build for arm64
+
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'ubuntu arm64'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    steps:
+    # Check-out repository
+    - uses: actions/checkout@v4
+    
+    # Setup Python
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.13' # Version range or exact version of a Python version to use, using SemVer's version range syntax
+        architecture: 'arm64'
+        cache: 'pip'
+        cache-dependency-path: |
+            **/requirements*.txt
+
+    - name: Install Dependencies
+      run: |
+          sudo apt update
+          sudo apt install -y qtbase5-dev python3-pyqtgraph python3-pyside6.qtsql
+          python -m pip install --upgrade pip
+          pip install -r src/requirements_arm64.txt
+          pip install pyinstaller
+    
+    # Build python script into a single executable
+    - uses: Nuitka/Nuitka-Action@main
+      with:
+        nuitka-version: main
+        script-name: QtTinySA.py
+        working-directory: ./src
+        mode: app
+
+    # Uploads artifact
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: QtTinySA_arm64.bin
+        path: ~/work/QtTinySA/QtTinySA/src/build
+        include-hidden-files: true
