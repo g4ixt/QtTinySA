@@ -7,7 +7,7 @@
 # Compilation mode, support OS-specific options
 # nuitka-project-if: {OS} in ("Windows", "Linux", "Darwin", "FreeBSD"):
 #    nuitka-project: --mode=standalone
-#    nuitka-project: --enable-plugin=pyqt6
+#    nuitka-project: --enable-plugin=PySide6
 #    nuitka-project: --include-qt-plugins=sqldrivers
 #    nuitka-project: --include-data-file=QtTSAprefs.db=./
 #    nuitka-project: --remove-output
@@ -17,7 +17,7 @@
 """TinySA GUI programme using Qt, PyQt and PyQtGraph.
 
 This code attempts to replicate some of the TinySA Ultra on-screen commands and to provide PC control.
-Development took place on Kubuntu 24.04LTS with Python 3.11 and PyQt6 using Spyder in Anaconda.
+Development took place on Kubuntu 24.04LTS with Python 3.11 and PySide6 using Spyder in Anaconda.
 TinySA, TinySA Ultra and the tinysa icon are trademarks of Erik Kaashoek and are used with permission.
 TinySA commands are based on Erik's Python examples: http://athome.kaashoek.com/tinySA/python/
 Serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset: https://github.com/Ho-Ro"""
@@ -31,16 +31,16 @@ import serial
 
 from platform import system
 
-try:
-    from PyQt6 import QtWidgets, QtCore, uic
-    from PyQt6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit, QTableWidgetItem
-    from PyQt6.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
-    from PyQt6.QtGui import QPixmap, QIcon
-except ModuleNotFoundError:
-    from PyQt5 import QtWidgets, QtCore, uic
-    from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit, QTableWidgetItem
-    from PyQt5.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
-    from PyQt5.QtGui import QPixmap, QIcon
+
+from PySide6 import QtWidgets, QtCore
+
+from PySide6.QtUiTools import QUiLoader
+from PySide6.QtCore import QFile
+
+from PySide6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit, QTableWidgetItem
+from PySide6.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
+from PySide6.QtGui import QPixmap, QIcon
+
 
 import queue
 import shutil
@@ -73,12 +73,26 @@ WSMExporter.register()
 
 # classes ##############################################################################
 
+class CustomLoader(QUiLoader):
+    def createWidget(self, className, parent=None, name=""):
+        if className == "PlotWidget":
+            return pyqtgraph.PlotWidget(parent=parent)
+        if className == "GLViewWidget":
+            return pyqtgraph.GLViewWidget(parent=parent)
+        if className == "GraphicsView":
+            return pyqtgraph.GraphicsView(parent=parent)
+        return super().createWidget(className, parent, name)
+
+# offset = CustomDialogue(app_dir('offset.ui'))
 
 class CustomDialogue(QtWidgets.QDialog):
     def __init__(self, ui_name):
         super().__init__()
-        self.ui = uic.loadUi(ui_name, self)
-        self.ui.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
+        ui_file = QFile(ui_name)
+        ui_file.open(QFile.ReadOnly)
+        loader = CustomLoader()
+        self.ui = loader.load(ui_file)
+        # self.ui.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 
 
 class Analyser:
@@ -1300,13 +1314,13 @@ class Marker:
 
 
 class WorkerSignals(QtCore.QObject):
-    error = QtCore.pyqtSignal(str)
-    result = QtCore.pyqtSignal(np.ndarray, np.ndarray, np.ndarray, np.ndarray, float)
-    fullSweep = QtCore.pyqtSignal(np.ndarray, np.ndarray)
-    saveResults = QtCore.pyqtSignal(np.ndarray, np.ndarray)
-    resetGUI = QtCore.pyqtSignal(np.ndarray, np.ndarray)
-    finished = QtCore.pyqtSignal()
-    sweepEnds = QtCore.pyqtSignal(np.ndarray)
+    error = QtCore.Signal(str)
+    result = QtCore.Signal(np.ndarray, np.ndarray, np.ndarray, np.ndarray, float)
+    fullSweep = QtCore.Signal(np.ndarray, np.ndarray)
+    saveResults = QtCore.Signal(np.ndarray, np.ndarray)
+    resetGUI = QtCore.Signal(np.ndarray, np.ndarray)
+    finished = QtCore.Signal()
+    sweepEnds = QtCore.Signal(np.ndarray)
 
 
 class Worker(QtCore.QRunnable):
@@ -1318,7 +1332,7 @@ class Worker(QtCore.QRunnable):
         self.args = args
         self.signals = WorkerSignals()
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def run(self):
         '''Initialise the runner'''
         logging.info(f'{self.fn.__name__} thread running')
@@ -2150,11 +2164,13 @@ def connectPassive():
 tinySA = Analyser()
 
 # create QApplication for the GUI
+loader = CustomLoader()
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
 app.setApplicationVersion(' v1.2.2')
 
-QtTSA = uic.loadUi(app_dir('spectrum.ui'))
+QtTSA = loader.load("spectrum.ui", None)
+
 presetFreqs = CustomDialogue(app_dir('bands.ui'))
 settings = CustomDialogue(app_dir('settings.ui'))
 filebrowse = CustomDialogue(app_dir('filebrowse.ui'))
