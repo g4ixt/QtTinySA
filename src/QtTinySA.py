@@ -14,10 +14,10 @@
 # nuitka-project-else:
 #    nuitka-project: --mode=standalone
 
-"""TinySA GUI programme using Qt, PyQt and PyQtGraph.
+"""TinySA GUI programme using Qt, PySide6 and PyQtGraph.
 
 This code attempts to replicate some of the TinySA Ultra on-screen commands and to provide PC control.
-Development took place on Kubuntu 24.04LTS with Python 3.11 and PySide6 using Spyder in Anaconda.
+Development took place on Kubuntu 24.04LTS with Python 3.13 and PySide6 using Spyder in Anaconda.
 TinySA, TinySA Ultra and the tinysa icon are trademarks of Erik Kaashoek and are used with permission.
 TinySA commands are based on Erik's Python examples: http://athome.kaashoek.com/tinySA/python/
 Serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset: https://github.com/Ho-Ro"""
@@ -31,16 +31,12 @@ import serial
 
 from platform import system
 
-
 from PySide6 import QtWidgets, QtCore
-
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtCore import QFile
-
 from PySide6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit, QTableWidgetItem
 from PySide6.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
 from PySide6.QtGui import QPixmap, QIcon
-
 
 import queue
 import shutil
