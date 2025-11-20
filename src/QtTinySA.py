@@ -84,7 +84,7 @@ class CustomLoader(QUiLoader):
             return pyqtgraph.GraphicsView(parent=parent)
         return super().createWidget(className, parent, name)
 
-# offset = CustomDialogue(app_dir('offset.ui.ui'))
+# offset = CustomDialogue(app_dir('offset.ui'))
 
 class CustomDialogue(QtWidgets.QDialog):
     def __init__(self, ui_name):
@@ -809,17 +809,17 @@ class Analyser:
             return
         elif self.usb:
             SD = self.listSD()
-            filebrowse.listWidget.clear()
+            filebrowse.ui.listWidget.clear()
             ls = []
             for i in range(len(SD.splitlines())):
                 ls.append(SD.splitlines()[i].split(" ")[0])
-            filebrowse.listWidget.insertItems(0, ls)
+            filebrowse.ui.listWidget.insertItems(0, ls)
             filebrowse.ui.show()
         else:
             popUp(QtTSA, 'TinySA not found', 'Ok', 'Critical')
 
     def saveFile(self, saveSingle=True):
-        filebrowse.saveProgress.setValue(0)
+        filebrowse.ui.saveProgress.setValue(0)
         SD = self.listSD()
         for i in range(len(SD.splitlines())):
             if not self.directory:  # have not already saved a file, or ask for folder was checked
@@ -827,31 +827,31 @@ class Analyser:
             if not self.directory:
                 break
             if saveSingle:
-                fileName = filebrowse.listWidget.currentItem().text()  # the file selected in the list widget
+                fileName = filebrowse.ui.listWidget.currentItem().text()  # the file selected in the list widget
             else:
                 fileName = SD.splitlines()[i].split(" ")[0]
             with open(os.path.join(self.directory, fileName), "wb") as file:
                 data = self.readSD(fileName)
                 file.write(data)
-            filebrowse.saveProgress.setValue(int(100 * (i+1)/len(SD.splitlines())))
-            filebrowse.downloadInfo.setText(self.directory)  # show the path where the file was saved
-            if filebrowse.askForPath.isChecked():
+            filebrowse.ui.saveProgress.setValue(int(100 * (i+1)/len(SD.splitlines())))
+            filebrowse.ui.downloadInfo.setText(self.directory)  # show the path where the file was saved
+            if filebrowse.ui.askForPath.isChecked():
                 self.directory = None
             if saveSingle:
-                filebrowse.saveProgress.setValue(100)
+                filebrowse.ui.saveProgress.setValue(100)
                 break
 
     def fileShow(self):
         self.memF.seek(0, 0)  # set the memory buffer pointer to the start
         self.memF.truncate()  # clear down the memory buffer to the pointer
-        filebrowse.picture.clear()
-        fileName = filebrowse.listWidget.currentItem().text()
+        filebrowse.ui.picture.clear()
+        fileName = filebrowse.ui.listWidget.currentItem().text()
         self.clearBuffer()  # clear the tinySA serial buffer
         self.memF.write(self.readSD(fileName))  # read the file from the tinySA memory card and store in memory buffer
         if fileName[-3:] == 'bmp':
             pixmap = QPixmap()
             pixmap.loadFromData(self.memF.getvalue())
-            filebrowse.picture.setPixmap(pixmap)
+            filebrowse.ui.picture.setPixmap(pixmap)
 
     # def sweepTime(self, seconds):
     #     #  0.003 to 60S
@@ -1709,12 +1709,12 @@ def setPreferences():  # called when the preferences window is closed
 
 
 def dialogPrefs():  # called by clicking on the setup > preferences menu
-    presetFreqs.ui.ui.show()
+    presetFreqs.ui.show()
     presetFreqs.ui.psCount.setValue(bands.tm.rowCount())
 
 
 def about():
-    message = ('TinySA Ultra GUI programme using Qt5 and PyQt\nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
+    message = ('TinySA Ultra GUI programme using Qt5 and PySide6\nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
                .format(app.applicationVersion(), config.databaseName()))
     popUp(QtTSA, message, 'Ok', 'Info')
 
@@ -1997,7 +1997,7 @@ def startPolarPlot():
 
 def correction_window():
     offset.ui.progress.setValue(0)
-    offset.ui.ui.show()
+    offset.ui.show()
 
 
 def connectActive():
