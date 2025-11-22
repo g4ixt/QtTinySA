@@ -30,7 +30,6 @@ import struct
 import serial
 
 from platform import system
-
 from PySide6 import QtWidgets, QtCore
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtCore import QFile
@@ -44,7 +43,8 @@ import platformdirs
 import csv
 import numpy as np
 import pyqtgraph
-import pyqtgraph.opengl as pyqtgl  # For 3D
+# import pyqtgraph.opengl as pyqtgl  # For 3D # unable to make work with pyside6
+
 from datetime import datetime
 from serial.tools import list_ports
 from io import BytesIO
@@ -55,9 +55,8 @@ if system() == "Linux":
     os.environ['XDG_CONFIG_DIRS'] = '/etc:/usr/local/etc'
     os.environ['XDG_DATA_DIRS'] = '/usr/share:/usr/local/share'
 
-
 # force Qt to use OpenGL rather than DirectX for Windows OS
-QtCore.QCoreApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_UseDesktopOpenGL)
+# QtCore.QCoreApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_UseDesktopOpenGL)
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 threadpool = QtCore.QThreadPool()
@@ -71,16 +70,14 @@ WSMExporter.register()
 
 class CustomLoader(QUiLoader):
     def createWidget(self, className, parent=None, name=""):
-        logging.info(f'className = {className}')
+        logging.debug(f'className = {className}')
         if className == "PlotWidget":
             return pyqtgraph.PlotWidget(parent=parent)
-        if className == "GLViewWidget":
-            return pyqtgraph.GLViewWidget(parent=parent)
+        # if className == "GLViewWidget":
+        #     return pyqtgraph.opengl.GLViewWidget(parent=parent)
         if className == "GraphicsView":
             return pyqtgraph.GraphicsView(parent=parent)
         return super().createWidget(className, parent, name)
-
-# offset = CustomDialogue(app_dir('offset.ui'))
 
 class CustomDialogue(QtWidgets.QDialog):
     def __init__(self, ui_name):
@@ -89,8 +86,7 @@ class CustomDialogue(QtWidgets.QDialog):
         ui_file.open(QFile.ReadOnly)
         loader = CustomLoader()
         self.ui = loader.load(ui_file)
-        # self.ui.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
-
+        self.ui.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 
 class Analyser:
     def __init__(self):
@@ -301,7 +297,6 @@ class Analyser:
         return response[:-6].decode()  # remove prompt
 
     def serialWrite(self, command):
-        # self.usb.timeout = 1
         logging.debug(f'serialWrite: command = {command}')
         self.usb.write(command.encode())
         self.usb.read_until(b'ch> ')  # skip command echo and prompt
@@ -316,7 +311,7 @@ class Analyser:
         logging.debug(f'set_arrays: frequencies = {frequencies}')
         readings = np.full((self.scanMemory, points), None, dtype=float)
         readings[0] = -200
-        # signal fading QtTSA.  timeMarkVals is a 2D array with time in col 0 and dBm levels of each marker in 1 - 4
+        # signal fading: timeMarkVals is a 2D array with time in col 0 and dBm levels of each marker in 1 - 4
         self.timeMarkVals = np.full((int(settings.ui.timePoints.value()), 5), None, dtype=float)
         self.timeIndex = 0
         return frequencies, readings, maxima, minima
@@ -518,42 +513,45 @@ class Analyser:
         self.runButton('Run')
         self.fifoTimer.start(500)  # start watching for commands
 
-    def createTimeSpectrum(self, frequencies, readings):
-        points = np.size(frequencies)
-        x = np.arange(start=0, stop=self.scanMemory, step=1)  # the time axis depth
-        y = np.arange(start=0, stop=points)  # the frequency axis width
-        z = readings  # the measurement axis heights in dBm
-        logging.debug(f'z = {z}')
-        if self.surface:  # if 3D spectrum exists, clear it
-            QtTSA.openGLWidget.clear()
-        self.surface = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='heightColor',
-                                                computeNormals=QtTSA.glNormals.isChecked(), smooth=QtTSA.glSmooth.isChecked())
+    # def createTimeSpectrum(self, frequencies, readings):
+    #     points = np.size(frequencies)
+    #     x = np.arange(start=0, stop=self.scanMemory, step=1)  # the time axis depth
+    #     y = np.arange(start=0, stop=points)  # the frequency axis width
+    #     z = readings  # the measurement axis heights in dBm
+    #     logging.debug(f'z = {z}')
+    #     if self.surface:  # if 3D spectrum exists, clear it
+    #         QtTSA.openGLWidget.clear()
+    #     self.surface = pyqtgl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='heightColor',
+    #                                             computeNormals=QtTSA.glNormals.isChecked(), smooth=QtTSA.glSmooth.isChecked())
+    #     # self.surface = p6ogl.GLSurfacePlotItem(x=-x, y=y, z=z, shader='heightColor',
+    #     #                                         computeNormals=QtTSA.glNormals.isChecked(), smooth=QtTSA.glSmooth.isChecked())
 
-        #  for each colour, map = pow(z * colorMap[0] + colorMap[1], colorMap[2])
-        self.surface.shader()['colorMap'] = np.array([QtTSA.rMulti.value(),      # red   [0]
-                                                      QtTSA.rConst.value(),      # red   [1]
-                                                      QtTSA.rExponent.value(),   # red   [2]
-                                                      QtTSA.gMulti.value(),      # green [3]
-                                                      QtTSA.gConst.value(),      # green [4]
-                                                      QtTSA.gExponent.value(),   # green [5]
-                                                      QtTSA.bMulti.value(),      # blue  [6]
-                                                      QtTSA.bConst.value(),      # blue  [7]
-                                                      QtTSA.gExponent.value()])  # blue  [8]
+    #     #  for each colour, map = pow(z * colorMap[0] + colorMap[1], colorMap[2])
+    #     self.surface.shader()['colorMap'] = np.array([QtTSA.rMulti.value(),      # red   [0]
+    #                                                   QtTSA.rConst.value(),      # red   [1]
+    #                                                   QtTSA.rExponent.value(),   # red   [2]
+    #                                                   QtTSA.gMulti.value(),      # green [3]
+    #                                                   QtTSA.gConst.value(),      # green [4]
+    #                                                   QtTSA.gExponent.value(),   # green [5]
+    #                                                   QtTSA.bMulti.value(),      # blue  [6]
+    #                                                   QtTSA.bConst.value(),      # blue  [7]
+    #                                                   QtTSA.gExponent.value()])  # blue  [8]
 
-        self.surface.translate(16, -points/40, -8)  # front/back, left/right, up/down
-        self.surface.scale(points/1250, 0.05, 0.1, local=True)
-        QtTSA.openGLWidget.addItem(self.surface)
+    #     self.surface.translate(16, -points/40, -8)  # front/back, left/right, up/down
+    #     self.surface.scale(points/1250, 0.05, 0.1, local=True)
+    #     QtTSA.openGLWidget.addItem(self.surface)
 
-        # Add a vertical grid to the 3D view
-        self.vGrid = pyqtgl.GLGridItem(glOptions='translucent', color=(255, 255, 255, 70))
-        self.vGrid.setSize(x=12, y=points/20, z=1)
-        self.vGrid.rotate(90, 0, 1, 0)
-        self.vGrid.setSpacing(1, 1, 2)
-        QtTSA.openGLWidget.addItem(self.vGrid)
-        if QtTSA.grid.isChecked():
-            self.vGrid.show()
-        else:
-            self.vGrid.hide()
+    #     # Add a vertical grid to the 3D view
+    #     self.vGrid = pyqtgl.GLGridItem(glOptions='translucent', color=(255, 255, 255, 70))
+    #     # self.vGrid = p6ogl.GLGridItem(glOptions='translucent', color=(255, 255, 255, 70))
+    #     self.vGrid.setSize(x=12, y=points/20, z=1)
+    #     self.vGrid.rotate(90, 0, 1, 0)
+    #     self.vGrid.setSpacing(1, 1, 2)
+    #     QtTSA.openGLWidget.addItem(self.vGrid)
+    #     if QtTSA.grid.isChecked():
+    #         self.vGrid.show()
+    #     else:
+    #         self.vGrid.hide()
 
     def createWaterfall(self, frequencies, readings):
         self.waterfall = pyqtgraph.ImageItem(axisOrder='row-major')
@@ -628,7 +626,7 @@ class Analyser:
 
         self.updateWaterfall(frequencies, readings)
 
-        # update 3D graph if enabled
+        # # update 3D graph if enabled
         # if QtTSA.stackedWidget.currentWidget() == QtTSA.View3D:
         #     z = readings + 120  # Surface plot height shader needs positive numbers so convert from dBm to dBf
         #     logging.debug(f'z = {z}')
@@ -652,18 +650,18 @@ class Analyser:
             QtTSA.run3D.setText('Stopping ...')
             QtTSA.run3D.setStyleSheet('background-color: orange')
 
-    def orbit3D(self, sign, azimuth=True):  # orbits the camera around the 3D plot
-        degrees = QtTSA.rotateBy.value()
-        if azimuth:
-            QtTSA.openGLWidget.orbit(sign*degrees, 0)  # sign controls direction and is +1 or -1
-        else:
-            QtTSA.openGLWidget.orbit(0, sign*degrees)
+    # def orbit3D(self, sign, azimuth=True):  # orbits the camera around the 3D plot
+    #     degrees = QtTSA.rotateBy.value()
+    #     if azimuth:
+    #         QtTSA.openGLWidget.orbit(sign*degrees, 0)  # sign controls direction and is +1 or -1
+    #     else:
+    #         QtTSA.openGLWidget.orbit(0, sign*degrees)
 
-    def axes3D(self, sign, axis):  # shifts the plot along one of its 3 axes - time, frequency, signal
-        pixels = QtTSA.panBy.value()
-        options = {'X': (pixels*sign, 0, 0), 'Y': (0, pixels*sign, 0), 'Z': (0, 0, pixels*sign)}
-        s = options.get(axis)
-        QtTSA.openGLWidget.pan(s[0], s[1], s[2], relative='global')
+    # def axes3D(self, sign, axis):  # shifts the plot along one of its 3 axes - time, frequency, signal
+    #     pixels = QtTSA.panBy.value()
+    #     options = {'X': (pixels*sign, 0, 0), 'Y': (0, pixels*sign, 0), 'Z': (0, 0, pixels*sign)}
+    #     s = options.get(axis)
+    #     QtTSA.openGLWidget.pan(s[0], s[1], s[2], relative='global')
 
     # def reset3D(self):  # sets the 3D view back to the starting point
     #     QtTSA.openGLWidget.reset()
@@ -671,14 +669,14 @@ class Analyser:
     #     QtTSA.openGLWidget.pan(0, 0, -10, relative='global')
     #     self.zoom3D()
 
-    def grid(self, sign):  # moves the grid backwards and forwards on the time axis
-        step = QtTSA.rotateBy.value()
-        if QtTSA.grid.isChecked():
-            self.vGrid.translate(step*sign, 0, 0)
+    # def grid(self, sign):  # moves the grid backwards and forwards on the time axis
+    #     step = QtTSA.rotateBy.value()
+    #     if QtTSA.grid.isChecked():
+    #         self.vGrid.translate(step*sign, 0, 0)
 
-    def zoom3D(self):  # zooms the camera in and out
-        zoom = QtTSA.zoom.value()
-        QtTSA.openGLWidget.setCameraParams(distance=zoom)
+    # def zoom3D(self):  # zooms the camera in and out
+    #     zoom = QtTSA.zoom.value()
+    #     QtTSA.openGLWidget.setCameraParams(distance=zoom)
 
     def runButton(self, action):
         # Update the Run/Stop buttons' text and colour
@@ -2019,6 +2017,8 @@ def connectActive():
     QtTSA.sampleRepeat.valueChanged.connect(tinySA.sampleRep)
 
     # 3D graph controls
+    QtTSA.timeSpectrum.hide()  # unable to make it work with pyside6
+
     # QtTSA.orbitL.clicked.connect(lambda: tinySA.orbit3D(1, True))
     # QtTSA.orbitR.clicked.connect(lambda: tinySA.orbit3D(-1, True))
     # QtTSA.orbitU.clicked.connect(lambda: tinySA.orbit3D(-1, False))
@@ -2170,28 +2170,13 @@ app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
 app.setApplicationVersion(' v1.2.2')
 
-logging.info('\n  spectrum.ui')
 QtTSA = loader.load("spectrum.ui", None)
-
-logging.info('\n  bands.ui')
 presetFreqs = CustomDialogue(app_dir('bands.ui'))
-
-logging.info('\n settings.ui')
 settings = CustomDialogue(app_dir('settings.ui'))
-
-logging.info('\n filebrowse.ui')
 filebrowse = CustomDialogue(app_dir('filebrowse.ui'))
-
-logging.info('\n phasenoise.ui')
 phasenoise = CustomDialogue(app_dir('phasenoise.ui'))
-
-logging.info('\n fading.ui')
 fading = CustomDialogue(app_dir('fading.ui'))
-
-logging.info('\n pattern.ui')
 pattern = CustomDialogue(app_dir('pattern.ui'))
-
-logging.info('\n offset.ui')
 offset = CustomDialogue(app_dir('offset.ui'))
 
 # Markers
