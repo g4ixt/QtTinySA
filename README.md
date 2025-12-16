@@ -28,7 +28,7 @@ This capability is achieved by integrating a standard RTL-SDR dongle into your s
 
 Minimal changes were made to the original QtTinySA structure:
 
-* **`QtTinySA.py`:** Small hook added to launch the new audio window.
+* **`QtTinySA.py`:** Hook added to launch the new audio popup, calls into sdr-audio to set frequency where Marker 1 defined
 * **`spectrum.ui`:** Updated to add the new "SDR Audio" menu item under the **Measurements** menu.
 * **`sdr-audio.ui`:** Defines the user interface for the dedicated audio control popup.
 * **`sdr-audio.py`:** The core engine containing the **`rtlsdr`** code responsible for:
