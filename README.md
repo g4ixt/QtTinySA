@@ -4,7 +4,7 @@
 
 This repository is a **fork of the original QtTinySA project**, enhanced with the crucial capability to **demodulate and play audio** from signals displayed on the QtTinySA spectrum analyzer.
 
-By combining the wide-ranging analysis of the QtTinySA with the real-time audio capability of an RTL-SDR dongle, this project transforms the spectrum analyzer into a dynamic receiver.
+By combining the wide-ranging analysis of the QtTinySA/TinySA with the real-time audio capability of an RTL-SDR dongle, this project transforms the spectrum analyzer into a dynamic receiver.
 
 ### 🌟 Key Features
 
