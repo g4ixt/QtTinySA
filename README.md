@@ -44,6 +44,6 @@ Due to processing overhead in the Python environment, the DSP pipeline sometimes
 * **Result:** This results in a periodic **audio buffer underrun**, causing a small, temporary gap in the audio playback every few seconds. *This is an area for future optimization using techniques like circular buffers and cascaded decimation.*
 
 ***
-
-<An updated Screen will be forthcoming>
+The source code updates to be merged by first week of Jan 2026
+An updated Screen will be forthcoming
 <img width="1063" height="831" alt="image" src="https://github.com/user-attachments/assets/809dcdf3-7ac3-430b-9dce-1b4f9c9354e8" />
