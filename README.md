@@ -4,7 +4,7 @@ See: https://github.com/g4ixt/QtTinySA     for source fork for this repo (on 12/
 
 This Repo adds capability to play the audio from the selected frequency defined by Marker1.   It can demodulate both AM and FM signals (will AM demodulate if within the AM band, otherwise will FM demodulate)
 
-This capability is supported by adding an RTL SDR to your system.   Suggest getting SDR++ or similar to get your RTL SDR working first before trying this code.
+This capability is supported by adding an RTL SDR to your system.   Suggest getting SDR++ or similar to get your RTL SDR working first before trying this code.   So you will have both the TinySA and RTL SDR connected to USB to your PC.
 
 New Menu item added under the Measurements menu to select "SDR Audio" which will provide a popup window allowing you to enable Audio.  In that popup you can also adjust the frequency up or down to fine tune what frequency Marker 1 is set to.
 
