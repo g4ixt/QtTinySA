@@ -1,6 +1,6 @@
 # QtTinySA-SDRAudio
 
-See: https://github.com/g4ixt/QtTinySA     for source for this repo
+See: https://github.com/g4ixt/QtTinySA     for source fork for this repo (on 12/16/2025)
 
 This Repo adds capability to play the audio from the selected frequency defined by Marker1.   It can demodulate both AM and FM signals (will AM demodulate if within the AM band, otherwise will FM demodulate)
 
