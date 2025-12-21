@@ -2802,6 +2802,7 @@ and Colours</string>
     <addaction name="actionPhNoise"/>
     <addaction name="actionFading"/>
     <addaction name="actionPattern"/>
+    <addaction name="actionSDR_Audio_Popup"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuSettings"/>
@@ -2884,6 +2885,11 @@ and Colours</string>
   <action name="actionCorrection">
    <property name="text">
     <string>Correction</string>
+   </property>
+  </action>
+  <action name="actionSDR_Audio_Popup">
+   <property name="text">
+    <string>SDR Audio</string>
    </property>
   </action>
  </widget>

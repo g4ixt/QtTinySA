@@ -29,12 +29,16 @@ import logging
 import struct
 import serial
 from platform import system
+import threading
+
+import sdr_audio as sdr
 
 try:
     from PyQt6 import QtWidgets, QtCore, uic
     from PyQt6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit, QTableWidgetItem
     from PyQt6.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
     from PyQt6.QtGui import QPixmap, QIcon
+    from PyQt6.QtGui import QAction
 except ModuleNotFoundError:
     from PyQt5 import QtWidgets, QtCore, uic
     from PyQt5.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit, QTableWidgetItem
@@ -82,6 +86,10 @@ class CustomDialogue(QtWidgets.QDialog):
 
 class Analyser:
     def __init__(self):
+        self.sdr_active = False # New attribute to track SDR state
+        self.sdr_thread = None  # To hold the thread for SDR playback
+        self.last_sdr_freq_sent = 0 # New attribute to store the last frequency sent to SDR
+        self.sdr_freq_threshold = 1000 # Retune if frequency changes by more than 1 kHz (adjust as needed)
         self.usb = None
         self.surface = None
         self.vGrid = None
@@ -103,6 +111,56 @@ class Analyser:
         self.maxF = 6000
         self.memF = BytesIO()
         self.ports = []
+        
+        
+    def sdr_audio_plus_freq(self):
+        marker1_freq_hz = self.get_marker_frequency(1)
+        #marker1_freq_hz += 105250  # add one khz
+        frequencies, levels = M1.linked.fetchData() 
+        marker1_freq_hz += (frequencies[1] - frequencies[0])
+        self.set_marker_frequency(1, marker1_freq_hz)
+        #tinySA.update_sdr_from_marker('1', marker1_freq_hz)    
+   
+    def sdr_audio_minus_freq(self):    
+        marker1_freq_hz = self.get_marker_frequency(1)
+        #marker1_freq_hz -= 105250  # sub one khz
+        frequencies, levels = M1.linked.fetchData() 
+        marker1_freq_hz -= (frequencies[1] - frequencies[0])        
+        self.set_marker_frequency(1, marker1_freq_hz)
+        #tinySA.update_sdr_from_marker('1', marker1_freq_hz) 
+        
+    def toggle_sdr_audio(self):
+        if not self.sdr_active:
+            marker1_freq_hz = self.get_marker_frequency(1)
+            if marker1_freq_hz is not None:
+                print(f"[QtTinySA: INFO] Starting SDR playback at {marker1_freq_hz / 1e6:.3f} MHz\n")
+                self.sdr_thread = threading.Thread(target=sdr.start_sdr_playback, args=(marker1_freq_hz,))
+                self.sdr_thread.daemon = True # Allow the program to exit even if thread is running
+                self.sdr_thread.start()
+                sdr_audio_popup.ui.toggle_audio_button.setText(f"Disable Audio Monitoring")
+                
+                self.sdr_active = True
+
+            else:
+                QMessageBox.warning(self, "SDR Error", "Could not retrieve Marker 1 frequency.")
+        else:
+            print("[QtTinySA: INFO] Stopping SDR playback\n")
+            sdr.stop_sdr_playback() # Signal sdr to stop
+            if self.sdr_thread and self.sdr_thread.is_alive():
+                self.sdr_thread.join(timeout=5) # Wait for the thread to finish
+            self.sdr_active = False
+            sdr_audio_popup.ui.toggle_audio_button.setText(f"Enable Audio Monitoring")
+
+    def get_marker_frequency(self, marker_number):
+        if marker_number == 1:
+            return M1.line.value() # This will return the frequency in Hz
+        return None
+        
+    def set_marker_frequency(self, marker_number, mfreq):
+        if marker_number == 1:
+            M1.line.setValue(mfreq)
+        return None
+
 
     def openPort(self):  # called by isConnected() triggered by the self.usbCheck QTimer at startup
         # Get tinySA comport using hardware ID
@@ -852,6 +910,18 @@ class Analyser:
         QtTSA.stop_freq.setValue(stopF)
         self.freq_changed(False)
 
+    # SDR: Handle SDR frequency updates from Marker class
+    def update_sdr_from_marker(self, marker_name, frequency_hz):
+        if marker_name == '1' and self.sdr_active:
+            # Only update SDR frequency if it has changed significantly
+            if abs(frequency_hz - self.last_sdr_freq_sent) > self.sdr_freq_threshold:
+                sdr.set_sdr_frequency(frequency_hz)
+                self.last_sdr_freq_sent = frequency_hz # Update last sent frequency
+                sdr_audio_popup.ui.frequency_label.setText(f"Frequency: {frequency_hz / 1e6:.3f} MHz")
+                print(f"[QtTinySA: INFO] SDR frequency updated from Marker {marker_name} to {frequency_hz / 1e6:.3f} MHz (threshold: {self.sdr_freq_threshold} Hz).\n")
+            else:
+                pass
+                
 
 class Trace:
     def __init__(self, name):
@@ -1021,7 +1091,7 @@ class Marker:
         M2.tplot.setXLink(M1.tplot)
         M3.tplot.setXLink(M1.tplot)
         M4.tplot.setXLink(M1.tplot)
-
+ 
     def start(self):  # set marker to the sweep start frequency
         if self.markerType != 'Off':
             self.line.setValue(QtTSA.start_freq.value() * 1e6)
@@ -1062,7 +1132,7 @@ class Marker:
             self.deltaF = 0
         else:
             self.line.show()
-
+            
     def setDelta(self):  # delta marker locking to reference marker
         self.deltaline.setValue(self.line.value() + self.deltaF)
         self.updateMarker()
@@ -1073,7 +1143,7 @@ class Marker:
             return
         else:
             self.markerBox.setVisible(True)
-
+            
         frequencies, levels = self.linked.fetchData()  # fetch data from the graph
         if frequencies is None or levels is None:
             return
@@ -1085,25 +1155,30 @@ class Marker:
         if self.markerType in ('Max', 'Min'):
             self.calcMaskFreq(frequencies)
             maxmin = self.maxMin(frequencies, levels)
-            # maxmin is a tuple of lists where [0, x] are indices in the frequency array of the max and [1, x] are min
             logging.debug(f'updateMarker(): maxmin = {maxmin}')
             if self.markerType == 'Max':
                 self.line.setValue(maxmin[0][self.level])
                 if self.deltaline.value != 0:
-                    self.deltaline.setValue(maxmin[0][self.level] + self.deltaF)  # needs to be index delta not F
+                    self.deltaline.setValue(maxmin[0][self.level] + self.deltaF)
             if self.markerType == 'Min':
                 self.line.setValue(maxmin[1][self.level])
                 if self.deltaline.value != 0:
-                    self.deltaline.setValue(maxmin[1][self.level] + self.deltaF)  # needs to be index delta not F
-
+                    self.deltaline.setValue(maxmin[1][self.level] + self.deltaF)
+        
         lineIndex = np.argmin(np.abs(frequencies - (self.line.value())))  # find closest value in freq array
-        logging.debug(f'updateMarker(): index={lineIndex} frequency={frequencies[lineIndex]}')
+        logging.debug(f'updateMarker(): index={lineIndex} frequency={frequencies[lineIndex]}\n')
         self.line.setValue(frequencies[lineIndex])
+               
         self.dBm = levels[lineIndex]
 
         decimal = self.setPrecision(frequencies, frequencies[0])  # set decimal places
         unit, multiple = self.setUnit(frequencies[0])  # set units
         self.markerBox.setText(f'M{self.line.name()} {self.line.value()/multiple:.{decimal}f}{unit} {self.dBm:.1f}dBm')
+
+        # SDR: Call tinySA to update SDR frequency if this is Marker 1
+        if self.line.name() == '1': # Check if this is Marker 1
+            # Access the global 'tinySA' instance to update SDR
+            tinySA.update_sdr_from_marker(self.line.name(), self.line.value())
 
         if self.deltaF != 0:
             deltaLineIndex = np.argmin(np.abs(frequencies - (self.deltaline.value())))  # closest value in freq array
@@ -2044,6 +2119,11 @@ def connectActive():
     offset.read_button.clicked.connect(correction.read_tables)
     offset.upload_button.clicked.connect(correction.upload_correction)
 
+# SDR
+def showSDR_Audio_Popup():
+    # show current frequency in SDR Audio popup
+    sdr_audio_popup.ui.frequency_label.setText(f"Frequency: {QtTSA.start_freq.value()} MHz")
+    sdr_audio_popup.ui.show()
 
 def connectPassive():
     # Connect signals from GUI controls that don't cause messages to go to the tinySA
@@ -2052,6 +2132,7 @@ def connectPassive():
 
     # Quit
     QtTSA.actionQuit.triggered.connect(app.closeAllWindows)
+    
     QtTSA.scan_button.clicked.connect(tinySA.scan)
     QtTSA.run3D.clicked.connect(tinySA.scan)
 
@@ -2128,11 +2209,21 @@ def connectPassive():
     QtTSA.actionFading.triggered.connect(fading.ui.show)
     QtTSA.actionPattern.triggered.connect(pattern.ui.show)
 
+
+
     # phase noise
     phasenoise.centre.clicked.connect(centreToMarker)
 
     # File menu
-    QtTSA.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
+    
+    # SDR Add
+    QtTSA.actionSDR_Audio_Popup.triggered.connect(showSDR_Audio_Popup)
+
+    # SDR Audio popup connections
+    sdr_audio_popup.ui.toggle_audio_button.clicked.connect(tinySA.toggle_sdr_audio)
+    sdr_audio_popup.ui.plus_freq_button.clicked.connect(tinySA.sdr_audio_plus_freq)
+    sdr_audio_popup.ui.minus_freq_button.clicked.connect(tinySA.sdr_audio_minus_freq)
+    
     QtTSA.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
 
     # polar pattern
@@ -2141,6 +2232,8 @@ def connectPassive():
     # correction
     offset.export_button.clicked.connect(lambda: correction.exportData(''))
     offset.import_button.clicked.connect(lambda: correction.importData(''))
+
+    #
 
 
 ###############################################################################
@@ -2161,6 +2254,9 @@ phasenoise = CustomDialogue(app_dir('phasenoise.ui'))
 fading = CustomDialogue(app_dir('fading.ui'))
 pattern = CustomDialogue(app_dir('pattern.ui'))
 offset = CustomDialogue(app_dir('offset.ui'))
+
+# SDR
+sdr_audio_popup = CustomDialogue(app_dir('sdr_audio_popup.ui'))
 
 # Markers
 multiplot = pyqtgraph.GraphicsLayout()  # for plotting marker signal level over time

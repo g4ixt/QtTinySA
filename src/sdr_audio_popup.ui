@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SDR_Audio_Popup</class>
+ <widget class="QDialog" name="SDR_Audio_Popup">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>250</width>
+    <height>100</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>SDR Audio Monitor</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QLabel" name="frequency_label">
+     <property name="text">
+      <string>Frequency: N/A</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>  
+
+	<item>
+	 <layout class="QHBoxLayout" name="freqButtonLayout">
+	  <property name="spacing">
+	   <number>2</number>
+	  </property>
+	  <!-- Center the whole row -->
+	  <property name="alignment">
+	   <set>Qt::AlignHCenter</set>
+	  </property>
+
+
+	  <!-- Label -->
+	  <item>
+	   <widget class="QLabel" name="freq_step_label">
+		<property name="text">
+		 <string>Freq Step: </string>
+		</property>
+	   </widget>
+	  </item>
+
+	  <!-- Plus button -->
+	  <item>
+	   <widget class="QPushButton" name="plus_freq_button">
+		<property name="text">
+		 <string>+</string>
+		</property>
+		<property name="minimumSize">
+		 <size>
+		  <width>30</width>
+		  <height>30</height>
+		 </size>
+		</property>
+		<property name="maximumSize">
+		 <size>
+		  <width>30</width>
+		  <height>30</height>
+		 </size>
+		</property>
+	   </widget>
+	  </item>
+
+	  <!-- Minus button -->
+	  <item>
+	   <widget class="QPushButton" name="minus_freq_button">
+		<property name="text">
+		 <string>-</string>
+		</property>
+		<property name="minimumSize">
+		 <size>
+		  <width>30</width>
+		  <height>30</height>
+		 </size>
+		</property>
+		<property name="maximumSize">
+		 <size>
+		  <width>30</width>
+		  <height>30</height>
+		 </size>
+		</property>
+	   </widget>
+	  </item>
+
+	 </layout>
+	</item>
+
+   <item>
+    <widget class="QPushButton" name="toggle_audio_button">
+     <property name="text">
+      <string>Enable Audio Monitoring</string>
+     </property>
+    </widget>
+   </item>
+   </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
+
+
