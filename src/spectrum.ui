@@ -7,8 +7,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1027</width>
-    <height>800</height>
+    <width>1058</width>
+    <height>780</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -40,8 +40,9 @@
       </property>
       <property name="font">
        <font>
+        <family>DejaVu Sans</family>
         <pointsize>10</pointsize>
-        <weight>50</weight>
+        <italic>true</italic>
         <bold>false</bold>
        </font>
       </property>
@@ -57,132 +58,218 @@
       <widget class="QWidget" name="ViewNormal">
        <layout class="QGridLayout" name="gridLayout_7">
         <item row="0" column="1">
-         <layout class="QGridLayout" name="gridLayout">
+         <layout class="QGridLayout" name="graph_layout">
+          <property name="horizontalSpacing">
+           <number>6</number>
+          </property>
           <item row="0" column="0">
            <widget class="PlotWidget" name="graphWidget" native="true">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="autoFillBackground">
-             <bool>false</bool>
-            </property>
-            <property name="styleSheet">
-             <string notr="true"/>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>10</pointsize>
+              <italic>true</italic>
+              <bold>false</bold>
+             </font>
             </property>
            </widget>
           </item>
           <item row="1" column="0">
            <widget class="PlotWidget" name="waterfall" native="true">
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>10</pointsize>
+              <italic>true</italic>
+              <bold>false</bold>
+             </font>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <spacer name="horizontalSpacer_2">
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>10</pointsize>
+              <italic>true</italic>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Policy::Expanding</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+        <item row="0" column="0">
+         <layout class="QGridLayout" name="left_layout">
+          <item row="8" column="1">
+           <widget class="QSpinBox" name="points_box">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="minimumSize">
              <size>
-              <width>0</width>
+              <width>79</width>
               <height>0</height>
              </size>
             </property>
-            <property name="maximumSize">
-             <size>
-              <width>16777215</width>
-              <height>16777215</height>
-             </size>
-            </property>
             <property name="font">
              <font>
-              <pointsize>8</pointsize>
-              <weight>50</weight>
+              <family>DejaVu Sans</family>
+              <pointsize>9</pointsize>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
+            <property name="toolTip">
+             <string>Set the number of frequency Points to measure</string>
+            </property>
+            <property name="suffix">
+             <string/>
+            </property>
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>30000</number>
+            </property>
+            <property name="singleStep">
+             <number>100</number>
+            </property>
+            <property name="stepType">
+             <enum>QAbstractSpinBox::StepType::AdaptiveDecimalStepType</enum>
+            </property>
+            <property name="value">
+             <number>400</number>
+            </property>
            </widget>
           </item>
-         </layout>
-        </item>
-        <item row="0" column="0">
-         <layout class="QGridLayout" name="gridLayout_3">
-          <item row="19" column="1">
-           <spacer name="verticalSpacer_2">
+          <item row="11" column="1">
+           <widget class="QComboBox" name="t1_type">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>9</pointsize>
+              <italic>true</italic>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Trace Type</string>
+            </property>
+            <property name="modelColumn">
+             <number>0</number>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="1">
+           <widget class="QComboBox" name="rbw_box">
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>9</pointsize>
+              <italic>true</italic>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Set Resolution Bandwidth in kHz</string>
+            </property>
+            <property name="editable">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="13" column="0">
+           <widget class="QCheckBox" name="trace3">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>9</pointsize>
+              <italic>true</italic>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Trace 3 on</string>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="16" column="0" colspan="2">
+           <widget class="QSlider" name="waterfall_size">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>10</pointsize>
+              <italic>true</italic>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="maximum">
+             <number>500</number>
+            </property>
+            <property name="singleStep">
+             <number>50</number>
+            </property>
+            <property name="pageStep">
+             <number>50</number>
+            </property>
+            <property name="sliderPosition">
+             <number>100</number>
+            </property>
             <property name="orientation">
-             <enum>Qt::Vertical</enum>
+             <enum>Qt::Orientation::Horizontal</enum>
             </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>20</width>
-              <height>40</height>
-             </size>
+            <property name="tickPosition">
+             <enum>QSlider::TickPosition::TicksAbove</enum>
             </property>
-           </spacer>
-          </item>
-          <item row="10" column="0" colspan="2">
-           <widget class="QLabel" name="label_7">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Traces</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="0">
-           <widget class="QCheckBox" name="lna_box">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Enable Low Noise Amplifier</string>
-            </property>
-            <property name="text">
-             <string/>
-            </property>
-           </widget>
-          </item>
-          <item row="6" column="0">
-           <widget class="QCheckBox" name="rbw_auto">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Auto Resolution Bandwidth</string>
-            </property>
-            <property name="text">
-             <string/>
+            <property name="tickInterval">
+             <number>100</number>
             </property>
            </widget>
           </item>
@@ -196,13 +283,65 @@
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>8</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
             <property name="text">
              <string>LNA On</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QCheckBox" name="atten_auto">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>9</pointsize>
+              <italic>true</italic>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Enable auto attenuator</string>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="0">
+           <widget class="QCheckBox" name="rbw_auto">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>9</pointsize>
+              <italic>true</italic>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Auto Resolution Bandwidth</string>
+            </property>
+            <property name="text">
+             <string/>
             </property>
            </widget>
           </item>
@@ -222,9 +361,9 @@
             </property>
             <property name="font">
              <font>
-              <family>Sans Serif</family>
+              <family>DejaVu Sans</family>
               <pointsize>3</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -234,175 +373,23 @@ and Colours</string>
             </property>
            </widget>
           </item>
-          <item row="14" column="1">
-           <widget class="QComboBox" name="t4_type">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
+          <item row="15" column="0" colspan="2">
+           <widget class="QLabel" name="label">
             <property name="font">
              <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Trace Type</string>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="0" colspan="2">
-           <widget class="QLabel" name="spur_label">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
+              <family>DejaVu Sans</family>
+              <pointsize>8</pointsize>
+              <italic>false</italic>
               <bold>true</bold>
              </font>
             </property>
             <property name="text">
-             <string>Spur removal</string>
+             <string>Waterfall</string>
             </property>
            </widget>
           </item>
-          <item row="6" column="1">
-           <widget class="QComboBox" name="rbw_box">
-            <property name="enabled">
-             <bool>true</bool>
-            </property>
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Set Resolution Bandwidth in kHz</string>
-            </property>
-            <property name="editable">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="8" column="0">
-           <widget class="QCheckBox" name="points_auto">
-            <property name="enabled">
-             <bool>true</bool>
-            </property>
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Auto points to suit RBW</string>
-            </property>
-            <property name="text">
-             <string/>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="0">
-           <widget class="QCheckBox" name="atten_auto">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Enable auto attenuator</string>
-            </property>
-            <property name="text">
-             <string/>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="14" column="0">
-           <widget class="QCheckBox" name="trace4">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Trace 4 on</string>
-            </property>
-            <property name="text">
-             <string/>
-            </property>
-           </widget>
-          </item>
-          <item row="11" column="1">
-           <widget class="QComboBox" name="t1_type">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Trace Type</string>
-            </property>
-            <property name="modelColumn">
-             <number>0</number>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="0" colspan="2">
-           <widget class="QLabel" name="label_3">
+          <item row="10" column="0" colspan="2">
+           <widget class="QLabel" name="label_7">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
               <horstretch>0</horstretch>
@@ -413,12 +400,57 @@ and Colours</string>
              <font>
               <family>DejaVu Sans</family>
               <pointsize>8</pointsize>
-              <weight>75</weight>
+              <italic>false</italic>
               <bold>true</bold>
              </font>
             </property>
             <property name="text">
-             <string>Attenuator &amp; LNA</string>
+             <string>Traces</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QCheckBox" name="lna_box">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>9</pointsize>
+              <italic>true</italic>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Enable Low Noise Amplifier</string>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="13" column="1">
+           <widget class="QComboBox" name="t3_type">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>9</pointsize>
+              <italic>true</italic>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Trace Type</string>
             </property>
            </widget>
           </item>
@@ -432,74 +464,14 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
             <property name="toolTip">
              <string>Trace Type</string>
-            </property>
-           </widget>
-          </item>
-          <item row="12" column="0">
-           <widget class="QCheckBox" name="trace2">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Trace 2 on</string>
-            </property>
-            <property name="text">
-             <string/>
-            </property>
-            <property name="tristate">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="15" column="0" colspan="2">
-           <widget class="QLabel" name="label">
-            <property name="font">
-             <font>
-              <family>Sans Serif</family>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Waterfall</string>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="1">
-           <widget class="QComboBox" name="spur_box">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="currentIndex">
-             <number>-1</number>
             </property>
            </widget>
           </item>
@@ -522,8 +494,9 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -547,138 +520,6 @@ and Colours</string>
             </property>
            </widget>
           </item>
-          <item row="5" column="0" colspan="2">
-           <widget class="QLabel" name="label_5">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>RBW kHz</string>
-            </property>
-           </widget>
-          </item>
-          <item row="18" column="0">
-           <widget class="QCheckBox" name="waterfall_auto">
-            <property name="font">
-             <font>
-              <pointsize>8</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string/>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="13" column="1">
-           <widget class="QComboBox" name="t3_type">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Trace Type</string>
-            </property>
-           </widget>
-          </item>
-          <item row="18" column="1">
-           <widget class="QLabel" name="label_9">
-            <property name="font">
-             <font>
-              <pointsize>8</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Auto range</string>
-            </property>
-           </widget>
-          </item>
-          <item row="13" column="0">
-           <widget class="QCheckBox" name="trace3">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Trace 3 on</string>
-            </property>
-            <property name="text">
-             <string/>
-            </property>
-           </widget>
-          </item>
-          <item row="9" column="1">
-           <widget class="QSpinBox" name="sampleRepeat">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>79</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Set the number of repeat measurements at each frequency Point</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-            </property>
-            <property name="minimum">
-             <number>1</number>
-            </property>
-            <property name="maximum">
-             <number>10000</number>
-            </property>
-            <property name="stepType">
-             <enum>QAbstractSpinBox::AdaptiveDecimalStepType</enum>
-            </property>
-           </widget>
-          </item>
           <item row="11" column="0">
            <widget class="QCheckBox" name="trace1">
             <property name="sizePolicy">
@@ -689,8 +530,9 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>75</weight>
+              <italic>true</italic>
               <bold>true</bold>
              </font>
             </property>
@@ -711,8 +553,89 @@ and Colours</string>
             </property>
            </widget>
           </item>
-          <item row="8" column="1">
-           <widget class="QSpinBox" name="points_box">
+          <item row="18" column="0">
+           <widget class="QCheckBox" name="waterfall_auto">
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>8</pointsize>
+              <italic>true</italic>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0" colspan="2">
+           <widget class="QLabel" name="label_3">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>8</pointsize>
+              <italic>false</italic>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Attenuator &amp; LNA</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0" colspan="2">
+           <widget class="QLabel" name="spur_label">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>8</pointsize>
+              <italic>false</italic>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Spur removal</string>
+            </property>
+           </widget>
+          </item>
+          <item row="19" column="1">
+           <spacer name="verticalSpacer_2">
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>10</pointsize>
+              <italic>true</italic>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Orientation::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item row="9" column="1">
+           <widget class="QSpinBox" name="sampleRepeat">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -727,31 +650,74 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
             <property name="toolTip">
-             <string>Set the number of frequency Points to measure</string>
+             <string>Set the number of repeat measurements at each frequency Point</string>
             </property>
-            <property name="suffix">
-             <string/>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
             <property name="minimum">
              <number>1</number>
             </property>
             <property name="maximum">
-             <number>30000</number>
-            </property>
-            <property name="singleStep">
-             <number>100</number>
+             <number>10000</number>
             </property>
             <property name="stepType">
-             <enum>QAbstractSpinBox::AdaptiveDecimalStepType</enum>
+             <enum>QAbstractSpinBox::StepType::AdaptiveDecimalStepType</enum>
             </property>
-            <property name="value">
-             <number>400</number>
+           </widget>
+          </item>
+          <item row="12" column="0">
+           <widget class="QCheckBox" name="trace2">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>9</pointsize>
+              <italic>true</italic>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Trace 2 on</string>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+            <property name="tristate">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QComboBox" name="spur_box">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>9</pointsize>
+              <italic>true</italic>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="currentIndex">
+             <number>-1</number>
             </property>
            </widget>
           </item>
@@ -765,8 +731,9 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
+              <family>DejaVu Sans</family>
+              <pointsize>8</pointsize>
+              <italic>false</italic>
               <bold>true</bold>
              </font>
             </property>
@@ -775,43 +742,8 @@ and Colours</string>
             </property>
            </widget>
           </item>
-          <item row="16" column="0" colspan="2">
-           <widget class="QSlider" name="waterfall_size">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="maximum">
-             <number>500</number>
-            </property>
-            <property name="singleStep">
-             <number>50</number>
-            </property>
-            <property name="pageStep">
-             <number>50</number>
-            </property>
-            <property name="sliderPosition">
-             <number>100</number>
-            </property>
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="tickPosition">
-             <enum>QSlider::TicksAbove</enum>
-            </property>
-            <property name="tickInterval">
-             <number>100</number>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item row="1" column="0" colspan="2">
-         <layout class="QGridLayout" name="gridLayout_2">
-          <item row="0" column="17">
-           <widget class="QCheckBox" name="presetMarker">
+          <item row="14" column="0">
+           <widget class="QCheckBox" name="trace4">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -820,8 +752,124 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Trace 4 on</string>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="14" column="1">
+           <widget class="QComboBox" name="t4_type">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>9</pointsize>
+              <italic>true</italic>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Trace Type</string>
+            </property>
+           </widget>
+          </item>
+          <item row="8" column="0">
+           <widget class="QCheckBox" name="points_auto">
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>9</pointsize>
+              <italic>true</italic>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Auto points to suit RBW</string>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="18" column="1">
+           <widget class="QLabel" name="label_9">
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>8</pointsize>
+              <italic>true</italic>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Auto range</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="0" colspan="2">
+           <widget class="QLabel" name="label_5">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>8</pointsize>
+              <italic>false</italic>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>RBW kHz</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="1" column="0" colspan="2">
+         <layout class="QGridLayout" name="bottom_layout">
+          <item row="0" column="17">
+           <widget class="QCheckBox" name="presetMarker">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>9</pointsize>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -836,7 +884,7 @@ and Colours</string>
           <item row="0" column="2">
            <widget class="QLabel" name="mixerMode">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -849,8 +897,9 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>8</pointsize>
-              <weight>75</weight>
+              <italic>true</italic>
               <bold>true</bold>
              </font>
             </property>
@@ -861,10 +910,10 @@ and Colours</string>
              <string notr="true">background-color:lightGreen</string>
             </property>
             <property name="frameShape">
-             <enum>QFrame::NoFrame</enum>
+             <enum>QFrame::Shape::NoFrame</enum>
             </property>
             <property name="frameShadow">
-             <enum>QFrame::Plain</enum>
+             <enum>QFrame::Shadow::Plain</enum>
             </property>
             <property name="midLineWidth">
              <number>0</number>
@@ -876,22 +925,23 @@ and Colours</string>
              <bool>false</bool>
             </property>
             <property name="alignment">
-             <set>Qt::AlignCenter</set>
+             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
           <item row="0" column="5">
            <widget class="QDoubleSpinBox" name="centre_freq">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -899,13 +949,13 @@ and Colours</string>
              <string>Sweep Centre</string>
             </property>
             <property name="alignment">
-             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+             <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
             <property name="buttonSymbols">
-             <enum>QAbstractSpinBox::PlusMinus</enum>
+             <enum>QAbstractSpinBox::ButtonSymbols::PlusMinus</enum>
             </property>
             <property name="correctionMode">
-             <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
+             <enum>QAbstractSpinBox::CorrectionMode::CorrectToNearestValue</enum>
             </property>
             <property name="prefix">
              <string/>
@@ -923,7 +973,7 @@ and Colours</string>
              <double>6000.000000000000000</double>
             </property>
             <property name="stepType">
-             <enum>QAbstractSpinBox::AdaptiveDecimalStepType</enum>
+             <enum>QAbstractSpinBox::StepType::AdaptiveDecimalStepType</enum>
             </property>
             <property name="value">
              <double>98.000000000000000</double>
@@ -933,15 +983,16 @@ and Colours</string>
           <item row="1" column="16">
            <widget class="QSpinBox" name="m4track">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -949,7 +1000,7 @@ and Colours</string>
              <string>Tracking level</string>
             </property>
             <property name="layoutDirection">
-             <enum>Qt::RightToLeft</enum>
+             <enum>Qt::LayoutDirection::RightToLeft</enum>
             </property>
             <property name="minimum">
              <number>1</number>
@@ -965,15 +1016,16 @@ and Colours</string>
           <item row="1" column="8">
            <widget class="QToolButton" name="mkr_centre">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -987,14 +1039,14 @@ and Colours</string>
              <string>...</string>
             </property>
             <property name="arrowType">
-             <enum>Qt::UpArrow</enum>
+             <enum>Qt::ArrowType::UpArrow</enum>
             </property>
            </widget>
           </item>
           <item row="0" column="11" colspan="2">
            <widget class="QComboBox" name="m2_type">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -1007,8 +1059,9 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1016,7 +1069,7 @@ and Colours</string>
              <string>Marker 2 type</string>
             </property>
             <property name="sizeAdjustPolicy">
-             <enum>QComboBox::AdjustToContentsOnFirstShow</enum>
+             <enum>QComboBox::SizeAdjustPolicy::AdjustToContentsOnFirstShow</enum>
             </property>
             <property name="minimumContentsLength">
              <number>0</number>
@@ -1035,15 +1088,16 @@ and Colours</string>
           <item row="1" column="12">
            <widget class="QSpinBox" name="m2track">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1051,7 +1105,7 @@ and Colours</string>
              <string>Tracking level</string>
             </property>
             <property name="layoutDirection">
-             <enum>Qt::RightToLeft</enum>
+             <enum>Qt::LayoutDirection::RightToLeft</enum>
             </property>
             <property name="minimum">
              <number>1</number>
@@ -1067,15 +1121,16 @@ and Colours</string>
           <item row="1" column="5">
            <widget class="QDoubleSpinBox" name="span_freq">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1083,13 +1138,13 @@ and Colours</string>
              <string>Sweep Span</string>
             </property>
             <property name="alignment">
-             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+             <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
             <property name="buttonSymbols">
-             <enum>QAbstractSpinBox::PlusMinus</enum>
+             <enum>QAbstractSpinBox::ButtonSymbols::PlusMinus</enum>
             </property>
             <property name="correctionMode">
-             <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
+             <enum>QAbstractSpinBox::CorrectionMode::CorrectToNearestValue</enum>
             </property>
             <property name="prefix">
              <string/>
@@ -1104,7 +1159,7 @@ and Colours</string>
              <double>100000.000000000000000</double>
             </property>
             <property name="stepType">
-             <enum>QAbstractSpinBox::AdaptiveDecimalStepType</enum>
+             <enum>QAbstractSpinBox::StepType::AdaptiveDecimalStepType</enum>
             </property>
             <property name="value">
              <double>20.000000000000000</double>
@@ -1114,15 +1169,16 @@ and Colours</string>
           <item row="1" column="15">
            <widget class="QSpinBox" name="m4trace">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1140,7 +1196,7 @@ and Colours</string>
           <item row="0" column="19">
            <widget class="QPushButton" name="scan_button">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -1159,8 +1215,9 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1184,7 +1241,7 @@ and Colours</string>
           <item row="0" column="9" colspan="2">
            <widget class="QComboBox" name="m1_type">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -1197,9 +1254,9 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <family>Sans Serif</family>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1211,15 +1268,16 @@ and Colours</string>
           <item row="1" column="10">
            <widget class="QSpinBox" name="m1track">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1227,16 +1285,16 @@ and Colours</string>
              <string>Tracking level</string>
             </property>
             <property name="layoutDirection">
-             <enum>Qt::RightToLeft</enum>
+             <enum>Qt::LayoutDirection::RightToLeft</enum>
             </property>
             <property name="frame">
              <bool>true</bool>
             </property>
             <property name="alignment">
-             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+             <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
             <property name="buttonSymbols">
-             <enum>QAbstractSpinBox::UpDownArrows</enum>
+             <enum>QAbstractSpinBox::ButtonSymbols::UpDownArrows</enum>
             </property>
             <property name="showGroupSeparator" stdset="0">
              <bool>false</bool>
@@ -1252,15 +1310,16 @@ and Colours</string>
           <item row="1" column="1">
            <widget class="QLabel" name="battery">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>8</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1271,14 +1330,28 @@ and Colours</string>
              <string>No Voltage</string>
             </property>
             <property name="alignment">
-             <set>Qt::AlignCenter</set>
+             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
           <item row="1" column="2">
            <spacer name="horizontalSpacer">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>10</pointsize>
+              <italic>true</italic>
+              <bold>false</bold>
+             </font>
+            </property>
             <property name="orientation">
-             <enum>Qt::Horizontal</enum>
+             <enum>Qt::Orientation::Horizontal</enum>
             </property>
             <property name="sizeHint" stdset="0">
              <size>
@@ -1291,15 +1364,16 @@ and Colours</string>
           <item row="0" column="6">
            <widget class="QDoubleSpinBox" name="stop_freq">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1307,10 +1381,10 @@ and Colours</string>
              <string>Sweep Stop</string>
             </property>
             <property name="alignment">
-             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+             <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
             <property name="correctionMode">
-             <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
+             <enum>QAbstractSpinBox::CorrectionMode::CorrectToNearestValue</enum>
             </property>
             <property name="prefix">
              <string/>
@@ -1331,7 +1405,7 @@ and Colours</string>
              <double>1.000000000000000</double>
             </property>
             <property name="stepType">
-             <enum>QAbstractSpinBox::AdaptiveDecimalStepType</enum>
+             <enum>QAbstractSpinBox::StepType::AdaptiveDecimalStepType</enum>
             </property>
             <property name="value">
              <double>108.000000000000000</double>
@@ -1341,15 +1415,16 @@ and Colours</string>
           <item row="1" column="7">
            <widget class="QToolButton" name="addBandPreset">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1364,7 +1439,7 @@ and Colours</string>
           <item row="1" column="19">
            <widget class="QToolButton" name="timeSpectrum">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -1377,8 +1452,9 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1386,23 +1462,23 @@ and Colours</string>
              <string>3D spectrum</string>
             </property>
             <property name="layoutDirection">
-             <enum>Qt::LeftToRight</enum>
+             <enum>Qt::LayoutDirection::LeftToRight</enum>
             </property>
             <property name="text">
              <string>3D</string>
             </property>
             <property name="toolButtonStyle">
-             <enum>Qt::ToolButtonIconOnly</enum>
+             <enum>Qt::ToolButtonStyle::ToolButtonIconOnly</enum>
             </property>
             <property name="arrowType">
-             <enum>Qt::NoArrow</enum>
+             <enum>Qt::ArrowType::NoArrow</enum>
             </property>
            </widget>
           </item>
           <item row="0" column="13" colspan="2">
            <widget class="QComboBox" name="m3_type">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -1415,8 +1491,9 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1428,15 +1505,16 @@ and Colours</string>
           <item row="1" column="6">
            <widget class="QComboBox" name="band_box">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1450,22 +1528,23 @@ and Colours</string>
              <string/>
             </property>
             <property name="insertPolicy">
-             <enum>QComboBox::InsertAtBottom</enum>
+             <enum>QComboBox::InsertPolicy::InsertAtBottom</enum>
             </property>
            </widget>
           </item>
           <item row="1" column="14">
            <widget class="QSpinBox" name="m3track">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1473,7 +1552,7 @@ and Colours</string>
              <string>Tracking level</string>
             </property>
             <property name="layoutDirection">
-             <enum>Qt::RightToLeft</enum>
+             <enum>Qt::LayoutDirection::RightToLeft</enum>
             </property>
             <property name="minimum">
              <number>1</number>
@@ -1489,15 +1568,16 @@ and Colours</string>
           <item row="1" column="13">
            <widget class="QSpinBox" name="m3trace">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1515,15 +1595,16 @@ and Colours</string>
           <item row="1" column="4">
            <widget class="QComboBox" name="filterBox">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1534,22 +1615,23 @@ and Colours</string>
              <bool>false</bool>
             </property>
             <property name="insertPolicy">
-             <enum>QComboBox::InsertAtTop</enum>
+             <enum>QComboBox::InsertPolicy::InsertAtTop</enum>
             </property>
            </widget>
           </item>
           <item row="0" column="7">
            <widget class="QToolButton" name="setRange">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1563,6 +1645,12 @@ and Colours</string>
           </item>
           <item row="0" column="3">
            <widget class="QSpinBox" name="avgBox">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="maximumSize">
              <size>
               <width>40</width>
@@ -1571,8 +1659,9 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1593,7 +1682,7 @@ and Colours</string>
           <item row="0" column="15" colspan="2">
            <widget class="QComboBox" name="m4_type">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -1606,8 +1695,9 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1619,15 +1709,16 @@ and Colours</string>
           <item row="1" column="11">
            <widget class="QSpinBox" name="m2trace">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1645,15 +1736,16 @@ and Colours</string>
           <item row="1" column="17">
            <widget class="QCheckBox" name="presetLabel">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1670,10 +1762,17 @@ and Colours</string>
           </item>
           <item row="0" column="18">
            <widget class="QToolButton" name="addFix">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1687,6 +1786,12 @@ and Colours</string>
           </item>
           <item row="1" column="3">
            <widget class="QSpinBox" name="memBox">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="maximumSize">
              <size>
               <width>40</width>
@@ -1695,8 +1800,9 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1717,15 +1823,16 @@ and Colours</string>
           <item row="1" column="9">
            <widget class="QSpinBox" name="m1trace">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1746,15 +1853,16 @@ and Colours</string>
           <item row="0" column="4">
            <widget class="QDoubleSpinBox" name="start_freq">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1765,7 +1873,7 @@ and Colours</string>
              <bool>true</bool>
             </property>
             <property name="correctionMode">
-             <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
+             <enum>QAbstractSpinBox::CorrectionMode::CorrectToNearestValue</enum>
             </property>
             <property name="prefix">
              <string/>
@@ -1793,15 +1901,16 @@ and Colours</string>
           <item row="0" column="8">
            <widget class="QToolButton" name="mkr_start">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1812,22 +1921,23 @@ and Colours</string>
              <string>...</string>
             </property>
             <property name="arrowType">
-             <enum>Qt::LeftArrow</enum>
+             <enum>Qt::ArrowType::LeftArrow</enum>
             </property>
            </widget>
           </item>
           <item row="1" column="0">
            <widget class="QLabel" name="updates">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>8</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1838,22 +1948,23 @@ and Colours</string>
              <string>25</string>
             </property>
             <property name="alignment">
-             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+             <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
            </widget>
           </item>
           <item row="0" column="0" colspan="2">
            <widget class="QLabel" name="version">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>8</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -1864,7 +1975,7 @@ and Colours</string>
              <string>No Device</string>
             </property>
             <property name="alignment">
-             <set>Qt::AlignCenter</set>
+             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
@@ -1874,480 +1985,24 @@ and Colours</string>
       </widget>
       <widget class="QWidget" name="View3D">
        <layout class="QGridLayout" name="gridLayout_6">
-        <item row="0" column="0">
+        <item row="0" column="3">
          <layout class="QGridLayout" name="gridLayout_4">
-          <item row="16" column="6">
-           <widget class="QToolButton" name="signalUp">
+          <item row="2" column="4">
+           <widget class="QPushButton" name="run3D">
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
             <property name="text">
-             <string>Up</string>
-            </property>
-            <property name="arrowType">
-             <enum>Qt::NoArrow</enum>
+             <string>Run</string>
             </property>
            </widget>
           </item>
-          <item row="16" column="9">
-           <widget class="QToolButton" name="freqL">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>L</string>
-            </property>
-            <property name="arrowType">
-             <enum>Qt::NoArrow</enum>
-            </property>
-           </widget>
-          </item>
-          <item row="10" column="0">
-           <widget class="QLabel" name="label_13">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>16</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>^ exponent</string>
-            </property>
-           </widget>
-          </item>
-          <item row="9" column="0">
-           <widget class="QDoubleSpinBox" name="rConst">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>16</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="decimals">
-             <number>3</number>
-            </property>
-            <property name="singleStep">
-             <double>0.010000000000000</double>
-            </property>
-           </widget>
-          </item>
-          <item row="15" column="4">
-           <widget class="QToolButton" name="orbitL">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>...</string>
-            </property>
-            <property name="arrowType">
-             <enum>Qt::LeftArrow</enum>
-            </property>
-           </widget>
-          </item>
-          <item row="8" column="0">
-           <widget class="QDoubleSpinBox" name="gConst">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>16</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="decimals">
-             <number>3</number>
-            </property>
-            <property name="singleStep">
-             <double>0.010000000000000</double>
-            </property>
-           </widget>
-          </item>
-          <item row="15" column="1">
-           <spacer name="horizontalSpacer_5">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="15" column="6">
-           <widget class="QToolButton" name="orbitU">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>...</string>
-            </property>
-            <property name="arrowType">
-             <enum>Qt::UpArrow</enum>
-            </property>
-           </widget>
-          </item>
-          <item row="15" column="7">
-           <widget class="QToolButton" name="orbitD">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>...</string>
-            </property>
-            <property name="arrowType">
-             <enum>Qt::DownArrow</enum>
-            </property>
-           </widget>
-          </item>
-          <item row="7" column="0">
-           <widget class="QDoubleSpinBox" name="bConst">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>16</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="decimals">
-             <number>3</number>
-            </property>
-            <property name="singleStep">
-             <double>0.010000000000000</double>
-            </property>
-           </widget>
-          </item>
-          <item row="15" column="5">
-           <widget class="QToolButton" name="orbitR">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>...</string>
-            </property>
-            <property name="arrowType">
-             <enum>Qt::RightArrow</enum>
-            </property>
-           </widget>
-          </item>
-          <item row="16" column="0">
-           <widget class="QCheckBox" name="glSmooth">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="layoutDirection">
-             <enum>Qt::LeftToRight</enum>
-            </property>
-            <property name="text">
-             <string>Smooth</string>
-            </property>
-           </widget>
-          </item>
-          <item row="13" column="0">
-           <widget class="QDoubleSpinBox" name="bExponent">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>16</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="minimum">
-             <double>-10.000000000000000</double>
-            </property>
-            <property name="maximum">
-             <double>10.000000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>0.100000000000000</double>
-            </property>
-            <property name="value">
-             <double>-0.300000000000000</double>
-            </property>
-           </widget>
-          </item>
-          <item row="15" column="0">
-           <widget class="QCheckBox" name="glNormals">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="layoutDirection">
-             <enum>Qt::LeftToRight</enum>
-            </property>
-            <property name="text">
-             <string>Normals</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="0">
-           <widget class="QLabel" name="label_4">
-            <property name="font">
-             <font>
-              <pointsize>7</pointsize>
-              <weight>75</weight>
-              <bold>true</bold>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Shade = (Colour * dBm + const) ^ exponent</string>
-            </property>
-            <property name="text">
-             <string>Shader</string>
-            </property>
-           </widget>
-          </item>
-          <item row="16" column="2">
-           <widget class="QLabel" name="label_18">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Axes</string>
-            </property>
-           </widget>
-          </item>
-          <item row="16" column="4">
-           <widget class="QToolButton" name="timeF">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>F</string>
-            </property>
-            <property name="arrowType">
-             <enum>Qt::NoArrow</enum>
-            </property>
-           </widget>
-          </item>
-          <item row="16" column="3">
-           <widget class="QSpinBox" name="panBy">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="maximum">
-             <number>10</number>
-            </property>
-            <property name="singleStep">
-             <number>1</number>
-            </property>
-            <property name="value">
-             <number>1</number>
-            </property>
-           </widget>
-          </item>
-          <item row="6" column="0">
-           <widget class="QLabel" name="label_12">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>16</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>+ constant</string>
-            </property>
-           </widget>
-          </item>
-          <item row="12" column="0">
-           <widget class="QDoubleSpinBox" name="gExponent">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>16</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="minimum">
-             <double>-10.000000000000000</double>
-            </property>
-            <property name="maximum">
-             <double>10.000000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>0.100000000000000</double>
-            </property>
-            <property name="value">
-             <double>2.000000000000000</double>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="0">
-           <widget class="QDoubleSpinBox" name="gMulti">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>16</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="prefix">
-             <string>G </string>
-            </property>
-            <property name="decimals">
-             <number>3</number>
-            </property>
-            <property name="minimum">
-             <double>0.001000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>0.001000000000000</double>
-            </property>
-            <property name="value">
-             <double>0.010000000000000</double>
-            </property>
-           </widget>
-          </item>
-          <item row="16" column="14">
+          <item row="3" column="4">
            <widget class="QToolButton" name="analyser">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -2357,8 +2012,9 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
+              <family>DejaVu Sans</family>
               <pointsize>9</pointsize>
-              <weight>50</weight>
+              <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
@@ -2369,390 +2025,137 @@ and Colours</string>
              <string>2D</string>
             </property>
             <property name="arrowType">
-             <enum>Qt::NoArrow</enum>
+             <enum>Qt::ArrowType::NoArrow</enum>
             </property>
            </widget>
           </item>
-          <item row="16" column="5">
-           <widget class="QToolButton" name="timeR">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
+          <item row="3" column="1">
+           <widget class="QSlider" name="x_rotation">
+            <property name="toolTip">
+             <string>Rotate left and right</string>
             </property>
+            <property name="minimum">
+             <number>-180</number>
+            </property>
+            <property name="maximum">
+             <number>180</number>
+            </property>
+            <property name="singleStep">
+             <number>15</number>
+            </property>
+            <property name="pageStep">
+             <number>45</number>
+            </property>
+            <property name="value">
+             <number>-33</number>
+            </property>
+            <property name="tracking">
+             <bool>true</bool>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+            <property name="tickPosition">
+             <enum>QSlider::TickPosition::TicksBothSides</enum>
+            </property>
+            <property name="tickInterval">
+             <number>15</number>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="2">
+           <widget class="QLabel" name="label_4">
             <property name="text">
-             <string>B</string>
+             <string>Zoom</string>
             </property>
-            <property name="arrowType">
-             <enum>Qt::NoArrow</enum>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
-          <item row="15" column="3">
-           <widget class="QSpinBox" name="rotateBy">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
+          <item row="3" column="2">
+           <widget class="QSlider" name="zoom">
+            <property name="minimum">
+             <number>100</number>
+            </property>
+            <property name="maximum">
+             <number>200</number>
+            </property>
+            <property name="singleStep">
+             <number>10</number>
+            </property>
+            <property name="pageStep">
+             <number>50</number>
+            </property>
+            <property name="value">
+             <number>120</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+            <property name="tickPosition">
+             <enum>QSlider::TickPosition::TicksBothSides</enum>
+            </property>
+            <property name="tickInterval">
+             <number>10</number>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="3">
+           <widget class="QSlider" name="y_rotation">
+            <property name="toolTip">
+             <string>Rotate up and down</string>
+            </property>
+            <property name="minimum">
+             <number>0</number>
             </property>
             <property name="maximum">
              <number>90</number>
             </property>
             <property name="singleStep">
-             <number>5</number>
+             <number>15</number>
+            </property>
+            <property name="pageStep">
+             <number>45</number>
             </property>
             <property name="value">
-             <number>5</number>
-            </property>
-           </widget>
-          </item>
-          <item row="15" column="13">
-           <widget class="QPushButton" name="reset3D">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>2</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>5</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Reset</string>
-            </property>
-            <property name="iconSize">
-             <size>
-              <width>10</width>
-              <height>16</height>
-             </size>
-            </property>
-           </widget>
-          </item>
-          <item row="16" column="12">
-           <widget class="QToolButton" name="gridR">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>...</string>
-            </property>
-            <property name="arrowType">
-             <enum>Qt::UpArrow</enum>
-            </property>
-           </widget>
-          </item>
-          <item row="14" column="0">
-           <spacer name="verticalSpacer">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>20</width>
-              <height>40</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="2" column="0">
-           <widget class="QLabel" name="label_11">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>16</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>x sig dBm</string>
-            </property>
-           </widget>
-          </item>
-          <item row="15" column="14">
-           <widget class="QPushButton" name="run3D">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Run</string>
-            </property>
-           </widget>
-          </item>
-          <item row="11" column="0">
-           <widget class="QDoubleSpinBox" name="rExponent">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>16</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="minimum">
-             <double>-10.000000000000000</double>
-            </property>
-            <property name="maximum">
-             <double>10.000000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>0.100000000000000</double>
-            </property>
-            <property name="value">
-             <double>0.600000000000000</double>
-            </property>
-           </widget>
-          </item>
-          <item row="16" column="8">
-           <widget class="QToolButton" name="freqR">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>R</string>
-            </property>
-            <property name="arrowType">
-             <enum>Qt::NoArrow</enum>
-            </property>
-           </widget>
-          </item>
-          <item row="5" column="0">
-           <widget class="QDoubleSpinBox" name="bMulti">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>16</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="prefix">
-             <string>B </string>
-            </property>
-            <property name="decimals">
-             <number>3</number>
-            </property>
-            <property name="minimum">
-             <double>0.400000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>0.001000000000000</double>
-            </property>
-            <property name="value">
-             <double>0.400000000000000</double>
-            </property>
-           </widget>
-          </item>
-          <item row="15" column="8" colspan="3">
-           <widget class="QSlider" name="zoom">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="maximum">
-             <number>200</number>
-            </property>
-            <property name="value">
-             <number>40</number>
-            </property>
-            <property name="sliderPosition">
-             <number>40</number>
+             <number>18</number>
             </property>
             <property name="orientation">
-             <enum>Qt::Horizontal</enum>
+             <enum>Qt::Orientation::Horizontal</enum>
             </property>
             <property name="invertedAppearance">
-             <bool>true</bool>
-            </property>
-            <property name="invertedControls">
              <bool>false</bool>
             </property>
+            <property name="tickPosition">
+             <enum>QSlider::TickPosition::TicksBothSides</enum>
+            </property>
            </widget>
           </item>
-          <item row="15" column="11" colspan="2">
-           <widget class="QCheckBox" name="grid">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="layoutDirection">
-             <enum>Qt::LeftToRight</enum>
-            </property>
+          <item row="2" column="1">
+           <widget class="QLabel" name="label_8">
             <property name="text">
-             <string>Show Grid</string>
+             <string>Rotate horizontally</string>
             </property>
-            <property name="checked">
-             <bool>true</bool>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
-          <item row="15" column="2">
-           <widget class="QLabel" name="label_17">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
+          <item row="0" column="0" rowspan="2" colspan="5">
+           <widget class="QQuickWidget" name="plot_3D">
+            <property name="resizeMode">
+             <enum>QQuickWidget::ResizeMode::SizeRootObjectToView</enum>
             </property>
+           </widget>
+          </item>
+          <item row="2" column="3">
+           <widget class="QLabel" name="label_10">
             <property name="text">
-             <string>Orbit</string>
+             <string>Rotate vertically</string>
             </property>
-           </widget>
-          </item>
-          <item row="0" column="1" rowspan="15" colspan="14">
-           <widget class="GLViewWidget" name="openGLWidget">
-            <property name="enabled">
-             <bool>true</bool>
-            </property>
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-           </widget>
-          </item>
-          <item row="16" column="7">
-           <widget class="QToolButton" name="signalDown">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Dn</string>
-            </property>
-            <property name="arrowType">
-             <enum>Qt::NoArrow</enum>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="0">
-           <widget class="QDoubleSpinBox" name="rMulti">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>0</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>16777215</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="prefix">
-             <string>R </string>
-            </property>
-            <property name="decimals">
-             <number>3</number>
-            </property>
-            <property name="minimum">
-             <double>0.001000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>0.001000000000000</double>
-            </property>
-            <property name="value">
-             <double>0.010000000000000</double>
-            </property>
-           </widget>
-          </item>
-          <item row="16" column="11">
-           <widget class="QToolButton" name="gridF">
-            <property name="font">
-             <font>
-              <pointsize>9</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>...</string>
-            </property>
-            <property name="arrowType">
-             <enum>Qt::DownArrow</enum>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
@@ -2770,8 +2173,8 @@ and Colours</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1027</width>
-     <height>25</height>
+     <width>1058</width>
+     <height>23</height>
     </rect>
    </property>
    <widget class="QMenu" name="menu_Help">
@@ -2889,15 +2292,15 @@ and Colours</string>
  </widget>
  <customwidgets>
   <customwidget>
-   <class>PlotWidget</class>
+   <class>QQuickWidget</class>
    <extends>QWidget</extends>
-   <header location="global">pyqtgraph</header>
-   <container>1</container>
+   <header location="global">QtQuickWidgets/QQuickWidget</header>
   </customwidget>
   <customwidget>
-   <class>GLViewWidget</class>
-   <extends>QOpenGLWidget</extends>
-   <header>pyqtgraph.opengl</header>
+   <class>PlotWidget</class>
+   <extends>QWidget</extends>
+   <header>pyqtgraph</header>
+   <container>1</container>
   </customwidget>
  </customwidgets>
  <resources/>

@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       tags:
-        description: 'ubuntu nuitka'
+        description: 'ubuntu latest nuitka'
 
 jobs:
   build:
@@ -20,7 +20,7 @@ jobs:
     # Setup Python
     - uses: actions/setup-python@v5
       with:
-        python-version: '3.12' # Version range or exact version of a Python version to use, using SemVer's version range syntax
+        python-version: '3.13' # Version range or exact version of a Python version to use, using SemVer's version range syntax
         architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
         cache: 'pip'
         cache-dependency-path: |
@@ -36,7 +36,7 @@ jobs:
         nuitka-version: main
         script-name: QtTinySA.py
         working-directory: ./src
-        mode: app
+        mode: standalone
 
     # Uploads artifact
     - name: Upload Artifact

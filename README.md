@@ -1,14 +1,14 @@
 # QtTinySA  
 <img width="1063" height="831" alt="image" src="https://github.com/user-attachments/assets/809dcdf3-7ac3-430b-9dce-1b4f9c9354e8" />
   
-A Python 'TinySA Ultra' (and original 'TinySA') GUI programme using Qt5 and PyQt5. Designed to run in Linux but also works in mac (no testing)
-and Windows.
+A Python 'TinySA Ultra' (and original 'TinySA') GUI programme using Qt with pyside6 and pyqtgraph.
+Designed to run in Linux but also works in mac (no testing) and Windows.
   
 For information on how to install it and how to use some of the features, see the Wiki pages.
 https://github.com/g4ixt/QtTinySA/wiki
   
 The code attempts to replicate some of the TinySA Ultra on-screen commands on the PC.
-Development and testing are now on Kubuntu 24.04LTS with Python 3.11.8 and PyQt5 using Spyder.
+Development and testing are now on Kubuntu 25.10 with Python 3.13 using the Spyder IDE.
 
 'TinySA', 'TinySA Ultra' and the TinySA icon are trademarks of Erik Kaashoek and are used with his permission.
 

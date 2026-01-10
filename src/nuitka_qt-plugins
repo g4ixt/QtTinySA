@@ -1,0 +1,41 @@
+FATAL: pyside6: Error, there is no Qt plugin family ' uitools' (only OrderedSet(['assetimporters', 'canbus', 'designer', 'egldeviceintegrations', 'generic', 'geometryloaders', 'geoservices', 'iconengines', 'imageformats', 'multimedia', 'networkinformation', 'platforminputcontexts', 'platforms', 'platformthemes', 'position', 'printsupport', 'qmltooling', 'renderers', 'renderplugins', 'sceneparsers', 'scxmldatamodel', 'sensors', 'sqldrivers', 'texttospeech', 'tls', 'wayland-decoration-client', 'wayland-graphics-integration-client', 'wayland-graphics-integration-server', 'wayland-shell-integration', 'xcbglintegrations'])).
+
+
+ian@pi4-8gb:~/QtTinySA/src $ ./QtTinySA.bin
+QtTinySA v1.2.2.pyside6
+Database QtTSAprefs.db found at /home/ian/.config/QtTinySA
+QtTSAprefs.db open: True  Connection = "settings"
+Database version is 122, expected 122
+qt.qpa.wayland: eglSwapBuffers failed with 0x300d, surface: 0x0
+Serial port /dev/ttyACM1 open: True
+/dev/ttyACM1 test 0 : tinySA4_v1.4-202
+ModuleNotFoundError: No module named 'numpy.core._multiarray_umath'
+Nuitka: A segmentation fault has occurred. This is highly unusual and can
+have multiple reasons. Please check https://nuitka.net/info/segfault.html
+for solutions.
+
+
+Nuitka-Plugins:pyside6: Including Qt plugins 'egldeviceintegrations,iconengines,imageformats,platforms,platformthemes,printsupport,sqldrivers,tls,wayland-decoration-client,wayland-graphics-integration-client,wayland-shell-integration,xcbglintegrations' below 'PySide6/qt-plugins'.
+
+
+Traceback (most recent call last):
+  File "/tmp/onefile_8078_1765625370_893080/QtTinySA.py", line 259, in scan
+    self.usbSend()
+
+  File "/tmp/onefile_8078_1765625370_893080/QtTinySA.py", line 273, in startMeasurement
+    # Changed to QtGraphs because pyqtgraph.opengl is based on the deprecated OpenGL fixed-function pipeline
+
+  File "/tmp/onefile_8078_1765625370_893080/QtTinySAGraphs.py", line 23, in __init__
+TypeError: 'PySide6.QtGraphsWidgets.Q3DGraphsWidgetItem.setWidget' called with wrong argument types:
+  PySide6.QtGraphsWidgets.Q3DGraphsWidgetItem.setWidget(QWidget)
+Supported signatures:
+  PySide6.QtGraphsWidgets.Q3DGraphsWidgetItem.setWidget(PySide6.QtQuickWidgets.QQuickWidget)
+
+
+qt.qpa.wayland: eglSwapBuffers failed with 0x300d, surface: 0x0
+Serial port /dev/ttyACM1 open: True
+/dev/ttyACM1 test 0 : tinySA4_v1.4-202
+QQmlComponent: Component is not ready
+Nuitka: A segmentation fault has occurred. This is highly unusual and can
+have multiple reasons. Please check https://nuitka.net/info/segfault.html
+for solutions.

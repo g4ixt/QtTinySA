@@ -3,7 +3,7 @@ import itertools
 
 import numpy as np
 
-from PyQt5.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QMessageBox
 
 from pyqtgraph import ErrorBarItem, PlotItem
 from pyqtgraph.exporters import CSVExporter

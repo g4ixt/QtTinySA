@@ -23,294 +23,10 @@
     </rect>
    </property>
    <layout class="QGridLayout" name="gridLayout_2">
-    <item row="3" column="3">
-     <widget class="QLabel" name="label_11">
-      <property name="text">
-       <string>Absolute maximum</string>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="4">
-     <widget class="QComboBox" name="deviceBox">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="toolTip">
-       <string>Select device to use if more than one is detected</string>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="0">
-     <widget class="QLabel" name="label_4">
-      <property name="text">
-       <string>Auto maximum points</string>
-      </property>
-     </widget>
-    </item>
-    <item row="5" column="4">
-     <widget class="QCheckBox" name="neg25Line">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="text">
-       <string>-25dBm</string>
-      </property>
-      <property name="checked">
-       <bool>false</bool>
-      </property>
-     </widget>
-    </item>
-    <item row="8" column="0">
-     <widget class="QLabel" name="label_5">
-      <property name="font">
-       <font>
-        <weight>75</weight>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="text">
-       <string>Colours</string>
-      </property>
-     </widget>
-    </item>
-    <item row="10" column="0" colspan="2">
-     <widget class="QLabel" name="label_12">
-      <property name="text">
-       <string>Colour changes take effect when QtTinySA is re-started</string>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="0">
-     <widget class="QLabel" name="label">
-      <property name="text">
-       <string>Points / Resolution Bandwidth</string>
-      </property>
-     </widget>
-    </item>
-    <item row="7" column="3">
-     <widget class="QLabel" name="label_17">
-      <property name="text">
-       <string>Sync Date and Time from PC</string>
-      </property>
-     </widget>
-    </item>
-    <item row="8" column="3">
-     <widget class="QLabel" name="label_20">
-      <property name="text">
-       <string>Save sweep data to CSV file</string>
-      </property>
-     </widget>
-    </item>
-    <item row="5" column="0">
-     <widget class="QLabel" name="label_2">
-      <property name="text">
-       <string>Max/Min marker threshold</string>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="3">
-     <widget class="QLabel" name="label_18">
-      <property name="text">
-       <string>Detected Device/Port to use</string>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="1">
-     <widget class="QSpinBox" name="minPoints">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="maximumSize">
-       <size>
-        <width>100</width>
-        <height>16777215</height>
-       </size>
-      </property>
-      <property name="buttonSymbols">
-       <enum>QAbstractSpinBox::NoButtons</enum>
-      </property>
-      <property name="minimum">
-       <number>25</number>
-      </property>
-      <property name="maximum">
-       <number>450</number>
-      </property>
-      <property name="value">
-       <number>450</number>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="1">
-     <widget class="QSpinBox" name="rbw_x">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="maximumSize">
-       <size>
-        <width>100</width>
-        <height>16777215</height>
-       </size>
-      </property>
-      <property name="minimum">
-       <number>2</number>
-      </property>
-      <property name="maximum">
-       <number>10</number>
-      </property>
-      <property name="value">
-       <number>2</number>
-      </property>
-     </widget>
-    </item>
-    <item row="4" column="0">
-     <widget class="QLabel" name="label_19">
-      <property name="text">
-       <string>Display update interval</string>
-      </property>
-     </widget>
-    </item>
-    <item row="7" column="1">
-     <widget class="QSpinBox" name="timePoints">
-      <property name="maximumSize">
-       <size>
-        <width>100</width>
-        <height>16777215</height>
-       </size>
-      </property>
-      <property name="toolTip">
-       <string>Uses about 1MB memory / 1000 points</string>
-      </property>
-      <property name="suffix">
-       <string/>
-      </property>
-      <property name="minimum">
-       <number>100</number>
-      </property>
-      <property name="maximum">
-       <number>100000</number>
-      </property>
-      <property name="singleStep">
-       <number>1000</number>
-      </property>
-      <property name="stepType">
-       <enum>QAbstractSpinBox::DefaultStepType</enum>
-      </property>
-      <property name="value">
-       <number>1000</number>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="4">
-     <widget class="QCheckBox" name="plus6Line">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="text">
-       <string>+6dBm</string>
-      </property>
-      <property name="checked">
-       <bool>false</bool>
-      </property>
-     </widget>
-    </item>
-    <item row="0" column="3">
-     <widget class="QLabel" name="label_14">
-      <property name="font">
-       <font>
-        <weight>75</weight>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="text">
-       <string>Device</string>
-      </property>
-     </widget>
-    </item>
-    <item row="9" column="0" colspan="2">
-     <widget class="QTableView" name="colourTable"/>
-    </item>
-    <item row="2" column="3">
-     <widget class="QLabel" name="label_6">
-      <property name="font">
-       <font>
-        <weight>75</weight>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="text">
-       <string>Signal Level Reminder lines</string>
-      </property>
-     </widget>
-    </item>
-    <item row="7" column="4">
-     <widget class="QCheckBox" name="syncTime">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
-     </widget>
-    </item>
-    <item row="5" column="3">
-     <widget class="QLabel" name="label_9">
-      <property name="text">
-       <string>Max for best accuracy</string>
-      </property>
-     </widget>
-    </item>
     <item row="6" column="0">
      <widget class="QLabel" name="label_7">
       <property name="text">
        <string>Maximum operating frequency</string>
-      </property>
-     </widget>
-    </item>
-    <item row="8" column="4">
-     <widget class="QCheckBox" name="saveSweep">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="toolTip">
-       <string>Must be selected each time programme is run</string>
-      </property>
-      <property name="text">
-       <string>True</string>
-      </property>
-     </widget>
-    </item>
-    <item row="7" column="0">
-     <widget class="QLabel" name="label_21">
-      <property name="text">
-       <string>Signal Level Monitor points</string>
-      </property>
-     </widget>
-    </item>
-    <item row="4" column="3">
-     <widget class="QLabel" name="label_10">
-      <property name="text">
-       <string>Max with auto attenuator</string>
       </property>
      </widget>
     </item>
@@ -348,6 +64,108 @@
       </property>
      </widget>
     </item>
+    <item row="0" column="3">
+     <widget class="QLabel" name="label_14">
+      <property name="font">
+       <font>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="text">
+       <string>Device</string>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="3">
+     <widget class="QLabel" name="label_9">
+      <property name="text">
+       <string>Max for best accuracy</string>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="4">
+     <widget class="QCheckBox" name="zeroLine">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="text">
+       <string> 0dBm</string>
+      </property>
+      <property name="checked">
+       <bool>false</bool>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="0">
+     <widget class="QLabel" name="label_3">
+      <property name="text">
+       <string>Auto minimum points</string>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="0">
+     <widget class="QLabel" name="label_19">
+      <property name="text">
+       <string>Display update interval</string>
+      </property>
+     </widget>
+    </item>
+    <item row="10" column="0" colspan="2">
+     <widget class="QTableView" name="colourTable"/>
+    </item>
+    <item row="7" column="4">
+     <widget class="QCheckBox" name="syncTime">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="0">
+     <widget class="QLabel" name="label_4">
+      <property name="text">
+       <string>Auto maximum points</string>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="4">
+     <widget class="QCheckBox" name="neg25Line">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="text">
+       <string>-25dBm</string>
+      </property>
+      <property name="checked">
+       <bool>false</bool>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="3">
+     <widget class="QLabel" name="label_6">
+      <property name="font">
+       <font>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="text">
+       <string>Signal Level Reminder lines</string>
+      </property>
+     </widget>
+    </item>
     <item row="6" column="3">
      <widget class="QLabel" name="label_13">
       <property name="font">
@@ -371,6 +189,96 @@
       </property>
       <property name="text">
        <string>Scan Settings</string>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="4">
+     <widget class="QComboBox" name="deviceBox">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="toolTip">
+       <string>Select device to use if more than one is detected</string>
+      </property>
+     </widget>
+    </item>
+    <item row="8" column="0">
+     <widget class="QLabel" name="label_5">
+      <property name="font">
+       <font>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="text">
+       <string>GUI</string>
+      </property>
+     </widget>
+    </item>
+    <item row="7" column="3">
+     <widget class="QLabel" name="label_17">
+      <property name="text">
+       <string>Sync Date and Time from PC</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="4">
+     <widget class="QCheckBox" name="plus6Line">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="text">
+       <string>+6dBm</string>
+      </property>
+      <property name="checked">
+       <bool>false</bool>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="0">
+     <widget class="QLabel" name="label">
+      <property name="text">
+       <string>Points / Resolution Bandwidth</string>
+      </property>
+     </widget>
+    </item>
+    <item row="6" column="1">
+     <widget class="QSpinBox" name="maxFreqBox">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>100</width>
+        <height>16777215</height>
+       </size>
+      </property>
+      <property name="toolTip">
+       <string>Maximum Frequency allowed.  Note: TinySA-Ultra is not calibrated above 6GHz </string>
+      </property>
+      <property name="suffix">
+       <string>MHz</string>
+      </property>
+      <property name="minimum">
+       <number>350</number>
+      </property>
+      <property name="maximum">
+       <number>20000</number>
+      </property>
+      <property name="singleStep">
+       <number>100</number>
+      </property>
+      <property name="value">
+       <number>6000</number>
       </property>
      </widget>
     </item>
@@ -402,26 +310,178 @@
       </property>
      </widget>
     </item>
-    <item row="4" column="4">
-     <widget class="QCheckBox" name="zeroLine">
+    <item row="8" column="3">
+     <widget class="QLabel" name="label_20">
+      <property name="text">
+       <string>Save sweep data to CSV file</string>
+      </property>
+     </widget>
+    </item>
+    <item row="8" column="4">
+     <widget class="QCheckBox" name="saveSweep">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
         <horstretch>0</horstretch>
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
-      <property name="text">
-       <string> 0dBm</string>
+      <property name="toolTip">
+       <string>Must be selected each time programme is run</string>
       </property>
-      <property name="checked">
-       <bool>false</bool>
+      <property name="text">
+       <string/>
       </property>
      </widget>
     </item>
-    <item row="2" column="0">
-     <widget class="QLabel" name="label_3">
+    <item row="2" column="1">
+     <widget class="QSpinBox" name="minPoints">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>100</width>
+        <height>16777215</height>
+       </size>
+      </property>
+      <property name="buttonSymbols">
+       <enum>QAbstractSpinBox::NoButtons</enum>
+      </property>
+      <property name="minimum">
+       <number>25</number>
+      </property>
+      <property name="maximum">
+       <number>450</number>
+      </property>
+      <property name="value">
+       <number>450</number>
+      </property>
+     </widget>
+    </item>
+    <item row="12" column="3">
+     <spacer name="verticalSpacer">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>20</width>
+        <height>40</height>
+       </size>
+      </property>
+     </spacer>
+    </item>
+    <item row="1" column="1">
+     <widget class="QSpinBox" name="rbw_x">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>100</width>
+        <height>16777215</height>
+       </size>
+      </property>
+      <property name="minimum">
+       <number>2</number>
+      </property>
+      <property name="maximum">
+       <number>10</number>
+      </property>
+      <property name="value">
+       <number>2</number>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="0">
+     <widget class="QLabel" name="label_2">
       <property name="text">
-       <string>Auto minimum points</string>
+       <string>Max/Min marker threshold</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="3">
+     <widget class="QLabel" name="label_11">
+      <property name="text">
+       <string>Absolute maximum</string>
+      </property>
+     </widget>
+    </item>
+    <item row="7" column="0">
+     <widget class="QLabel" name="label_21">
+      <property name="text">
+       <string>Signal Level Monitor points</string>
+      </property>
+     </widget>
+    </item>
+    <item row="7" column="1">
+     <widget class="QSpinBox" name="timePoints">
+      <property name="maximumSize">
+       <size>
+        <width>100</width>
+        <height>16777215</height>
+       </size>
+      </property>
+      <property name="toolTip">
+       <string>Uses about 1MB memory / 1000 points</string>
+      </property>
+      <property name="suffix">
+       <string/>
+      </property>
+      <property name="minimum">
+       <number>100</number>
+      </property>
+      <property name="maximum">
+       <number>100000</number>
+      </property>
+      <property name="singleStep">
+       <number>1000</number>
+      </property>
+      <property name="stepType">
+       <enum>QAbstractSpinBox::DefaultStepType</enum>
+      </property>
+      <property name="value">
+       <number>1000</number>
+      </property>
+     </widget>
+    </item>
+    <item row="6" column="2">
+     <widget class="QLabel" name="label_15">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="3">
+     <widget class="QLabel" name="label_18">
+      <property name="text">
+       <string>Detected Device/Port to use</string>
+      </property>
+     </widget>
+    </item>
+    <item row="11" column="0" colspan="2">
+     <widget class="QLabel" name="label_12">
+      <property name="text">
+       <string>Changes take effect when QtTinySA is re-started</string>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="3">
+     <widget class="QLabel" name="label_10">
+      <property name="text">
+       <string>Max with auto attenuator</string>
       </property>
      </widget>
     </item>
@@ -461,63 +521,17 @@
       </property>
      </widget>
     </item>
-    <item row="6" column="1">
-     <widget class="QSpinBox" name="maxFreqBox">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="maximumSize">
-       <size>
-        <width>100</width>
-        <height>16777215</height>
-       </size>
-      </property>
-      <property name="toolTip">
-       <string>Maximum Frequency allowed.  Note: TinySA-Ultra is not calibrated above 6GHz </string>
-      </property>
-      <property name="suffix">
-       <string>MHz</string>
-      </property>
-      <property name="minimum">
-       <number>350</number>
-      </property>
-      <property name="maximum">
-       <number>20000</number>
-      </property>
-      <property name="singleStep">
-       <number>100</number>
-      </property>
-      <property name="value">
-       <number>6000</number>
+    <item row="9" column="0">
+     <widget class="QLabel" name="label_16">
+      <property name="text">
+       <string>Set all text to Bold</string>
       </property>
      </widget>
     </item>
-    <item row="11" column="3">
-     <spacer name="verticalSpacer">
-      <property name="orientation">
-       <enum>Qt::Vertical</enum>
-      </property>
-      <property name="sizeHint" stdset="0">
-       <size>
-        <width>20</width>
-        <height>40</height>
-       </size>
-      </property>
-     </spacer>
-    </item>
-    <item row="6" column="2">
-     <widget class="QLabel" name="label_15">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
+    <item row="9" column="1">
+     <widget class="QCheckBox" name="bold_text">
       <property name="text">
-       <string> </string>
+       <string/>
       </property>
      </widget>
     </item>
