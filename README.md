@@ -1,5 +1,5 @@
 # QtTinySA  
-<img width="1063" height="831" alt="image" src="https://github.com/user-attachments/assets/809dcdf3-7ac3-430b-9dce-1b4f9c9354e8" />
+<img width="1072" height="803" alt="main_screen" src="https://github.com/user-attachments/assets/423fd94e-543d-490a-af31-fe5258af26f1" />
   
 A Python 'TinySA Ultra' (and original 'TinySA') GUI programme using Qt with pyside6 and pyqtgraph.
 Designed to run in Linux but also works in mac (no testing) and Windows.
@@ -17,5 +17,8 @@ http://athome.kaashoek.com/tinySA/python/
 
 The serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset
 https://github.com/Ho-Ro
-
-The GUI is now designed for a 1024 x 768 screen but should maximise properly.  The GUI appearence may change significantly due to development.
+  
+I learnt a lot about how to create Python GUIs from Martin Fitzpatrick's excellent books.  
+https://www.pythonguis.com/books/
+  
+The GUI appearence may change significantly due to development.
