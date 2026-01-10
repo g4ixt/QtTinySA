@@ -18,7 +18,7 @@ http://athome.kaashoek.com/tinySA/python/
 The serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset
 https://github.com/Ho-Ro
   
-I learnt a lot from Martin Fitzpatrick's excellent books about how to create Python GUIs.  
+I learnt a lot about how to create Python GUIs from Martin Fitzpatrick's excellent books.  
 https://www.pythonguis.com/books/
   
 The GUI appearence may change significantly due to development.
