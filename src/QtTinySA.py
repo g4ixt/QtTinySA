@@ -45,9 +45,9 @@ import pyqtgraph
 from datetime import datetime
 from serial.tools import list_ports
 from io import BytesIO
-from QtTinyExporters import WWBExporter, WSMExporter
+from modules.QtTinyExporters import WWBExporter, WSMExporter
 
-from QtTinySAGraphs import SurfaceGraph
+from modules.QtTinySAGraphs import SurfaceGraph, PhaseNoiseGraph
 
 # Defaults to non local configuration/data dirs - needed for packaging
 if system() == "Linux":
@@ -64,12 +64,6 @@ basedir = os.path.dirname(__file__)
 # pyqtgraph custom exporters
 WWBExporter.register()
 WSMExporter.register()
-
-# From https://github.com/Hagtronics/tinySA-Ultra-Phase-Noise
-SHAPE_FACTOR = {0.2: 3.4, 1: -0.6, 3: -5.3, 10: 0, 30: 0, 100: 0, 300: 0, 600: 0, 850: 0}
-# tinySA typical phase noise
-PN_AT_10MHZ = np.loadtxt("10_baseline.txt")
-PN_AT_1152MHZ = np.loadtxt("1152_baseline.txt")
 
 # classes ##############################################################################
 
@@ -97,8 +91,8 @@ class CustomDialogue(QtWidgets.QDialog):
 class Analyser:
     def __init__(self):
         self.usb = None
-        self.surface = None
-        self.vGrid = None
+        # self.surface = None
+        # self.vGrid = None
         self.tinySA4 = None
         self.directory = None
         self.firmware = None
@@ -274,6 +268,7 @@ class Analyser:
 
     def startMeasurement(self):
         frequencies, readings, maxima, minima = self.set_arrays()
+        self.phaseNoise = PhaseNoiseGraph(phasenoise.ui.plotWidget, 'pn', frequencies, readings, 100)
         self.sweep = Worker(self.measurement, frequencies, readings, maxima, minima)  # workers deleted when thread ends
         self.sweeping = True
 
@@ -289,10 +284,12 @@ class Analyser:
     def timerTasks(self):
         if self.usb:
             self.usbSend()
-        M1.updateMarker()
-        M2.updateMarker()
-        M3.updateMarker()
-        M4.updateMarker()
+
+        # add a gui control to enable/disable marker updates when not scanning
+        # M1.updateMarker()
+        # M2.updateMarker()
+        # M3.updateMarker()
+        # M4.updateMarker()
 
     def usbSend(self):
         while self.fifo.qsize() > 0:
@@ -386,9 +383,9 @@ class Analyser:
         if QtTSA.rbw_auto.isChecked():
             rbw = 'auto'
         else:
-            rbw = QtTSA.rbw_box.currentText()  # ui values are discrete ones in kHz
-        logging.debug(f'rbw = {rbw}')
-        command = f'rbw {rbw}\r'
+            self.rbw = QtTSA.rbw_box.currentText()  # ui values are discrete ones in kHz
+        logging.debug(f'rbw = {self.rbw}')
+        command = f'rbw {self.rbw}\r'
         self.fifo.put(command)
 
     def setPoints(self):  # may be called by measurement thread as well as normally
@@ -568,9 +565,10 @@ class Analyser:
                     # array of values is full so start rolling to the left and stop incrementing the index
                     self.timeMarkVals = np.roll(self.timeMarkVals, -1, axis=0)
 
-        if phasenoise.ui.isVisible():  # fetches trace data from the graph and displays it in the phase noise window
-            T1.phaseNoise(True)   # lsb
-            T2.phaseNoise(False)  # usb
+        if phasenoise.ui.isVisible() and tinySA.rbw != 'auto':
+            frequencies, levels = T1.fetchData()  # fetch data from the graph Trace 1
+            lineIndex = np.argmin(np.abs(frequencies - (M1.line.value())))  # find index of marker 1 in freq array
+            tinySA.phaseNoise.update(lineIndex, frequencies, levels, float(tinySA.rbw))
 
     @Slot()
     def updateGUI(self, frequencies, readings, maxima, minima, runtime):  # called by signal from measurement() thread
@@ -809,11 +807,6 @@ class Trace:
         self.name = name
         self.pen = None
         self.trace = QtTSA.graphWidget.plot([], [], name=name, width=1, padding=0)
-        self.noise = phasenoise.ui.plotWidget.plot([], [], name=name, width=1, padding=0)
-        self.noise_spec = phasenoise.ui.plotWidget.plot([], [], name='tinySA phase noise', width=1, padding=0, pen='g')
-        self.box = pyqtgraph.TextItem(text='', color='k', border='y', fill='y', anchor=(-8, -0.4))  # anchor y=vertical
-        self.box.setParentItem(phasenoise.ui.plotWidget.plotItem)
-        self.box.setVisible(False)
 
     def guiRef(self, opt):
         guiFields = ({'1': QtTSA.m1_type, '2': QtTSA.m2_type, '3': QtTSA.m3_type, '4': QtTSA.m4_type},
@@ -840,7 +833,7 @@ class Trace:
         self.tType()
         self.pen = tracecolours.tm.record(int(self.name)-1).value('colour')
         self.trace.setPen(self.pen)
-        self.noise.setPen(self.pen)
+        # self.noise.setPen(self.pen)
         self.enable()
 
     def update(self, frequencies, levels):
@@ -852,49 +845,6 @@ class Trace:
         frequencies = QtTSA.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[0]  # [0] = freq
         levels = QtTSA.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[1]  # [1] = level
         return frequencies, levels
-
-    def phaseNoise(self, lsb):
-        '''M1 is used in max tracking mode to find the frequency and level reference of the signal to be measured
-           T1 data is used for the LSB measurement and T2 data is used for USB'''
-        frequencies, levels = self.fetchData()
-        if frequencies is None or levels is None:
-            return
-        rbw = float(QtTSA.rbw_box.currentText())  # kHz
-
-        # find freq array index of peak of signal
-        tone = np.argmin(np.abs(frequencies - (M1.line.value())))
-        # count freq points in sideband, masking values nearer to carrier than 2*rbw kHz
-        sb_points = np.count_nonzero(frequencies[tone:] < frequencies[tone] + (2 * rbw * 1e3))
-
-        eqnbw = SHAPE_FACTOR.get(rbw)
-
-        # Calculate Noise Power 1Hz bandwidth normalising factor for the RBW
-        factor = 10 * np.log10(rbw * 1e3)
-
-        # calculate relative levels of sideband points to the marked carrier
-        if lsb:
-            delta = levels[:tone-sb_points+1] - levels[tone]
-            freqOffset = (frequencies[tone] - frequencies[:tone-sb_points+1])
-        else:
-            delta = levels[tone+sb_points:] - levels[tone]
-            freqOffset = (frequencies[tone+sb_points:] - frequencies[tone])
-        dBcHz = delta + eqnbw - factor
-
-        self.noise.setData(freqOffset, dBcHz)
-
-        # show signal frequency from Marker 1 in label box
-        T1.box.setVisible(True)
-        decimal = M1.setPrecision(frequencies, frequencies[0])
-        unit, multiple = M1.setUnit(frequencies[0])  # set units
-        self.box.setText(f'{M1.line.value()/multiple:.{decimal}f}{unit}')
-
-        # draw tinySA typical baseline phase noise on the graph
-        if lsb:  # only need to do it once (per sweep)
-            if frequencies[0] < 100e6:
-                baseline = np.interp(freqOffset, PN_AT_10MHZ[:, 0], PN_AT_10MHZ[:, 1])
-            else:
-                baseline = np.interp(freqOffset, PN_AT_1152MHZ[:, 0], PN_AT_1152MHZ[:, 1])
-            self.noise_spec.setData(freqOffset, baseline)
 
 
 class Limit:
@@ -1078,6 +1028,7 @@ class Marker:
                 dBm = levels[deltaLineIndex]
                 self.deltaline.label.setText(
                     f'{chr(916)}{self.line.name()} {dBm:.1f}dBm\n{(self.deltaline.value()/multiple):.{decimal}f}{unit}')
+
 
     def addFreqMarker(self, freq, colour, name, band=True):  # adds simple freq marker without full marker capability
         if QtTSA.presetLabel.isChecked():
@@ -2107,7 +2058,7 @@ tinySA = Analyser()
 loader = CustomLoader()
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.2.3')
+app.setApplicationVersion(' v1.2.3.x')
 
 QtTSA = loader.load("spectrum.ui", None)
 presetFreqs = CustomDialogue(app_dir('bands.ui'))
@@ -2179,7 +2130,7 @@ QtTSA.histogram.plotItem.invertY(True)
 QtTSA.histogram.getPlotItem().hideAxis('bottom')
 QtTSA.histogram.getPlotItem().hideAxis('left')
 
-# pyqtgraph settings for Phase Noise
+# widget settings for Phase Noise
 phasenoise.ui.plotWidget.setYRange(-120, -40)
 phasenoise.ui.plotWidget.plotItem.showGrid(x=True, y=True, alpha=0.5)
 phasenoise.ui.plotWidget.plotItem.setLogMode(x=True)
