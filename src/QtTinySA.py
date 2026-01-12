@@ -45,9 +45,10 @@ import pyqtgraph
 from datetime import datetime
 from serial.tools import list_ports
 from io import BytesIO
-from modules.QtTinyExporters import WWBExporter, WSMExporter
 
+from modules.QtTinyExporters import WWBExporter, WSMExporter
 from modules.QtTinySAGraphs import SurfaceGraph, PhaseNoiseGraph
+from modules.QtTinySAUtility import Calc
 
 # Defaults to non local configuration/data dirs - needed for packaging
 if system() == "Linux":
@@ -91,19 +92,11 @@ class CustomDialogue(QtWidgets.QDialog):
 class Analyser:
     def __init__(self):
         self.usb = None
-        # self.surface = None
-        # self.vGrid = None
         self.tinySA4 = None
         self.directory = None
         self.firmware = None
         self.sweeping = False
         self.threadRunning = False
-        self.signals = WorkerSignals()
-        self.signals.result.connect(self.updateGUI)
-        self.signals.finished.connect(self.threadEnds)
-        self.signals.saveResults.connect(saveFile)
-        self.signals.resetGUI.connect(self.resetGUI)
-        self.signals.sweepEnds.connect(self.sweepComplete)
         self.runTimer = QtCore.QElapsedTimer()
         self.scale = 174
         self.scanMemory = 50
@@ -111,6 +104,24 @@ class Analyser:
         self.maxF = 6000
         self.memF = BytesIO()
         self.ports = []
+        self.setSignals()
+        self.setGraphs()
+
+    def setSignals(self):
+        self.signals = WorkerSignals()
+        self.signals.result.connect(self.updateGUI)
+        self.signals.finished.connect(self.threadEnds)
+        self.signals.saveResults.connect(saveFile)
+        self.signals.resetGUI.connect(self.resetGUI)
+        self.signals.sweepEnds.connect(self.sweepComplete)
+
+    def setGraphs(self):
+        self.phaseNoise = PhaseNoiseGraph(phasenoise.ui.plotWidget, np.ndarray, np.ndarray, 1)
+        self.timespectrum = SurfaceGraph(QtTSA.plot_3D, np.ndarray, np.ndarray)
+        self.timespectrum.zoom(QtTSA.zoom.value())
+        self.timespectrum.rotateX(QtTSA.x_rotation.value())
+        self.timespectrum.rotateY(QtTSA.y_rotation.value())
+        self.createWaterfall(np.ndarray, np.ndarray)
 
     def openPort(self):  # called by isConnected() triggered by the self.usbCheck QTimer at startup
         # Get tinySA comport using hardware ID
@@ -268,28 +279,13 @@ class Analyser:
 
     def startMeasurement(self):
         frequencies, readings, maxima, minima = self.set_arrays()
-        self.phaseNoise = PhaseNoiseGraph(phasenoise.ui.plotWidget, 'pn', frequencies, readings, 100)
         self.sweep = Worker(self.measurement, frequencies, readings, maxima, minima)  # workers deleted when thread ends
         self.sweeping = True
-
-        # Changed to QtGraphs because pyqtgraph.opengl is based on the deprecated OpenGL fixed-function pipeline
-        self.timespectrum = SurfaceGraph(QtTSA.plot_3D, frequencies, readings)
-        self.timespectrum.zoom(QtTSA.zoom.value())
-        self.timespectrum.rotateX(QtTSA.x_rotation.value())
-        self.timespectrum.rotateY(QtTSA.y_rotation.value())
-
-        self.createWaterfall(frequencies, readings)
         threadpool.start(self.sweep)
 
     def timerTasks(self):
         if self.usb:
             self.usbSend()
-
-        # add a gui control to enable/disable marker updates when not scanning
-        # M1.updateMarker()
-        # M2.updateMarker()
-        # M3.updateMarker()
-        # M4.updateMarker()
 
     def usbSend(self):
         while self.fifo.qsize() > 0:
@@ -381,7 +377,7 @@ class Analyser:
 
     def setRBW(self):  # may be called by measurement thread as well as normally
         if QtTSA.rbw_auto.isChecked():
-            rbw = 'auto'
+            self.rbw = 'auto'
         else:
             self.rbw = QtTSA.rbw_box.currentText()  # ui values are discrete ones in kHz
         logging.debug(f'rbw = {self.rbw}')
@@ -1011,8 +1007,8 @@ class Marker:
         self.line.setValue(frequencies[lineIndex])
         self.dBm = levels[lineIndex]
 
-        decimal = self.setPrecision(frequencies, frequencies[0])  # set decimal places
-        unit, multiple = self.setUnit(frequencies[0])  # set units
+        decimal = Calc.Precision(frequencies, frequencies[0])  # set decimal places
+        unit, multiple = Calc.Unit(frequencies[0])  # set units
         self.markerBox.setText(f'M{self.line.name()} {self.line.value()/multiple:.{decimal}f}{unit} {self.dBm:.1f}dBm')
 
         if self.deltaF != 0:
@@ -1020,8 +1016,8 @@ class Marker:
             if self.deltaRelative:
                 deltaLinedBm = levels[deltaLineIndex]
                 dBm = deltaLinedBm - self.dBm
-                decimal = self.setPrecision(frequencies, self.deltaF)  # deltaF can be negative
-                unit, multiple = self.setUnit(self.deltaF)
+                decimal = Calc.Precision(frequencies, self.deltaF)  # deltaF can be negative
+                unit, multiple = Calc.Unit(self.deltaF)
                 self.deltaline.label.setText(
                     f'{chr(916)}{self.line.name()} {dBm:.1f}dB\n{(self.deltaF / multiple):.{decimal}f}{unit}')
             else:
@@ -1092,26 +1088,6 @@ class Marker:
             self.maskFreq = settings.ui.rbw_x.value() * float(QtTSA.rbw_box.currentText()) * 1e3  # Hz
             logging.debug(f'manual rbw masking factor = {self.maskFreq/1e3}kHz')
 
-    def setPrecision(self, frequencies, spotF):  # sets the marker indicated frequency precision
-        span = frequencies[-1] - frequencies[0]
-        HzPp = span / len(frequencies)  # Hz per point
-        spotF = abs(spotF)  # delta markers can be 'negative' f
-        if span > 0:
-            if spotF < 1000:
-                decimal = 0
-            else:
-                decimal = np.clip(int(np.log10(spotF)) - int(np.log10(HzPp)), 0, 6)  # number of decicimals
-                logging.debug(f'fPrecision: pF = {HzPp} dp = {decimal}')
-        else:
-            decimal = 6
-        return decimal
-
-    def setUnit(self, spotF):
-        index = int(np.log10(abs(spotF)))
-        suffix = ['Hz', 'Hz', 'Hz', 'kHz', 'kHz', 'kHz', 'MHz', 'MHz', 'MHz', 'GHz', 'GHz']
-        multiple = [1, 1, 1, 1e3, 1e3, 1e3, 1e6, 1e6, 1e6, 1e9, 1e9]
-        return suffix[index], multiple[index]
-
     def createMarkerTimePlot(self):
         '''multiplot is the name of the graphics layout grid widget in the fading dialogue window'''
         self.tplot = multiplot.addPlot(title='Marker ' + self.name)
@@ -1128,8 +1104,8 @@ class Marker:
             return
         else:
             self.tplot.show()
-        decimal = self.setPrecision(frequencies, frequencies[0])  # set decimal places
-        unit, multiple = self.setUnit(self.line.value())  # set units
+        decimal = Calc.Precision(frequencies, frequencies[0])  # set decimal places
+        unit, multiple = Calc.Unit(self.line.value())  # set units
         self.tplot.setTitle(f'Marker {self.name} = {(self.line.value()/multiple):.{decimal}f}' + unit)
 
         tinySA.timeMarkVals[tinySA.timeIndex, 0] = timeNow
@@ -2048,18 +2024,16 @@ def connectPassive():
     QtTSA.x_rotation.valueChanged.connect(lambda: tinySA.timespectrum.rotateX(QtTSA.x_rotation.value()))
     QtTSA.y_rotation.valueChanged.connect(lambda: tinySA.timespectrum.rotateY(QtTSA.y_rotation.value()))
 
+
 ###############################################################################
 # Instantiate classes
 
-
-tinySA = Analyser()
-
 # create QApplication for the GUI
-loader = CustomLoader()
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
 app.setApplicationVersion(' v1.2.3.x')
 
+loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
 presetFreqs = CustomDialogue(app_dir('bands.ui'))
 settings = CustomDialogue(app_dir('settings.ui'))
@@ -2068,6 +2042,8 @@ phasenoise = CustomDialogue(app_dir('phasenoise.ui'))
 fading = CustomDialogue(app_dir('fading.ui'))
 pattern = CustomDialogue(app_dir('pattern.ui'))
 offset = CustomDialogue(app_dir('offset.ui'))
+
+tinySA = Analyser()
 
 # Markers
 multiplot = pyqtgraph.GraphicsLayout()  # for plotting marker signal level over time

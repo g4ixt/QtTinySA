@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
+# Copyright 2026 Ian Jefferson G4IXT
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """
 Created on Wed Nov 26 15:42:02 2025
 
@@ -13,6 +17,8 @@ from PySide6.QtGraphs import QSurface3DSeries, QSurfaceDataProxy, QGraphsTheme
 from PySide6.QtGraphsWidgets import Q3DSurfaceWidgetItem
 
 import pyqtgraph
+
+from modules.QtTinySAUtility import Calc
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 
@@ -71,7 +77,7 @@ class SurfaceUpdater(QObject):
 
         self._dataProxy = QSurfaceDataProxy()
         self._dataSeries = QSurface3DSeries(self._dataProxy)
-        self.updateTimeSpectrum(frequencies, readings)
+        # self.updateTimeSpectrum(frequencies, readings)
 
     def updateTimeSpectrum(self, frequencies, readings):
         startF = frequencies[0] / 1e6
@@ -95,22 +101,22 @@ class SurfaceUpdater(QObject):
 
 class PhaseNoiseGraph(QObject):
 
-    def __init__(self, ui_widget, name, frequencies, readings, rbw):
+    def __init__(self, ui_widget, frequencies, readings, rbw):
         super().__init__()
-        self.create_plot(ui_widget, name)
+        self.create_plot(ui_widget)
 
-    def create_plot(self, ui_widget, name):
-        # ui_widget.addLegend()
-        self.lowSB = ui_widget.plot([], [], name='lsb', width=1, padding=0, pen='y')
-        self.upSB = ui_widget.plot([], [], name='usb', width=1, padding=0, pen='y')
+    def create_plot(self, ui_widget):
+        ui_widget.addLegend(offset=(30, 400))
+        self.lowerSB = ui_widget.plot([], [], name='lsb', width=1, padding=0, pen='m')
+        self.upperSB = ui_widget.plot([], [], name='usb', width=1, padding=0, pen='y')
         self.create_baseline(ui_widget)
         self.create_box(ui_widget)
 
     def create_baseline(self, ui_widget):
-        self.base_noise = ui_widget.plot([], [], name='tinySA phase noise', width=1, padding=0, pen='g')
+        self.base_noise = ui_widget.plot([], [], name='tinySA typical', width=1, padding=0, pen='g')
 
     def create_box(self, ui_widget):
-        self.box = pyqtgraph.TextItem(text='', color='k', border='y', fill='y', anchor=(-8, -0.4))  # anchor y=vertical
+        self.box = pyqtgraph.TextItem(text='', color='k', border='y', fill='y', anchor=(-1, -15))  # anchor y=vertical
         self.box.setParentItem(ui_widget.plotItem)
         self.box.setVisible(False)
 
@@ -119,8 +125,7 @@ class PhaseNoiseGraph(QObject):
 
         # Calculate Noise Power in 1Hz bandwidth, correcting for tinySA rbw filter shape and measured bandwidth
         eqnbw = SHAPE_FACTOR.get(rbw)
-        factor = 10 * np.log10(rbw * 1e3)
-
+        factor = 10 * np.log10(rbw * 1e3)  # correction factor from rbw to 1Hz bandwidth
         fStep = frequencies[1] - frequencies[0]
         mask = int((2 * rbw * 1e3) / fStep)
 
@@ -128,20 +133,19 @@ class PhaseNoiseGraph(QObject):
         delta = levels[:index-mask] - levels[index]  # array of levels referenced to the marked carrier
         freqOffset = (frequencies[index] - frequencies[:index-mask])
         dBcHz = delta + eqnbw - factor
-        self.lowSB.setData(freqOffset, dBcHz)
+        self.lowerSB.setData(freqOffset, dBcHz)
 
         # usb freq points in the sideband above the marker excluding nearer than 2 * rbw kHz
-        delta = levels[index+mask:] - levels[index]  # array of levels referenced to the marked carrier
-        freqOffset = (frequencies[index+mask:] - frequencies[index])
+        delta = levels[index+mask+1:] - levels[index]  # array of levels referenced to the marked carrier
+        freqOffset = (frequencies[index+mask+1:] - frequencies[index])
         dBcHz = delta + eqnbw - factor
-        self.upSB.setData(freqOffset, dBcHz)
+        self.upperSB.setData(freqOffset, dBcHz)
 
         # show signal frequency from Marker in label box
         self.box.setVisible(True)
-        # decimal = M1.setPrecision(frequencies, frequencies[0])
-        # unit, multiple = M1.setUnit(frequencies[0])  # set units
-        # self.box.setText(f'{M1.line.value()/multiple:.{decimal}f}{unit}')
-        self.box.setText(f'{frequencies[index]/1e6:.3f} MHz')
+        decimal = Calc.Precision(frequencies, frequencies[0])
+        unit, multiple = Calc.Unit(frequencies[0])
+        self.box.setText(f'{frequencies[index]/multiple:.{decimal}f}{unit}')
 
         # draw tinySA typical baseline phase noise on the graph
         if frequencies[0] < 100e6:
