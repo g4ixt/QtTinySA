@@ -43,12 +43,12 @@ import numpy as np
 import pyqtgraph
 
 from datetime import datetime
-from serial.tools import list_ports
+# from serial.tools import list_ports
 from io import BytesIO
 
-from modules.QtTinyExporters import WWBExporter, WSMExporter
-from modules.QtTinySAGraphs import SurfaceGraph, PhaseNoiseGraph
-from modules.QtTinySAUtility import Calc
+from modules.exporters import WWBExporter, WSMExporter
+from modules.graphs import SurfaceGraph, PhaseNoiseGraph
+from modules.utility import Calc
 
 # Defaults to non local configuration/data dirs - needed for packaging
 if system() == "Linux":
@@ -91,7 +91,7 @@ class CustomDialogue(QtWidgets.QDialog):
 
 class Analyser:
     def __init__(self):
-        self.usb = None
+        # self.usb = None
         self.tinySA4 = None
         self.directory = None
         self.firmware = None
@@ -103,7 +103,7 @@ class Analyser:
         self.fifo = queue.SimpleQueue()
         self.maxF = 6000
         self.memF = BytesIO()
-        self.ports = []
+        # self.ports = []
         self.setSignals()
         self.setGraphs()
 
@@ -123,77 +123,77 @@ class Analyser:
         self.timespectrum.rotateY(QtTSA.y_rotation.value())
         self.createWaterfall(np.ndarray, np.ndarray)
 
-    def openPort(self):  # called by isConnected() triggered by the self.usbCheck QTimer at startup
-        # Get tinySA comport using hardware ID
-        VID = 0x0483  # 1155
-        PID = 0x5740  # 22336
-        usbPorts = list_ports.comports()
-        for port in usbPorts:
-            if port.vid == VID and port.pid == PID:
-                if port not in self.ports:
-                    settings.ui.deviceBox.addItem(self.identify(port) + " on " + port.device)
-                    self.ports.append(port)
-        if len(self.ports) == 1:  # found only one device so just test it
-            usbCheck.stop()
-            self.testPort(self.ports[0])
-            return
-        if len(self.ports) > 1:  # several devices found
-            settings.ui.deviceBox.insertItem(0, "Select device")
-            settings.ui.deviceBox.setCurrentIndex(0)
-            popUp(QtTSA, "Several devices detected.  Choose device in Settings > Preferences", 'Ok', 'Info')
-            usbCheck.stop()
+    # def openPort(self):  # called by isConnected() triggered by the self.usbCheck QTimer at startup
+    #     # Get tinySA comport using hardware ID
+    #     VID = 0x0483  # 1155
+    #     PID = 0x5740  # 22336
+    #     usbPorts = list_ports.comports()
+    #     for port in usbPorts:
+    #         if port.vid == VID and port.pid == PID:
+    #             if port not in self.ports:
+    #                 settings.ui.deviceBox.addItem(self.identify(port) + " on " + port.device)
+    #                 self.ports.append(port)
+    #     if len(self.ports) == 1:  # found only one device so just test it
+    #         usbCheck.stop()
+    #         self.testPort(self.ports[0])
+    #         return
+    #     if len(self.ports) > 1:  # several devices found
+    #         settings.ui.deviceBox.insertItem(0, "Select device")
+    #         settings.ui.deviceBox.setCurrentIndex(0)
+    #         popUp(QtTSA, "Several devices detected.  Choose device in Settings > Preferences", 'Ok', 'Info')
+    #         usbCheck.stop()
 
-    def testPort(self, port):  # tests comms and initialises tinySA if found
-        try:
-            self.usb = serial.Serial(port.device, baudrate=576000)
-            logging.info(f'Serial port {port.device} open: {self.usb.isOpen()}')
-        except serial.SerialException:
-            logging.info('Serial port exception. A possible cause is that your username is not in the "dialout" group.')
-            popUp(QtTSA, 'Serial port exception', 'Ok', 'Critical')
-        if self.usb:
-            for i in range(4):  # try 4 times to communicate with tinySA over USB serial
-                firmware = self.version()
-                if firmware[:6] == 'tinySA':
-                    logging.info(f'{port.device} test {i} : {firmware[:16]}')
-                    break
-                else:
-                    time.sleep(1)
-            # split firmware into a list of [device, major version number, minor version number, other stuff]
-            self.firmware = firmware.replace('_', '-').split('-')
-            if firmware[:6] == 'tinySA':
-                if firmware[0] == 'tinySA4' and float(self.firmware[1][-3:] + self.firmware[2]) < 1.4177:
-                    logging.info('for fastest possible scan speed, upgrade firmware to v1.4-177 or later')
-                if self.firmware[1][0] == "v":
-                    self.setForDevice(self.firmware)
-                else:
-                    logging.info(f'{port.device} test found unexpected firmware {firmware}')
-            else:
-                logging.info(f'firmware {firmware} for {self.identify(port)} on {port.device} is not a tinySA')
+    # def testPort(self, port):  # tests comms and initialises tinySA if found
+    #     try:
+    #         self.usb = serial.Serial(port.device, baudrate=576000)
+    #         logging.info(f'Serial port {port.device} open: {self.usb.isOpen()}')
+    #     except serial.SerialException:
+    #         logging.info('Serial port exception. A possible cause is that your username is not in the "dialout" group.')
+    #         popUp(QtTSA, 'Serial port exception', 'Ok', 'Critical')
+    #     if self.usb:
+    #         for i in range(4):  # try 4 times to communicate with tinySA over USB serial
+    #             firmware = self.version()
+    #             if firmware[:6] == 'tinySA':
+    #                 logging.info(f'{port.device} test {i} : {firmware[:16]}')
+    #                 break
+    #             else:
+    #                 time.sleep(1)
+    #         # split firmware into a list of [device, major version number, minor version number, other stuff]
+    #         self.firmware = firmware.replace('_', '-').split('-')
+    #         if firmware[:6] == 'tinySA':
+    #             if firmware[0] == 'tinySA4' and float(self.firmware[1][-3:] + self.firmware[2]) < 1.4177:
+    #                 logging.info('for fastest possible scan speed, upgrade firmware to v1.4-177 or later')
+    #             if self.firmware[1][0] == "v":
+    #                 self.setForDevice(self.firmware)
+    #             else:
+    #                 logging.info(f'{port.device} test found unexpected firmware {firmware}')
+    #         else:
+    #             logging.info(f'firmware {firmware} for {self.identify(port)} on {port.device} is not a tinySA')
 
-    def identify(self, port):
-        # Windows returns no information to pySerial list_ports.comports()
-        if system() == 'Linux' or system() == 'Darwin':
-            return port.product
-        else:
-            return 'USB device'
+    # def identify(self, port):
+    #     # Windows returns no information to pySerial list_ports.comports()
+    #     if system() == 'Linux' or system() == 'Darwin':
+    #         return port.product
+    #     else:
+    #         return 'USB device'
 
-    def closePort(self):
-        if self.usb:
-            self.usb.close()
-            logging.info(f'Serial port open: {self.usb.isOpen()}')
-            self.usb = None
+    # def closePort(self):
+    #     if self.usb:
+    #         self.usb.close()
+    #         logging.info(f'Serial port open: {self.usb.isOpen()}')
+    #         self.usb = None
 
-    def isConnected(self):
-        # triggered by self.usbCheck QTimer - if tinySA wasn't found checks repeatedly for device, i.e.'hotplug'
-        if len(self.ports) == 0:
-            self.openPort()
-        else:
-            for i in range(len(self.ports)):
-                if self.identify(self.ports[i])[:6] in ('tinySA', 'USB de'):
-                    # self.usbCheck.stop()
-                    usbCheck.stop()
-                else:
-                    self.openPort()
+    # def isConnected(self):
+    #     # triggered by self.usbCheck QTimer - if tinySA wasn't found checks repeatedly for device, i.e.'hotplug'
+    #     if len(self.ports) == 0:
+    #         self.openPort()
+    #     else:
+    #         for i in range(len(self.ports)):
+    #             if self.identify(self.ports[i])[:6] in ('tinySA', 'USB de'):
+    #                 # self.usbCheck.stop()
+    #                 usbCheck.stop()
+    #             else:
+    #                 self.openPort()
 
     def setGUI(self):
         self.setStartFreq()
@@ -218,7 +218,7 @@ class Analyser:
         # now connect GUI controls that would interfere with restoration of data at startup
         connectActive()
 
-        # call self.usbSend() every 200mS to send commands & update markers if not scanning
+        # call self.usbSend() every 200mS to send commands if not scanning
         self.fifoTimer = QtCore.QTimer()
         self.fifoTimer.timeout.connect(self.timerTasks)
         self.fifoTimer.start(200)
@@ -248,7 +248,7 @@ class Analyser:
         QtTSA.battery.setText(self.battery())
         QtTSA.version.setText(product[0] + " " + product[1] + " " + product[2])
 
-        # self.fifoTimer.start(200)  # call self.usbSend() every 200mS to commands & update markers when scan is stopped
+        # self.fifoTimer.start(200)  # call self.usbSend() every 200mS to commands when scan is stopped
 
         logging.debug('setForDevice:: finished')
 
@@ -287,22 +287,22 @@ class Analyser:
         if self.usb:
             self.usbSend()
 
-    def usbSend(self):
-        while self.fifo.qsize() > 0:
-            command = self.fifo.get(block=True, timeout=None)
-            self.serialWrite(command)
+    # def usbSend(self):
+    #     while self.fifo.qsize() > 0:
+    #         command = self.fifo.get(block=True, timeout=None)
+    #         self.serialWrite(command)
 
-    def serialQuery(self, command):
-        self.usb.write(command.encode())
-        self.usb.read_until(command.encode() + b'\n')  # skip command echo
-        response = self.usb.read_until(b'ch> ')  # until prompt
-        logging.debug(f'serialQuery: response = {response}')
-        return response[:-6].decode()  # remove prompt
+    # def serialQuery(self, command):
+    #     self.usb.write(command.encode())
+    #     self.usb.read_until(command.encode() + b'\n')  # skip command echo
+    #     response = self.usb.read_until(b'ch> ')  # until prompt
+    #     logging.debug(f'serialQuery: response = {response}')
+    #     return response[:-6].decode()  # remove prompt
 
-    def serialWrite(self, command):
-        logging.debug(f'serialWrite: command = {command}')
-        self.usb.write(command.encode())
-        self.usb.read_until(b'ch> ')  # skip command echo and prompt
+    # def serialWrite(self, command):
+    #     logging.debug(f'serialWrite: command = {command}')
+    #     self.usb.write(command.encode())
+    #     self.usb.read_until(b'ch> ')  # skip command echo and prompt
 
     def set_arrays(self):
         startF = QtTSA.start_freq.value() * 1e6  # freq in Hz
@@ -394,11 +394,11 @@ class Analyser:
             logging.debug(f'setPoints: points = {QtTSA.points_box.value()}')
         return points
 
-    def clearBuffer(self):
-        # self.usb.timeout = 1
-        while self.usb.inWaiting():
-            self.usb.read_all()  # keep the serial buffer clean
-            time.sleep(0.01)
+    # def clearBuffer(self):
+    #     # self.usb.timeout = 1
+    #     while self.usb.inWaiting():
+    #         self.usb.read_all()  # keep the serial buffer clean
+    #         time.sleep(0.01)
 
     def sweepTimeout(self, frequencies):  # freqs are in Hz
         startF = frequencies[0]
@@ -625,42 +625,42 @@ class Analyser:
             QtTSA.scan_button.setEnabled(True)
             QtTSA.run3D.setEnabled(True)
 
-    def pause(self):
-        self.fifo.put('pause\r')
+    # def pause(self):
+    #     self.fifo.put('pause\r')
 
-    def resume(self):
-        self.fifo.put('resume\r')
+    # def resume(self):
+    #     self.fifo.put('resume\r')
 
-    def reset(self):
-        self.fifo.put('reset\r')
+    # def reset(self):
+    #     self.fifo.put('reset\r')
 
-    def battery(self):
-        vbat = self.serialQuery('vbat\r')
-        return vbat
+    # def battery(self):
+    #     vbat = self.serialQuery('vbat\r')
+    #     return vbat
 
-    def setAbort(self, on=True):
-        if on:
-            command = 'abort on\r'
-        else:
-            command = 'abort off\r'
-        self.fifo.put(command)
+    # def setAbort(self, on=True):
+    #     if on:
+    #         command = 'abort on\r'
+    #     else:
+    #         command = 'abort off\r'
+    #     self.fifo.put(command)
 
-    def abort(self):
-        self.serialWrite('abort\r')
-        self.clearBuffer()
+    # def abort(self):
+    #     self.serialWrite('abort\r')
+    #     self.clearBuffer()
 
-    def version(self):
-        version = self.serialQuery('version\r')
-        # version = 'tinySA4_v1.4-199-gde12ba2'  # for testing ultra
-        # version = 'tinySA_v1.4-175-g1419a93'   # for testing basic
-        return version
+    # def version(self):
+    #     version = self.serialQuery('version\r')
+    #     # version = 'tinySA4_v1.4-199-gde12ba2'  # for testing ultra
+    #     # version = 'tinySA_v1.4-175-g1419a93'   # for testing basic
+    #     return version
 
-    def spur(self):
-        sType = QtTSA.spur_box.currentText()
-        if sType == 'auto' and not self.tinySA4:  # tinySA3 (basic) has no auto spur mode
-            sType = 'on'
-        command = 'spur ' + sType + '\r'
-        self.fifo.put(command)
+    # def spur(self):
+    #     sType = QtTSA.spur_box.currentText()
+    #     if sType == 'auto' and not self.tinySA4:  # tinySA3 (basic) has no auto spur mode
+    #         sType = 'on'
+    #     command = 'spur ' + sType + '\r'
+    #     self.fifo.put(command)
 
     def lna(self):
         if QtTSA.lna_box.isChecked():
@@ -688,45 +688,45 @@ class Analyser:
         command = f'attenuate {str(atten)}\r'
         self.fifo.put(command)
 
-    def setTime(self):
-        if self.tinySA4 and settings.ui.syncTime.isChecked():
-            dt = datetime.now()
-            y = dt.year - 2000
-            command = f'time b 0x{y}{dt.month:02d}{dt.day:02d} 0x{dt.hour:02d}{dt.minute:02d}{dt.second:02d}\r'
-            self.fifo.put(command)
+    # def setTime(self):
+    #     if self.tinySA4 and settings.ui.syncTime.isChecked():
+    #         dt = datetime.now()
+    #         y = dt.year - 2000
+    #         command = f'time b 0x{y}{dt.month:02d}{dt.day:02d} 0x{dt.hour:02d}{dt.minute:02d}{dt.second:02d}\r'
+    #         self.fifo.put(command)
 
-    def example(self):
-        self.fifo.put('example\r')
+    # def example(self):
+    #     self.fifo.put('example\r')
 
-    def setSweep(self, start, stop):  # only used to set a default on the tinySA
-        if start is not None:
-            self.serialWrite("sweep start %d\r" % start)
-        if stop is not None:
-            self.serialWrite("sweep stop %d\r" % stop)
+    # def setSweep(self, start, stop):  # only used to set a default on the tinySA
+    #     if start is not None:
+    #         self.serialWrite("sweep start %d\r" % start)
+    #     if stop is not None:
+    #         self.serialWrite("sweep stop %d\r" % stop)
 
-    def sampleRep(self):
-        # sets the number of repeat measurements at each frequency point to the value in the GUI
-        command = f'repeat {QtTSA.sampleRepeat.value()}\r'
-        self.fifo.put(command)
+    # def sampleRep(self):
+    #     # sets the number of repeat measurements at each frequency point to the value in the GUI
+    #     command = f'repeat {QtTSA.sampleRepeat.value()}\r'
+    #     self.fifo.put(command)
 
-    def listSD(self):
-        if self.usb:
-            self.clearBuffer()  # clear the USB serial buffer
-            ls = self.serialQuery('sd_list\r')
-            return ls
+    # def listSD(self):
+    #     if self.usb:
+    #         self.clearBuffer()  # clear the USB serial buffer
+    #         ls = self.serialQuery('sd_list\r')
+    #         return ls
 
-    def readSD(self, fileName):
-        command = ('sd_read %s\r' % fileName)
-        self.usb.write(command.encode())
-        self.usb.readline()  # discard empty line
-        format_string = "<1i"  # little-endian single integer of 4 bytes
-        self.usb.timeout = None
-        buffer = self.usb.read(4)
-        size = struct.unpack(format_string, buffer)
-        size = size[0]
-        data = self.usb.read(size)
-        self.usb.timeout = 1
-        return data
+    # def readSD(self, fileName):
+    #     command = ('sd_read %s\r' % fileName)
+    #     self.usb.write(command.encode())
+    #     self.usb.readline()  # discard empty line
+    #     format_string = "<1i"  # little-endian single integer of 4 bytes
+    #     self.usb.timeout = None
+    #     buffer = self.usb.read(4)
+    #     size = struct.unpack(format_string, buffer)
+    #     size = size[0]
+    #     data = self.usb.read(size)
+    #     self.usb.timeout = 1
+    #     return data
 
     def dialogBrowse(self):
         if self.usb and not self.tinySA4:
@@ -2031,7 +2031,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.2.3.x')
+app.setApplicationVersion(' v1.3.x')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
