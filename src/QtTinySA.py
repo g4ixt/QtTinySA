@@ -66,7 +66,7 @@ WWBExporter.register()
 WSMExporter.register()
 
 # From https://github.com/Hagtronics/tinySA-Ultra-Phase-Noise
-SHAPE_FACTOR = {0.2: 3.4, 1: -0.6, 3: -5.3, 10: 0, 30: 0, 100: 0, 300: 0, 600: 0, 850: 0}
+SHAPE_FACTOR = {0.2: 3.4, 1: -0.6, 3: -0.53, 10: 0, 30: 0, 100: 0, 300: 0, 600: 0, 850: 0}
 # tinySA typical phase noise
 PN_AT_10MHZ = np.loadtxt("10_baseline.txt")
 PN_AT_1152MHZ = np.loadtxt("1152_baseline.txt")
@@ -1776,7 +1776,7 @@ def checkVersion(db, target, dbFile):
                 "Database " + db.databaseName() + "\nversion " + str(existing) + \
                 " may not be compatible.\n" + \
                 "\nClicking OK will replace it with version " + str(target) + \
-                " and will reset some settings.ui."
+                " and will reset some settings."
         replace = popUp(QtTSA, message, 'OkC', 'Question')
         if replace == QMessageBox.StandardButton.Ok:
             impex = ModelView('frequencies', db, ())
@@ -2107,7 +2107,7 @@ tinySA = Analyser()
 loader = CustomLoader()
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.2.3')
+app.setApplicationVersion(' v1.2.4')
 
 QtTSA = loader.load("spectrum.ui", None)
 presetFreqs = CustomDialogue(app_dir('bands.ui'))
@@ -2197,7 +2197,7 @@ createPolarGrid(4, 40)
 logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 122)  # third parameter is the database version
+config = connect("QtTSAprefs.db", "settings", 124)  # third parameter is the database version
 
 # field mapping of the checkboxes and numbers database tables, for storing startup configuration
 maps = ModelView('mapping', config, ())
