@@ -42,13 +42,14 @@ import csv
 import numpy as np
 import pyqtgraph
 
-from datetime import datetime
+# from datetime import datetime
 # from serial.tools import list_ports
 from io import BytesIO
 
 from modules.exporters import WWBExporter, WSMExporter
 from modules.graphs import SurfaceGraph, PhaseNoiseGraph
 from modules.utility import Calc
+from modules.devices import USBdevice, Tiny, Nano, Lime
 
 # Defaults to non local configuration/data dirs - needed for packaging
 if system() == "Linux":
@@ -67,6 +68,18 @@ WWBExporter.register()
 WSMExporter.register()
 
 # classes ##############################################################################
+
+
+class CustomTableModel(QSqlRelationalTableModel):
+    def __init__(self, parent=None, db=None, ro_columns=tuple()):
+        super().__init__(parent, db)
+        self.read_only = ro_columns
+
+    def flags(self, index):
+        if index.column() in self.read_only:
+            return QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable
+        else:
+            return super().flags(index)
 
 
 class CustomLoader(QUiLoader):
@@ -196,6 +209,8 @@ class Analyser:
     #                 self.openPort()
 
     def setGUI(self):
+
+
         self.setStartFreq()
 
         # Traces
@@ -1212,18 +1227,6 @@ class Worker(QtCore.QRunnable):
         logging.info(f'{self.fn.__name__} thread stopped')
 
 
-class CustomTableModel(QSqlRelationalTableModel):
-    def __init__(self, parent=None, db=None, ro_columns=tuple()):
-        super().__init__(parent, db)
-        self.read_only = ro_columns
-
-    def flags(self, index):
-        if index.column() in self.read_only:
-            return QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable
-        else:
-            return super().flags(index)
-
-
 class ModelView():
     '''set up and process data models bound to the GUI widgets'''
 
@@ -1744,7 +1747,8 @@ def fetchVersion(db):
 
 
 def exit_handler():
-    if len(tinySA.ports) != 0:
+    usbCheck.stop()
+    if len(usbInstr.ports) != 0:
         # save the marker frequencies
         record = numbers.tm.record(0)
         record.setValue('m1f', float(M1.line.value()))
@@ -2124,7 +2128,7 @@ createPolarGrid(4, 40)
 logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 122)  # third parameter is the database version
+config = connect("QtTSAprefs.db", "settings", 124)  # third parameter is the database version
 
 # field mapping of the checkboxes and numbers database tables, for storing startup configuration
 maps = ModelView('mapping', config, ())
@@ -2257,12 +2261,16 @@ QtTSA.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 # connect GUI controls that don't interfere with restoration of data at startup
 connectPassive()
 
-tinySA.setGUI()
+# try to open a USB connection to hardware....... need to check if it works in Windows now
+usbInstr = USBdevice()
 
-# try to open a USB connection to the TinySA hardware
 usbCheck = QtCore.QTimer()
-usbCheck.timeout.connect(tinySA.isConnected)
-usbCheck.start(500)  # check again every 500mS
+usbCheck.timeout.connect(usbInstr.probe)
+usbCheck.start()
+
+# usbInstr.control()
+
+# tinySA.setGUI()
 
 ###############################################################################
 # run the application until the user closes it

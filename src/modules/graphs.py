@@ -18,7 +18,7 @@ from PySide6.QtGraphsWidgets import Q3DSurfaceWidgetItem
 
 import pyqtgraph
 
-from modules.QtTinySAUtility import Calc
+from modules.utility import Calc
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 
