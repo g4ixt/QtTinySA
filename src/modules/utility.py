@@ -18,7 +18,7 @@ class Calc(QObject):
     def __init__(self, frequencies, spotF):
         super().__init__()
 
-    def Precision(frequencies, spotF):  # sets the marker indicated frequency precision
+    def precision(frequencies, spotF):  # sets the marker indicated frequency precision
         span = frequencies[-1] - frequencies[0]
         HzPp = span / len(frequencies)  # Hz per point
         spotF = abs(spotF)  # delta markers can be 'negative' f
@@ -32,7 +32,7 @@ class Calc(QObject):
             decimal = 6
         return decimal
 
-    def Unit(spotF):
+    def unit(spotF):
         index = int(np.log10(abs(spotF)))
         suffix = ['Hz', 'Hz', 'Hz', 'kHz', 'kHz', 'kHz', 'MHz', 'MHz', 'MHz', 'GHz', 'GHz']
         multiple = [1, 1, 1, 1e3, 1e3, 1e3, 1e6, 1e6, 1e6, 1e9, 1e9]

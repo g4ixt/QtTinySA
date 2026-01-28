@@ -143,8 +143,8 @@ class PhaseNoiseGraph(QObject):
 
         # show signal frequency from Marker in label box
         self.box.setVisible(True)
-        decimal = Calc.Precision(frequencies, frequencies[0])
-        unit, multiple = Calc.Unit(frequencies[0])
+        decimal = Calc.precision(frequencies, frequencies[0])
+        unit, multiple = Calc.unit(frequencies[0])
         self.box.setText(f'{frequencies[index]/multiple:.{decimal}f}{unit}')
 
         # draw tinySA typical baseline phase noise on the graph
@@ -153,3 +153,12 @@ class PhaseNoiseGraph(QObject):
         else:
             baseline = np.interp(freqOffset, PN_AT_1152MHZ[:, 0], PN_AT_1152MHZ[:, 1])
         self.base_noise.setData(freqOffset, baseline)
+
+
+class SpectrumGraph(QObject):
+
+    def __init__(self, ui_widget, frequencies, readings):
+        super().__init__()
+        self.create_plot(ui_widget)
+
+    

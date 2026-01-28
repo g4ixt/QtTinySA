@@ -23,8 +23,8 @@ import os
 import sys
 import time
 import logging
-import struct
-import serial
+# import struct
+# import serial
 
 from platform import system
 from PySide6 import QtCore
@@ -49,7 +49,7 @@ from io import BytesIO
 from modules.exporters import WWBExporter, WSMExporter
 from modules.graphs import SurfaceGraph, PhaseNoiseGraph
 from modules.utility import Calc
-from modules.devices import USBdevice, Tiny, Nano, Lime
+from modules.devices import USBdevice, Tiny, Nano, Lime, Worker, WorkerSignals
 
 # Defaults to non local configuration/data dirs - needed for packaging
 if system() == "Linux":
@@ -102,31 +102,21 @@ class CustomDialogue(QtWidgets.QDialog):
         self.ui.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 
 
+#  should control how devices interact with the GUI and launch workers per device to take measurements
 class Analyser:
     def __init__(self):
         # self.usb = None
-        self.tinySA4 = None
+        # self.tinySA4 = None
         self.directory = None
-        self.firmware = None
-        self.sweeping = False
-        self.threadRunning = False
-        self.runTimer = QtCore.QElapsedTimer()
-        self.scale = 174
-        self.scanMemory = 50
+        # self.firmware = None
+        # self.sweeping = False
+        # self.threadRunning = False
+        # self.runTimer = QtCore.QElapsedTimer()
+        self.scanMemory = 10 # temp
         self.fifo = queue.SimpleQueue()
         self.maxF = 6000
         self.memF = BytesIO()
-        # self.ports = []
-        self.setSignals()
         self.setGraphs()
-
-    def setSignals(self):
-        self.signals = WorkerSignals()
-        self.signals.result.connect(self.updateGUI)
-        self.signals.finished.connect(self.threadEnds)
-        self.signals.saveResults.connect(saveFile)
-        self.signals.resetGUI.connect(self.resetGUI)
-        self.signals.sweepEnds.connect(self.sweepComplete)
 
     def setGraphs(self):
         self.phaseNoise = PhaseNoiseGraph(phasenoise.ui.plotWidget, np.ndarray, np.ndarray, 1)
@@ -136,84 +126,15 @@ class Analyser:
         self.timespectrum.rotateY(QtTSA.y_rotation.value())
         self.createWaterfall(np.ndarray, np.ndarray)
 
-    # def openPort(self):  # called by isConnected() triggered by the self.usbCheck QTimer at startup
-    #     # Get tinySA comport using hardware ID
-    #     VID = 0x0483  # 1155
-    #     PID = 0x5740  # 22336
-    #     usbPorts = list_ports.comports()
-    #     for port in usbPorts:
-    #         if port.vid == VID and port.pid == PID:
-    #             if port not in self.ports:
-    #                 settings.ui.deviceBox.addItem(self.identify(port) + " on " + port.device)
-    #                 self.ports.append(port)
-    #     if len(self.ports) == 1:  # found only one device so just test it
-    #         usbCheck.stop()
-    #         self.testPort(self.ports[0])
-    #         return
-    #     if len(self.ports) > 1:  # several devices found
-    #         settings.ui.deviceBox.insertItem(0, "Select device")
-    #         settings.ui.deviceBox.setCurrentIndex(0)
-    #         popUp(QtTSA, "Several devices detected.  Choose device in Settings > Preferences", 'Ok', 'Info')
-    #         usbCheck.stop()
-
-    # def testPort(self, port):  # tests comms and initialises tinySA if found
-    #     try:
-    #         self.usb = serial.Serial(port.device, baudrate=576000)
-    #         logging.info(f'Serial port {port.device} open: {self.usb.isOpen()}')
-    #     except serial.SerialException:
-    #         logging.info('Serial port exception. A possible cause is that your username is not in the "dialout" group.')
-    #         popUp(QtTSA, 'Serial port exception', 'Ok', 'Critical')
-    #     if self.usb:
-    #         for i in range(4):  # try 4 times to communicate with tinySA over USB serial
-    #             firmware = self.version()
-    #             if firmware[:6] == 'tinySA':
-    #                 logging.info(f'{port.device} test {i} : {firmware[:16]}')
-    #                 break
-    #             else:
-    #                 time.sleep(1)
-    #         # split firmware into a list of [device, major version number, minor version number, other stuff]
-    #         self.firmware = firmware.replace('_', '-').split('-')
-    #         if firmware[:6] == 'tinySA':
-    #             if firmware[0] == 'tinySA4' and float(self.firmware[1][-3:] + self.firmware[2]) < 1.4177:
-    #                 logging.info('for fastest possible scan speed, upgrade firmware to v1.4-177 or later')
-    #             if self.firmware[1][0] == "v":
-    #                 self.setForDevice(self.firmware)
-    #             else:
-    #                 logging.info(f'{port.device} test found unexpected firmware {firmware}')
-    #         else:
-    #             logging.info(f'firmware {firmware} for {self.identify(port)} on {port.device} is not a tinySA')
-
-    # def identify(self, port):
-    #     # Windows returns no information to pySerial list_ports.comports()
-    #     if system() == 'Linux' or system() == 'Darwin':
-    #         return port.product
-    #     else:
-    #         return 'USB device'
-
-    # def closePort(self):
-    #     if self.usb:
-    #         self.usb.close()
-    #         logging.info(f'Serial port open: {self.usb.isOpen()}')
-    #         self.usb = None
-
-    # def isConnected(self):
-    #     # triggered by self.usbCheck QTimer - if tinySA wasn't found checks repeatedly for device, i.e.'hotplug'
-    #     if len(self.ports) == 0:
-    #         self.openPort()
-    #     else:
-    #         for i in range(len(self.ports)):
-    #             if self.identify(self.ports[i])[:6] in ('tinySA', 'USB de'):
-    #                 # self.usbCheck.stop()
-    #                 usbCheck.stop()
-    #             else:
-    #                 self.openPort()
-
     def setGUI(self):
-
-
         self.setStartFreq()
 
-        # Traces
+        # T1 = Trace('1')
+        # T2 = Trace('2')
+        # T3 = Trace('3')
+        # T4 = Trace('4')
+
+        # Traces # # move out and assign traces to devices # #
         T1.setup()
         T2.setup()
         T3.setup()
@@ -230,31 +151,25 @@ class Analyser:
         bandselect.filterType(False, QtTSA.filterBox.currentText())  # setting the filter overwrites the band
         setSize()
 
-        # now connect GUI controls that would interfere with restoration of data at startup
+        # now connect GUI controls that would interfere with restoration of data at startup ## modify for devices ##
         connectActive()
 
-        # call self.usbSend() every 200mS to send commands if not scanning
-        self.fifoTimer = QtCore.QTimer()
-        self.fifoTimer.timeout.connect(self.timerTasks)
-        self.fifoTimer.start(200)
+        # call self.usbSend() every 200mS to send commands if not scanning # needs to send commands to all devices ####
+        # self.fifoTimer = QtCore.QTimer()
+        # self.fifoTimer.timeout.connect(self.timerTasks)
+        # self.fifoTimer.start(200)
 
-    def setForDevice(self, product):
+    def setForDevice(self, product):  # move this to appropriate device classes ###############
         # product = 'tinySA'  # used for testing
         logging.debug('setForDevice: started')
         if product[0] == 'tinySA4':  # It's an Ultra
             self.tinySA4 = True
             self.maxF = settings.ui.maxFreqBox.value()
-            self.scale = 174
             QtTSA.spur_box.setCurrentText(checkboxes.tm.record(0).value("spur"))
         else:
             self.tinySA4 = False  # It's a Basic
             self.maxF = 960
-            self.scale = 128
             rbwtext.tm.setFilter('type = "rbw" and value != "0.2" and value != "1" and value != "850"')  # fewer RBWs
-
-        # Basic has no lna
-        QtTSA.lna_box.setVisible(self.tinySA4)
-        QtTSA.lna_box.setEnabled(self.tinySA4)
 
         self.setTime()
         self.setAbort(True)
@@ -267,62 +182,70 @@ class Analyser:
 
         logging.debug('setForDevice:: finished')
 
-    def scan(self):  # called by 'run' button
-        logging.debug(f'scan: self.usb = {self.usb}')
-        if self.usb is not None:
-            if self.sweeping:  # if it's running, stop it
-                self.sweeping = False  # tells the measurement thread to stop once current scan complete
-                QtTSA.scan_button.setEnabled(False)  # prevent repeat presses of 'stop'
-            else:
-                try:  # start measurements
-                    self.fifoTimer.stop()
-                    self.clearBuffer()
-                    self.attenuator()
-                    self.lna()
-                    self.spur()
-                    self.setRBW()
-                    # self.sampleRep()  # doesn't work with scanraw
-                    self.runButton('Stop')
-                    self.usbSend()
-                    self.startMeasurement()  # runs measurement in separate thread
-                except serial.SerialException:
-                    logging.info('serial port exception')
-                    self.ports = []
-                    self.closePort()
-        else:
-            popUp(QtTSA, 'TinySA not found', 'Ok', 'Critical')
+    # def scan(self):  # called by 'run' button  # associate with workers? ########
+    #     # logging.debug(f'scan: self.usb = {self.usb}')
+    #     if usbInstr.dev0.usb is not None:
+    #         if self.sweeping:  # if it's running, stop it
+    #             self.sweeping = False  # tells the measurement thread to stop once current scan complete
+    #             QtTSA.scan_button.setEnabled(False)  # prevent repeat presses of 'stop'
+    #         else:
+    #             try:  # start measurements
+    #                 self.fifoTimer.stop()
+    #                 self.clearBuffer()
+    #                 self.attenuator()
+    #                 self.lna()
+    #                 self.spur()
+    #                 self.setRBW()
+    #                 # self.sampleRep()  # doesn't work with scanraw
+    #                 self.runButton('Stop')
+    #                 self.usbSend()
+    #                 self.startMeasurement()  # runs measurement in separate thread
+    #             except serial.SerialException:
+    #                 logging.info('serial port exception')
+    #                 self.ports = []
+    #                 self.closePort()
+    #     else:
+    #         popUp(QtTSA, 'TinySA not found', 'Ok', 'Critical')
 
-    def startMeasurement(self):
-        frequencies, readings, maxima, minima = self.set_arrays()
-        self.sweep = Worker(self.measurement, frequencies, readings, maxima, minima)  # workers deleted when thread ends
-        self.sweeping = True
-        threadpool.start(self.sweep)
+    # def startMeasurement(self):  # needs to start multiple workers (by self. ?) ######
+    #     frequencies, readings, maxima, minima = self.set_arrays()
+    #     self.sweep = Worker(self.measurement, frequencies, readings, maxima, minima)  # workers deleted when thread ends
+    #     self.sweeping = True
+    #     threadpool.start(self.sweep)
 
-    def timerTasks(self):
-        if self.usb:
-            self.usbSend()
-
-    # def usbSend(self):
-    #     while self.fifo.qsize() > 0:
-    #         command = self.fifo.get(block=True, timeout=None)
-    #         self.serialWrite(command)
-
-    # def serialQuery(self, command):
-    #     self.usb.write(command.encode())
-    #     self.usb.read_until(command.encode() + b'\n')  # skip command echo
-    #     response = self.usb.read_until(b'ch> ')  # until prompt
-    #     logging.debug(f'serialQuery: response = {response}')
-    #     return response[:-6].decode()  # remove prompt
-
-    # def serialWrite(self, command):
-    #     logging.debug(f'serialWrite: command = {command}')
-    #     self.usb.write(command.encode())
-    #     self.usb.read_until(b'ch> ')  # skip command echo and prompt
-
-    def set_arrays(self):
+    def scan(self):  # called by 'run' button  # associate with workers? ########
+        # collect all the settings from the GUI and fire it at usbDevice.start, which interfaces to the hardware
+        self.runButton('Stop')
+        points = self.setPoints()
         startF = QtTSA.start_freq.value() * 1e6  # freq in Hz
         stopF = QtTSA.stop_freq.value() * 1e6
-        points = self.setPoints()
+        freq, read, maxi, mini = self.set_arrays(startF, stopF, points)  # do not move below next line
+        if bandstype.freq != 0:  # there is a LO value set for the frequency type so it's LNB / transverter mode
+            startF, stopF = self.freqOffset(startF, stopF)
+        attn = self.attn()
+        lna = self.lna()
+        spur = self.spur()
+        rbw = self.setRBW()
+        # now set the initial graph data?
+        # send attn, lna, spur, rbw to device along with sweep freq etc
+
+        # now everything is set call usbInstr.start on self to persist
+        
+        usbInstr.signals.result.connect(self.updateGUI)
+        usbInstr.signals.finished.connect(self.threadEnds)
+        usbInstr.signals.saveResults.connect(saveFile)
+        usbInstr.signals.resetGUI.connect(self.resetGUI)
+        usbInstr.signals.sweepEnds.connect(self.sweepComplete)
+
+        self.sweep = Worker(usbInstr.dev0.measurement, startF, stopF, freq, read, maxi, mini, True)
+        usbInstr.dev0.sweeping = True
+        threadpool.start(self.sweep)
+
+    def timerTasks(self):  # needs to start multiple timers (by self. ?) ######
+        if usbInstr.dev0.usb:
+            usbInstr.dev0.usbSend()
+
+    def set_arrays(self, startF, stopF, points):  # needs to allow for tinySA multi-frequency mode ####
         maxima = np.full(points, -140, dtype=float)
         minima = np.full(points, 0, dtype=float)
         frequencies = np.linspace(startF, stopF, points, dtype=np.int64)
@@ -333,6 +256,33 @@ class Analyser:
         self.timeMarkVals = np.full((int(settings.ui.timePoints.value()), 5), None, dtype=float)
         self.timeIndex = 0
         return frequencies, readings, maxima, minima
+
+    def lna(self):
+        if QtTSA.lna_box.isChecked():
+            QtTSA.atten_box.setValue(0)
+            QtTSA.atten_auto.setEnabled(False)  # attenuator and lna are switched so mutually exclusive
+            QtTSA.atten_auto.setChecked(False)
+            QtTSA.atten_box.setEnabled(False)
+            return True
+        else:
+            QtTSA.atten_auto.setEnabled(True)
+            QtTSA.atten_auto.setChecked(True)
+            return False
+
+    def attn(self):
+        if QtTSA.lna_box.isChecked():  # attenuator and lna are mutually exclusive
+            return
+        attenuation = QtTSA.atten_box.value()
+        if QtTSA.atten_auto.isChecked():
+            QtTSA.atten_box.setEnabled(False)
+            return "auto"
+        else:
+            QtTSA.atten_box.setEnabled(True)
+            return attenuation
+
+    def spur(self):
+        sType = QtTSA.spur_box.currentText()
+        return sType
 
     def setCentreFreq(self):
         startF = QtTSA.centre_freq.value()-QtTSA.span_freq.value()/2
@@ -362,13 +312,12 @@ class Analyser:
             self.setCentreFreq()
         else:
             self.setStartFreq()
-        self.resume()  # puts a message in the fifo buffer so the measurement thread spots it and updates its settings
+        # send a signal to the measurement threads via USBDevice so they update settings
 
-    def freqOffset(self, frequencies):  # for mixers or LNBs external to TinySA
-        startF = frequencies[0]
-        spanF = frequencies[-1] - startF
+    def freqOffset(self, startF, stopF):  # for mixers or LNBs external to TinySA.  Returns a tuple (startF, stopF)
+        spanF = stopF - startF
         loF = bandstype.freq
-        if bandstype.freq > frequencies[0]:  # LNB LO is higher in freq than wanted signal
+        if bandstype.freq > startF:  # LNB LO is higher in freq than wanted signal
             scanF = (loF - startF - spanF, loF - startF)
         else:
             scanF = (startF - loF, startF - loF + spanF)
@@ -390,16 +339,14 @@ class Analyser:
             QtTSA.points_auto.setEnabled(True)
         self.setRBW()  # if measurement thread is running, calling setRBW() will force it to update scan parameters
 
-    def setRBW(self):  # may be called by measurement thread as well as normally
+    def setRBW(self):  # may be called by measurement thread as well as normally ## stop doing that ########
         if QtTSA.rbw_auto.isChecked():
-            self.rbw = 'auto'
+            rbw = 'auto'
         else:
-            self.rbw = QtTSA.rbw_box.currentText()  # ui values are discrete ones in kHz
-        logging.debug(f'rbw = {self.rbw}')
-        command = f'rbw {self.rbw}\r'
-        self.fifo.put(command)
+            rbw = QtTSA.rbw_box.currentText()  # ui values are discrete ones in kHz
+        return rbw
 
-    def setPoints(self):  # may be called by measurement thread as well as normally
+    def setPoints(self):  # may be called by measurement thread as well as normally ## stop doing that ########
         if QtTSA.points_auto.isChecked():
             rbw = float(QtTSA.rbw_box.currentText())
             points = settings.ui.rbw_x.value() * int((QtTSA.span_freq.value()*1000)/(rbw))  # RBW multiplier * freq kHz
@@ -409,128 +356,12 @@ class Analyser:
             logging.debug(f'setPoints: points = {QtTSA.points_box.value()}')
         return points
 
-    # def clearBuffer(self):
-    #     # self.usb.timeout = 1
-    #     while self.usb.inWaiting():
-    #         self.usb.read_all()  # keep the serial buffer clean
-    #         time.sleep(0.01)
-
-    def sweepTimeout(self, frequencies):  # freqs are in Hz
-        startF = frequencies[0]
-        stopF = frequencies[-1]
-        points = np.size(frequencies)
-        if QtTSA.rbw_auto.isChecked():
-            # rbw auto setting from tinySA: ~7 kHz per 1 MHz scan frequency span
-            rbw = (stopF - startF) * 7e-6
-        else:
-            rbw = float(QtTSA.rbw_box.currentText())
-        rbw = np.clip(rbw, 0.2, 850)  # apply limits
-        # timeout can be very long - use a heuristic approach
-        # 1st summand is the scanning time, 2nd summand is the USB transfer overhead
-        timeout = ((stopF - startF) / 20e3) / (rbw ** 2) + points / 500
-        if (QtTSA.spur_box.currentText() == 'on' and stopF > 8 * 1e8) or QtTSA.spur_box.currentText() == 'auto':
-            timeout *= 2  # scan time doubles with spur on or spur auto above 800 MHz
-        # transfer is done in blocks of 20 points, this is the timeout for one block
-        timeout = timeout * 20 / points + 1  # minimum is 1 second
-        logging.debug(f'sweepTimeout = {timeout:.2f} s')
-        return timeout
-
-    def measurement(self, frequencies, readings, maxima, minima):  # runs in a separate thread
-        sweepCount = 0
-        updateTimer = QtCore.QElapsedTimer()
-        points = np.size(frequencies)
-        self.threadRunning = True
-        firstRun = True
-        version = int(self.firmware[2])  # just the firmware version number
-        # self.runTimer.start()  # debug
-        # logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6:.3f}mS')  # debug
-        updateTimer.start()  # used to trigger the signal that sends measurements to updateGUI()
-
-        while self.sweeping:
-            if bandstype.freq != 0:
-                startF, stopF = self.freqOffset(frequencies)
-                command = f'scanraw {int(startF)} {int(stopF)} {int(points)} 3\r'
-            else:
-                command = f'scanraw {int(frequencies[0])} {int(frequencies[-1])} {int(points)} 3\r'
-            self.usb.timeout = self.sweepTimeout(frequencies)
-
-            # firmware versions before 4.177 don't support auto-repeating scanraw so command must be sent each sweep
-            if version < 177 or firstRun:
-                try:
-                    self.usb.write(command.encode())
-                    self.usb.read_until(command.encode() + b'\n{')  # skip command echo
-                    dataBlock = ''
-                except serial.SerialException:
-                    logging.info('serial port exception')
-                    self.sweeping = False
-                    break
-
-            # read the measurement data from the tinySA
-            for point in range(points):
-                dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
-                logging.debug(f'dataBlock: {dataBlock}\n')
-                if dataBlock == b'}':  # from FW165 jog button press returns different value
-                    logging.info('screen touched or jog button pressed')
-                    self.sweeping = False
-                    break
-                try:
-                    c, data = struct.unpack('<' + 'cH', dataBlock)
-                except struct.error:
-                    logging.info('data error')
-                    self.sweeping = False
-                    break
-                readings[0, point] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
-
-                # If it's the final point of this sweep, set up for the next sweep
-                if point == points - 1:
-                    readingsMax = np.nanmax(readings[:self.scanMemory], axis=0)
-                    readingsMin = np.nanmin(readings[:self.scanMemory], axis=0)
-                    maxima = np.fmax(maxima, readingsMax)
-                    minima = np.fmin(minima, readingsMin)
-                    readings[-1] = readings[0]  # populate last row with current sweep before rolling
-                    readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
-                    if version >= 177:
-                        if self.usb.read(2) != b'}{':  # the end of scan marker character is '}{'
-                            logging.info('QtTinySA display is out of sync with tinySA frequency')
-                            self.sweeping = False
-                            break
-                        sweepCount += 1
-                        firstRun = False
-                        if sweepCount == self.scanMemory:  # array is full so trigger CSV data file save
-                            self.signals.saveResults.emit(frequencies, readings)
-                            sweepCount = 0
-                    self.signals.sweepEnds.emit(frequencies)
-
-                # If a sweep setting has been changed by the user, the sweep must be re-started (+ new recording start)
-                if self.fifo.qsize() > 0 or not self.sweeping:
-                    self.serialWrite('abort\r')
-                    self.clearBuffer()
-                    firstRun = True
-                    self.setRBW()  # reads GUI rbw box value
-                    frequencies, readings, maxima, minima = self.set_arrays()  # reads GUI values
-                    points = np.size(frequencies)
-                    self.signals.resetGUI.emit(frequencies, readings)
-                    self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
-                    updateTimer.start()
-                    break
-
-                timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
-
-                # Send the sesults to updateGUI if an update is due
-                if timeElapsed/1e6 > settings.ui.intervalBox.value():
-                    self.signals.result.emit(frequencies, readings, maxima, minima, timeElapsed)  # send to updateGUI()
-                    updateTimer.start()
-
-        self.usb.read(2)  # discard the command prompt that the timySA sends when sweeping ends
-        self.threadRunning = False
-        self.signals.finished.emit()
-
     @Slot()
     def threadEnds(self):
-        if int(self.firmware[2]) >= 177:  # the firmware version number
-            self.serialWrite('abort\r')
+        # if int(self.firmware[2]) >= 177:  # the firmware version number
+        #     self.serialWrite('abort\r')
         self.runButton('Run')
-        self.fifoTimer.start(500)  # start watching for commands
+        #self.fifoTimer.start(500)  # start watching for commands
 
     def createWaterfall(self, frequencies, readings):
         self.waterfall = pyqtgraph.ImageItem(axisOrder='row-major')
@@ -557,7 +388,8 @@ class Analyser:
 
     @Slot()
     def sweepComplete(self, frequencies):
-        # caled by sweepends signal in measurement thread. Updates markers if not in zero span, where they are not relevant
+        # called by sweepends signal in measurement thread.
+        # Updates markers if not in zero span, where they are not relevant
         if frequencies[0] != frequencies[-1]:
             M1.updateMarker()
             M2.updateMarker()
@@ -621,11 +453,11 @@ class Analyser:
 
         QtTSA.updates.setText(str(int(1/(runtime/1e9))))  # the display update frequency indicator
 
-        if not tinySA.sweeping:  # measurement thread is stopping
-            QtTSA.scan_button.setText('Stopping ...')
-            QtTSA.scan_button.setStyleSheet('background-color: orange')
-            QtTSA.run3D.setText('Stopping ...')
-            QtTSA.run3D.setStyleSheet('background-color: orange')
+        # if not tinySA.sweeping:  # measurement thread is stopping
+        #     QtTSA.scan_button.setText('Stopping ...')
+        #     QtTSA.scan_button.setStyleSheet('background-color: orange')
+        #     QtTSA.run3D.setText('Stopping ...')
+        #     QtTSA.run3D.setStyleSheet('background-color: orange')
 
     def runButton(self, action):
         # Update the Run/Stop buttons' text and colour
@@ -640,110 +472,7 @@ class Analyser:
             QtTSA.scan_button.setEnabled(True)
             QtTSA.run3D.setEnabled(True)
 
-    # def pause(self):
-    #     self.fifo.put('pause\r')
-
-    # def resume(self):
-    #     self.fifo.put('resume\r')
-
-    # def reset(self):
-    #     self.fifo.put('reset\r')
-
-    # def battery(self):
-    #     vbat = self.serialQuery('vbat\r')
-    #     return vbat
-
-    # def setAbort(self, on=True):
-    #     if on:
-    #         command = 'abort on\r'
-    #     else:
-    #         command = 'abort off\r'
-    #     self.fifo.put(command)
-
-    # def abort(self):
-    #     self.serialWrite('abort\r')
-    #     self.clearBuffer()
-
-    # def version(self):
-    #     version = self.serialQuery('version\r')
-    #     # version = 'tinySA4_v1.4-199-gde12ba2'  # for testing ultra
-    #     # version = 'tinySA_v1.4-175-g1419a93'   # for testing basic
-    #     return version
-
-    # def spur(self):
-    #     sType = QtTSA.spur_box.currentText()
-    #     if sType == 'auto' and not self.tinySA4:  # tinySA3 (basic) has no auto spur mode
-    #         sType = 'on'
-    #     command = 'spur ' + sType + '\r'
-    #     self.fifo.put(command)
-
-    def lna(self):
-        if QtTSA.lna_box.isChecked():
-            command = 'lna on\r'
-            QtTSA.atten_auto.setEnabled(False)  # attenuator and lna are switched so mutually exclusive
-            QtTSA.atten_auto.setChecked(False)
-            QtTSA.atten_box.setEnabled(False)
-            QtTSA.atten_box.setValue(0)
-            self.fifo.put('attenuate 0\r')
-        else:
-            command = 'lna off\r'
-            QtTSA.atten_auto.setEnabled(True)
-            QtTSA.atten_auto.setChecked(True)
-            self.fifo.put('attenuate auto\r')
-        self.fifo.put(command)
-
-    def attenuator(self):
-        atten = QtTSA.atten_box.value()
-        if QtTSA.atten_auto.isChecked():
-            atten = 'auto'
-            QtTSA.atten_box.setEnabled(False)
-        else:
-            if not QtTSA.lna_box.isChecked():  # attenuator and lna are switched so mutually exclusive
-                QtTSA.atten_box.setEnabled(True)
-        command = f'attenuate {str(atten)}\r'
-        self.fifo.put(command)
-
-    # def setTime(self):
-    #     if self.tinySA4 and settings.ui.syncTime.isChecked():
-    #         dt = datetime.now()
-    #         y = dt.year - 2000
-    #         command = f'time b 0x{y}{dt.month:02d}{dt.day:02d} 0x{dt.hour:02d}{dt.minute:02d}{dt.second:02d}\r'
-    #         self.fifo.put(command)
-
-    # def example(self):
-    #     self.fifo.put('example\r')
-
-    # def setSweep(self, start, stop):  # only used to set a default on the tinySA
-    #     if start is not None:
-    #         self.serialWrite("sweep start %d\r" % start)
-    #     if stop is not None:
-    #         self.serialWrite("sweep stop %d\r" % stop)
-
-    # def sampleRep(self):
-    #     # sets the number of repeat measurements at each frequency point to the value in the GUI
-    #     command = f'repeat {QtTSA.sampleRepeat.value()}\r'
-    #     self.fifo.put(command)
-
-    # def listSD(self):
-    #     if self.usb:
-    #         self.clearBuffer()  # clear the USB serial buffer
-    #         ls = self.serialQuery('sd_list\r')
-    #         return ls
-
-    # def readSD(self, fileName):
-    #     command = ('sd_read %s\r' % fileName)
-    #     self.usb.write(command.encode())
-    #     self.usb.readline()  # discard empty line
-    #     format_string = "<1i"  # little-endian single integer of 4 bytes
-    #     self.usb.timeout = None
-    #     buffer = self.usb.read(4)
-    #     size = struct.unpack(format_string, buffer)
-    #     size = size[0]
-    #     data = self.usb.read(size)
-    #     self.usb.timeout = 1
-    #     return data
-
-    def dialogBrowse(self):
+    def dialogBrowse(self):  # browse which device?
         if self.usb and not self.tinySA4:
             popUp(QtTSA, "TinySA basic does not have file storage", 'Ok', 'Info')
             return
@@ -1022,8 +751,8 @@ class Marker:
         self.line.setValue(frequencies[lineIndex])
         self.dBm = levels[lineIndex]
 
-        decimal = Calc.Precision(frequencies, frequencies[0])  # set decimal places
-        unit, multiple = Calc.Unit(frequencies[0])  # set units
+        decimal = Calc.precision(frequencies, frequencies[0])  # set decimal places
+        unit, multiple = Calc.unit(frequencies[0])  # set units
         self.markerBox.setText(f'M{self.line.name()} {self.line.value()/multiple:.{decimal}f}{unit} {self.dBm:.1f}dBm')
 
         if self.deltaF != 0:
@@ -1031,15 +760,14 @@ class Marker:
             if self.deltaRelative:
                 deltaLinedBm = levels[deltaLineIndex]
                 dBm = deltaLinedBm - self.dBm
-                decimal = Calc.Precision(frequencies, self.deltaF)  # deltaF can be negative
-                unit, multiple = Calc.Unit(self.deltaF)
+                decimal = Calc.precision(frequencies, self.deltaF)  # deltaF can be negative
+                unit, multiple = Calc.unit(self.deltaF)
                 self.deltaline.label.setText(
                     f'{chr(916)}{self.line.name()} {dBm:.1f}dB\n{(self.deltaF / multiple):.{decimal}f}{unit}')
             else:
                 dBm = levels[deltaLineIndex]
                 self.deltaline.label.setText(
                     f'{chr(916)}{self.line.name()} {dBm:.1f}dBm\n{(self.deltaline.value()/multiple):.{decimal}f}{unit}')
-
 
     def addFreqMarker(self, freq, colour, name, band=True):  # adds simple freq marker without full marker capability
         if QtTSA.presetLabel.isChecked():
@@ -1119,8 +847,8 @@ class Marker:
             return
         else:
             self.tplot.show()
-        decimal = Calc.Precision(frequencies, frequencies[0])  # set decimal places
-        unit, multiple = Calc.Unit(self.line.value())  # set units
+        decimal = Calc.precision(frequencies, frequencies[0])  # set decimal places
+        unit, multiple = Calc.unit(self.line.value())  # set units
         self.tplot.setTitle(f'Marker {self.name} = {(self.line.value()/multiple):.{decimal}f}' + unit)
 
         tinySA.timeMarkVals[tinySA.timeIndex, 0] = timeNow
@@ -1170,7 +898,7 @@ class Marker:
                 pattern.ui.heading.setValue(360 + int(360*(theta[-1] / (2 * np.pi))))
             pattern.ui.progress.setValue(int(100 * (abs(theta[-1]) / (2 * np.pi))))
 
-        peak = max(np.max(self.amplitude), pattern.ui.refdBm.value())  # peak is maximum when antenna points at the source
+        peak = max(np.max(self.amplitude), pattern.ui.refdBm.value())  # peak is maximum when antenna points at Tx
         factor = 40 - peak  # correction factor to make the max signal amplitude read 40 units on the polar grid
         dBm = np.round(np.add(self.amplitude, factor), decimals=1)
 
@@ -1198,33 +926,6 @@ class Marker:
         x = np.multiply(r, np.sin(theta))
         y = np.multiply(r, np.cos(theta))
         self.polar.setData(x, y, pen=self.linked.pen)
-
-
-class WorkerSignals(QtCore.QObject):
-    error = QtCore.Signal(str)
-    result = QtCore.Signal(np.ndarray, np.ndarray, np.ndarray, np.ndarray, float)
-    fullSweep = QtCore.Signal(np.ndarray, np.ndarray)
-    saveResults = QtCore.Signal(np.ndarray, np.ndarray)
-    resetGUI = QtCore.Signal(np.ndarray, np.ndarray)
-    finished = QtCore.Signal()
-    sweepEnds = QtCore.Signal(np.ndarray)
-
-
-class Worker(QtCore.QRunnable):
-    '''Worker threads so that functions can run outside GUI event loop'''
-
-    def __init__(self, fn, *args):
-        super(Worker, self).__init__()
-        self.fn = fn
-        self.args = args
-        self.signals = WorkerSignals()
-
-    @QtCore.Slot()
-    def run(self):
-        '''Initialise the runner'''
-        logging.info(f'{self.fn.__name__} thread running')
-        self.fn(*self.args)
-        logging.info(f'{self.fn.__name__} thread stopped')
 
 
 class ModelView():
@@ -1303,8 +1004,11 @@ class ModelView():
             self.tm.setFilter(sql)
         else:
             sql = 'visible = "1" AND preset = "' + boxText + '"'
-            if tinySA.tinySA4 is False:  # It's a tinySA basic with limited frequency range
-                sql = sql + ' AND startF <= "960000000"'
+            
+            # move this into devices
+            
+            # if tinySA.tinySA4 is False:  # It's a tinySA basic with limited frequency range
+            #     sql = sql + ' AND startF <= "960000000"'
             self.tm.setFilter(sql)
             QtTSA.band_box.activated.emit(0)
 
@@ -1540,7 +1244,7 @@ def memChanged():
     depth = QtTSA.memBox.value()
     if depth < QtTSA.avgBox.value():
         QtTSA.avgBox.setValue(depth)
-    tinySA.scanMemory = depth
+    # temp #  tinySA.scanMemory = depth
     tinySA.resume()  # puts a message in the fifo buffer so the measurement thread spots it and updates its settings
 
 
@@ -1757,6 +1461,7 @@ def exit_handler():
         record.setValue('m4f', float(M4.line.value()))
         numbers.tm.setRecord(0, record)
 
+# needs to be re-written for multiple devices ########################################################################
         if tinySA.sweeping:
             tinySA.sweeping = False  # tell the measurement thread to stop
             while tinySA.threadRunning:
@@ -1878,8 +1583,8 @@ def correction_window():
 def connectActive():
     '''Connect signals from controls that send messages to tinySA or use trace data.  Called by setGUI().'''
 
-    QtTSA.atten_box.valueChanged.connect(tinySA.attenuator)
-    QtTSA.atten_auto.clicked.connect(tinySA.attenuator)
+    QtTSA.atten_box.valueChanged.connect(tinySA.attn)
+    QtTSA.atten_auto.clicked.connect(tinySA.attn)
     QtTSA.spur_box.currentIndexChanged.connect(tinySA.spur)
     QtTSA.lna_box.clicked.connect(tinySA.lna)
     QtTSA.points_auto.stateChanged.connect(pointsChanged)
@@ -1895,7 +1600,7 @@ def connectActive():
     QtTSA.centre_freq.valueChanged.connect(lambda: tinySA.freq_changed(True))  # centre/span mode
     QtTSA.span_freq.valueChanged.connect(lambda: tinySA.freq_changed(True))  # centre/span mode
 
-    QtTSA.sampleRepeat.valueChanged.connect(tinySA.sampleRep)
+    # QtTSA.sampleRepeat.valueChanged.connect(tinySA.sampleRep)
 
     # 3D graph controls
     QtTSA.timeSpectrum.clicked.connect(lambda: QtTSA.stackedWidget.setCurrentWidget(QtTSA.View3D))
@@ -2268,9 +1973,10 @@ usbCheck = QtCore.QTimer()
 usbCheck.timeout.connect(usbInstr.probe)
 usbCheck.start()
 
-# usbInstr.control()
+usbInstr.probe()
+usbInstr.connect()
 
-# tinySA.setGUI()
+tinySA.setGUI()
 
 ###############################################################################
 # run the application until the user closes it
