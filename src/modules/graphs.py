@@ -15,7 +15,6 @@ from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QLinearGradient
 from PySide6.QtGraphs import QSurface3DSeries, QSurfaceDataProxy, QGraphsTheme
 from PySide6.QtGraphsWidgets import Q3DSurfaceWidgetItem
-
 import pyqtgraph
 
 from modules.utility import Calc
@@ -157,8 +156,28 @@ class PhaseNoiseGraph(QObject):
 
 class SpectrumGraph(QObject):
 
-    def __init__(self, ui_widget, frequencies, readings):
+    def __init__(self, ui_widget):
         super().__init__()
         self.create_plot(ui_widget)
 
-    
+    def create_plot(self, ui_widget):
+        ui_widget.addLegend(offset=(30, 400))
+        self.trace = ui_widget.plot([], [], name=None, width=1, padding=0)
+
+    def enable(self, show=True):  # show or hide a trace
+        if show:
+            self.trace.show()
+        else:
+            self.trace.hide()
+
+    def update(self, frequencies, levels):
+        self.trace.setData(frequencies, levels)
+
+    def setColour(self, pen):
+        self.trace.setPen(pen)
+
+    # def fetchData(self):
+    #     '''return the plotted data from the first trace listDataItems[0]'''
+    #     frequencies = QtTSA.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[0]  # [0] = freq
+    #     levels = QtTSA.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[1]  # [1] = level
+    #     return frequencies, levels

@@ -13,7 +13,6 @@ import time
 import queue
 import struct
 import numpy as np
-from platform import system
 from PySide6.QtCore import QObject, QElapsedTimer, Signal, Slot, QRunnable
 from serial.tools import list_ports
 from datetime import datetime
@@ -22,19 +21,19 @@ from datetime import datetime
 class USBdevice(QObject):
     def __init__(self):
         super().__init__()
-        # self.usb = None
         self.ports = []
         self.firmware = None
         self.setSignals()
 
     def setSignals(self):
-        # these signals forward the signals from the devices to the analyser class (& are connected in there)
         self.signals = WorkerSignals()
-        self.sigs = {"result": self.signals.result,
-                     "finished": self.signals.finished,
-                     "save": self.signals.saveResults,
-                     "reset": self.signals.resetGUI,
-                     "ends": self.signals.sweepEnds}
+
+        # dev_sigs forward the signals from devices to the analyser class in QtTinySA.py (& are connected in there)
+        self.dev_sigs = {"result": self.signals.result,
+                         "finished": self.signals.finished,
+                         "save": self.signals.saveResults,
+                         "reset": self.signals.resetGUI,
+                         "ends": self.signals.sweepEnds}
 
     def probe(self):
         VID = (0x0483, 0x1d50)  # 1155 tinySA/NanoVNA, limeSDR
@@ -47,10 +46,11 @@ class USBdevice(QObject):
                 self.ports.append(port)
                 logging.info(f'found {port.product} on {port.device}')
 
-        # detect devices that disconnect
+        # detect devices that disconnect...  and we need to do something about it other than just logging ############
         for port in self.ports:
             if port not in usbPorts:
                 logging.info(f'{port.product} has disconnected from {port.device}')
+                self.disconnect(port.device)
                 self.ports.remove(port)
 
     def connect(self):
@@ -58,14 +58,13 @@ class USBdevice(QObject):
         self.dev0 = self.dev1 = self.dev2 = self.dev3 = None
 
         for port in self.ports:
-            func = {"tinySA": Tiny(port.device, port.product, self.sigs, basic=True),
-                    "tinySA4": Tiny(port.device, port.product, self.sigs, basic=False),
-                    "NanoVnaPro Virtual ComPort": Nano(port.device, port.product, self.sigs),
-                    "LimeSDR-USB": Lime(port.device, port.product, self.sigs)}
-            if self.dev0 is None:
+            func = {"tinySA": Tiny(port.device, port.product, self.dev_sigs, basic=True),
+                    "tinySA4": Tiny(port.device, port.product, self.dev_sigs, basic=False),
+                    "NanoVnaPro Virtual ComPort": Nano(port.device, port.product, self.dev_sigs),
+                    "LimeSDR-USB": Lime(port.device, port.product, self.dev_sigs)}
+            if self.dev0 is None and len(self.ports) > 0:
                 self.dev0 = func[port.product]
                 self.dev0.test(port.device)
-                continue
             if self.dev1 is None and len(self.ports) > 1:
                 self.dev1 = func[port.product]
                 self.dev1.test(port.device)
@@ -76,9 +75,26 @@ class USBdevice(QObject):
             if self.dev3 is None and len(self.ports) > 3:
                 self.dev3 = func[port.product]
 
-    def stop(self):
-        x = 0
-        
+    def disconnect(self, usbPort):
+        if self.dev0:
+            if self.dev0.usbPort == usbPort:
+                logging.info('removing disconnected device instance')
+                self.dev0.close()
+                del self.dev0
+                self.dev0 = None
+
+    def closePort(self):
+        if self.dev0:
+            self.dev0.close()
+        if self.dev1:
+            self.dev1.close()
+        if self.dev2:
+            self.dev2.close()
+        if self.dev3:
+            self.dev3.close()
+
+
+
     # logging.info(f'dev0 is a {self.dev0.product}')
     # logging.info(f'dev1 is a {self.dev1.product}')
     # settings.ui.deviceBox.addItem(self.identify(port) + " on " + port.device)
@@ -92,7 +108,7 @@ class USBdevice(QObject):
 
 class WorkerSignals(QObject):
     error = Signal(str)
-    result = Signal(np.ndarray, np.ndarray, np.ndarray, np.ndarray, float)
+    result = Signal(object, np.ndarray, np.ndarray, np.ndarray, np.ndarray, float)
     fullSweep = Signal(np.ndarray, np.ndarray)
     saveResults = Signal(np.ndarray, np.ndarray)
     resetGUI = Signal(np.ndarray, np.ndarray)
@@ -122,7 +138,8 @@ class Tiny(QObject):
         super().__init__()
         self.fifo = queue.SimpleQueue()
         self.usb = None
-        self.product = product
+        self.usbPort = usbPort
+        # self.product = product
         self.sweeping = None
         self.basic = basic
         self.setScale()
@@ -138,6 +155,7 @@ class Tiny(QObject):
         self.signals.sweepEnds.connect(sigs["ends"])
 
     def test(self, usbPort):  # tests tinySA comms and initialise if found
+        self.is_tinySA = False
         try:
             self.usb = serial.Serial(usbPort, baudrate=576000)
             logging.info(f'Serial port {usbPort} open: {self.usb.isOpen()}')
@@ -155,11 +173,14 @@ class Tiny(QObject):
             # split firmware into a list of [device, major version number, minor version number, other stuff]
             self.firmware = firmware.replace('_', '-').split('-')
             if firmware[:6] == 'tinySA':
-                sd = str.splitlines(self.listSD())
-                if "ID.bmp 307322" in sd:
-                    logging.info(f'ID found = {sd[-1]}')
+                self.is_tinySA = True
+                sd_card = str.splitlines(self.listSD())
+                if "ID.bmp 307322" in sd_card:
+                    logging.info(f'ID found = {sd_card[-1]}')
+
                 if firmware[0] == 'tinySA4' and float(self.firmware[1][-3:] + self.firmware[2]) < 1.4177:
                     logging.info('for fastest scan speed, upgrade firmware to v1.4-177 or later')
+
                 if self.firmware[1][0] == "v":
                     return self.firmware  # setForDevice needs this info
                 else:
@@ -170,7 +191,7 @@ class Tiny(QObject):
     def close(self):
         if self.usb:
             self.usb.close()
-            logging.info(f'Serial port open: {self.usb.isOpen()}')
+            logging.info(f'Serial port {self.usbPort} open: {self.usb.isOpen()}')
             self.usb = None
 
     # def clearBuffer(self):
@@ -199,13 +220,21 @@ class Tiny(QObject):
         logging.debug(f'sweepTimeout = {timeout:.2f} s')
         return timeout
 
-    def measurement(self, startF, stopF, frequencies, readings, maxima, minima, loop=True):  # run in separate thread
+    def measurement(self, startF, stopF, points, rbw, trace, loop=True):  # run in separate thread
         sweepCount = 0
         updateTimer = QElapsedTimer()
-        points = np.size(frequencies)
         self.threadRunning = True
         firstRun = True
         self.sweeping = True
+        logging.info(f'start = {startF} stop = {stopF}, points = {points}')
+        freq = np.linspace(startF, stopF, points, dtype=np.int64)
+        levl = np.full(points, -140, dtype=float)
+        maxl = np.full(points, -140, dtype=float)
+        minl = np.full(points, 0, dtype=float)
+
+        # readings[0] = -140
+        # need to reinstate scan-time array, which was 2d array of readings x (scanmemory depth)
+
         # version = int(self.firmware[2])  # just the firmware version number
 
         # self.runTimer.start()  # debug
@@ -251,16 +280,16 @@ class Tiny(QObject):
                     logging.info('data error')
                     self.sweeping = False
                     break
-                readings[0, point] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
+                levl[point] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
 
                 # If it's the final point of this sweep, set up for the next sweep
                 if point == points - 1:
-                    readingsMax = np.nanmax(readings[:self.scanMemory], axis=0)
-                    readingsMin = np.nanmin(readings[:self.scanMemory], axis=0)
-                    maxima = np.fmax(maxima, readingsMax)
-                    minima = np.fmin(minima, readingsMin)
-                    readings[-1] = readings[0]  # populate last row with current sweep before rolling
-                    readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
+                    np.fmax(levl, maxl, out=maxl)  # compare current level with max and min
+                    np.fmin(levl, minl, out=minl)  # and save them back on themselves
+
+                    # readings[-1] = readings[0]  # populate last row with current sweep before rolling
+                    # readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
+
                     if loop:
                         if self.usb.read(2) != b'}{':  # the end of scan marker character is '}{'
                             logging.info('QtTinySA display is out of sync with tinySA frequency')
@@ -268,29 +297,32 @@ class Tiny(QObject):
                             break
                         sweepCount += 1
                         firstRun = False
-                        if sweepCount == self.scanMemory:  # array is full so trigger CSV data file save
-                            self.signals.saveResults.emit(frequencies, readings)
-                            sweepCount = 0
-                    self.signals.sweepEnds.emit(frequencies)
+                    #     if sweepCount == self.scanMemory:  # array is full so trigger CSV data file save
+                    #         self.signals.saveResults.emit(frequencies, readings)
+                    #         sweepCount = 0
+
+                    # self.signals.sweepEnds.emit(frequencies)  # this was used to update the markers
+
 
                 # If a sweep setting has been changed by the user, the sweep must be re-started (+ new recording start)
-                if self.fifo.qsize() > 0 or not self.sweeping:
-                    self.serialWrite('abort\r')
-                    self.clearBuffer()
-                    firstRun = True
-                    self.setRBW()  # reads GUI rbw box value
-                    frequencies, readings, maxima, minima = self.set_arrays()  # reads GUI values !!!
-                    points = np.size(frequencies)
-                    self.signals.resetGUI.emit(frequencies, readings)
-                    self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
-                    updateTimer.start()
-                    break
+                # if self.fifo.qsize() > 0 or not self.sweeping:
+                #     self.serialWrite('abort\r')
+                #     self.clearBuffer()
+                #     firstRun = True
+                #     self.setRBW()  # reads GUI rbw box value
+                #     frequencies, readings, maxima, minima = self.set_arrays()  # reads GUI values !!!
+                #     points = np.size(frequencies)
+                #     self.signals.resetGUI.emit(frequencies, readings)
+                #     self.usbSend()  # send all the queued commands in the FIFO buffer to the TinySA
+                #     updateTimer.start()
+                #     break
 
                 timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
 
                 # Send the sesults to updateGUI if an update is due
                 if timeElapsed/1e6 > 100:  # mS needs to be settings.ui.intervalBox.value():
-                    self.signals.result.emit(frequencies, readings, maxima, minima, timeElapsed)  # send to updateGUI()
+                    # self.signals.result.emit(frequencies, readings, maxima, minima, timeElapsed)  # send to updateGUI()
+                    self.signals.result.emit(trace, freq, levl, maxl, minl, timeElapsed)  # send to updateGUI()
                     updateTimer.start()
 
         self.usb.read(2)  # discard the command prompt that the tinySA sends when sweeping ends
@@ -412,41 +444,41 @@ class Tiny(QObject):
                 ls.append(SD.splitlines()[i].split(" ")[0])
 
 
-    @Slot()
-    def saveFile(self, saveSingle=True):
-        filebrowse.ui.saveProgress.setValue(0)
-        SD = self.listSD()
-        for i in range(len(SD.splitlines())):
-            if not self.directory:  # have not already saved a file, or ask for folder was checked
-                self.directory = QFileDialog.getExistingDirectory(caption="Select folder to save SD card file")
-            if not self.directory:
-                break
-            if saveSingle:
-                fileName = filebrowse.ui.listWidget.currentItem().text()  # the file selected in the list widget
-            else:
-                fileName = SD.splitlines()[i].split(" ")[0]
-            with open(os.path.join(self.directory, fileName), "wb") as file:
-                data = self.readSD(fileName)
-                file.write(data)
-            filebrowse.ui.saveProgress.setValue(int(100 * (i+1)/len(SD.splitlines())))
-            filebrowse.ui.downloadInfo.setText(self.directory)  # show the path where the file was saved
-            if filebrowse.ui.askForPath.isChecked():
-                self.directory = None
-            if saveSingle:
-                filebrowse.ui.saveProgress.setValue(100)
-                break
+    # @Slot()
+    # def saveFile(self, saveSingle=True):
+    #     filebrowse.ui.saveProgress.setValue(0)
+    #     SD = self.listSD()
+    #     for i in range(len(SD.splitlines())):
+    #         if not self.directory:  # have not already saved a file, or ask for folder was checked
+    #             self.directory = QFileDialog.getExistingDirectory(caption="Select folder to save SD card file")
+    #         if not self.directory:
+    #             break
+    #         if saveSingle:
+    #             fileName = filebrowse.ui.listWidget.currentItem().text()  # the file selected in the list widget
+    #         else:
+    #             fileName = SD.splitlines()[i].split(" ")[0]
+    #         with open(os.path.join(self.directory, fileName), "wb") as file:
+    #             data = self.readSD(fileName)
+    #             file.write(data)
+    #         filebrowse.ui.saveProgress.setValue(int(100 * (i+1)/len(SD.splitlines())))
+    #         filebrowse.ui.downloadInfo.setText(self.directory)  # show the path where the file was saved
+    #         if filebrowse.ui.askForPath.isChecked():
+    #             self.directory = None
+    #         if saveSingle:
+    #             filebrowse.ui.saveProgress.setValue(100)
+    #             break
 
-    def fileShow(self):
-        self.memF.seek(0, 0)  # set the memory buffer pointer to the start
-        self.memF.truncate()  # clear down the memory buffer to the pointer
-        filebrowse.ui.picture.clear()
-        fileName = filebrowse.ui.listWidget.currentItem().text()
-        self.clearBuffer()  # clear the tinySA serial buffer
-        self.memF.write(self.readSD(fileName))  # read the file from the tinySA memory card and store in memory buffer
-        if fileName[-3:] == 'bmp':
-            pixmap = QPixmap()
-            pixmap.loadFromData(self.memF.getvalue())
-            filebrowse.ui.picture.setPixmap(pixmap)
+    # def fileShow(self):
+    #     self.memF.seek(0, 0)  # set the memory buffer pointer to the start
+    #     self.memF.truncate()  # clear down the memory buffer to the pointer
+    #     filebrowse.ui.picture.clear()
+    #     fileName = filebrowse.ui.listWidget.currentItem().text()
+    #     self.clearBuffer()  # clear the tinySA serial buffer
+    #     self.memF.write(self.readSD(fileName))  # read the file from the tinySA memory card and store in memory buffer
+    #     if fileName[-3:] == 'bmp':
+    #         pixmap = QPixmap()
+    #         pixmap.loadFromData(self.memF.getvalue())
+    #         filebrowse.ui.picture.setPixmap(pixmap)
 
     def lna(self, on=True):
         if self.basic:
