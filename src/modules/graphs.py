@@ -154,7 +154,7 @@ class PhaseNoiseGraph(QObject):
         self.base_noise.setData(freqOffset, baseline)
 
 
-class SpectrumGraph(QObject):
+class Spectrum(QObject):
 
     def __init__(self, ui_widget):
         super().__init__()
@@ -162,22 +162,361 @@ class SpectrumGraph(QObject):
 
     def create_plot(self, ui_widget):
         ui_widget.addLegend(offset=(30, 400))
-        self.trace = ui_widget.plot([], [], name=None, width=1, padding=0)
+        self.trace = ui_widget.plot([], [], width=1, padding=0)
+
+        # create 4 markers, bound to the trace
+        self.trace.m0 = Marker(ui_widget, self.trace, 'm1', 0.1)
+        self.trace.m1 = Marker(ui_widget, self.trace, 'm2', 0.9)
+        self.trace.m2 = Marker(ui_widget, self.trace, 'm3', 1.7)
+        self.trace.m3 = Marker(ui_widget, self.trace, 'm4', 2.5)
+        self.mkr_list = [self.trace.m0, self.trace.m1, self.trace.m2, self.trace.m3]
 
     def enable(self, show=True):  # show or hide a trace
         if show:
             self.trace.show()
+            # for mkr in self.mkr_list:
+            #     mkr.line.show()
         else:
             self.trace.hide()
+            for mkr in self.mkr_list:
+                mkr.line.hide()
 
     def update(self, frequencies, levels):
         self.trace.setData(frequencies, levels)
 
-    def setColour(self, pen):
+    def set_colour(self, pen):
         self.trace.setPen(pen)
+        for mkr in self.mkr_list:
+            mkr.line.setPen(pen)
+            mkr.delta.setPen(pen)
 
-    # def fetchData(self):
-    #     '''return the plotted data from the first trace listDataItems[0]'''
-    #     frequencies = QtTSA.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[0]  # [0] = freq
-    #     levels = QtTSA.graphWidget.getPlotItem().listDataItems()[int(self.name) - 1].getData()[1]  # [1] = level
-    #     return frequencies, levels
+    def fetch_data(self, ui_widget):
+        '''return the plotted data from the trace listDataItems[0]'''
+
+        # need to check if the indexes are right.  And is there a more direct Fn?
+        frequencies = ui_widget.getPlotItem().listDataItems()[0].getData()[0]  # [0] = freq
+        levels = ui_widget.getPlotItem().listDataItems()[0].getData()[1]  # [1] = level
+        return frequencies, levels
+
+    def mkr_start(self, startF):  # set marker to the sweep start frequency
+        for mkr in self.mkr_list:
+            if mkr.mkr_type != 'Off':
+                mkr.line.setValue(startF * 1e6)
+                mkr.mkr_type()
+
+
+class Marker:
+    def __init__(self, ui_widget, trace, name, box):
+        # self.level = 1  # marker tracking level (min or max), set per marker from GUI
+        # self.mkr_type = 'Normal'
+
+        # self.fifo = queue.SimpleQueue()
+        self.dBm = -140
+        self.create_lines(ui_widget, name, box)
+        self.parent = trace
+        # self.createMarkerTimePlot()
+        # self.polar = pattern.ui.plotwidget.plot([], [], name=name, width=1, padding=0)
+        # self.runTimer = QtCore.QElapsedTimer()  # for polar plot
+        # self.sweeptime = []  # for polar plot
+        # self.amplitude = []  # for polar plot
+        # self.samples = []  # for polar plot
+
+    def create_lines(self, ui_widget, name, box):
+        self.line = ui_widget.addLine(88, 90, movable=True, name=name, pen=pyqtgraph.mkPen('y', width=0.5), label=name)
+        self.delta = ui_widget.addLine(0, 90, movable=True, name=name,
+                                       pen=pyqtgraph.mkPen('y', width=0.5, style=Qt.PenStyle.DashLine), label='d'+name)
+        self.line.addMarker('^', 0, 10)
+        self.deltaF = 0  # the delta marker frequency difference
+        self.deltaRelative = True
+        # self.delta.sigClicked.connect(self.dmr_click)
+        self.line.sigClicked.connect(self.mkr_click)
+        self.box = pyqtgraph.TextItem(text='', border=None, anchor=(-0.7, -box), fill='k')  # box is vertical posn
+        self.box.setParentItem(ui_widget.plotItem)
+
+    # def guiRef(self, opt):
+    #     guiFields = ({'1': QtTSA.m1_type, '2': QtTSA.m2_type, '3': QtTSA.m3_type, '4': QtTSA.m4_type},
+    #                  {'1': QtTSA.m1trace, '2': QtTSA.m2trace, '3': QtTSA.m3trace, '4': QtTSA.m4trace},
+    #                  {'1': 'm1f', '2': 'm2f', '3': 'm3f', '4': 'm4f'},
+    #                  {'1': QtTSA.m1track, '2': QtTSA.m2track, '3': QtTSA.m3track, '4': QtTSA.m4track})
+    #     Ref = guiFields[opt].get(self.name)
+    #     return Ref
+
+   # def traceLink(self, setting):
+   #      traces = {'1': T1, '2': T2, '3': T3, '4': T4}
+   #      self.linked = traces.get(str(setting))
+   #      tint = str("background-color: '" + self.linked.pen + "';")
+   #      # self.guiRef(0).setStyleSheet(tint)
+   #      self.guiRef(1).setStyleSheet(tint)
+   #      checkboxes.dwm.submit()
+
+    # def setup(self, colour):
+    #     '''restore the marker frequencies from the configuration database and set starting conditions'''
+    #     self.line.setValue(numbers.tm.record(0).value(self.guiRef(2)))
+    #     self.line.label.setColor(colour)
+    #     self.line.label.setPosition(0.02)
+    #     self.line.label.setMovable(True)
+    #     self.line.setPen(color=colour, width=0.5)
+    #     self.mType()
+    #     # self.traceLink(self.guiRef(1).value())
+    #     self.setLevel(self.guiRef(3).value())
+    #     self.delta.hide()
+    #     self.delta.setValue(0)
+    #     self.deltaF = 0
+    #     self.delta.label.setPosition(0.05)
+    #     self.delta.label.setMovable(True)
+    #     M2.tplot.setXLink(M1.tplot)
+    #     M3.tplot.setXLink(M1.tplot)
+    #     M4.tplot.setXLink(M1.tplot)
+
+    def to_start(self, startF):  # set marker to the sweep start frequency
+        self.line.setValue(startF * 1e6)
+
+    def spread(self, startF, stopF, gap):  # spread markers equally across scan range
+        span = (stopF - startF) * 1e6
+        if self.line.value() <= startF * 1e6 or self.line.value() > stopF * 1e6:
+            self.line.setValue(startF * 1e6 + (0.2 * gap * span))
+
+    def mkr_click(self):  # toggle visibility of associated delta marker
+        delta = 1e5
+        if self.delta.value() != 0:
+            self.delta.hide()
+            self.delta.setValue(0)
+        else:
+            self.delta.show()
+            self.delta.setValue(self.line.value() + delta)
+            self.deltaF = 0
+            self.deltaF = self.delta.value() - self.line.value()
+
+    def dmkr_click(self):  # toggle relative or absolute labelling
+        if self.deltaRelative:
+            self.deltaRelative = False
+        else:
+            self.deltaRelative = True
+
+    def dmkr_move(self):  # set the delta freq offset
+        self.deltaF = self.delta.value() - self.line.value()
+        self.updateMarker()
+
+    def set_type(self, mkr_type):
+        self.mkr_type = mkr_type  # current combobox value from appropriate GUI field
+        if self.mkr_type == 'Off' or self.mkr_type == '':
+            self.line.hide()
+            self.delta.hide()
+            self.delta.setValue(0)
+            self.deltaF = 0
+        else:
+            self.line.show()
+
+    def set_delta(self):  # delta marker locking to reference marker
+        self.delta.setValue(self.line.value() + self.deltaF)
+        self.update()
+
+    def mkr_update(self):  # called by sweepComplete() and fifo timer
+        if self.mkr_type == 'Off':
+            self.box.setVisible(False)
+            return
+        else:
+            self.box.setVisible(True)
+
+        frequencies, levels = self.trace.fetch_data()  # fetch data from the graph
+        if frequencies is None or levels is None:
+            return
+
+        # flatten the arrays
+        frequencies.reshape(-1)
+        levels.reshape(-1)
+
+        if self.mkr_type in ('Max', 'Min'):
+            self.calcMaskFreq(frequencies)
+            maxmin = self.maxMin(frequencies, levels)
+            # maxmin is a tuple of lists where [0, x] are indices in the frequency array of the max and [1, x] are min
+            logging.debug(f'updateMarker(): maxmin = {maxmin}')
+            if self.mkr_type == 'Max':
+                self.line.setValue(maxmin[0][self.level])
+                if self.delta.value() != 0:
+                    self.delta.setValue(maxmin[0][self.level] + self.deltaF)  # needs to be index delta not F
+            if self.mkr_type == 'Min':
+                self.line.setValue(maxmin[1][self.level])
+                if self.delta.value() != 0:
+                    self.delta.setValue(maxmin[1][self.level] + self.deltaF)  # needs to be index delta not F
+
+        lineIndex = np.argmin(np.abs(frequencies - (self.line.value())))  # find closest value in freq array
+        logging.debug(f'updateMarker(): index={lineIndex} frequency={frequencies[lineIndex]}')
+        self.line.setValue(frequencies[lineIndex])
+        self.dBm = levels[lineIndex]
+
+        decimal = Calc.precision(frequencies, frequencies[0])  # set decimal places
+        unit, multiple = Calc.unit(frequencies[0])  # set units
+        self.markerBox.setText(f'M{self.line.name()} {self.line.value()/multiple:.{decimal}f}{unit} {self.dBm:.1f}dBm')
+
+        if self.deltaF != 0:
+            d_indx = np.argmin(np.abs(frequencies - (self.delta.value())))  # closest value in freq array
+            if self.deltaRelative:
+                deltadBm = levels[d_indx]
+                dBm = deltadBm - self.dBm
+                decimal = Calc.precision(frequencies, self.deltaF)  # deltaF can be negative
+                unit, multiple = Calc.unit(self.deltaF)
+                self.delta.label.setText(
+                    f'{chr(916)}{self.line.name()} {dBm:.1f}dB\n{(self.deltaF / multiple):.{decimal}f}{unit}')
+            else:
+                dBm = levels[d_indx]
+                self.delta.label.setText(
+                    f'{chr(916)}{self.line.name()} {dBm:.1f}dBm\n{(self.delta.value()/multiple):.{decimal}f}{unit}')
+
+    # def addFreqMarker(self, freq, colour, name, band=True):  # adds simple freq marker without full marker capability
+    #     if QtTSA.presetLabel.isChecked():
+    #         if band:
+    #             self.marker = QtTSA.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5,
+    #                                                     style=QtCore.Qt.PenStyle.DashLine), label=name,
+    #                                                     labelOpts={'position': 0.97, 'color': (colour)})
+    #         else:
+    #             self.marker = QtTSA.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5,
+    #                                                     style=QtCore.Qt.PenStyle.DashLine), label=name,
+    #                                                     labelOpts={'position': 0.04, 'color': (colour),
+    #                                                     'anchors': ((0, 0.2), (0, 0.2))})
+    #         self.marker.label.setMovable(True)
+    #     else:
+    #         self.marker = QtTSA.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5,
+    #                                                 style=QtCore.Qt.PenStyle.DashLine))
+    #     self.fifo.put(self.marker)  # store the marker object in a queue
+    #     logging.debug(f'addFreqMarker(): fifo size = {self.fifo.qsize()}')
+
+    # def delFreqMarkers(self):
+    #     for i in range(0, self.fifo.qsize()):
+    #         QtTSA.graphWidget.removeItem(self.fifo.get())  # remove the marker and its corresponding object in the queue
+
+    def maxMin(self, frequencies, levels):  # finds the signal max/min (indexes) for setting markers
+        # logging.debug(f'maxmin: linked tracetype = {self.linked.traceType}')
+
+        # # mask outside high/low freq boundary lines
+        # levels = np.ma.masked_where(frequencies > highF.line.value(), levels)
+        # levels = np.ma.masked_where(frequencies < lowF.line.value(), levels)
+
+        # # mask readings below threshold line
+        # levels = np.ma.masked_where(levels <= threshold.line.value(), levels)
+
+        maxi = [np.argmax(levels)]  # the index of the highest peak in the masked readings array
+        mini = [np.argmin(levels)]  # the index of the deepest minimum in the masked readings array
+        nextMax = nextMin = levels
+        for i in range(8):
+            # mask frequencies around detected peaks and find the next 8 highest/lowest peaks
+            nextMax = np.ma.masked_where(np.abs(frequencies[maxi[-1]] - frequencies) < self.maskFreq, nextMax)
+            maxi.append(np.argmax(nextMax))
+            nextMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < self.maskFreq, nextMin)
+            mini.append(np.argmin(nextMin))
+        return (list(frequencies[maxi]), list(frequencies[mini]))
+
+    def setLevel(self, setting):
+        self.level = setting - 1  # array indexes start at 0 not 1
+
+    def calcMaskFreq(self, frequencies):
+        '''calculate a frequency width factor to use to mask readings near each max/min frequency'''
+        if QtTSA.rbw_auto.isChecked():
+            # auto rbw is ~7 kHz per 1 MHz scan frequency span
+            approx_rbw = 7 * (frequencies[-1] - frequencies[0]) / 1e6  # kHz
+            # find the nearest lower discrete rbw value
+            for i in range(0, rbwtext.tm.rowCount() - 1):
+                rbw = float(rbwtext.tm.record(i).value('value'))  # kHz
+                if approx_rbw <= float(rbwtext.tm.record(i).value('value')):
+                    break
+            self.maskFreq = settings.ui.rbw_x.value() * rbw * 1e3  # Hz
+        else:
+            # manual rbw setting
+            self.maskFreq = settings.ui.rbw_x.value() * float(QtTSA.rbw_box.currentText()) * 1e3  # Hz
+            logging.debug(f'manual rbw masking factor = {self.maskFreq/1e3}kHz')
+
+        # def createMarkerTimePlot(self):
+        #     '''multiplot is the name of the graphics layout grid widget in the fading dialogue window'''
+        #     self.tplot = multiplot.addPlot(title='Marker ' + self.name)
+        #     self.tplot.setAxisItems({'bottom': pyqtgraph.DateAxisItem()})
+        #     self.tplot.showGrid(x=True, y=True)
+        #     multiplot.nextRow()
+        #     self.tplot.plot([], [])
+
+        # def updateMarkerTimePlot(self, frequencies, timeNow):  # called by sweepComplete()
+        #     self.tplot.clear()  # if it's not cleared the GUI runs slower and slower
+        #     if self.mkr_type == 'Off':
+        #         self.tplot.hide()
+        #         self.runTimer.invalidate()
+        #         return
+        #     else:
+        #         self.tplot.show()
+        #     decimal = Calc.precision(frequencies, frequencies[0])  # set decimal places
+        #     unit, multiple = Calc.unit(self.line.value())  # set units
+        #     self.tplot.setTitle(f'Marker {self.name} = {(self.line.value()/multiple):.{decimal}f}' + unit)
+
+        #     tinySA.timeMarkVals[tinySA.timeIndex, 0] = timeNow
+        #     tinySA.timeMarkVals[tinySA.timeIndex, int(self.name)] = self.dBm
+        #     self.tplot.plot(tinySA.timeMarkVals[:, 0], tinySA.timeMarkVals[:, int(self.name)], pen=self.linked.pen)
+
+        #     if self.runTimer.isValid():  # polar pattern plot is active
+        #         self.updatePolarPlot()
+
+        # def setPolarPlot(self):
+        #     if self.mkr_type != 'Off':
+        #         pattern.ui.progress.setValue(0)
+        #         if pattern.ui.manual.isChecked():
+        #             self.samples = []
+        #         else:
+        #             self.sweeptime = []
+        #             self.amplitude = []
+        #         self.runTimer.start()
+
+        # def updatePolarPlot(self):
+        #     if pattern.ui.manual.isChecked():
+        #         if len(self.samples) < pattern.scanCount.value():
+        #             self.samples.append(self.dBm)
+        #             pattern.ui.progress.setValue(int(100 * len(self.samples) / pattern.scanCount.value()))
+        #             return
+        #         else:
+        #             if pattern.ui.max.isChecked():
+        #                 self.amplitude.append(np.max(self.samples))
+        #             if pattern.ui.avg.isChecked():
+        #                 self.amplitude.append(np.average(self.samples))
+        #             if pattern.ui.min.isChecked():
+        #                 self.amplitude.append(np.min(self.samples))
+        #             self.sweeptime.append(pattern.heading.value())  # append the current heading (instead of rotation time)
+        #             self.runTimer.invalidate()
+        #             theta = np.divide((np.multiply(self.sweeptime, np.pi)), 180)  # convert heading in degrees to radians
+        #     else:
+        #         if self.sweeptime == []:  # auto plot has just been started
+        #             self.sweeptime.append(0)
+        #         else:
+        #             self.sweeptime.append(self.runTimer.elapsed() / 1000)
+        #         self.amplitude.append(self.dBm)
+        #         if pattern.ui.clockwise.isChecked():
+        #             theta = np.divide((np.multiply(self.sweeptime, 2 * np.pi)), pattern.ui.rotateTime.value())
+        #             pattern.ui.heading.setValue(int(360*(theta[-1] / (2 * np.pi))))
+        #         else:
+        #             theta = np.divide((np.multiply(self.sweeptime, -2 * np.pi)), pattern.ui.rotateTime.value())
+        #             pattern.ui.heading.setValue(360 + int(360*(theta[-1] / (2 * np.pi))))
+        #         pattern.ui.progress.setValue(int(100 * (abs(theta[-1]) / (2 * np.pi))))
+
+        #     peak = max(np.max(self.amplitude), pattern.ui.refdBm.value())  # peak is maximum when antenna points at Tx
+        #     factor = 40 - peak  # correction factor to make the max signal amplitude read 40 units on the polar grid
+        #     dBm = np.round(np.add(self.amplitude, factor), decimals=1)
+
+        #     r = np.clip(dBm, 0, 40)  # clip the signal vector to a max amplitude of 40 and minimum of 0
+        #     x = np.multiply(r, np.sin(theta))
+        #     y = np.multiply(r, np.cos(theta))
+        #     self.polar.setData(x, y, pen=self.linked.pen)
+
+        #     if self.sweeptime[-1] >= pattern.ui.rotateTime.value():  # rotation is complete
+        #         self.runTimer.invalidate()
+        #         if pattern.ui.beamUp.isChecked() and not pattern.ui.manual.isChecked():
+        #             self.rotatePolarPlot(r, theta)
+
+        # def rotatePolarPlot(self, r, theta):
+        #     pkIndex = np.argmax(self.amplitude)  # find the array index of the maximum signal
+        #     width = 0
+        #     for i in range(pkIndex, len(self.amplitude) - 1):
+        #         if self.amplitude[i] == self.amplitude[pkIndex]:
+        #             width += 1
+        #     pkIndex = pkIndex + int(width / 2)  # beam centre is half the width of a symetrical antenna main lobe
+        #     pkBearing = 2 * np.pi * pkIndex / len(self.amplitude)
+
+        #     # calculate new values to rotate display
+        #     theta = np.subtract(theta, pkBearing)
+        #     x = np.multiply(r, np.sin(theta))
+        #     y = np.multiply(r, np.cos(theta))
+        #     self.polar.setData(x, y, pen=self.linked.pen)
