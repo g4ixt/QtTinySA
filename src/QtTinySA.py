@@ -286,9 +286,6 @@ class Analyser:
             usbInstr.dev1.sweeping = True
             threadpool.start(self.sweep1)
 
-    def timerTasks(self):  # needs to start multiple timers (by self. ?) ######
-        if usbInstr.dev0.usb:
-            usbInstr.dev0.usbSend()
 
     def lna(self):
         if QtTSA.lna_box.isChecked():
@@ -1992,10 +1989,10 @@ usbInstr = USBdevice()
 
 usbCheck = QtCore.QTimer()
 usbCheck.timeout.connect(usbInstr.probe)
-usbCheck.start()
+usbCheck.start(500)
 
-usbInstr.probe()
-usbInstr.connect()
+# usbInstr.probe()
+# usbInstr.connect()
 
 tinySA = Analyser()
 tinySA.setGraphs()

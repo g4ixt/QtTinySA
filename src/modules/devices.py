@@ -45,6 +45,9 @@ class USBdevice(QObject):
             if port.vid in VID and port.pid in PID and port not in self.ports:
                 self.ports.append(port)
                 logging.info(f'found {port.product} on {port.device}')
+        if len(self.ports) > 0:
+            self.connect()
+                
 
         # detect devices that have been turned off or lost contact
         for port in self.ports:
@@ -139,16 +142,21 @@ class Worker(QRunnable):
 class Tiny(QObject):
     def __init__(self, usbPort, product, sigs, basic=False):
         super().__init__()
-        self.fifo = queue.SimpleQueue()
         self.usb = None
         self.usbPort = usbPort
         self.firmware = None
         self.sweeping = None
         self.basic = basic
-        self.setScale()
         self.setSignals(sigs)
+        self.setDevice()
+        
+    def setDevice(self):
+        self.setScale()
         self.scanMemory = 10  # test, need to get this from the GUI
-        self.setTimer()
+        self.clearBuffer()
+        self.setCmdQ()
+        self.setAbort(True)
+        self.setTime()
 
     def setSignals(self, sigs):
         self.signals = WorkerSignals()
@@ -199,9 +207,10 @@ class Tiny(QObject):
             logging.info(f'Serial port {self.usbPort} open: {self.usb.isOpen()}')
             self.usb = None
 
-    def setTimer(self):
+    def setCmdQ(self):
         # calls self.usbSend() every 200mS to send queued commands to tinySA.  Runs when scanning is not running.
-        self.fifoTimer = QTimer()
+        self.fifo = queue.SimpleQueue()
+        self.fifoTimer = QTimer(self)
         self.fifoTimer.timeout.connect(self.usbSend)
         self.fifoTimer.start(200)
 
@@ -337,7 +346,9 @@ class Tiny(QObject):
         self.threadRunning = False
         self.signals.finished.emit()
 
+    @Slot()
     def usbSend(self):
+        logging.info('usbSend')
         while self.fifo.qsize() > 0:
             command = self.fifo.get(block=True, timeout=1)
             logging.info(f' command = {command}')
