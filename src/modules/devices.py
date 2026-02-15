@@ -13,24 +13,27 @@ import time
 import queue
 import struct
 import numpy as np
-from PySide6.QtCore import QObject, QElapsedTimer, QTimer, Signal, Slot, QRunnable
+from PySide6.QtCore import QObject, QElapsedTimer, QTimer, Signal, Slot, QRunnable, QThreadPool
 from serial.tools import list_ports
 from datetime import datetime
 
+threadpool = QThreadPool()
+
 
 class USBdevice(QObject):
+    stopped = Signal()
+
     def __init__(self):
         super().__init__()
         self.ports = []
         self.firmware = None
         self.setSignals()
+        self.run_connect = False
 
     def setSignals(self):
         self.signals = WorkerSignals()
-
         # dev_sigs forward the signals from devices to the analyser class in QtTinySA.py (& are connected in there)
         self.dev_sigs = {"result": self.signals.result,
-                         "finished": self.signals.finished,
                          "save": self.signals.saveResults,
                          "reset": self.signals.resetGUI,
                          "ends": self.signals.sweepEnds}
@@ -44,10 +47,8 @@ class USBdevice(QObject):
         for port in usbPorts:
             if port.vid in VID and port.pid in PID and port not in self.ports:
                 self.ports.append(port)
+                self.run_connect = True
                 logging.info(f'found {port.product} on {port.device}')
-        if len(self.ports) > 0:
-            self.connect()
-                
 
         # detect devices that have been turned off or lost contact
         for port in self.ports:
@@ -56,53 +57,62 @@ class USBdevice(QObject):
                 self.disconnect(port.device)
                 self.ports.remove(port)
 
-    def connect(self):  # imperfect, need to handle test fails
+        if self.run_connect:
+            self.connect()
+
+    def connect(self):  # imperfect, need to handle test fails and different devices reconnecting
         # try to set USB connections to different hardware....... need to check if it works in Windows now
         self.dev0 = self.dev1 = self.dev2 = self.dev3 = None
-        self.list = []
+        self.dev_list = [self.dev0, self.dev1, self.dev2, self.dev3]
+        self.run_connect = False
 
-        for port in self.ports:
+        for index, port in enumerate(self.ports):
             dev_class = {"tinySA": Tiny(port.device, port.product, self.dev_sigs, basic=True),
                          "tinySA4": Tiny(port.device, port.product, self.dev_sigs, basic=False),
                          "LimeSDR-USB": Lime(port.device, port.product, self.dev_sigs)}
             # "NanoVnaPro Virtual ComPort": Nano(port.device, port.product, self.dev_sigs)
-
-            if self.dev0 is None and len(self.ports) > 0:
-                self.dev0 = dev_class[port.product]
-                self.dev0.test(port.device)
-            if self.dev1 is None and len(self.ports) > 1:
-                self.dev1 = dev_class[port.product]
-                self.dev1.test(port.device)
-                continue
-            if self.dev2 is None and len(self.ports) > 2:
-                self.dev2 = dev_class[port.product]
-                self.dev2.test(port.device)
-                continue
-            if self.dev3 is None and len(self.ports) > 3:
-                self.dev3 = dev_class[port.product]
-                self.dev3.test(port.device)
+            if self.dev_list[index] is None and len(self.ports) > index:
+                self.dev_list[index] = dev_class[port.product]
+                hardware = self.dev_list[index]
+                hardware.test(port.device)
 
     def disconnect(self, usbPort):  # imperfect
-        if self.dev0:
-            if self.dev0.usbPort == usbPort:
+        for device in self.dev_list:
+            if device and device.usbPort == usbPort:
                 logging.info('removing disconnected device instance')
-                self.dev0.close()
-                del self.dev0
-                self.dev0 = None
+                device.close()
+                del device
+                device = None
 
     def closePort(self):
-        if self.dev0:
-            self.dev0.close()
-        if self.dev1:
-            self.dev1.close()
-        if self.dev2:
-            self.dev2.close()
-        if self.dev3:
-            self.dev3.close()
+        for device in self.dev_list:
+            if device:
+                device.close()
 
-    # logging.info(f'dev0 is a {self.dev0.product}')
-    # logging.info(f'dev1 is a {self.dev1.product}')
-    # settings.ui.deviceBox.addItem(self.identify(port) + " on " + port.device)
+    def start(self, startF, stopF, points, rbw, loop=True):
+        for device in self.dev_list:
+            if device is not None:
+                device.sa = Worker(device.measurement, startF, stopF, points, rbw, True)
+                device.fifoTimer.stop()
+                device.sweeping = True
+                threadpool.start(device.sa)
+
+    def stop(self):
+        logging.info('stop called')
+        for device in self.dev_list:
+            if device:
+                if device.sweeping:
+                    device.sweeping = False  # the measurement threads keep looping if this is True
+        for device in self.dev_list:
+            if device:
+                if device.threadRunning:
+                    logging.info('waiting for measurement threads to stop')
+                    time.sleep(0.1)
+        for device in self.dev_list:
+            if device:
+                device.abort()
+        self.stopped.emit()
+
     # def identify(self, port):
     #     # Windows returns no information to pySerial list_ports.comports()
     #     if system() == 'Linux' or system() == 'Darwin':
@@ -117,7 +127,6 @@ class WorkerSignals(QObject):
     fullSweep = Signal(np.ndarray, np.ndarray)
     saveResults = Signal(np.ndarray, np.ndarray)
     resetGUI = Signal(np.ndarray, np.ndarray)
-    finished = Signal()
     sweepEnds = Signal(np.ndarray)
     stop_worker = Signal()
 
@@ -146,13 +155,21 @@ class Tiny(QObject):
         self.usbPort = usbPort
         self.firmware = None
         self.sweeping = None
+        self.threadRunning = False
         self.basic = basic
         self.setSignals(sigs)
-        self.setDevice()
-        
-    def setDevice(self):
+        self.setDevice(usbPort)
+
+    def setDevice(self, usbPort):
         self.setScale()
         self.scanMemory = 10  # test, need to get this from the GUI
+        try:
+            self.usb = serial.Serial(usbPort, baudrate=576000)
+            logging.info(f'Serial port {usbPort} open: {self.usb.isOpen()}')
+        except serial.SerialException:
+            logging.info('Serial port exception. Is your username in the "dialout" group?')
+            # popUp(QtTSA, 'Serial port exception', 'Ok', 'Critical')
+            return
         self.clearBuffer()
         self.setCmdQ()
         self.setAbort(True)
@@ -161,20 +178,18 @@ class Tiny(QObject):
     def setSignals(self, sigs):
         self.signals = WorkerSignals()
         self.signals.result.connect(sigs["result"])
-        self.signals.finished.connect(sigs["finished"])
         self.signals.saveResults.connect(sigs["save"])
         self.signals.resetGUI.connect(sigs["reset"])
         self.signals.sweepEnds.connect(sigs["ends"])
 
+    def setCmdQ(self):
+        self.fifo = queue.SimpleQueue()
+        self.fifoTimer = QTimer(self)
+        self.fifoTimer.timeout.connect(self.usbSend)  # sends queued commands to tinySA (when not scanning)
+        self.fifoTimer.start(500)  # 500mS
+
     def test(self, usbPort):  # tests tinySA comms and initialise if found
         self.is_tinySA = False
-        try:
-            # self.usb = serial.Serial(usbPort, baudrate=576000)
-            self.usb = serial.Serial(usbPort, baudrate=115200)
-            logging.info(f'Serial port {usbPort} open: {self.usb.isOpen()}')
-        except serial.SerialException:
-            logging.info('Serial port exception. Is your username in the "dialout" group?')
-            # popUp(QtTSA, 'Serial port exception', 'Ok', 'Critical')
         if self.usb:
             for i in range(4):  # try 4 times to communicate with tinySA over USB serial
                 firmware = self.version()
@@ -204,15 +219,8 @@ class Tiny(QObject):
     def close(self):
         if self.usb:
             self.usb.close()
-            logging.info(f'Serial port {self.usbPort} open: {self.usb.isOpen()}')
+            logging.info(f'Close: Serial port {self.usbPort} open: {self.usb.isOpen()}')
             self.usb = None
-
-    def setCmdQ(self):
-        # calls self.usbSend() every 200mS to send queued commands to tinySA.  Runs when scanning is not running.
-        self.fifo = queue.SimpleQueue()
-        self.fifoTimer = QTimer(self)
-        self.fifoTimer.timeout.connect(self.usbSend)
-        self.fifoTimer.start(200)
 
     # def clearBuffer(self):
     #     # self.usb.timeout = 1
@@ -319,7 +327,7 @@ class Tiny(QObject):
                     #         self.signals.saveResults.emit(frequencies, readings)
                     #         sweepCount = 0
 
-                    # self.signals.sweepEnds.emit(frequencies)  # this was used to update the markers
+                    self.signals.sweepEnds.emit(freq)  # update the markers
 
                 # If a sweep setting has been changed by the user, the sweep must be re-started (+ new recording start)
                 # if self.fifo.qsize() > 0 or not self.sweeping:
@@ -344,14 +352,12 @@ class Tiny(QObject):
 
         self.usb.read(2)  # discard the command prompt that the tinySA sends when sweeping ends
         self.threadRunning = False
-        self.signals.finished.emit()
 
     @Slot()
     def usbSend(self):
-        logging.info('usbSend')
         while self.fifo.qsize() > 0:
             command = self.fifo.get(block=True, timeout=1)
-            logging.info(f' command = {command}')
+            logging.debug(f' command = {command}')
             self.serialWrite(command)
 
     def serialQuery(self, command):
@@ -393,7 +399,7 @@ class Tiny(QObject):
 
     def abort(self):
         self.serialWrite('abort\r')
-        self.clearBuffer()
+        # self.clearBuffer()
 
     def version(self):
         version = self.serialQuery('version\r')
@@ -522,12 +528,11 @@ class Tiny(QObject):
         command = f'rbw {self.rbw}\r'
         self.fifo.put(command)
 
-    @Slot()
-    def threadEnds(self):
-        if int(self.firmware[2]) >= 177:  # the firmware version number
-            self.serialWrite('abort\r')
-        self.runButton('Run')
-        self.fifoTimer.start(500)  # start watching for commands
+    # @Slot()
+    # def threadEnds(self):
+    #     if int(self.firmware[2]) >= 177:  # the firmware version number
+    #         self.serialWrite('abort\r')
+    #     self.fifoTimer.start(500)  # start watching for commands
 
 
 class Nano(QObject):
@@ -542,7 +547,6 @@ class Nano(QObject):
     def setSignals(self, sigs):
         self.signals = WorkerSignals()
         self.signals.result.connect(sigs["result"])
-        self.signals.finished.connect(sigs["finished"])
         self.signals.saveResults.connect(sigs["save"])
         self.signals.resetGUI.connect(sigs["reset"])
         self.signals.sweepEnds.connect(sigs["ends"])
@@ -613,7 +617,6 @@ class Lime(QObject):
     def setSignals(self, sigs):
         self.signals = WorkerSignals()
         self.signals.result.connect(sigs["result"])
-        self.signals.finished.connect(sigs["finished"])
         self.signals.saveResults.connect(sigs["save"])
         self.signals.resetGUI.connect(sigs["reset"])
         self.signals.sweepEnds.connect(sigs["ends"])
@@ -640,7 +643,6 @@ class SiglentSA(QObject):
     def setSignals(self, sigs):
         self.signals = WorkerSignals()
         self.signals.result.connect(sigs["result"])
-        self.signals.finished.connect(sigs["finished"])
         self.signals.saveResults.connect(sigs["save"])
         self.signals.resetGUI.connect(sigs["reset"])
         self.signals.sweepEnds.connect(sigs["ends"])

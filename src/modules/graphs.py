@@ -23,6 +23,7 @@ logging.basicConfig(format="%(message)s", level=logging.INFO)
 
 # From https://github.com/Hagtronics/tinySA-Ultra-Phase-Noise
 SHAPE_FACTOR = {0.2: 3.6, 1: -0.6, 3: -0.53, 10: 0, 30: 0, 100: 0, 300: 0, 600: 0, 850: 0}
+
 # tinySA typical phase noise
 PN_AT_10MHZ = np.loadtxt("10_baseline.txt")
 PN_AT_1152MHZ = np.loadtxt("1152_baseline.txt")
@@ -190,13 +191,10 @@ class Spectrum(QObject):
             mkr.line.setPen(pen)
             mkr.delta.setPen(pen)
 
-    def fetch_data(self, ui_widget):
-        '''return the plotted data from the trace listDataItems[0]'''
-
-        # need to check if the indexes are right.  And is there a more direct Fn?
-        frequencies = ui_widget.getPlotItem().listDataItems()[0].getData()[0]  # [0] = freq
-        levels = ui_widget.getPlotItem().listDataItems()[0].getData()[1]  # [1] = level
-        return frequencies, levels
+    def fetch_data(self):
+        '''return the (freq, level) data used to plot the trace'''
+        arr = self.trace.getOriginalDataset()
+        return arr[0], arr[1]
 
     def mkr_start(self, startF):  # set marker to the sweep start frequency
         for mkr in self.mkr_list:
@@ -213,7 +211,7 @@ class Marker:
         # self.fifo = queue.SimpleQueue()
         self.dBm = -140
         self.create_lines(ui_widget, name, box)
-        self.parent = trace
+        # self.parent = trace
         # self.createMarkerTimePlot()
         # self.polar = pattern.ui.plotwidget.plot([], [], name=name, width=1, padding=0)
         # self.runTimer = QtCore.QElapsedTimer()  # for polar plot
@@ -230,8 +228,8 @@ class Marker:
         self.deltaRelative = True
         # self.delta.sigClicked.connect(self.dmr_click)
         self.line.sigClicked.connect(self.mkr_click)
-        self.box = pyqtgraph.TextItem(text='', border=None, anchor=(-0.7, -box), fill='k')  # box is vertical posn
-        self.box.setParentItem(ui_widget.plotItem)
+        self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(-0.7, -box), fill='k')  # box is vertical posn
+        self.markerBox.setParentItem(ui_widget.plotItem)
 
     # def guiRef(self, opt):
     #     guiFields = ({'1': QtTSA.m1_type, '2': QtTSA.m2_type, '3': QtTSA.m3_type, '4': QtTSA.m4_type},
@@ -297,8 +295,9 @@ class Marker:
         self.deltaF = self.delta.value() - self.line.value()
         self.updateMarker()
 
-    def set_type(self, mkr_type):
-        self.mkr_type = mkr_type  # current combobox value from appropriate GUI field
+    def set_type(self, m_type, m_track):
+        self.mkr_type = m_type
+        self.level = m_track
         if self.mkr_type == 'Off' or self.mkr_type == '':
             self.line.hide()
             self.delta.hide()
@@ -311,24 +310,24 @@ class Marker:
         self.delta.setValue(self.line.value() + self.deltaF)
         self.update()
 
-    def mkr_update(self):  # called by sweepComplete() and fifo timer
+    def mkr_update(self, frequencies, levels, maskFreq):  # called by sweepComplete() and fifo timer
         if self.mkr_type == 'Off':
-            self.box.setVisible(False)
+            self.markerBox.setVisible(False)
             return
         else:
-            self.box.setVisible(True)
-
-        frequencies, levels = self.trace.fetch_data()  # fetch data from the graph
-        if frequencies is None or levels is None:
-            return
+            self.markerBox.setVisible(True)
 
         # flatten the arrays
         frequencies.reshape(-1)
         levels.reshape(-1)
 
         if self.mkr_type in ('Max', 'Min'):
-            self.calcMaskFreq(frequencies)
-            maxmin = self.maxMin(frequencies, levels)
+            
+            ### test # self.calcMaskFreq(frequencies)
+            # self.level = 1
+            ####
+            
+            maxmin = self.maxMin(frequencies, levels, maskFreq)
             # maxmin is a tuple of lists where [0, x] are indices in the frequency array of the max and [1, x] are min
             logging.debug(f'updateMarker(): maxmin = {maxmin}')
             if self.mkr_type == 'Max':
@@ -347,7 +346,7 @@ class Marker:
 
         decimal = Calc.precision(frequencies, frequencies[0])  # set decimal places
         unit, multiple = Calc.unit(frequencies[0])  # set units
-        self.markerBox.setText(f'M{self.line.name()} {self.line.value()/multiple:.{decimal}f}{unit} {self.dBm:.1f}dBm')
+        self.markerBox.setText(f'{self.line.name()} {self.line.value()/multiple:.{decimal}f}{unit} {self.dBm:.1f}dBm')
 
         if self.deltaF != 0:
             d_indx = np.argmin(np.abs(frequencies - (self.delta.value())))  # closest value in freq array
@@ -385,9 +384,7 @@ class Marker:
     #     for i in range(0, self.fifo.qsize()):
     #         QtTSA.graphWidget.removeItem(self.fifo.get())  # remove the marker and its corresponding object in the queue
 
-    def maxMin(self, frequencies, levels):  # finds the signal max/min (indexes) for setting markers
-        # logging.debug(f'maxmin: linked tracetype = {self.linked.traceType}')
-
+    def maxMin(self, frequencies, levels, maskFreq):  # finds the signal max/min (indexes) for setting markers
         # # mask outside high/low freq boundary lines
         # levels = np.ma.masked_where(frequencies > highF.line.value(), levels)
         # levels = np.ma.masked_where(frequencies < lowF.line.value(), levels)
@@ -400,30 +397,15 @@ class Marker:
         nextMax = nextMin = levels
         for i in range(8):
             # mask frequencies around detected peaks and find the next 8 highest/lowest peaks
-            nextMax = np.ma.masked_where(np.abs(frequencies[maxi[-1]] - frequencies) < self.maskFreq, nextMax)
+            nextMax = np.ma.masked_where(np.abs(frequencies[maxi[-1]] - frequencies) < maskFreq, nextMax)
             maxi.append(np.argmax(nextMax))
-            nextMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < self.maskFreq, nextMin)
+            nextMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < maskFreq, nextMin)
             mini.append(np.argmin(nextMin))
         return (list(frequencies[maxi]), list(frequencies[mini]))
 
     def setLevel(self, setting):
         self.level = setting - 1  # array indexes start at 0 not 1
 
-    def calcMaskFreq(self, frequencies):
-        '''calculate a frequency width factor to use to mask readings near each max/min frequency'''
-        if QtTSA.rbw_auto.isChecked():
-            # auto rbw is ~7 kHz per 1 MHz scan frequency span
-            approx_rbw = 7 * (frequencies[-1] - frequencies[0]) / 1e6  # kHz
-            # find the nearest lower discrete rbw value
-            for i in range(0, rbwtext.tm.rowCount() - 1):
-                rbw = float(rbwtext.tm.record(i).value('value'))  # kHz
-                if approx_rbw <= float(rbwtext.tm.record(i).value('value')):
-                    break
-            self.maskFreq = settings.ui.rbw_x.value() * rbw * 1e3  # Hz
-        else:
-            # manual rbw setting
-            self.maskFreq = settings.ui.rbw_x.value() * float(QtTSA.rbw_box.currentText()) * 1e3  # Hz
-            logging.debug(f'manual rbw masking factor = {self.maskFreq/1e3}kHz')
 
         # def createMarkerTimePlot(self):
         #     '''multiplot is the name of the graphics layout grid widget in the fading dialogue window'''
