@@ -166,10 +166,10 @@ class Spectrum(QObject):
         self.trace = ui_widget.plot([], [], width=1, padding=0)
 
         # create 4 markers, bound to the trace
-        self.trace.m0 = Marker(ui_widget, self.trace, 'm1', 0.1)
-        self.trace.m1 = Marker(ui_widget, self.trace, 'm2', 0.9)
-        self.trace.m2 = Marker(ui_widget, self.trace, 'm3', 1.7)
-        self.trace.m3 = Marker(ui_widget, self.trace, 'm4', 2.5)
+        self.trace.m0 = Marker(ui_widget, self, 'm1', 0.1)
+        self.trace.m1 = Marker(ui_widget, self, 'm2', 0.9)
+        self.trace.m2 = Marker(ui_widget, self, 'm3', 1.7)
+        self.trace.m3 = Marker(ui_widget, self, 'm4', 2.5)
         self.mkr_list = [self.trace.m0, self.trace.m1, self.trace.m2, self.trace.m3]
 
     def enable(self, show=True):  # show or hide a trace
@@ -188,8 +188,8 @@ class Spectrum(QObject):
     def set_colour(self, pen):
         self.trace.setPen(pen)
         for mkr in self.mkr_list:
-            mkr.line.setPen(pen)
-            mkr.delta.setPen(pen)
+            mkr.line.setPen(pen, style=Qt.DashLine)
+            mkr.delta.setPen(pen, style=Qt.DotLine)
 
     def fetch_data(self):
         '''return the (freq, level) data used to plot the trace'''
@@ -205,13 +205,11 @@ class Spectrum(QObject):
 
 class Marker:
     def __init__(self, ui_widget, trace, name, box):
-        # self.level = 1  # marker tracking level (min or max), set per marker from GUI
-        # self.mkr_type = 'Normal'
-
         # self.fifo = queue.SimpleQueue()
         self.dBm = -140
         self.create_lines(ui_widget, name, box)
-        # self.parent = trace
+        self.setSignals()
+        self.spectrum = trace
         # self.createMarkerTimePlot()
         # self.polar = pattern.ui.plotwidget.plot([], [], name=name, width=1, padding=0)
         # self.runTimer = QtCore.QElapsedTimer()  # for polar plot
@@ -226,18 +224,8 @@ class Marker:
         self.line.addMarker('^', 0, 10)
         self.deltaF = 0  # the delta marker frequency difference
         self.deltaRelative = True
-        # self.delta.sigClicked.connect(self.dmr_click)
-        self.line.sigClicked.connect(self.mkr_click)
         self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(-0.7, -box), fill='k')  # box is vertical posn
         self.markerBox.setParentItem(ui_widget.plotItem)
-
-    # def guiRef(self, opt):
-    #     guiFields = ({'1': QtTSA.m1_type, '2': QtTSA.m2_type, '3': QtTSA.m3_type, '4': QtTSA.m4_type},
-    #                  {'1': QtTSA.m1trace, '2': QtTSA.m2trace, '3': QtTSA.m3trace, '4': QtTSA.m4trace},
-    #                  {'1': 'm1f', '2': 'm2f', '3': 'm3f', '4': 'm4f'},
-    #                  {'1': QtTSA.m1track, '2': QtTSA.m2track, '3': QtTSA.m3track, '4': QtTSA.m4track})
-    #     Ref = guiFields[opt].get(self.name)
-    #     return Ref
 
    # def traceLink(self, setting):
    #      traces = {'1': T1, '2': T2, '3': T3, '4': T4}
@@ -266,22 +254,29 @@ class Marker:
     #     M3.tplot.setXLink(M1.tplot)
     #     M4.tplot.setXLink(M1.tplot)
 
+    def setSignals(self):
+        self.line.sigPositionChanged.connect(self.set_delta)
+        self.delta.sigPositionChanged.connect(self.dmkr_move)
+        self.delta.sigClicked.connect(self.dmkr_click)
+        self.line.sigClicked.connect(self.mkr_click)
+
     def to_start(self, startF):  # set marker to the sweep start frequency
         self.line.setValue(startF * 1e6)
 
     def spread(self, startF, stopF, gap):  # spread markers equally across scan range
         span = (stopF - startF) * 1e6
         if self.line.value() <= startF * 1e6 or self.line.value() > stopF * 1e6:
-            self.line.setValue(startF * 1e6 + (0.2 * gap * span))
+            self.line.setValue((startF * 1e6) + (0.2 * gap * span))
 
     def mkr_click(self):  # toggle visibility of associated delta marker
-        delta = 1e5
+        freq = self.spectrum.fetch_data()[0]
+        span = freq[-1] - freq[0]
         if self.delta.value() != 0:
             self.delta.hide()
             self.delta.setValue(0)
         else:
             self.delta.show()
-            self.delta.setValue(self.line.value() + delta)
+            self.delta.setValue(self.line.value() + (span/20))
             self.deltaF = 0
             self.deltaF = self.delta.value() - self.line.value()
 
@@ -293,7 +288,7 @@ class Marker:
 
     def dmkr_move(self):  # set the delta freq offset
         self.deltaF = self.delta.value() - self.line.value()
-        self.updateMarker()
+        # self.updateMarker()
 
     def set_type(self, m_type, m_track):
         self.mkr_type = m_type
@@ -308,9 +303,16 @@ class Marker:
 
     def set_delta(self):  # delta marker locking to reference marker
         self.delta.setValue(self.line.value() + self.deltaF)
-        self.update()
+        # self.update()
 
-    def mkr_update(self, frequencies, levels, maskFreq):  # called by sweepComplete() and fifo timer
+    def mkr_update(self, maskFreq):
+        # called by sweepends signal in measurement thread and by fifo timer
+        # Updates markers if not in zero span, where they are not relevant
+        arr = self.spectrum.trace.getOriginalDataset()
+        frequencies = arr[0]
+        levels = arr[1]
+        if frequencies[0] == frequencies[-1]:
+            return
         if self.mkr_type == 'Off':
             self.markerBox.setVisible(False)
             return
@@ -322,13 +324,9 @@ class Marker:
         levels.reshape(-1)
 
         if self.mkr_type in ('Max', 'Min'):
-            
-            ### test # self.calcMaskFreq(frequencies)
-            # self.level = 1
-            ####
-            
             maxmin = self.maxMin(frequencies, levels, maskFreq)
-            # maxmin is a tuple of lists where [0, x] are indices in the frequency array of the max and [1, x] are min
+            # maxmin is a tuple of lists where [0, x] are indices in the frequency array of the max
+            # and [1, x] are min.  maskFreq represents an exclusion zone around the mkr, based on rbw
             logging.debug(f'updateMarker(): maxmin = {maxmin}')
             if self.mkr_type == 'Max':
                 self.line.setValue(maxmin[0][self.level])

@@ -134,11 +134,11 @@ class Analyser:
         usbInstr.signals.result.connect(self.router)
         usbInstr.signals.saveResults.connect(saveFile)
         usbInstr.signals.resetGUI.connect(self.resetGUI)
-        usbInstr.signals.sweepEnds.connect(self.sweepComplete)
+        # usbInstr.signals.sweepEnds.connect(self.sweepComplete)
         usbInstr.stopped.connect(self.allStopped)
 
     @Slot()
-    def router(self, usbPort, freq, levl, maxl, minl, timeElapsed):
+    def router(self, usbPort, freq, levl, maxl, minl, time_elapsed, sweep_end):
         '''take measurement data, ID it by usbPort & route data to update the right spectrum graph(s)'''
         # tuple 1 = (device, number of devices) tuple 2 = (traces to update with tuple 1 device's data)
         routes = {(0, 1): (self.s0, self.s1, self.s2, self.s3),
@@ -157,7 +157,42 @@ class Analyser:
                 dev_num = i
         route = routes.get((dev_num, dev_count))
         for spectrum in route:
-            self.updateGUI(spectrum, freq, levl, maxl, minl, timeElapsed)
+            self.updateGUI(spectrum, freq, levl, maxl, minl, time_elapsed)
+            if sweep_end:
+                maskFreq = self.rbwMask(freq)
+                for marker in spectrum.mkr_list:
+                    marker.mkr_update(maskFreq)
+
+    # @Slot()
+    # def sweepComplete(self, frequencies):
+    #     # called by sweepends signal in measurement thread.
+    #     # Updates markers if not in zero span, where they are not relevant
+    #     if frequencies[0] != frequencies[-1]:
+    #         maskFreq = self.rbwMask(frequencies)
+    #         for spectrum in self.spectra:
+    #             arr = spectrum.trace.getOriginalDataset()
+    #             freq = arr[0]
+    #             levl = arr[1]
+    #             for marker in spectrum.mkr_list:
+    #                 marker.mkr_update(freq, levl, maskFreq)
+
+    #         if fading.ui.isVisible():
+    #             timeNow = time.time()
+    #             # if fading.ui.isVisible():
+    #             #     M1.updateMarkerTimePlot(frequencies, timeNow)
+    #             #     M2.updateMarkerTimePlot(frequencies, timeNow)
+    #             #     M3.updateMarkerTimePlot(frequencies, timeNow)
+    #             #     M4.updateMarkerTimePlot(frequencies, timeNow)
+    #             if self.timeIndex < np.size(self.timeMarkVals, axis=0) - 1:
+    #                 self.timeIndex += 1
+    #             else:
+    #                 # array of values is full so start rolling to the left and stop incrementing the index
+    #                 self.timeMarkVals = np.roll(self.timeMarkVals, -1, axis=0)
+
+    #     # if phasenoise.ui.isVisible() and tinySA.rbw != 'auto':
+    #        # frequencies, levels = T1.fetchData()  # fetch data from the graph Trace 1
+    #        # lineIndex = np.argmin(np.abs(frequencies - (M1.line.value())))  # find index of marker 1 in freq array
+    #        # tinySA.phaseNoise.update(lineIndex, frequencies, levels, float(tinySA.rbw))
 
     def setGUI(self):
         # connect GUI controls that don't interfere with restoration of data at startup
@@ -403,37 +438,6 @@ class Analyser:
         self.waterfall.clear()
         # self.createTimeSpectrum(frequencies, readings)
 
-    @Slot()
-    def sweepComplete(self, frequencies):
-        # called by sweepends signal in measurement thread.
-        # Updates markers if not in zero span, where they are not relevant
-        if frequencies[0] != frequencies[-1]:
-            maskFreq = self.rbwMask(frequencies)
-            for spectrum in self.spectra:
-                arr = spectrum.trace.getOriginalDataset()
-                freq = arr[0]
-                levl = arr[1]
-                for marker in spectrum.mkr_list:
-                    marker.mkr_update(freq, levl, maskFreq)
-
-            if fading.ui.isVisible():
-                timeNow = time.time()
-                # if fading.ui.isVisible():
-                #     M1.updateMarkerTimePlot(frequencies, timeNow)
-                #     M2.updateMarkerTimePlot(frequencies, timeNow)
-                #     M3.updateMarkerTimePlot(frequencies, timeNow)
-                #     M4.updateMarkerTimePlot(frequencies, timeNow)
-                if self.timeIndex < np.size(self.timeMarkVals, axis=0) - 1:
-                    self.timeIndex += 1
-                else:
-                    # array of values is full so start rolling to the left and stop incrementing the index
-                    self.timeMarkVals = np.roll(self.timeMarkVals, -1, axis=0)
-
-        # if phasenoise.ui.isVisible() and tinySA.rbw != 'auto':
-           # frequencies, levels = T1.fetchData()  # fetch data from the graph Trace 1
-           # lineIndex = np.argmin(np.abs(frequencies - (M1.line.value())))  # find index of marker 1 in freq array
-           # tinySA.phaseNoise.update(lineIndex, frequencies, levels, float(tinySA.rbw))
-
     # called by router()
     def updateGUI(self, spectrum, freq, levl, maxl, minl, runtime):
         # for LNB/Mixer mode when LO is above measured freq the scan is reversed, i.e. low TinySA freq = high meas freq
@@ -593,12 +597,6 @@ class Analyser:
 
         for spectrum in self.spectra:
             spectrum.mkr_list[mkr_num].set_type(m_type.get(mkr_num), m_track.get(mkr_num))
-
-    def markerClick(self, mkr_num):  # toggle visibility of associated delta marker
-        delta = QtTSA.span_freq.value() * 1e5  # one tenth of the freq span in Hz
-        for spectrum in self.spectra:
-            spectrum.mkr_list[mkr_num].mkr_click(delta)
-
 
 # class Trace:
 #
@@ -1608,16 +1606,6 @@ def connectActive():
     filebrowse.ui.saveAll.clicked.connect(lambda: tinySA.saveFile(False))
     filebrowse.ui.listWidget.itemClicked.connect(tinySA.fileShow)
 
-    # marker dragging
-    # M1.line.sigPositionChanged.connect(M1.setDelta)
-    # M2.line.sigPositionChanged.connect(M2.setDelta)
-    # M3.line.sigPositionChanged.connect(M3.setDelta)
-    # M4.line.sigPositionChanged.connect(M4.setDelta)
-    # M1.deltaline.sigPositionChanged.connect(M1.deltaMoved)
-    # M2.deltaline.sigPositionChanged.connect(M2.deltaMoved)
-    # M3.deltaline.sigPositionChanged.connect(M3.deltaMoved)
-    # M4.deltaline.sigPositionChanged.connect(M4.deltaMoved)
-
     # Sweep time
     # QtTSA.sweepTime.valueChanged.connect(lambda: tinySA.sweepTime(QtTSA.sweepTime.value()))
 
@@ -1723,7 +1711,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.8')
+app.setApplicationVersion(' v1.3.9')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)

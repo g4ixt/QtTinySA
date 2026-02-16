@@ -123,7 +123,7 @@ class USBdevice(QObject):
 
 class WorkerSignals(QObject):
     error = Signal(str)
-    result = Signal(object, np.ndarray, np.ndarray, np.ndarray, np.ndarray, float)
+    result = Signal(object, np.ndarray, np.ndarray, np.ndarray, np.ndarray, float, bool)
     fullSweep = Signal(np.ndarray, np.ndarray)
     saveResults = Signal(np.ndarray, np.ndarray)
     resetGUI = Signal(np.ndarray, np.ndarray)
@@ -323,11 +323,22 @@ class Tiny(QObject):
                             break
                         sweepCount += 1
                         firstRun = False
+                timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
+                if timeElapsed/1e6 > 100:  # mS needs to be settings.ui.intervalBox.value():
+                    self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, timeElapsed, False)  # send to router()
+                    updateTimer.start()
+
+            # self.signals.sweepEnds.emit(freq)  # update the markers
+
+            # update the markers on the trace this device is providing, via the router()
+            self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, timeElapsed, True)
+        self.usb.read(2)  # discard the command prompt that the tinySA sends when sweeping ends
+        self.threadRunning = False
+
                     #     if sweepCount == self.scanMemory:  # array is full so trigger CSV data file save
                     #         self.signals.saveResults.emit(frequencies, readings)
                     #         sweepCount = 0
 
-                    self.signals.sweepEnds.emit(freq)  # update the markers
 
                 # If a sweep setting has been changed by the user, the sweep must be re-started (+ new recording start)
                 # if self.fifo.qsize() > 0 or not self.sweeping:
@@ -342,16 +353,7 @@ class Tiny(QObject):
                 #     updateTimer.start()
                 #     break
 
-                timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
-
                 # Send the sesults to updateGUI if an update is due
-                if timeElapsed/1e6 > 100:  # mS needs to be settings.ui.intervalBox.value():
-                    # self.signals.result.emit(frequencies, readings, maxima, minima, timeElapsed) # send to updateGUI()
-                    self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, timeElapsed)  # send to updateGUI()
-                    updateTimer.start()
-
-        self.usb.read(2)  # discard the command prompt that the tinySA sends when sweeping ends
-        self.threadRunning = False
 
     @Slot()
     def usbSend(self):
