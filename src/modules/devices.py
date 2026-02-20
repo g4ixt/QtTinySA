@@ -108,9 +108,9 @@ class USBdevice(QObject):
                 if device.threadRunning:
                     logging.info('waiting for measurement threads to stop')
                     time.sleep(0.1)
-        for device in self.dev_list:
-            if device:
-                device.abort()
+        # for device in self.dev_list:
+        #     if device:
+        #         device.abort()
         self.stopped.emit()
 
     # def identify(self, port):
@@ -222,11 +222,11 @@ class Tiny(QObject):
             logging.info(f'Close: Serial port {self.usbPort} open: {self.usb.isOpen()}')
             self.usb = None
 
-    # def clearBuffer(self):
-    #     # self.usb.timeout = 1
-    #     while self.usb.inWaiting():
-    #         self.usb.read_all()  # keep the serial buffer clean
-    #         time.sleep(0.01)
+    def clearBuffer(self):
+        # self.usb.timeout = 1
+        while self.usb.inWaiting():
+            self.usb.read_all()  # keep the serial buffer clean
+            time.sleep(0.01)
 
     def sweepTimeout(self, frequencies, rbwTxt, spur):  # freqs are in Hz
         startF = frequencies[0]
@@ -258,9 +258,6 @@ class Tiny(QObject):
         levl = np.full(points, -140, dtype=float)
         maxl = np.full(points, -140, dtype=float)
         minl = np.full(points, 0, dtype=float)
-
-        # readings[0] = -140
-        # need to reinstate scan-time array, which was 2d array of readings x (scanmemory depth)
 
         # version = int(self.firmware[2])  # just the firmware version number
 
@@ -308,14 +305,13 @@ class Tiny(QObject):
                     break
                 levl[point] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
 
+                if not self.sweeping:  # end without completing sweep
+                    break
+
                 # If it's the final point of this sweep, set up for the next sweep
                 if point == points - 1:
                     np.fmax(levl, maxl, out=maxl)  # compare current level with max and min
                     np.fmin(levl, minl, out=minl)  # and save them back on themselves
-
-                    # readings[-1] = readings[0]  # populate last row with current sweep before rolling
-                    # readings = np.roll(readings, 1, axis=0)  # readings row 0 is now full: roll it down 1 row
-
                     if loop:
                         if self.usb.read(2) != b'}{':  # the end of scan marker character is '}{'
                             logging.info('QtTinySA display is out of sync with tinySA frequency')
@@ -325,15 +321,17 @@ class Tiny(QObject):
                         firstRun = False
                 timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
                 if timeElapsed/1e6 > 100:  # mS needs to be settings.ui.intervalBox.value():
-                    self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, timeElapsed, False)  # send to router()
+                    # send the measurement data to router() in the Analyser class
+                    self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, timeElapsed, False)
                     updateTimer.start()
 
-            # self.signals.sweepEnds.emit(freq)  # update the markers
-
-            # update the markers on the trace this device is providing, via the router()
+            # end of sweep so update the markers on the trace this device is providing, via the router()
             self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, timeElapsed, True)
+
         self.usb.read(2)  # discard the command prompt that the tinySA sends when sweeping ends
         self.threadRunning = False
+        self.serialWrite('abort\r')
+        self.clearBuffer()
 
                     #     if sweepCount == self.scanMemory:  # array is full so trigger CSV data file save
                     #         self.signals.saveResults.emit(frequencies, readings)

@@ -46,8 +46,7 @@ from io import BytesIO
 
 from modules.exporters import WWBExporter, WSMExporter
 from modules.graphs import SurfaceGraph, PhaseNoiseGraph, Spectrum
-# from modules.utility import Calc
-# from modules.devices import USBdevice, Tiny, Nano, Lime, Worker, WorkerSignals
+
 from modules.devices import USBdevice, Worker, WorkerSignals
 # Defaults to non local configuration/data dirs - needed for packaging
 if system() == "Linux":
@@ -104,11 +103,12 @@ class Analyser:
     '''sets up and controls the GUI, and starts and stops measurements'''
     def __init__(self):
         self.directory = None
-        self.scanMemory = 10 # temp
+        self.scanMemory = 50 # temp
         self.fifo = queue.SimpleQueue()
         self.maxF = 6000
         self.memF = BytesIO()
         self.scanning = False
+        self.readings = np.ndarray(2)
 
     def setGraphs(self):
         self.phaseNoise = PhaseNoiseGraph(phasenoise.ui.plotWidget, np.ndarray, np.ndarray, 1)
@@ -118,23 +118,20 @@ class Analyser:
         self.timespectrum.rotateX(QtTSA.x_rotation.value())
         self.timespectrum.rotateY(QtTSA.y_rotation.value())
 
-        self.s0 = Spectrum(QtTSA.graphWidget)
+        self.s0 = Spectrum(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot)
         self.s0.set_colour(tracecolours.tm.record(0).value('colour'))
-        self.s1 = Spectrum(QtTSA.graphWidget)
+        self.s1 = Spectrum(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot)
         self.s1.set_colour(tracecolours.tm.record(1).value('colour'))
-        self.s2 = Spectrum(QtTSA.graphWidget)
+        self.s2 = Spectrum(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot)
         self.s2.set_colour(tracecolours.tm.record(2).value('colour'))
-        self.s3 = Spectrum(QtTSA.graphWidget)
+        self.s3 = Spectrum(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot)
         self.s3.set_colour(tracecolours.tm.record(3).value('colour'))
         self.spectra = (self.s0, self.s1, self.s2, self.s3)
-
-        self.createWaterfall(np.ndarray, np.ndarray)
 
     def setSignals(self):
         usbInstr.signals.result.connect(self.router)
         usbInstr.signals.saveResults.connect(saveFile)
         usbInstr.signals.resetGUI.connect(self.resetGUI)
-        # usbInstr.signals.sweepEnds.connect(self.sweepComplete)
         usbInstr.stopped.connect(self.allStopped)
 
     @Slot()
@@ -153,28 +150,17 @@ class Analyser:
                   (3, 4): (self.s3)}
         dev_count = len(usbInstr.ports)
         for i in range(dev_count):
-            if usbInstr.ports[i].device == usbPort:
+            if usbInstr.ports[i].device == usbPort:  # find the device number from its USB port
                 dev_num = i
+        # 1 tinySA updates all 4 spectra. 2 tinySAs: first updates 1&2, second 3&4; so on as routes dict above
         route = routes.get((dev_num, dev_count))
         for spectrum in route:
-            self.updateGUI(spectrum, freq, levl, maxl, minl, time_elapsed)
-            if sweep_end:
-                maskFreq = self.rbwMask(freq)
-                for marker in spectrum.mkr_list:
-                    marker.mkr_update(maskFreq)
+            # update the spectra provided by the device according to the routing table
+            self.updateGUI(spectrum, freq, levl, maxl, minl, time_elapsed, sweep_end)
 
     # @Slot()
     # def sweepComplete(self, frequencies):
     #     # called by sweepends signal in measurement thread.
-    #     # Updates markers if not in zero span, where they are not relevant
-    #     if frequencies[0] != frequencies[-1]:
-    #         maskFreq = self.rbwMask(frequencies)
-    #         for spectrum in self.spectra:
-    #             arr = spectrum.trace.getOriginalDataset()
-    #             freq = arr[0]
-    #             levl = arr[1]
-    #             for marker in spectrum.mkr_list:
-    #                 marker.mkr_update(freq, levl, maskFreq)
 
     #         if fading.ui.isVisible():
     #             timeNow = time.time()
@@ -202,7 +188,7 @@ class Analyser:
         # set various defaults
         setPreferences()
         bandselect.filterType(False, QtTSA.filterBox.currentText())  # setting the filter overwrites the band
-        setSize()
+        # setSize()
 
         # connect GUI controls that would interfere with restoration of data at startup ## modify for devices ##
         connectActive()
@@ -220,7 +206,6 @@ class Analyser:
                 device.attenuator(self.attn())
                 device.lna(self.lna())
                 device.spur(self.spur())
-
 
     # def setForDevice(self, product):  # move this to appropriate device classes ###############
     #     # product = 'tinySA'  # used for testing
@@ -270,7 +255,7 @@ class Analyser:
     #     else:
     #         popUp(QtTSA, 'TinySA not found', 'Ok', 'Critical')
 
-    def scan(self):  # called by scan button (run / stop)
+    def scan(self):  # called by scan button (run/stop)
         # collect all the settings from the GUI and fire it at usbDevice.start, which interfaces to the hardware
         if self.scanning:
             usbInstr.stop()
@@ -282,18 +267,17 @@ class Analyser:
         stopF = QtTSA.stop_freq.value() * 1e6
         if bandstype.freq != 0:  # there is a LO value set for the frequency type so it's LNB / transverter mode
             startF, stopF = self.freqOffset(startF, stopF)  # just need to include bandstype.freq to meas thread
-
         rbw = self.setRBW()
-
+        for spectrum in self.spectra:
+            spectrum.count = 0
+            spectrum.monitor_data = np.full((int(settings.ui.timePoints.value()), 2), None, dtype=float)
+            # spectrum.monitor_data has time in col 0 and dBm level of the spectrum's marker 0 in col 1
         usbInstr.start(startF, stopF, points, rbw, True)
         self.scanning = True
         self.runButton('Stop')
 
-        # readings = np.full((self.scanMemory, points), None, dtype=float)
-        # readings[0] = -140
-        # # signal fading: timeMarkVals is a 2D array with time in col 0 and dBm levels of each marker in 1 - 4
-        # self.timeMarkVals = np.full((int(settings.ui.timePoints.value()), 5), None, dtype=float)
-        # self.timeIndex = 0
+        self.readings = np.full((self.scanMemory, points), None, dtype=float)  # used by waterfall and 3D graph
+
 
     def lna(self):
         if QtTSA.lna_box.isChecked():
@@ -415,31 +399,13 @@ class Analyser:
     def allStopped(self):
         self.runButton('Run')
 
-    def createWaterfall(self, frequencies, readings):
-        self.waterfall = pyqtgraph.ImageItem(axisOrder='row-major')
-        QtTSA.waterfall.addItem(self.waterfall)
-        QtTSA.waterfall.setYRange(0, QtTSA.memBox.value())
-        # QtTSA.waterfall.setXLink(QtTSA.graphWidget)
-
-        # Histogram associated with waterfall
-        self.histogram = pyqtgraph.HistogramLUTItem(gradientPosition='right', orientation='vertical')
-        self.histogram.setImageItem(self.waterfall)  # connects the histogram to the waterfall
-        self.histogram.gradient.loadPreset('plasma')  # set the colour map
-        self.waterfall.setLevels((-100, -25))  # needs to be here, after histogram is created
-        QtTSA.histogram.addItem(self.histogram)
-
-    def updateWaterfall(self, frequencies, readings):
-        if QtTSA.waterfall_size.value() > 0:
-            QtTSA.waterfall.setXRange(0, np.size(readings, axis=1))
-            self.waterfall.setImage(readings, autoLevels=QtTSA.waterfall_auto.isChecked())
-
     @Slot()
     def resetGUI(self, frequencies, readings):
         self.waterfall.clear()
         # self.createTimeSpectrum(frequencies, readings)
 
     # called by router()
-    def updateGUI(self, spectrum, freq, levl, maxl, minl, runtime):
+    def updateGUI(self, spectrum, freq, levl, maxl, minl, runtime, sweep_end):
         # for LNB/Mixer mode when LO is above measured freq the scan is reversed, i.e. low TinySA freq = high meas freq
 
         # re-write next bit
@@ -450,7 +416,7 @@ class Analyser:
         # else:
         #     QtTSA.waterfall.invertX(False)
 
-        # update graph axes if in zero span
+        # update the spectrum graph x-axis if in zero span
         if freq[0] == freq[-1]:
             QtTSA.graphWidget.setLabel('bottom', 'Time')
             freq = np.arange(1, len(freq) + 1, dtype=int)
@@ -458,23 +424,35 @@ class Analyser:
         else:
             QtTSA.graphWidget.setLabel('bottom', units='Hz')
 
-        # readingsAvg = np.nanmean(readings[0:QtTSA.avgBox.value()], axis=0) ###########################################
-        avg = levl
+        self.readings[0] = levl  # populate the current row of 2D array used by waterfall and 3D graph
+        if sweep_end:
+            timeNow = time.time()
+            self.readings = np.roll(self.readings, 1, axis=0)  # roll it round 1 row & write levl to row 0
+            self.readings[0] = levl
+        avg = np.nanmean(self.readings[0:QtTSA.avgBox.value()], axis=0)
 
-        # update the trace
+        # update the trace and waterfall
         gui_fields = {0: QtTSA.t1_type, 1: QtTSA.t2_type, 2: QtTSA.t3_type, 3: QtTSA.t4_type}
         gui_control_value = gui_fields.get(self.spectra.index(spectrum)).currentText()
         data_types = {'Normal': levl, 'Average': avg, 'Max': maxl, 'Min': minl, 'Freeze': levl}
+        QtTSA.waterfall.setXRange(0, np.size(self.readings, axis=1))
+        spectrum.updateWaterfall(self.readings, QtTSA.waterfall_auto.isChecked())
         if gui_control_value != 'Freeze':
             spectrum.update(freq, data_types.get(gui_control_value))
         logging.debug(f'updating {self.spectra.index(spectrum)}')
 
-        # self.updateWaterfall(freq, levl)
+        # update the markers and the monitor graph
+        if sweep_end:
+            maskFreq = self.rbwMask(freq)
+            for marker in spectrum.mkr_list:
+                marker.mkr_update(maskFreq)
+            # update the spectrum marker 0 level monitor
+            spectrum.update_monitor(freq, timeNow)
 
         # update 3D graph if enabled
         if QtTSA.stackedWidget.currentWidget() == QtTSA.View3D:
             self.timespectrum.surface.setHorizontalAspectRatio(1)  # keep the xz surface square if points or depth changed
-            self.timespectrum.updater.updateTimeSpectrum(freq, levl)
+            self.timespectrum.updater.updateTimeSpectrum(freq, self.readings)
             self.timespectrum.setRange()
 
         # other updates
@@ -676,14 +654,6 @@ class Limit:
 #         Ref = guiFields[opt].get(self.name)
 #         return Ref
 
-# #    def traceLink(self, setting):
-#         # traces = {'1': T1, '2': T2, '3': T3, '4': T4}
-#         # self.linked = traces.get(str(setting))
-#         # tint = str("background-color: '" + self.linked.pen + "';")
-#         # # self.guiRef(0).setStyleSheet(tint)
-#         # self.guiRef(1).setStyleSheet(tint)
-#         # checkboxes.dwm.submit()
-
 #     def setup(self, colour):
 #         '''restore the marker frequencies from the configuration database and set starting conditions'''
 #         self.line.setValue(numbers.tm.record(0).value(self.guiRef(2)))
@@ -702,103 +672,6 @@ class Limit:
 #         M2.tplot.setXLink(M1.tplot)
 #         M3.tplot.setXLink(M1.tplot)
 #         M4.tplot.setXLink(M1.tplot)
-
-#     def start(self):  # set marker to the sweep start frequency
-#         if self.markerType != 'Off':
-#             self.line.setValue(QtTSA.start_freq.value() * 1e6)
-#             self.mType()
-
-#     def spread(self):  # spread markers equally across scan range
-#         if self.markerType != 'Off':
-#             if self.line.value() <= QtTSA.start_freq.value() * 1e6 or self.line.value() > QtTSA.stop_freq.value() * 1e6:
-#                 self.line.setValue(QtTSA.start_freq.value() * 1e6 + (0.2 * int(self.name) * QtTSA.span_freq.value() * 1e6))
-#                 self.mType()
-
-#     def lineClicked(self):  # toggle visibility of associated delta marker
-#         if self.deltaline.value() != 0:
-#             self.deltaline.hide()
-#             self.deltaline.setValue(0)
-#         else:
-#             self.deltaline.show()
-#             self.deltaline.setValue(self.line.value() + QtTSA.span_freq.value() * 2.5e4)
-#             # self.deltaF = 0
-#             self.deltaF = self.deltaline.value() - self.line.value()
-
-#     def deltaClicked(self):  # toggle relative or absolute labelling
-#         if self.deltaRelative:
-#             self.deltaRelative = False
-#         else:
-#             self.deltaRelative = True
-
-#     def deltaMoved(self):  # set the delta freq offset
-#         self.deltaF = self.deltaline.value() - self.line.value()
-#         self.updateMarker()
-
-#     def mType(self):
-#         self.markerType = self.guiRef(0).currentText()  # current combobox value from appropriate GUI field
-#         if self.markerType == 'Off' or self.markerType == '':
-#             self.line.hide()
-#             self.deltaline.hide()
-#             self.deltaline.setValue(0)
-#             self.deltaF = 0
-#         else:
-#             self.line.show()
-
-#     def setDelta(self):  # delta marker locking to reference marker
-#         self.deltaline.setValue(self.line.value() + self.deltaF)
-#         self.updateMarker()
-
-#     def updateMarker(self):  # called by sweepComplete() and fifo timer
-#         if self.markerType == 'Off':
-#             self.markerBox.setVisible(False)
-#             return
-#         else:
-#             self.markerBox.setVisible(True)
-
-#         frequencies, levels = self.linked.fetchData()  # fetch data from the graph
-#         if frequencies is None or levels is None:
-#             return
-
-#         # flatten the arrays
-#         frequencies.reshape(-1)
-#         levels.reshape(-1)
-
-#         if self.markerType in ('Max', 'Min'):
-#             self.calcMaskFreq(frequencies)
-#             maxmin = self.maxMin(frequencies, levels)
-#             # maxmin is a tuple of lists where [0, x] are indices in the frequency array of the max and [1, x] are min
-#             logging.debug(f'updateMarker(): maxmin = {maxmin}')
-#             if self.markerType == 'Max':
-#                 self.line.setValue(maxmin[0][self.level])
-#                 if self.deltaline.value() != 0:
-#                     self.deltaline.setValue(maxmin[0][self.level] + self.deltaF)  # needs to be index delta not F
-#             if self.markerType == 'Min':
-#                 self.line.setValue(maxmin[1][self.level])
-#                 if self.deltaline.value() != 0:
-#                     self.deltaline.setValue(maxmin[1][self.level] + self.deltaF)  # needs to be index delta not F
-
-#         lineIndex = np.argmin(np.abs(frequencies - (self.line.value())))  # find closest value in freq array
-#         logging.debug(f'updateMarker(): index={lineIndex} frequency={frequencies[lineIndex]}')
-#         self.line.setValue(frequencies[lineIndex])
-#         self.dBm = levels[lineIndex]
-
-#         decimal = Calc.precision(frequencies, frequencies[0])  # set decimal places
-#         unit, multiple = Calc.unit(frequencies[0])  # set units
-#         self.markerBox.setText(f'M{self.line.name()} {self.line.value()/multiple:.{decimal}f}{unit} {self.dBm:.1f}dBm')
-
-#         if self.deltaF != 0:
-#             deltaLineIndex = np.argmin(np.abs(frequencies - (self.deltaline.value())))  # closest value in freq array
-#             if self.deltaRelative:
-#                 deltaLinedBm = levels[deltaLineIndex]
-#                 dBm = deltaLinedBm - self.dBm
-#                 decimal = Calc.precision(frequencies, self.deltaF)  # deltaF can be negative
-#                 unit, multiple = Calc.unit(self.deltaF)
-#                 self.deltaline.label.setText(
-#                     f'{chr(916)}{self.line.name()} {dBm:.1f}dB\n{(self.deltaF / multiple):.{decimal}f}{unit}')
-#             else:
-#                 dBm = levels[deltaLineIndex]
-#                 self.deltaline.label.setText(
-#                     f'{chr(916)}{self.line.name()} {dBm:.1f}dBm\n{(self.deltaline.value()/multiple):.{decimal}f}{unit}')
 
 #     def addFreqMarker(self, freq, colour, name, band=True):  # adds simple freq marker without full marker capability
 #         if QtTSA.presetLabel.isChecked():
@@ -821,59 +694,6 @@ class Limit:
 #     def delFreqMarkers(self):
 #         for i in range(0, self.fifo.qsize()):
 #             QtTSA.graphWidget.removeItem(self.fifo.get())  # remove the marker and its corresponding object in the queue
-
-#     def maxMin(self, frequencies, levels):  # finds the signal max/min (indexes) for setting markers
-#         # logging.debug(f'maxmin: linked tracetype = {self.linked.traceType}')
-
-#         # mask outside high/low freq boundary lines
-#         levels = np.ma.masked_where(frequencies > highF.line.value(), levels)
-#         levels = np.ma.masked_where(frequencies < lowF.line.value(), levels)
-
-#         # mask readings below threshold line
-#         levels = np.ma.masked_where(levels <= threshold.line.value(), levels)
-
-#         maxi = [np.argmax(levels)]  # the index of the highest peak in the masked readings array
-#         mini = [np.argmin(levels)]  # the index of the deepest minimum in the masked readings array
-#         nextMax = nextMin = levels
-#         for i in range(8):
-#             # mask frequencies around detected peaks and find the next 8 highest/lowest peaks
-#             nextMax = np.ma.masked_where(np.abs(frequencies[maxi[-1]] - frequencies) < self.maskFreq, nextMax)
-#             maxi.append(np.argmax(nextMax))
-#             nextMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < self.maskFreq, nextMin)
-#             mini.append(np.argmin(nextMin))
-#         return (list(frequencies[maxi]), list(frequencies[mini]))
-
-#     def setLevel(self, setting):
-#         self.level = setting - 1  # array indexes start at 0 not 1
-
-
-
-#     def createMarkerTimePlot(self):
-#         '''multiplot is the name of the graphics layout grid widget in the fading dialogue window'''
-#         self.tplot = multiplot.addPlot(title='Marker ' + self.name)
-#         self.tplot.setAxisItems({'bottom': pyqtgraph.DateAxisItem()})
-#         self.tplot.showGrid(x=True, y=True)
-#         multiplot.nextRow()
-#         self.tplot.plot([], [])
-
-#     def updateMarkerTimePlot(self, frequencies, timeNow):  # called by sweepComplete()
-#         self.tplot.clear()  # if it's not cleared the GUI runs slower and slower
-#         if self.markerType == 'Off':
-#             self.tplot.hide()
-#             self.runTimer.invalidate()
-#             return
-#         else:
-#             self.tplot.show()
-#         decimal = Calc.precision(frequencies, frequencies[0])  # set decimal places
-#         unit, multiple = Calc.unit(self.line.value())  # set units
-#         self.tplot.setTitle(f'Marker {self.name} = {(self.line.value()/multiple):.{decimal}f}' + unit)
-
-#         tinySA.timeMarkVals[tinySA.timeIndex, 0] = timeNow
-#         tinySA.timeMarkVals[tinySA.timeIndex, int(self.name)] = self.dBm
-#         self.tplot.plot(tinySA.timeMarkVals[:, 0], tinySA.timeMarkVals[:, int(self.name)], pen=self.linked.pen)
-
-#         if self.runTimer.isValid():  # polar pattern plot is active
-#             self.updatePolarPlot()
 
 #     def setPolarPlot(self):
 #         if self.markerType != 'Off':
@@ -1254,27 +1074,19 @@ def pointsChanged():
         QtTSA.rbw_box.setEnabled(True)
     else:
         QtTSA.points_box.setEnabled(True)
-    tinySA.resume()  # puts a message in the fifo buffer so the measurement thread spots it and updates its settings
+    # tinySA.resume()  # puts a message in the fifo buffer so the measurement thread spots it and updates its settings
 
 
 def memChanged():
     depth = QtTSA.memBox.value()
     if depth < QtTSA.avgBox.value():
         QtTSA.avgBox.setValue(depth)
-    # temp #  tinySA.scanMemory = depth
-    tinySA.resume()  # puts a message in the fifo buffer so the measurement thread spots it and updates its settings
+    # tinySA.resume()  # puts a message in the fifo buffer so the measurement thread spots it and updates its settings
 
 
 # def centreToMarker():
 #     centreF = M1.line.value() * 1e-6
 #     QtTSA.centre_freq.setValue(centreF)
-
-
-# def markerLevel():
-#     M1.setLevel(QtTSA.m1track.value())
-#     M2.setLevel(QtTSA.m2track.value())
-#     M3.setLevel(QtTSA.m3track.value())
-#     M4.setLevel(QtTSA.m4track.value())
 
 
 def setPreferences():  # called at startup and when the preferences window is closed
@@ -1295,7 +1107,8 @@ def dialogPrefs():  # called by clicking on the setup > preferences menu
 
 
 def about():
-    message = ('TinySA Ultra GUI programme using Qt and PySide6\nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
+    message = ('TinySA Ultra GUI programme using Qt and PySide6\
+               nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
                .format(app.applicationVersion(), config.databaseName()))
     popUp(QtTSA, message, 'Ok', 'Info')
 
@@ -1615,6 +1428,7 @@ def connectActive():
     offset.ui.read_button.clicked.connect(correction.read_tables)
     offset.ui.upload_button.clicked.connect(correction.upload_correction)
 
+
 def connectPassive():
     # Connect signals from GUI controls that don't cause messages to go to the tinySA
 
@@ -1711,7 +1525,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.9')
+app.setApplicationVersion(' v1.3.10')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
@@ -1722,8 +1536,6 @@ phasenoise = CustomDialogue(app_dir('phasenoise.ui'))
 fading = CustomDialogue(app_dir('fading.ui'))
 pattern = CustomDialogue(app_dir('pattern.ui'))
 offset = CustomDialogue(app_dir('offset.ui'))
-
-# tinySA = Analyser()
 
 # Markers
 multiplot = pyqtgraph.GraphicsLayout()  # for plotting marker signal level over time
@@ -1765,7 +1577,7 @@ QtTSA.graphWidget.setDefaultPadding(padding=0.005)
 QtTSA.graphWidget.showGrid(x=True, y=True)
 QtTSA.graphWidget.setLabel('bottom', '', units='Hz')
 
-# pyqtgraph settings for waterfall and histogram display
+# # pyqtgraph settings for waterfall and histogram display
 QtTSA.waterfall.setDefaultPadding(padding=0.005)
 QtTSA.waterfall.getPlotItem().hideAxis('bottom')
 QtTSA.waterfall.setLabel('left', '.', **{'color': '#FFF', 'font-size': '2pt'})
@@ -1924,7 +1736,6 @@ QtTSA.show()
 QtTSA.setWindowTitle(app.applicationName() + app.applicationVersion())
 QtTSA.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 
-
 # try to open a USB connection to hardware....... need to check if it works in Windows now
 usbInstr = USBdevice()
 usbInstr.probe()
@@ -1932,9 +1743,6 @@ usbInstr.probe()
 usbCheck = QtCore.QTimer()
 usbCheck.timeout.connect(usbInstr.probe)
 usbCheck.start(500)
-
-# usbInstr.probe()
-# usbInstr.connect()
 
 tinySA = Analyser()
 tinySA.setGraphs()

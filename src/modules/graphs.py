@@ -11,7 +11,7 @@ Created on Wed Nov 26 15:42:02 2025
 """
 import logging
 import numpy as np
-from PySide6.QtCore import QObject, Qt
+from PySide6.QtCore import QObject, Qt, QSize
 from PySide6.QtGui import QLinearGradient
 from PySide6.QtGraphs import QSurface3DSeries, QSurfaceDataProxy, QGraphsTheme
 from PySide6.QtGraphsWidgets import Q3DSurfaceWidgetItem
@@ -46,6 +46,7 @@ class SurfaceGraph(QObject):
 
         self.updater = SurfaceUpdater(frequencies, readings)
         self.surface.addSeries(self.updater._dataSeries)
+        self.surface.setShadowStrength(0)
 
     def setAxis(self, axis, name):
         ax = axis()
@@ -97,6 +98,7 @@ class SurfaceUpdater(QObject):
 
         self._dataSeries.setBaseGradient(gr)
         self._dataSeries.setColorStyle(QGraphsTheme.ColorStyle.RangeGradient)
+        self._dataSeries.setDrawMode(QSurface3DSeries.DrawSurface)
 
 
 class PhaseNoiseGraph(QObject):
@@ -157,28 +159,50 @@ class PhaseNoiseGraph(QObject):
 
 class Spectrum(QObject):
 
-    def __init__(self, ui_widget):
+    def __init__(self, s_widget, w_widget, h_widget, m_widget):
         super().__init__()
-        self.create_plot(ui_widget)
+        self.create(s_widget, w_widget, h_widget, m_widget)
+        self.count = 0  # the number of completed scans
+        self.monitor_data = np.ndarray(2)
 
-    def create_plot(self, ui_widget):
-        ui_widget.addLegend(offset=(30, 400))
-        self.trace = ui_widget.plot([], [], width=1, padding=0)
+    def create(self, s_widget, w_widget, h_widget, m_widget):
+        # create the main spectrum screen trace
+        s_widget.addLegend(offset=(30, 400))
+        self.trace = s_widget.plot([], [], width=1, padding=0)
+        self.trace.is_visible = True
 
-        # create 4 markers, bound to the trace
-        self.trace.m0 = Marker(ui_widget, self, 'm1', 0.1)
-        self.trace.m1 = Marker(ui_widget, self, 'm2', 0.9)
-        self.trace.m2 = Marker(ui_widget, self, 'm3', 1.7)
-        self.trace.m3 = Marker(ui_widget, self, 'm4', 2.5)
+        # create four markers, all bound to this trace
+        self.trace.m0 = Marker(s_widget, self, 'm1', 0.1)
+        self.trace.m1 = Marker(s_widget, self, 'm2', 0.9)
+        self.trace.m2 = Marker(s_widget, self, 'm3', 1.7)
+        self.trace.m3 = Marker(s_widget, self, 'm4', 2.5)
         self.mkr_list = [self.trace.m0, self.trace.m1, self.trace.m2, self.trace.m3]
+
+        # create the waterfall and its histogram
+        self.waterfall = pyqtgraph.ImageItem(axisOrder='row-major')
+        w_widget.addItem(self.waterfall)
+        self.histogram = pyqtgraph.HistogramLUTItem(gradientPosition='right', orientation='vertical')
+        self.histogram.setImageItem(self.waterfall)  # connects the histogram to the waterfall
+        self.histogram.gradient.loadPreset('plasma')  # set the colour map
+        self.waterfall.setLevels((-100, -25))  # needs to be here, after histogram is created
+        h_widget.addItem(self.histogram)
+
+        # create the signal level monitor (which uses the current marker 0 level for each spectrum)
+        self.monitor = m_widget.addPlot(title='monitor')
+        self.monitor.setAxisItems({'bottom': pyqtgraph.DateAxisItem()})
+        self.monitor.showGrid(x=True, y=True)
+        m_widget.nextRow()
+        self.monitor.plot([], [])
 
     def enable(self, show=True):  # show or hide a trace
         if show:
             self.trace.show()
+            self.trace.is_visible = True
             # for mkr in self.mkr_list:
             #     mkr.line.show()
         else:
             self.trace.hide()
+            self.trace.is_visible = False
             for mkr in self.mkr_list:
                 mkr.line.hide()
 
@@ -186,6 +210,7 @@ class Spectrum(QObject):
         self.trace.setData(frequencies, levels)
 
     def set_colour(self, pen):
+        self.pen = pen
         self.trace.setPen(pen)
         for mkr in self.mkr_list:
             mkr.line.setPen(pen, style=Qt.DashLine)
@@ -202,6 +227,29 @@ class Spectrum(QObject):
                 mkr.line.setValue(startF * 1e6)
                 mkr.mkr_type()
 
+    def updateWaterfall(self, readings, auto=True):
+        self.waterfall.setImage(readings, autoLevels=auto)
+
+    def update_monitor(self, frequencies, timeNow):  # called by updateGUI at the end of every scan
+        self.monitor.clear()  # if it's not cleared the GUI runs slower and slower
+        if self.trace.is_visible:
+            self.monitor.show()
+        else:
+            self.monitor.hide()
+            self.runTimer.invalidate()
+            return
+        decimal = Calc.precision(frequencies, frequencies[0])  # set decimal places
+        unit, multiple = Calc.unit(self.trace.m0.line.value())  # set units
+        self.monitor.setTitle(f'{(self.trace.m0.line.value()/multiple):.{decimal}f} {unit}')
+        self.monitor_data[self.count, 0] = timeNow
+        self.monitor_data[self.count, 1] = self.trace.m0.dBm
+
+        self.monitor.plot(self.monitor_data[:, 0], self.monitor_data[:, 1], pen=self.pen)
+
+        self.count += 1  # the number of completed scans for the spectrum on 'self'
+        # if self.runTimer.isValid():  # polar pattern plot is active
+        #     self.updatePolarPlot()
+
 
 class Marker:
     def __init__(self, ui_widget, trace, name, box):
@@ -210,7 +258,7 @@ class Marker:
         self.create_lines(ui_widget, name, box)
         self.setSignals()
         self.spectrum = trace
-        # self.createMarkerTimePlot()
+
         # self.polar = pattern.ui.plotwidget.plot([], [], name=name, width=1, padding=0)
         # self.runTimer = QtCore.QElapsedTimer()  # for polar plot
         # self.sweeptime = []  # for polar plot
@@ -226,14 +274,6 @@ class Marker:
         self.deltaRelative = True
         self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(-0.7, -box), fill='k')  # box is vertical posn
         self.markerBox.setParentItem(ui_widget.plotItem)
-
-   # def traceLink(self, setting):
-   #      traces = {'1': T1, '2': T2, '3': T3, '4': T4}
-   #      self.linked = traces.get(str(setting))
-   #      tint = str("background-color: '" + self.linked.pen + "';")
-   #      # self.guiRef(0).setStyleSheet(tint)
-   #      self.guiRef(1).setStyleSheet(tint)
-   #      checkboxes.dwm.submit()
 
     # def setup(self, colour):
     #     '''restore the marker frequencies from the configuration database and set starting conditions'''
@@ -404,33 +444,6 @@ class Marker:
     def setLevel(self, setting):
         self.level = setting - 1  # array indexes start at 0 not 1
 
-
-        # def createMarkerTimePlot(self):
-        #     '''multiplot is the name of the graphics layout grid widget in the fading dialogue window'''
-        #     self.tplot = multiplot.addPlot(title='Marker ' + self.name)
-        #     self.tplot.setAxisItems({'bottom': pyqtgraph.DateAxisItem()})
-        #     self.tplot.showGrid(x=True, y=True)
-        #     multiplot.nextRow()
-        #     self.tplot.plot([], [])
-
-        # def updateMarkerTimePlot(self, frequencies, timeNow):  # called by sweepComplete()
-        #     self.tplot.clear()  # if it's not cleared the GUI runs slower and slower
-        #     if self.mkr_type == 'Off':
-        #         self.tplot.hide()
-        #         self.runTimer.invalidate()
-        #         return
-        #     else:
-        #         self.tplot.show()
-        #     decimal = Calc.precision(frequencies, frequencies[0])  # set decimal places
-        #     unit, multiple = Calc.unit(self.line.value())  # set units
-        #     self.tplot.setTitle(f'Marker {self.name} = {(self.line.value()/multiple):.{decimal}f}' + unit)
-
-        #     tinySA.timeMarkVals[tinySA.timeIndex, 0] = timeNow
-        #     tinySA.timeMarkVals[tinySA.timeIndex, int(self.name)] = self.dBm
-        #     self.tplot.plot(tinySA.timeMarkVals[:, 0], tinySA.timeMarkVals[:, int(self.name)], pen=self.linked.pen)
-
-        #     if self.runTimer.isValid():  # polar pattern plot is active
-        #         self.updatePolarPlot()
 
         # def setPolarPlot(self):
         #     if self.mkr_type != 'Off':
