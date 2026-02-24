@@ -21,7 +21,6 @@ jobs:
         with:
           python-version: '3.13'
           architecture: 'x86_64'
-        cache: 'pip'
 
       - name: Install dependencies
         run: |
