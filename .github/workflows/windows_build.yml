@@ -22,8 +22,6 @@ jobs:
           python-version: '3.13'
           architecture: 'x86_64'
         cache: 'pip'
-        cache-dependency-path: |
-            **/requirements*.txt
 
       - name: Install dependencies
         run: |
