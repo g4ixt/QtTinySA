@@ -16,6 +16,7 @@ from PySide6.QtGui import QLinearGradient
 from PySide6.QtGraphs import QSurface3DSeries, QSurfaceDataProxy, QGraphsTheme
 from PySide6.QtGraphsWidgets import Q3DSurfaceWidgetItem
 import pyqtgraph
+import queue
 
 from modules.utility import Calc
 
@@ -164,6 +165,8 @@ class Spectrum(QObject):
         self.create(s_widget, w_widget, h_widget, m_widget)
         self.count = 0  # the number of completed scans
         self.monitor_data = np.ndarray(2)
+        self.wfall_data = np.ndarray(2)
+        self.ps_markers = []
 
     def create(self, s_widget, w_widget, h_widget, m_widget):
         # create the main spectrum screen trace
@@ -206,7 +209,7 @@ class Spectrum(QObject):
             for mkr in self.mkr_list:
                 mkr.line.hide()
 
-    def update(self, frequencies, levels):
+    def updateTrace(self, frequencies, levels):
         self.trace.setData(frequencies, levels)
 
     def set_colour(self, pen):
@@ -227,8 +230,11 @@ class Spectrum(QObject):
                 mkr.line.setValue(startF * 1e6)
                 mkr.mkr_type()
 
-    def updateWaterfall(self, readings, auto=True):
-        self.waterfall.setImage(readings, autoLevels=auto)
+    def updateWaterfall(self, levl, auto=True, sweep_end=False):
+        if sweep_end:
+            self.wfall_data = np.roll(self.wfall_data, 1, axis=0)
+        self.wfall_data[0] = levl
+        self.waterfall.setImage(self.wfall_data, autoLevels=auto)
 
     def update_monitor(self, frequencies, timeNow):  # called by updateGUI at the end of every scan
         self.monitor.clear()  # if it's not cleared the GUI runs slower and slower
@@ -236,24 +242,45 @@ class Spectrum(QObject):
             self.monitor.show()
         else:
             self.monitor.hide()
-            self.runTimer.invalidate()
+            # self.runTimer.invalidate()
             return
         decimal = Calc.precision(frequencies, frequencies[0])  # set decimal places
         unit, multiple = Calc.unit(self.trace.m0.line.value())  # set units
         self.monitor.setTitle(f'{(self.trace.m0.line.value()/multiple):.{decimal}f} {unit}')
+
+        depth = np.size(self.monitor_data, 0)
+        if self.count < depth - 1:
+            self.count += 1  # the number of completed scans for the spectrum on 'self'
+        else:
+            self.monitor_data = np.roll(self.monitor_data, -1, axis=0)
         self.monitor_data[self.count, 0] = timeNow
         self.monitor_data[self.count, 1] = self.trace.m0.dBm
-
         self.monitor.plot(self.monitor_data[:, 0], self.monitor_data[:, 1], pen=self.pen)
 
-        self.count += 1  # the number of completed scans for the spectrum on 'self'
         # if self.runTimer.isValid():  # polar pattern plot is active
         #     self.updatePolarPlot()
+
+    def set_ps_mkr(self, ui_widget, freq, colour, name):  # sets preset freq markers
+        mkr_pen = pyqtgraph.mkPen(colour, width=0.5, style=Qt.PenStyle.DashLine)
+        marker = ui_widget.addLine(freq, 90, pen=mkr_pen, name=name)
+        self.ps_markers.append(marker)
+        return marker
+
+    def del_ps_mkr(self, ui_widget):
+        while len(self.ps_markers) > 0:
+            for marker in self.ps_markers:
+                ui_widget.removeItem(marker)
+                self.ps_markers.remove(marker)
+
+    def label_ps_mkr(self, marker, colour, band):
+        if band:
+            pyqtgraph.InfLineLabel(marker, marker._name, movable=True, position=0.94, angle=0, color=colour)
+        else:
+            pyqtgraph.InfLineLabel(marker, marker._name, movable=True, position=0.08, anchors=(0.5, 0.5), angle=90, color=colour)
 
 
 class Marker:
     def __init__(self, ui_widget, trace, name, box):
-        # self.fifo = queue.SimpleQueue()
         self.dBm = -140
         self.create_lines(ui_widget, name, box)
         self.setSignals()
@@ -268,12 +295,14 @@ class Marker:
     def create_lines(self, ui_widget, name, box):
         self.line = ui_widget.addLine(88, 90, movable=True, name=name, pen=pyqtgraph.mkPen('y', width=0.5), label=name)
         self.delta = ui_widget.addLine(0, 90, movable=True, name=name,
-                                       pen=pyqtgraph.mkPen('y', width=0.5, style=Qt.PenStyle.DashLine), label='d'+name)
+                                       pen=pyqtgraph.mkPen('y', width=0.5, style=Qt.PenStyle.DashLine), label=chr(916)+name)
         self.line.addMarker('^', 0, 10)
         self.deltaF = 0  # the delta marker frequency difference
         self.deltaRelative = True
         self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(-0.7, -box), fill='k')  # box is vertical posn
         self.markerBox.setParentItem(ui_widget.plotItem)
+        self.line.hide()
+        self.delta.hide()
 
     # def setup(self, colour):
     #     '''restore the marker frequencies from the configuration database and set starting conditions'''
@@ -302,11 +331,13 @@ class Marker:
 
     def to_start(self, startF):  # set marker to the sweep start frequency
         self.line.setValue(startF * 1e6)
+        self.delta.hide()
 
     def spread(self, startF, stopF, gap):  # spread markers equally across scan range
         span = (stopF - startF) * 1e6
         if self.line.value() <= startF * 1e6 or self.line.value() > stopF * 1e6:
             self.line.setValue((startF * 1e6) + (0.2 * gap * span))
+            self.delta.hide()
 
     def mkr_click(self):  # toggle visibility of associated delta marker
         freq = self.spectrum.fetch_data()[0]
@@ -333,7 +364,7 @@ class Marker:
     def set_type(self, m_type, m_track):
         self.mkr_type = m_type
         self.level = m_track
-        if self.mkr_type == 'Off' or self.mkr_type == '':
+        if self.mkr_type == 'Off':
             self.line.hide()
             self.delta.hide()
             self.delta.setValue(0)
@@ -345,40 +376,42 @@ class Marker:
         self.delta.setValue(self.line.value() + self.deltaF)
         # self.update()
 
-    def mkr_update(self, maskFreq):
+    def mkr_update(self, maskFreq, trace_on):
         # called by sweepends signal in measurement thread and by fifo timer
         # Updates markers if not in zero span, where they are not relevant
-        arr = self.spectrum.trace.getOriginalDataset()
+        arr = self.spectrum.trace.getData()
         frequencies = arr[0]
         levels = arr[1]
+
         if frequencies[0] == frequencies[-1]:
             return
-        if self.mkr_type == 'Off':
+        if self.mkr_type == 'Off' or not trace_on:
+            self.line.hide()
+            self.delta.hide()
             self.markerBox.setVisible(False)
             return
         else:
+            self.line.show()
             self.markerBox.setVisible(True)
 
         # flatten the arrays
-        frequencies.reshape(-1)
-        levels.reshape(-1)
+        # frequencies.reshape(-1)
+        # levels.reshape(-1)
 
         if self.mkr_type in ('Max', 'Min'):
             maxmin = self.maxMin(frequencies, levels, maskFreq)
             # maxmin is a tuple of lists where [0, x] are indices in the frequency array of the max
             # and [1, x] are min.  maskFreq represents an exclusion zone around the mkr, based on rbw
-            logging.debug(f'updateMarker(): maxmin = {maxmin}')
             if self.mkr_type == 'Max':
-                self.line.setValue(maxmin[0][self.level])
+                self.line.setValue(maxmin[0][self.level - 1])
                 if self.delta.value() != 0:
-                    self.delta.setValue(maxmin[0][self.level] + self.deltaF)  # needs to be index delta not F
+                    self.delta.setValue(maxmin[0][self.level - 1] + self.deltaF)  # needs to be index delta not F
             if self.mkr_type == 'Min':
-                self.line.setValue(maxmin[1][self.level])
+                self.line.setValue(maxmin[1][self.level - 1])
                 if self.delta.value() != 0:
-                    self.delta.setValue(maxmin[1][self.level] + self.deltaF)  # needs to be index delta not F
+                    self.delta.setValue(maxmin[1][self.level - 1] + self.deltaF)  # needs to be index delta not F
 
         lineIndex = np.argmin(np.abs(frequencies - (self.line.value())))  # find closest value in freq array
-        logging.debug(f'updateMarker(): index={lineIndex} frequency={frequencies[lineIndex]}')
         self.line.setValue(frequencies[lineIndex])
         self.dBm = levels[lineIndex]
 
@@ -399,28 +432,6 @@ class Marker:
                 dBm = levels[d_indx]
                 self.delta.label.setText(
                     f'{chr(916)}{self.line.name()} {dBm:.1f}dBm\n{(self.delta.value()/multiple):.{decimal}f}{unit}')
-
-    # def addFreqMarker(self, freq, colour, name, band=True):  # adds simple freq marker without full marker capability
-    #     if QtTSA.presetLabel.isChecked():
-    #         if band:
-    #             self.marker = QtTSA.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5,
-    #                                                     style=QtCore.Qt.PenStyle.DashLine), label=name,
-    #                                                     labelOpts={'position': 0.97, 'color': (colour)})
-    #         else:
-    #             self.marker = QtTSA.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5,
-    #                                                     style=QtCore.Qt.PenStyle.DashLine), label=name,
-    #                                                     labelOpts={'position': 0.04, 'color': (colour),
-    #                                                     'anchors': ((0, 0.2), (0, 0.2))})
-    #         self.marker.label.setMovable(True)
-    #     else:
-    #         self.marker = QtTSA.graphWidget.addLine(freq, 90, pen=pyqtgraph.mkPen(colour, width=0.5,
-    #                                                 style=QtCore.Qt.PenStyle.DashLine))
-    #     self.fifo.put(self.marker)  # store the marker object in a queue
-    #     logging.debug(f'addFreqMarker(): fifo size = {self.fifo.qsize()}')
-
-    # def delFreqMarkers(self):
-    #     for i in range(0, self.fifo.qsize()):
-    #         QtTSA.graphWidget.removeItem(self.fifo.get())  # remove the marker and its corresponding object in the queue
 
     def maxMin(self, frequencies, levels, maskFreq):  # finds the signal max/min (indexes) for setting markers
         # # mask outside high/low freq boundary lines
