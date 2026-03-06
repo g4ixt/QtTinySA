@@ -37,6 +37,8 @@ class SurfaceGraph(QObject):
 
         self.surface = Q3DSurfaceWidgetItem()
         self.surface.setWidget(ui_widget)
+        self.surface.setAmbientLightStrength(0.5)
+        self.surface.setLightStrength(0.4)
 
         self._dataProxy = QSurfaceDataProxy()
         self._dataSeries = QSurface3DSeries(self._dataProxy)
@@ -54,6 +56,7 @@ class SurfaceGraph(QObject):
         ax.setTitle(name)
         ax.setTitleVisible(True)
         # ax.setLabelSize(1.5)
+
 
     def zoom(self, zoom):
         self.surface.setCameraZoomLevel(zoom)
@@ -201,8 +204,6 @@ class Spectrum(QObject):
         if show:
             self.trace.show()
             self.trace.is_visible = True
-            # for mkr in self.mkr_list:
-            #     mkr.line.show()
         else:
             self.trace.hide()
             self.trace.is_visible = False
@@ -230,11 +231,13 @@ class Spectrum(QObject):
                 mkr.line.setValue(startF * 1e6)
                 mkr.mkr_type()
 
-    def updateWaterfall(self, levl, auto=True, sweep_end=False):
+    def updateWaterfall(self, levl, wf_size, wf_auto, sweep_end=False):
         if sweep_end:
             self.wfall_data = np.roll(self.wfall_data, 1, axis=0)
-        self.wfall_data[0] = levl
-        self.waterfall.setImage(self.wfall_data, autoLevels=auto)
+        if np.size(self.wfall_data, axis=1) == np.size(levl):
+            self.wfall_data[0] = levl  # data array is also used to calculate averages so must be updated
+            if wf_size > 0:
+                self.waterfall.setImage(self.wfall_data, autoLevels=wf_auto)
 
     def update_monitor(self, frequencies, timeNow):  # called by updateGUI at the end of every scan
         self.monitor.clear()  # if it's not cleared the GUI runs slower and slower
@@ -249,12 +252,13 @@ class Spectrum(QObject):
         self.monitor.setTitle(f'{(self.trace.m0.line.value()/multiple):.{decimal}f} {unit}')
 
         depth = np.size(self.monitor_data, 0)
+        self.monitor_data = np.roll(self.monitor_data, -1, axis=0)
         if self.count < depth - 1:
-            self.count += 1  # the number of completed scans for the spectrum on 'self'
+            self.monitor_data[self.count, 0] = timeNow
+            self.monitor_data[self.count, 1] = self.trace.m0.dBm
         else:
-            self.monitor_data = np.roll(self.monitor_data, -1, axis=0)
-        self.monitor_data[self.count, 0] = timeNow
-        self.monitor_data[self.count, 1] = self.trace.m0.dBm
+            self.monitor_data[-1, 0] = timeNow
+            self.monitor_data[-1, 1] = self.trace.m0.dBm
         self.monitor.plot(self.monitor_data[:, 0], self.monitor_data[:, 1], pen=self.pen)
 
         # if self.runTimer.isValid():  # polar pattern plot is active
@@ -274,9 +278,11 @@ class Spectrum(QObject):
 
     def label_ps_mkr(self, marker, colour, band):
         if band:
-            pyqtgraph.InfLineLabel(marker, marker._name, movable=True, position=0.94, angle=0, color=colour)
+            pyqtgraph.InfLineLabel(marker, marker._name, movable=True, position=0.94,
+                                   angle=0, color=colour)
         else:
-            pyqtgraph.InfLineLabel(marker, marker._name, movable=True, position=0.08, anchors=(0.5, 0.5), angle=90, color=colour)
+            pyqtgraph.InfLineLabel(marker, marker._name, movable=True, position=0.08, anchors=(0.5, 0.5),
+                                   angle=90, color=colour)
 
 
 class Marker:
@@ -293,9 +299,11 @@ class Marker:
         # self.samples = []  # for polar plot
 
     def create_lines(self, ui_widget, name, box):
-        self.line = ui_widget.addLine(88, 90, movable=True, name=name, pen=pyqtgraph.mkPen('y', width=0.5), label=name)
+        self.line = ui_widget.addLine(88, 90, movable=True, name=name,
+                                      pen=pyqtgraph.mkPen('y', width=0.5), label=name)
         self.delta = ui_widget.addLine(0, 90, movable=True, name=name,
-                                       pen=pyqtgraph.mkPen('y', width=0.5, style=Qt.PenStyle.DashLine), label=chr(916)+name)
+                                       pen=pyqtgraph.mkPen('y', width=0.5, style=Qt.PenStyle.DashLine),
+                                       label=chr(916)+name)
         self.line.addMarker('^', 0, 10)
         self.deltaF = 0  # the delta marker frequency difference
         self.deltaRelative = True
@@ -359,7 +367,6 @@ class Marker:
 
     def dmkr_move(self):  # set the delta freq offset
         self.deltaF = self.delta.value() - self.line.value()
-        # self.updateMarker()
 
     def set_type(self, m_type, m_track):
         self.mkr_type = m_type
@@ -374,17 +381,16 @@ class Marker:
 
     def set_delta(self):  # delta marker locking to reference marker
         self.delta.setValue(self.line.value() + self.deltaF)
-        # self.update()
 
-    def mkr_update(self, maskFreq, trace_on):
-        # called by sweepends signal in measurement thread and by fifo timer
-        # Updates markers if not in zero span, where they are not relevant
+    def mkr_update(self, limits, trace_on):
+        # called by updateGUI when scanning or by a timer when not
         arr = self.spectrum.trace.getData()
         frequencies = arr[0]
         levels = arr[1]
 
-        if frequencies[0] == frequencies[-1]:
+        if frequencies[0] == frequencies[-1]:  # markers are not relevant in zero span
             return
+
         if self.mkr_type == 'Off' or not trace_on:
             self.line.hide()
             self.delta.hide()
@@ -394,12 +400,8 @@ class Marker:
             self.line.show()
             self.markerBox.setVisible(True)
 
-        # flatten the arrays
-        # frequencies.reshape(-1)
-        # levels.reshape(-1)
-
         if self.mkr_type in ('Max', 'Min'):
-            maxmin = self.maxMin(frequencies, levels, maskFreq)
+            maxmin = Calc.maxMin(frequencies, levels, limits)
             # maxmin is a tuple of lists where [0, x] are indices in the frequency array of the max
             # and [1, x] are min.  maskFreq represents an exclusion zone around the mkr, based on rbw
             if self.mkr_type == 'Max':
@@ -411,12 +413,15 @@ class Marker:
                 if self.delta.value() != 0:
                     self.delta.setValue(maxmin[1][self.level - 1] + self.deltaF)  # needs to be index delta not F
 
-        lineIndex = np.argmin(np.abs(frequencies - (self.line.value())))  # find closest value in freq array
+        # find closest value in freq array
+        lineIndex = np.argmin(np.abs(frequencies - (self.line.value())))
         self.line.setValue(frequencies[lineIndex])
         self.dBm = levels[lineIndex]
 
-        decimal = Calc.precision(frequencies, frequencies[0])  # set decimal places
-        unit, multiple = Calc.unit(frequencies[0])  # set units
+        # set decimal places and units
+        decimal = Calc.precision(frequencies, frequencies[0])
+        unit, multiple = Calc.unit(frequencies[0])
+
         self.markerBox.setText(f'{self.line.name()} {self.line.value()/multiple:.{decimal}f}{unit} {self.dBm:.1f}dBm')
 
         if self.deltaF != 0:
@@ -432,25 +437,6 @@ class Marker:
                 dBm = levels[d_indx]
                 self.delta.label.setText(
                     f'{chr(916)}{self.line.name()} {dBm:.1f}dBm\n{(self.delta.value()/multiple):.{decimal}f}{unit}')
-
-    def maxMin(self, frequencies, levels, maskFreq):  # finds the signal max/min (indexes) for setting markers
-        # # mask outside high/low freq boundary lines
-        # levels = np.ma.masked_where(frequencies > highF.line.value(), levels)
-        # levels = np.ma.masked_where(frequencies < lowF.line.value(), levels)
-
-        # # mask readings below threshold line
-        # levels = np.ma.masked_where(levels <= threshold.line.value(), levels)
-
-        maxi = [np.argmax(levels)]  # the index of the highest peak in the masked readings array
-        mini = [np.argmin(levels)]  # the index of the deepest minimum in the masked readings array
-        nextMax = nextMin = levels
-        for i in range(8):
-            # mask frequencies around detected peaks and find the next 8 highest/lowest peaks
-            nextMax = np.ma.masked_where(np.abs(frequencies[maxi[-1]] - frequencies) < maskFreq, nextMax)
-            maxi.append(np.argmax(nextMax))
-            nextMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < maskFreq, nextMin)
-            mini.append(np.argmin(nextMin))
-        return (list(frequencies[maxi]), list(frequencies[mini]))
 
     def setLevel(self, setting):
         self.level = setting - 1  # array indexes start at 0 not 1

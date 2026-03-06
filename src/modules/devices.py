@@ -21,14 +21,15 @@ threadpool = QThreadPool()
 
 
 class USBdevice(QObject):
-    stopped = Signal()
+    stopped = Signal(bool)
 
     def __init__(self):
         super().__init__()
         self.ports = []
-        self.firmware = None
+        # self.firmware = None
         self.setSignals()
         self.run_connect = False
+        self.is_scanning = False
 
     def setSignals(self):
         self.signals = WorkerSignals()
@@ -67,9 +68,9 @@ class USBdevice(QObject):
 
         for index, port in enumerate(self.ports):
             dev_type = {"tinySA": Tiny(port.device, port.product, self.dev_sigs, basic=True),
-                         "tinySA4": Tiny(port.device, port.product, self.dev_sigs, basic=False),
-                         "LimeSDR-USB": Lime(port.device, port.product, self.dev_sigs)}
-            #            "NanoVnaPro Virtual ComPort": Nano(port.device, port.product, self.dev_sigs)
+                        "tinySA4": Tiny(port.device, port.product, self.dev_sigs, basic=False),
+                        "LimeSDR-USB": Lime(port.device, port.product, self.dev_sigs),
+                        "NanoVnaPro Virtual ComPort": Nano(port.device, port.product, self.dev_sigs)}
 
             # iterate through the usb ports with appropriate VID/PID devices connected and test serial comms
             if self.dev_list[index] is None and len(self.ports) > index:
@@ -104,6 +105,7 @@ class USBdevice(QObject):
                 device.fifoTimer.stop()
                 device.sweeping = True
                 threadpool.start(device.sa)
+                self.is_scanning = True
 
     def controls(self, rbw, attn, lna, spur):
         for device in self.dev_list:
@@ -129,7 +131,7 @@ class USBdevice(QObject):
                 split_list.append((startF, stopF, split_points))
         return split_list
 
-    def stop(self):
+    def stop(self, restart=False):
         for device in self.dev_list:  # self.dev_list[] contains the device class instances
             if device:
                 if device.sweeping:
@@ -137,9 +139,10 @@ class USBdevice(QObject):
         for device in self.dev_list:
             if device:
                 if device.threadRunning:
-                    logging.info('waiting for measurement thread to stop')
+                    logging.debug('waiting for measurement thread to stop')
                     time.sleep(0.1)
-        self.stopped.emit()
+        self.is_scanning = False
+        self.stopped.emit(restart)
 
     # def identify(self, port):
     #     # Windows returns no information to pySerial list_ports.comports()
@@ -170,9 +173,9 @@ class Worker(QRunnable):
     @Slot()
     def run(self):
         '''Initialise the runner'''
-        logging.info(f'{self.fn.__name__} thread running')
+        logging.debug(f'{self.fn.__name__} thread running')
         self.fn(*self.args)
-        logging.info(f'{self.fn.__name__} thread stopped')
+        logging.debug(f'{self.fn.__name__} thread stopped')
 
 
 class Tiny(QObject):
@@ -281,6 +284,10 @@ class Tiny(QObject):
         return timeout
 
     def measurement(self, startF, stopF, points, rbw, depth, loop=True):  # run in separate thread
+        if self.basic:
+            rbw = np.clip(rbw, 3, 600)
+            startF = np.clip(startF, 100000, 960000000)
+            stopF = np.clip(stopF, 100000, 960000000)
         sweepCount = 0
         updateTimer = QElapsedTimer()
         self.threadRunning = True
@@ -424,7 +431,6 @@ class Tiny(QObject):
         return version
 
     def spur(self, sType):
-        # sType = QtTSA.spur_box.currentText()
         if sType == 'auto' and self.basic:  # tinySA3 (basic) has no auto spur mode
             sType = 'on'
         command = 'spur ' + sType + '\r'
@@ -522,7 +528,7 @@ class Tiny(QObject):
     #         filebrowse.ui.picture.setPixmap(pixmap)
 
     def lna(self, on=True):
-        if self.basic:
+        if self.basic:  # it has no LNA
             return
         if on:
             command = 'lna on\r'
@@ -557,7 +563,7 @@ class Nano(QObject):
         self.usb = usbPort
         self.product = product
         self.setSignals(sigs)
-        self.device_id = self.ports.index(usbPort)
+        # self.device_id = self.ports.index(usbPort)
         # nano vna
 
     def setSignals(self, sigs):
