@@ -93,15 +93,15 @@ class USBdevice(QObject):
             if device:
                 device.close()
 
-    def start(self, startF, stopF, points, rbw, depth, loop=True, split=False):
-        split_list = self.splitF(startF, stopF, points, rbw, split)
-        for index, device in enumerate(self.dev_list):  # self.dev_list[] contains the device class instances
+    def start(self, startF, stopF, points, rbw, depth, split, loop):
+        freq_list = self.multi_split(startF, stopF, points, rbw, split)
+        for index, device in enumerate(self.dev_list):  # dev_list contains the device class instances
             if device is not None:
                 device.usbSend()
-                startF = split_list[index][0]
-                stopF = split_list[index][1]
-                points = split_list[index][2]
-                device.sa = Worker(device.measurement, startF, stopF, points, rbw, True)
+                startF = freq_list[index][0]
+                stopF = freq_list[index][1]
+                points = freq_list[index][2]
+                device.sa = Worker(device.measurement, startF, stopF, points, rbw, loop)
                 device.fifoTimer.stop()
                 device.sweeping = True
                 threadpool.start(device.sa)
@@ -112,9 +112,9 @@ class USBdevice(QObject):
             if device is not None:
                 device.set_ctrls(rbw, attn, lna, spur)  # device specific
 
-    def splitF(self, startF, stopF, points, rbw, split):
+    def multi_split(self, startF, stopF, points, rbw, split):
         # splits the scan startF/stopF/points across multiple devices, or returns a list of identical tuples
-        count = len(self.dev_list)
+        count = np.count_nonzero(self.dev_list)
         split_list = []
         split_points = int(points/count)
         split_span = int((stopF - startF)/count)
@@ -132,7 +132,7 @@ class USBdevice(QObject):
         return split_list
 
     def stop(self, restart=False):
-        for device in self.dev_list:  # self.dev_list[] contains the device class instances
+        for device in self.dev_list:  # dev_list contains the device class instances
             if device:
                 if device.sweeping:
                     device.sweeping = False  # the measurement threads keep looping if this is True
@@ -154,7 +154,7 @@ class USBdevice(QObject):
 
 class WorkerSignals(QObject):
     error = Signal(str)
-    result = Signal(object, np.ndarray, np.ndarray, np.ndarray, np.ndarray, float, bool)
+    result = Signal(object, np.ndarray, np.ndarray, np.ndarray, np.ndarray, bool)
     fullSweep = Signal(np.ndarray, np.ndarray)
     saveResults = Signal(np.ndarray, np.ndarray)
     sweepEnds = Signal(np.ndarray)
@@ -362,14 +362,14 @@ class Tiny(QObject):
                 timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
                 if timeElapsed/1e6 > 100:  # mS needs to be settings.ui.intervalBox.value():
                     # send the measurement data to router() in the Analyser class
-                    self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, timeElapsed, False)
+                    self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, False)
                     updateTimer.start()
 
             # sweep ended: update the markers on the trace this device provides, via the router()
-            timeNow = time.time()
+            # timeNow = time.time()
             wfall = np.roll(wfall, 1, axis=0)  # roll it round 1 row & write levl to row 0
             wfall[0] = levl
-            self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, timeElapsed, True)
+            self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, True)
 
         self.usb.read(2)  # discard the command prompt that the tinySA sends when sweeping ends
         self.threadRunning = False

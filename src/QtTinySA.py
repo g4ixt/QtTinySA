@@ -28,7 +28,7 @@ from platform import system
 from PySide6 import QtCore
 from PySide6 import QtWidgets
 from PySide6.QtUiTools import QUiLoader
-from PySide6.QtCore import QFile, Slot
+from PySide6.QtCore import QFile, Slot, QSignalBlocker
 from PySide6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit, QTableWidgetItem
 from PySide6.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
 from PySide6.QtGui import QPixmap, QIcon
@@ -132,7 +132,7 @@ class Analyser:
         self.mkr_update_timer.timeout.connect(self.updateMarker)
 
     @Slot()
-    def router(self, usbPort, freq, levl, maxl, minl, time_elapsed, sweep_end):
+    def router(self, usbPort, freq, levl, maxl, minl, sweep_end):
         '''take measurement data, ID it by usbPort & route data to update the right spectrum graph(s)'''
         # tuple 1 = (device, number of devices) tuple 2 = (traces to update with tuple 1 device's data)
         # 1 tinySA updates all 4 spectra. 2 tinySAs: first updates 1&2, second 3&4; so on as set by routes
@@ -154,7 +154,7 @@ class Analyser:
         try:
             for spectrum in route:
                 # update the spectra provided by the device according to the routing table
-                self.updateGUI(spectrum, freq, levl, maxl, minl, time_elapsed, sweep_end)
+                self.updateGUI(spectrum, freq, levl, maxl, minl, sweep_end)
         except TypeError:
             logging.info('failed to route measurement data to spectrum trace')
             usbInstr.stop(restart=False)
@@ -181,7 +181,13 @@ class Analyser:
         for mkr_num in range(4):
             self.setMarker(mkr_num)
 
-    #     # show device information in GUI
+        # show device information in GUI
+        gui_info = {0: QtTSA.dev0, 1: QtTSA.dev1, 2: QtTSA.dev2, 3: QtTSA.dev3}
+        for idx, device in enumerate(usbInstr.dev_list):
+            if device is not None:
+                desc = str(usbInstr.dev_list[idx].firmware[0]) + " on " + str(usbInstr.dev_list[idx].usbPort[-4:])
+                gui_info.get(idx).setText(desc)
+
     #     QtTSA.battery.setText(self.battery())
     #     QtTSA.version.setText(product[0] + " " + product[1] + " " + product[2])
 
@@ -227,7 +233,8 @@ class Analyser:
             startF, stopF = self.freqOffset(startF, stopF)
 
         # start device(s) scanning
-        usbInstr.start(startF, stopF, points, rbw, depth, loop=True, split=False)
+        split = QtTSA.split_box.isChecked()
+        usbInstr.start(startF, stopF, points, rbw, depth, split, loop=True)
         self.runButton('Stop')
 
     def lna(self):
@@ -260,31 +267,32 @@ class Analyser:
     def setCentreFreq(self):
         startF = QtTSA.centre_freq.value()-QtTSA.span_freq.value()/2
         stopF = QtTSA.centre_freq.value()+QtTSA.span_freq.value()/2
-        QtTSA.start_freq.setValue(startF)
-        QtTSA.stop_freq.setValue(stopF)
+        with QSignalBlocker(QtTSA.start_freq):
+            QtTSA.start_freq.setValue(startF)
+        with QSignalBlocker(QtTSA.stop_freq):
+            QtTSA.stop_freq.setValue(stopF)
         self.setGraphFreq(startF, stopF)
+        self.setting_change()
 
     def setStartFreq(self):
         startF = QtTSA.start_freq.value()  # freq in MHz
         stopF = QtTSA.stop_freq.value()
         if startF > stopF:
             stopF = startF
-            QtTSA.stop_freq.setValue(stopF)
-        QtTSA.centre_freq.setValue(startF + (stopF - startF) / 2)
-        QtTSA.span_freq.setValue(stopF - startF)
+            with QSignalBlocker(QtTSA.stop_freq):
+                QtTSA.stop_freq.setValue(stopF)
+        with QSignalBlocker(QtTSA.centre_freq):
+            QtTSA.centre_freq.setValue(startF + (stopF - startF) / 2)
+        with QSignalBlocker(QtTSA.span_freq):
+            QtTSA.span_freq.setValue(stopF - startF)
         self.setGraphFreq(startF, stopF)
+        self.setting_change()
 
     def setGraphFreq(self, startF, stopF):
         QtTSA.graphWidget.setXRange(startF * 1e6, stopF * 1e6)
         if QtTSA.span_freq.value() != 0:
             lowF.line.setValue((startF + QtTSA.span_freq.value()/20) * 1e6)
             highF.line.setValue((stopF - QtTSA.span_freq.value()/20) * 1e6)
-
-    def freq_changed(self, centre=False):
-        if centre:
-            self.setCentreFreq()
-        else:
-            self.setStartFreq()
 
     def freqOffset(self, startF, stopF):  # for mixers or LNBs external to TinySA.  Returns a tuple (startF, stopF)
         spanF = stopF - startF
@@ -326,14 +334,14 @@ class Analyser:
         else:
             QtTSA.rbw_box.setEnabled(True)
             QtTSA.points_auto.setEnabled(True)
+        self.setting_change()
         self.setRBW()
 
-    def setRBW(self):  # may be called by measurement thread as well as normally ## stop doing that ########
+    def setRBW(self):
         if QtTSA.rbw_auto.isChecked():
             rbw = 'auto'
         else:
             rbw = float(QtTSA.rbw_box.currentText())  # ui values are discrete ones in kHz
-        self.setting_change()
         return rbw
 
     def setPoints(self):  # may be called by measurement thread as well as normally ## stop doing that ########
@@ -354,7 +362,7 @@ class Analyser:
             self.scan()
 
     # called by router()
-    def updateGUI(self, spectrum, freq, levl, maxl, minl, runtime, sweep_end):
+    def updateGUI(self, spectrum, freq, levl, maxl, minl, sweep_end):
         # reverse the arrays if in LNB/Mixer mode when LO is above measured freq
         if bandstype.freq > QtTSA.start_freq.value():
             freq = freq[::-1]
@@ -422,7 +430,7 @@ class Analyser:
         if QtTSA.points_auto.isChecked():
             QtTSA.points_box.setValue(np.size(freq))
 
-        QtTSA.updates.setText(str(int(1/(runtime/1e9))))  # the display update frequency indicator
+        # QtTSA.updates.setText(str(int(1/(runtime/1e9))))  # the display update frequency indicator
 
     def runButton(self, action):
         QtTSA.scan_button.setText(action)
@@ -489,7 +497,7 @@ class Analyser:
     #     command = f'sweeptime {seconds}\r'
     #     self.fifo.put(command)
 
-    def mouseScaled(self):
+    def sweep_as_zoomed(self):
         # find the current limits of the (frequency axis) viewbox and set the sweep to them
         xaxis = (QtTSA.graphWidget.getAxis('bottom').range)
         startF = float(xaxis[0]/1e6)
@@ -939,16 +947,21 @@ def band_changed():
     startF = bandselect.tm.record(index).value('StartF')
     stopF = bandselect.tm.record(index).value('StopF')
     if stopF not in (0, '', startF):
-        QtTSA.start_freq.setValue(startF / 1e6)
-        QtTSA.stop_freq.setValue(stopF / 1e6)
-        tinySA.freq_changed(False)  # start/stop mode
+        with QSignalBlocker(QtTSA.start_freq):
+            QtTSA.start_freq.setValue(startF / 1e6)
+        with QSignalBlocker(QtTSA.stop_freq):
+            QtTSA.stop_freq.setValue(stopF / 1e6)
+        tinySA.setStartFreq()
+        # tinySA.freq_changed(False)  # start/stop mode
     else:
         centreF = startF / 1e6
-        QtTSA.centre_freq.setValue(centreF)
-        QtTSA.span_freq.setValue(int(centreF / 10))  # default span to a tenth of the centre freq
-        tinySA.freq_changed(True)  # centre mode
+        with QSignalBlocker(QtTSA.centre_freq):
+            QtTSA.centre_freq.setValue(centreF)
+        with QSignalBlocker(QtTSA.span_freq):
+            QtTSA.span_freq.setValue(int(centreF / 10))  # default span to a tenth of the centre freq
+        tinySA.setCentreFreq()
+        # tinySA.freq_changed(True)  # centre mode
     numbers.dwm.submit()
-    tinySA.setting_change()
 
 
 # def addBand():
@@ -1264,34 +1277,23 @@ def correction_window():
 def connectActive():
     '''Connect signals from controls that send messages to tinySA or use trace data.  Called by setGUI().'''
 
-    # QtTSA.atten_box.valueChanged.connect(tinySA.attn)
-    # QtTSA.atten_auto.clicked.connect(tinySA.attn)
-    # QtTSA.spur_box.currentIndexChanged.connect(tinySA.spur)
-    # QtTSA.lna_box.clicked.connect(tinySA.lna)
-    # QtTSA.setRange.clicked.connect(tinySA.mouseScaled)
-    # # frequencies
-    # QtTSA.start_freq.editingFinished.connect(tinySA.freq_changed)
-    # QtTSA.stop_freq.editingFinished.connect(tinySA.freq_changed)
-    # QtTSA.centre_freq.valueChanged.connect(lambda: tinySA.freq_changed(True))  # centre/span mode
-    # QtTSA.span_freq.valueChanged.connect(lambda: tinySA.freq_changed(True))  # centre/span mode
-    # # QtTSA.rbw_auto.clicked.connect()
-
     QtTSA.atten_box.valueChanged.connect(tinySA.setting_change)
     QtTSA.atten_auto.clicked.connect(tinySA.setting_change)
     QtTSA.spur_box.currentIndexChanged.connect(tinySA.setting_change)
     QtTSA.lna_box.clicked.connect(tinySA.setting_change)
-    QtTSA.setRange.clicked.connect(tinySA.setting_change)
-    # frequencies
-    QtTSA.start_freq.editingFinished.connect(tinySA.setting_change)
-    QtTSA.stop_freq.editingFinished.connect(tinySA.setting_change)
-    QtTSA.centre_freq.valueChanged.connect(lambda: tinySA.freq_changed(True))  # centre/span mode
-    QtTSA.span_freq.valueChanged.connect(lambda: tinySA.freq_changed(True))  # centre/span mode
-    QtTSA.rbw_auto.clicked.connect(tinySA.rbwChanged)
+    QtTSA.setRange.clicked.connect(tinySA.sweep_as_zoomed)
 
+    # frequencies
+    QtTSA.start_freq.valueChanged.connect(tinySA.setStartFreq)
+    QtTSA.stop_freq.valueChanged.connect(tinySA.setStartFreq)
+    QtTSA.centre_freq.valueChanged.connect(tinySA.setCentreFreq)  # centre/span mode
+    QtTSA.span_freq.valueChanged.connect(tinySA.setCentreFreq)  # centre/span mode
+    QtTSA.band_box.currentIndexChanged.connect(band_changed)
+
+    QtTSA.rbw_auto.clicked.connect(tinySA.rbwChanged)
+    QtTSA.rbw_box.currentIndexChanged.connect(tinySA.rbwChanged)
     QtTSA.points_auto.stateChanged.connect(pointsChanged)
     QtTSA.points_box.editingFinished.connect(pointsChanged)
-    QtTSA.band_box.activated.connect(band_changed)
-
 
     # QtTSA.sampleRepeat.valueChanged.connect(tinySA.sampleRep)
 
@@ -1409,7 +1411,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.13')
+app.setApplicationVersion(' v1.3.14')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
