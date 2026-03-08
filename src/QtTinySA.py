@@ -344,7 +344,7 @@ class Analyser:
             rbw = float(QtTSA.rbw_box.currentText())  # ui values are discrete ones in kHz
         return rbw
 
-    def setPoints(self):  # may be called by measurement thread as well as normally ## stop doing that ########
+    def setPoints(self):
         if QtTSA.points_auto.isChecked():
             rbw = float(QtTSA.rbw_box.currentText())
             points = settings.ui.rbw_x.value() * int((QtTSA.span_freq.value()*1000)/(rbw))  # RBW multiplier * freq kHz
@@ -428,7 +428,8 @@ class Analyser:
 
         # other updates
         if QtTSA.points_auto.isChecked():
-            QtTSA.points_box.setValue(np.size(freq))
+            with QSignalBlocker(QtTSA.points_box):
+                QtTSA.points_box.setValue(np.size(freq))
 
         # QtTSA.updates.setText(str(int(1/(runtime/1e9))))  # the display update frequency indicator
 
@@ -1293,7 +1294,7 @@ def connectActive():
     QtTSA.rbw_auto.clicked.connect(tinySA.rbwChanged)
     QtTSA.rbw_box.currentIndexChanged.connect(tinySA.rbwChanged)
     QtTSA.points_auto.stateChanged.connect(pointsChanged)
-    QtTSA.points_box.editingFinished.connect(pointsChanged)
+    QtTSA.points_box.valueChanged.connect(pointsChanged)
 
     # QtTSA.sampleRepeat.valueChanged.connect(tinySA.sampleRep)
 
@@ -1411,7 +1412,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.14')
+app.setApplicationVersion(' v1.3.15')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
@@ -1492,7 +1493,7 @@ createPolarGrid(4, 40)
 logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 124)  # third parameter is the database version
+config = connect("QtTSAprefs.db", "settings", 1315)  # third parameter is the database version
 
 # field mapping of the checkboxes and numbers database tables, for storing startup configuration
 maps = ModelView('mapping', config, ())
