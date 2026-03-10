@@ -93,14 +93,13 @@ class USBdevice(QObject):
             if device:
                 device.close()
 
-    def start(self, startF, stopF, points, rbw, depth, split, loop):
-        freq_list = self.multi_split(startF, stopF, points, rbw, split)
+    def start(self, spectra, rbw, depth, split, loop):
         for index, device in enumerate(self.dev_list):  # dev_list contains the device class instances
             if device is not None:
                 device.usbSend()
-                startF = freq_list[index][0]
-                stopF = freq_list[index][1]
-                points = freq_list[index][2]
+                startF = spectra[index].startF
+                stopF = spectra[index].stopF
+                points = spectra[index].points
                 device.sa = Worker(device.measurement, startF, stopF, points, rbw, loop)
                 device.fifoTimer.stop()
                 device.sweeping = True
@@ -111,25 +110,6 @@ class USBdevice(QObject):
         for device in self.dev_list:
             if device is not None:
                 device.set_ctrls(rbw, attn, lna, spur)  # device specific
-
-    def multi_split(self, startF, stopF, points, rbw, split):
-        # splits the scan startF/stopF/points across multiple devices, or returns a list of identical tuples
-        count = np.count_nonzero(self.dev_list)
-        split_list = []
-        split_points = int(points/count)
-        split_span = int((stopF - startF)/count)
-        for i in range(count):
-            if not split:
-                split_list.append((startF, stopF, points))
-            else:
-                if i == 0:
-                    startF = startF
-                    stopF = startF + split_span
-                else:
-                    startF = startF + split_span
-                    stopF = startF + split_span
-                split_list.append((startF, stopF, split_points))
-        return split_list
 
     def stop(self, restart=False):
         for device in self.dev_list:  # dev_list contains the device class instances
@@ -298,7 +278,6 @@ class Tiny(QObject):
         levl = np.full(points, -140, dtype=float)
         maxl = np.full(points, -140, dtype=float)
         minl = np.full(points, 0, dtype=float)
-        wfall = np.full((int(depth), points), None, dtype=float)  # used by waterfall and 3D graph
 
         # if LNB:  # LNB / Transverter Mode
         #     startF, stopF = self.freqOffset(frequencies)
@@ -365,10 +344,7 @@ class Tiny(QObject):
                     self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, False)
                     updateTimer.start()
 
-            # sweep ended: update the markers on the trace this device provides, via the router()
-            # timeNow = time.time()
-            wfall = np.roll(wfall, 1, axis=0)  # roll it round 1 row & write levl to row 0
-            wfall[0] = levl
+            # also send the measurement data to router() at the end of each sweep
             self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, True)
 
         self.usb.read(2)  # discard the command prompt that the tinySA sends when sweeping ends

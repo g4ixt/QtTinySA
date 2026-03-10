@@ -119,6 +119,7 @@ class Analyser:
         self.timespectrum.rotateX(QtTSA.x_rotation.value())
         self.timespectrum.rotateY(QtTSA.y_rotation.value())
 
+        # instantiate each spectrum, which has four elements: 1 trace; 4 markers; 1 waterfall; 1 monitor
         self.s0 = Spectrum(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot)
         self.s1 = Spectrum(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot)
         self.s2 = Spectrum(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot)
@@ -134,7 +135,7 @@ class Analyser:
     @Slot()
     def router(self, usbPort, freq, levl, maxl, minl, sweep_end):
         '''take measurement data, ID it by usbPort & route data to update the right spectrum graph(s)'''
-        # tuple 1 = (device, number of devices) tuple 2 = (traces to update with tuple 1 device's data)
+        # tuple 1 = (device, number of devices) tuple 2 = (spectrum to update with tuple 1 device's data)
         # 1 tinySA updates all 4 spectra. 2 tinySAs: first updates 1&2, second 3&4; so on as set by routes
         routes = {(0, 1): (self.s0, self.s1, self.s2, self.s3),
                   (0, 2): (self.s0, self.s1),
@@ -150,10 +151,9 @@ class Analyser:
         for i in range(dev_count):
             if usbInstr.ports[i].device == usbPort:  # find the device number from its USB port
                 dev_num = i
-        route = routes.get((dev_num, dev_count))
+        route = routes.get((dev_num, dev_count))  # route is the list of spectrum instances
         try:
-            for spectrum in route:
-                # update the spectra provided by the device according to the routing table
+            for spectrum in route:  # update each spectrum with the data from the right device
                 self.updateGUI(spectrum, freq, levl, maxl, minl, sweep_end)
         except TypeError:
             logging.info('failed to route measurement data to spectrum trace')
@@ -200,6 +200,26 @@ class Analyser:
         tint = str("background-color: '" + pen + "';")
         boxes[box].setStyleSheet(tint)
 
+    def splitSpectrum(self, startF, stopF, points, split):
+        # splits the scan startF/stopF/points across multiple devices by setting the spectrum start/stop variables
+        count = np.count_nonzero(usbInstr.dev_list)
+        if not split or count == 1:
+            for spectrum in self.spectra:
+                spectrum.startF = startF
+                spectrum.stopF = stopF
+                spectrum.points = points  # set points per spectrum = future potential for different vals
+            return
+        points = int(points/count)
+        span = int((stopF - startF)/count)
+        starts = {1: (startF, startF, startF, startF),
+                  2: (startF, startF+span, startF, startF+span),
+                  3: (startF, startF+span, startF+2*span, 0),  # what happens to the zero?
+                  4: (startF, startF+span, startF+2*span, startF+3*span)}
+        for indx, spectrum in enumerate(self.spectra):
+            spectrum.startF = starts.get(count)[indx]
+            spectrum.stopF = starts.get(count)[indx] + span
+            spectrum.points = points
+
     def scan(self):  # called by scan button (run/stop)
         # collect all the settings from the GUI and call usbDevice.start, which interfaces to the hardware
         if usbInstr.is_scanning:
@@ -213,28 +233,33 @@ class Analyser:
         startF = QtTSA.start_freq.value() * 1e6  # freq in Hz
         stopF = QtTSA.stop_freq.value() * 1e6
         depth = QtTSA.memBox.value()
+        split = QtTSA.split_box.isChecked()
+
         rbw = self.setRBW()
         attn = self.attn()
         lna = self.lna()
         spur = self.spur()
         usbInstr.controls(rbw, attn, lna, spur)
 
-        # set GUI trace colours
-        for indx, spectrum in enumerate(self.spectra):
-            spectrum.count = 0
-            pen = tracecolours.tm.record(indx).value('colour')
-            self.set_box_colour(pen, indx)
-            spectrum.set_colour(pen)
-            spectrum.monitor_data = np.full((int(time_points), 2), None, dtype=float)
-            spectrum.wfall_data = np.full((depth, points), None, dtype=float)
-
         # For LNB / transverter mode, modify startF and stopF to suit LO freq
         if bandstype.freq != 0:
             startF, stopF = self.freqOffset(startF, stopF)
 
+        self.splitSpectrum(startF, stopF, points, split)
+
+        for indx, spectrum in enumerate(self.spectra):
+            # set each spectrum (trace & marker) and box colours
+            spectrum.count = 0
+            pen = tracecolours.tm.record(indx).value('colour')
+            spectrum.set_colour(pen)
+            self.set_box_colour(pen, indx)
+
+            # set the data arrays for the monitor and waterfall
+            spectrum.monitor_data = np.full((int(time_points), 2), None, dtype=float)
+            spectrum.wfall_data = np.full((depth, spectrum.points), None, dtype=float)
+
         # start device(s) scanning
-        split = QtTSA.split_box.isChecked()
-        usbInstr.start(startF, stopF, points, rbw, depth, split, loop=True)
+        usbInstr.start(self.spectra, rbw, depth, split, loop=True)
         self.runButton('Stop')
 
     def lna(self):
@@ -1412,7 +1437,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.15')
+app.setApplicationVersion(' v1.3.16')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)

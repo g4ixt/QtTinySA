@@ -57,7 +57,6 @@ class SurfaceGraph(QObject):
         ax.setTitleVisible(True)
         # ax.setLabelSize(1.5)
 
-
     def zoom(self, zoom):
         self.surface.setCameraZoomLevel(zoom)
 
@@ -169,6 +168,9 @@ class Spectrum(QObject):
         self.count = 0  # the number of completed scans
         self.monitor_data = np.ndarray(2)
         self.wfall_data = np.ndarray(2)
+        self.startF = None
+        self.stopF = None
+        self.points = None
         self.ps_markers = []
 
     def create(self, s_widget, w_widget, h_widget, m_widget):
@@ -184,7 +186,7 @@ class Spectrum(QObject):
         self.trace.m3 = Marker(s_widget, self, 'm4', 2.5)
         self.mkr_list = [self.trace.m0, self.trace.m1, self.trace.m2, self.trace.m3]
 
-        # create the waterfall and its histogram
+        # create the waterfall graph and its histogram
         self.waterfall = pyqtgraph.ImageItem(axisOrder='row-major')
         w_widget.addItem(self.waterfall)
         self.histogram = pyqtgraph.HistogramLUTItem(gradientPosition='right', orientation='vertical')
@@ -193,7 +195,7 @@ class Spectrum(QObject):
         self.waterfall.setLevels((-100, -25))  # needs to be here, after histogram is created
         h_widget.addItem(self.histogram)
 
-        # create the signal level monitor (which uses the current marker 0 level for each spectrum)
+        # create the signal level monitor graph (which uses the current marker 0 level for each spectrum)
         self.monitor = m_widget.addPlot(title='monitor')
         self.monitor.setAxisItems({'bottom': pyqtgraph.DateAxisItem()})
         self.monitor.showGrid(x=True, y=True)
