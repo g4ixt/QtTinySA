@@ -233,13 +233,13 @@ class Spectrum(QObject):
                 mkr.line.setValue(startF * 1e6)
                 mkr.mkr_type()
 
-    def updateWaterfall(self, levl, wf_size, wf_auto, sweep_end=False):
-        if sweep_end:
-            self.wfall_data = np.roll(self.wfall_data, 1, axis=0)
-        if np.size(self.wfall_data, axis=1) == np.size(levl):
-            self.wfall_data[0] = levl  # data array is also used to calculate averages so must be updated
-            if wf_size > 0:
-                self.waterfall.setImage(self.wfall_data, autoLevels=wf_auto)
+    # def updateWaterfall(self, levl, wf_size, wf_auto, dev_count, sweep_end=False):
+    #     if sweep_end:
+    #         self.wfall_data = np.roll(self.wfall_data, 1, axis=0)
+    #     if np.size(self.wfall_data, axis=1) == np.size(levl):
+    #         self.wfall_data[0] = levl  # data array is also used to calculate averages so must be updated
+    #         if wf_size > 0:
+    #             self.waterfall.setImage(self.wfall_data, autoLevels=wf_auto)
 
     def update_monitor(self, frequencies, timeNow):  # called by updateGUI at the end of every scan
         self.monitor.clear()  # if it's not cleared the GUI runs slower and slower

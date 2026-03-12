@@ -30,6 +30,7 @@ class USBdevice(QObject):
         self.setSignals()
         self.run_connect = False
         self.is_scanning = False
+        self.count = 0
 
     def setSignals(self):
         self.signals = WorkerSignals()
@@ -42,14 +43,12 @@ class USBdevice(QObject):
         VID = (0x0483, 0x1d50)  # 1155 tinySA/NanoVNA, limeSDR
         PID = (0x5740, 0x6108)  # 22336 tinySA/NanoVNA, limeSDR
         usbPorts = list_ports.comports()
-
         # detect devices as they connect
         for port in usbPorts:
             if port.vid in VID and port.pid in PID and port not in self.ports:
                 self.ports.append(port)
                 self.run_connect = True
                 logging.info(f'found {port.product} on {port.device}')
-
         # detect devices that have been turned off or lost contact
         for port in self.ports:
             if port not in usbPorts:
@@ -65,6 +64,7 @@ class USBdevice(QObject):
         self.dev0 = self.dev1 = self.dev2 = self.dev3 = None
         self.dev_list = [self.dev0, self.dev1, self.dev2, self.dev3]  # all of which are set as None
         self.run_connect = False
+        self.count = 0
 
         for index, port in enumerate(self.ports):
             dev_type = {"tinySA": Tiny(port.device, port.product, self.dev_sigs, basic=True),
@@ -75,9 +75,9 @@ class USBdevice(QObject):
             # iterate through the usb ports with appropriate VID/PID devices connected and test serial comms
             if self.dev_list[index] is None and len(self.ports) > index:
                 self.dev_list[index] = dev_type[port.product]  # instantiate device class & write instance to list
+                self.count += 1
                 hardware = self.dev_list[index]
                 hardware.test(port.device)  # invoke the test function of the device class instance
-
         #  self.dev_list[] now contains up to 4 device class instance objects, or None values.
 
     def disconnect(self, usbPort):  # imperfect
@@ -87,6 +87,7 @@ class USBdevice(QObject):
                 device.close()
                 del device
                 device = None
+                self.count -= 1
 
     def closePort(self):
         for device in self.dev_list:

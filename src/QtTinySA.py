@@ -200,25 +200,36 @@ class Analyser:
         tint = str("background-color: '" + pen + "';")
         boxes[box].setStyleSheet(tint)
 
-    def splitSpectrum(self, startF, stopF, points, split):
+    def split_scan(self, startF, stopF, points, split):
         # splits the scan startF/stopF/points across multiple devices by setting the spectrum start/stop variables
-        count = np.count_nonzero(usbInstr.dev_list)
-        if not split or count == 1:
+        if not split or usbInstr.count == 1:
             for spectrum in self.spectra:
                 spectrum.startF = startF
                 spectrum.stopF = stopF
                 spectrum.points = points  # set points per spectrum = future potential for different vals
             return
-        points = int(points/count)
-        span = int((stopF - startF)/count)
+        points = int(points/usbInstr.count)
+        span = int((stopF - startF)/usbInstr.count)
         starts = {1: (startF, startF, startF, startF),
                   2: (startF, startF+span, startF, startF+span),
                   3: (startF, startF+span, startF+2*span, 0),  # what happens to the zero?
                   4: (startF, startF+span, startF+2*span, startF+3*span)}
         for indx, spectrum in enumerate(self.spectra):
-            spectrum.startF = starts.get(count)[indx]
-            spectrum.stopF = starts.get(count)[indx] + span
+            spectrum.startF = starts.get(usbInstr.count)[indx]
+            spectrum.stopF = starts.get(usbInstr.count)[indx] + span
             spectrum.points = points
+
+    def join_wf(self):
+        # join the waterfall data arrays depending on the number of devices (usbInstr.count)
+        segments = {2: (self.s0.wfall_data, self.s1.wfall_data),
+                    3: (self.s0.wfall_data, self.s1.wfall_data, self.s2.wfall_data),
+                    4: (self.s0.wfall_data, self.s1.wfall_data, self.s2.wfall_data, self.s3.wfall_data)}
+        if usbInstr.count == 1:
+            wfall_data = self.s0.wfall_data
+        else:
+            wfall_data = np.concatenate(segments.get(usbInstr.count), axis=1)
+        QtTSA.waterfall.setXRange(0, np.size(wfall_data, axis=1))
+        return wfall_data
 
     def scan(self):  # called by scan button (run/stop)
         # collect all the settings from the GUI and call usbDevice.start, which interfaces to the hardware
@@ -245,7 +256,7 @@ class Analyser:
         if bandstype.freq != 0:
             startF, stopF = self.freqOffset(startF, stopF)
 
-        self.splitSpectrum(startF, stopF, points, split)
+        self.split_scan(startF, stopF, points, split)
 
         for indx, spectrum in enumerate(self.spectra):
             # set each spectrum (trace & marker) and box colours
@@ -430,26 +441,44 @@ class Analyser:
         for marker in spectrum.mkr_list:
             marker.mkr_update(limits, spectrum.trace.is_visible)
 
-        # update the waterfall if visible
-        wf_size = QtTSA.waterfall_size.value()
-        wf_auto = QtTSA.waterfall_auto.isChecked()
-        QtTSA.waterfall.setXRange(0, np.size(spectrum.wfall_data, axis=1))
-        spectrum.updateWaterfall(levl, wf_size, wf_auto, sweep_end)
-
-        # update 3D graph if visible
-        if QtTSA.stackedWidget.currentWidget() == QtTSA.View3D:
-            self.timespectrum.surface.setHorizontalAspectRatio(1)  # keep the xz surface square
-            self.timespectrum.updater.updateTimeSpectrum(freq, spectrum.wfall_data)
-            self.timespectrum.setRange()
-
         # update the scan count, monitor graph and phase noise graph once per sweep
         if sweep_end:
             spectrum.count += 1
             timeNow = time.time()
+            spectrum.wfall_data = np.roll(spectrum.wfall_data, 1, axis=0)
             spectrum.update_monitor(freq, timeNow)
             if phasenoise.ui.isVisible() and not QtTSA.rbw_auto.isChecked():
                 lineIndex = np.argmin(np.abs(freq - (self.s0.trace.m0.line.value())))  # find index of marker 1
                 self.phaseNoise.update(lineIndex, freq, levl, float(QtTSA.rbw_box.currentText()))
+
+        # update the waterfall
+        wf_size = QtTSA.waterfall_size.value()
+        wf_auto = QtTSA.waterfall_auto.isChecked()
+        if np.size(spectrum.wfall_data, axis=1) == np.size(levl):
+            spectrum.wfall_data[0] = levl  # wf data array is used for averages so must always be updated
+            data = self.join_wf()
+            if wf_size > 0:
+                spectrum.waterfall.setImage(data, autoLevels=wf_auto)
+                # QtTSA.waterfall.setXRange(0, np.size(spectrum.wfall_data, axis=1))
+                # spectrum.waterfall.setImage(spectrum.wfall_data, autoLevels=wf_auto)
+
+        # spectrum.updateWaterfall(levl, wf_size, wf_auto, usbInstr.count, sweep_end)
+
+        # update 3D graph if visible
+        if QtTSA.stackedWidget.currentWidget() == QtTSA.View3D:
+            self.timespectrum.surface.setHorizontalAspectRatio(1)  # keep the xz surface square
+            # self.timespectrum.updater.updateTimeSpectrum(freq, spectrum.wfall_data)
+            self.timespectrum.updater.updateTimeSpectrum(freq, data)
+            self.timespectrum.setRange()
+
+        # # update the scan count, monitor graph and phase noise graph once per sweep
+        # if sweep_end:
+        #     spectrum.count += 1
+        #     timeNow = time.time()
+        #     spectrum.update_monitor(freq, timeNow)
+        #     if phasenoise.ui.isVisible() and not QtTSA.rbw_auto.isChecked():
+        #         lineIndex = np.argmin(np.abs(freq - (self.s0.trace.m0.line.value())))  # find index of marker 1
+        #         self.phaseNoise.update(lineIndex, freq, levl, float(QtTSA.rbw_box.currentText()))
 
         # other updates
         if QtTSA.points_auto.isChecked():
@@ -1437,7 +1466,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.16')
+app.setApplicationVersion(' v1.3.17')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
@@ -1654,7 +1683,7 @@ usbInstr.probe()
 
 usbCheck = QtCore.QTimer()
 usbCheck.timeout.connect(usbInstr.probe)
-usbCheck.start(500)
+# usbCheck.start(500)
 
 tinySA = Analyser()
 tinySA.setGraphs()
