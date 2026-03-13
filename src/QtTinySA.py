@@ -219,15 +219,21 @@ class Analyser:
             spectrum.stopF = starts.get(usbInstr.count)[indx] + span
             spectrum.points = points
 
-    def join_wf(self):
+    def join_wf(self, wf_size):
         # join the waterfall data arrays depending on the number of devices (usbInstr.count)
-        segments = {2: (self.s0.wfall_data, self.s1.wfall_data),
-                    3: (self.s0.wfall_data, self.s1.wfall_data, self.s2.wfall_data),
-                    4: (self.s0.wfall_data, self.s1.wfall_data, self.s2.wfall_data, self.s3.wfall_data)}
         if usbInstr.count == 1:
             wfall_data = self.s0.wfall_data
         else:
-            wfall_data = np.concatenate(segments.get(usbInstr.count), axis=1)
+            join = {2: (self.s0.wfall_data, self.s2.wfall_data),
+                    3: (self.s0.wfall_data, self.s1.wfall_data, self.s2.wfall_data),
+                    4: (self.s0.wfall_data, self.s1.wfall_data,
+                        self.s2.wfall_data, self.s3.wfall_data)}
+            if QtTSA.split_scan.isChecked():
+                # waterfall display is join of trace frequencies
+                wfall_data = np.concatenate(join.get(usbInstr.count), axis=1)
+            else:
+                # waterfall data is a stack of traces
+                wfall_data = np.concatenate(join.get(usbInstr.count), axis=0)
         QtTSA.waterfall.setXRange(0, np.size(wfall_data, axis=1))
         return wfall_data
 
@@ -244,7 +250,7 @@ class Analyser:
         startF = QtTSA.start_freq.value() * 1e6  # freq in Hz
         stopF = QtTSA.stop_freq.value() * 1e6
         depth = QtTSA.memBox.value()
-        split = QtTSA.split_box.isChecked()
+        split = QtTSA.split_scan.isChecked()
 
         rbw = self.setRBW()
         attn = self.attn()
@@ -456,13 +462,9 @@ class Analyser:
         wf_auto = QtTSA.waterfall_auto.isChecked()
         if np.size(spectrum.wfall_data, axis=1) == np.size(levl):
             spectrum.wfall_data[0] = levl  # wf data array is used for averages so must always be updated
-            data = self.join_wf()
+            data = self.join_wf(wf_size)
             if wf_size > 0:
                 spectrum.waterfall.setImage(data, autoLevels=wf_auto)
-                # QtTSA.waterfall.setXRange(0, np.size(spectrum.wfall_data, axis=1))
-                # spectrum.waterfall.setImage(spectrum.wfall_data, autoLevels=wf_auto)
-
-        # spectrum.updateWaterfall(levl, wf_size, wf_auto, usbInstr.count, sweep_end)
 
         # update 3D graph if visible
         if QtTSA.stackedWidget.currentWidget() == QtTSA.View3D:
@@ -1466,7 +1468,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.17')
+app.setApplicationVersion(' v1.3.18')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
