@@ -170,6 +170,7 @@ class Tiny(QObject):
         self.basic = basic
         self.setSignals(sigs)
         self.setDevice(usbPort)
+        self.volts = 0
 
     def setDevice(self, usbPort):
         self.setScale()
@@ -218,7 +219,7 @@ class Tiny(QObject):
 
                 if firmware[0] == 'tinySA4' and float(self.firmware[1][-3:] + self.firmware[2]) < 1.4177:
                     logging.info('for fastest scan speed, upgrade firmware to v1.4-177 or later')
-
+                self.volts = self.battery()
                 if self.firmware[1][0] == "v":
                     return self.firmware  # setForDevice needs this info
                 else:
@@ -388,6 +389,7 @@ class Tiny(QObject):
 
     def battery(self):
         vbat = self.serialQuery('vbat\r')
+        vbat = vbat[:1] + "." + vbat[1:2] + "V"
         return vbat
 
     def setAbort(self, on=True):
