@@ -29,7 +29,7 @@ from PySide6 import QtCore
 from PySide6 import QtWidgets
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtCore import QFile, Slot, QSignalBlocker
-from PySide6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QInputDialog, QLineEdit, QTableWidgetItem
+from PySide6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QTableWidgetItem
 from PySide6.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
 from PySide6.QtGui import QPixmap, QIcon
 
@@ -41,13 +41,13 @@ import numpy as np
 import pyqtgraph
 
 # from datetime import datetime
-# from serial.tools import list_ports
+
 from io import BytesIO
 
 from modules.exporters import WWBExporter, WSMExporter
 from modules.graphs import SurfaceGraph, PhaseNoiseGraph, Spectrum
 
-from modules.devices import USBdevice, Worker, WorkerSignals
+from modules.devices import USBdevice, Worker
 
 # Defaults to non local configuration/data dirs - needed for packaging
 if system() == "Linux":
@@ -110,15 +110,14 @@ class Analyser:
         self.memF = BytesIO()
         self.readings = np.ndarray(2)
         self.mkr_update_timer = QtCore.QTimer()
+        self.dev_ref = []
 
     def setGraphs(self):
         self.phaseNoise = PhaseNoiseGraph(phasenoise.ui.plotWidget, np.ndarray, np.ndarray, 1)
-
         self.timespectrum = SurfaceGraph(QtTSA.plot_3D, np.ndarray, np.ndarray)
         self.timespectrum.zoom(QtTSA.zoom.value())
         self.timespectrum.rotateX(QtTSA.x_rotation.value())
         self.timespectrum.rotateY(QtTSA.y_rotation.value())
-
         # instantiate each spectrum, which has four elements: 1 trace; 4 markers; 1 waterfall; 1 monitor
         self.s0 = Spectrum(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot)
         self.s1 = Spectrum(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot)
@@ -129,7 +128,9 @@ class Analyser:
     def setSignals(self):
         usbInstr.signals.result.connect(self.router)
         usbInstr.signals.saveResults.connect(saveFile)
+        usbInstr.signals.error.connect(popUp)
         usbInstr.stopped.connect(self.allStopped)
+        usbInstr.update_info.connect(self.set_device_info)
         self.mkr_update_timer.timeout.connect(self.updateMarker)
 
     @Slot()
@@ -163,33 +164,38 @@ class Analyser:
         # connect GUI controls that don't interfere with restoration of data at startup
         connectPassive()
         self.setStartFreq()
-
         # set various defaults
         setPreferences()
         bandselect.filterType(False, QtTSA.filterBox.currentText())  # setting the filter overwrites the band
-        # setSize()
-
         # connect GUI controls that would interfere with restoration of data at startup ## modify for devices ##
         connectActive()
-
         QtTSA.waterfall_size.valueChanged.emit(QtTSA.waterfall_size.value())
         self.s0.enable(QtTSA.trace1.isChecked())
         self.s1.enable(QtTSA.trace2.isChecked())
         self.s2.enable(QtTSA.trace3.isChecked())
         self.s3.enable(QtTSA.trace4.isChecked())
-
         for mkr_num in range(4):
             self.setMarker(mkr_num)
 
+    def set_device_info(self):
         # show device information in GUI
-        gui_info = {0: QtTSA.dev0, 1: QtTSA.dev1, 2: QtTSA.dev2, 3: QtTSA.dev3}
-        for idx, device in enumerate(usbInstr.dev_list):
-            if device is not None:
-                desc = str(str(usbInstr.dev_list[idx].usbPort[-4:] +
-                               " " + usbInstr.dev_list[idx].firmware[0]) + " " +
-                               usbInstr.dev_list[idx].volts)
-                gui_info.get(idx).setText(desc)
-    #     QtTSA.version.setText(product[0] + " " + product[1] + " " + product[2])
+        gui_field = {0: QtTSA.dev0, 1: QtTSA.dev1, 2: QtTSA.dev2, 3: QtTSA.dev3}
+        if usbInstr.dev_list:
+            for i, device in enumerate(usbInstr.dev_list):
+                gui_field.get(i).setText('')
+                if device is not None:
+                    port = usbInstr.dev_list[i].usbPort[-4:] + " "
+                    name = usbInstr.dev_list[i].firmware[0] + " "
+                    fwvers = usbInstr.dev_list[i].firmware[1] + "." + usbInstr.dev_list[i].firmware[2] + " "
+                    vers = usbInstr.dev_list[i].firmware[3]
+                    battery = usbInstr.dev_list[i].volts
+                    desc = port + name + battery
+                    gui_field.get(i).setText(desc)
+                    gui_field.get(i).setToolTip(name + fwvers + vers)
+        else:
+            for i in range(4):
+                gui_field.get(i).setText('')
+                gui_field.get(i).setToolTip('')
 
     def setting_change(self):
         if usbInstr.is_scanning:
@@ -251,11 +257,13 @@ class Analyser:
         stopF = QtTSA.stop_freq.value() * 1e6
         depth = QtTSA.memBox.value()
         split = QtTSA.split_scan.isChecked()
-
         rbw = self.setRBW()
         attn = self.attn()
         lna = self.lna()
         spur = self.spur()
+        if not usbInstr.dev_list:
+            popUp(QtTSA, 'TinySA not found', 'Ok', 'Critical')
+            return
         usbInstr.controls(rbw, attn, lna, spur)
 
         # For LNB / transverter mode, modify startF and stopF to suit LO freq
@@ -270,7 +278,6 @@ class Analyser:
             pen = tracecolours.tm.record(indx).value('colour')
             spectrum.set_colour(pen)
             self.set_box_colour(pen, indx)
-
             # set the data arrays for the monitor and waterfall
             spectrum.monitor_data = np.full((int(time_points), 2), None, dtype=float)
             spectrum.wfall_data = np.full((depth, spectrum.points), None, dtype=float)
@@ -478,36 +485,40 @@ class Analyser:
             with QSignalBlocker(QtTSA.points_box):
                 QtTSA.points_box.setValue(np.size(freq))
 
-        # QtTSA.updates.setText(str(int(1/(runtime/1e9))))  # the display update frequency indicator
-
     def runButton(self, action):
         QtTSA.scan_button.setText(action)
         QtTSA.run3D.setText(action)
         QtTSA.scan_button.setEnabled(True)
         QtTSA.run3D.setEnabled(True)
 
-    def dialogBrowse(self):  # browse which device?
-        if self.usb and not self.tinySA4:
-            popUp(QtTSA, "TinySA basic does not have file storage", 'Ok', 'Info')
-            return
-        if self.threadRunning:
-            popUp(QtTSA, "Cannot browse tinySA whilst a scan is running", 'Ok', 'Info')
-            return
-        elif self.usb:
-            SD = self.listSD()
-            filebrowse.ui.listWidget.clear()
-            ls = []
-            for i in range(len(SD.splitlines())):
-                ls.append(SD.splitlines()[i].split(" ")[0])
-            filebrowse.ui.listWidget.insertItems(0, ls)
-            filebrowse.ui.show()
-        else:
-            popUp(QtTSA, 'TinySA not found', 'Ok', 'Critical')
+    def file_browser(self):
+        filebrowse.ui.port.clear()
+        self.dev_ref = []
+        for device in usbInstr.dev_list:
+            if device and device.firmware[0] == 'tinySA4':
+                if device.sweeping:
+                    popUp(QtTSA, "Cannot browse a tinySA whilst a scan is running", 'Ok', 'Info')
+                else:
+                    with QSignalBlocker(filebrowse.ui.port):
+                        filebrowse.ui.port.addItem(device.usbPort)
+                        self.dev_ref.append(device)  # keep a reference to the device for file ops
+        filebrowse.ui.show()
+        self.list_files()
 
-    @Slot()
-    def saveFile(self, saveSingle=True):
+    def list_files(self):
+        device = self.dev_ref[filebrowse.ui.port.currentIndex()]
+        filebrowse.ui.dev_type.setText(device.firmware[0])
+        SD = device.listSD()
+        filebrowse.ui.listWidget.clear()
+        ls = []
+        for i in range(len(SD.splitlines())):
+            ls.append(SD.splitlines()[i].split(" ")[0])
+        filebrowse.ui.listWidget.insertItems(0, ls)
+
+    def save_file(self, saveSingle=True):
+        device = self.dev_ref[filebrowse.ui.port.currentIndex()]
         filebrowse.ui.saveProgress.setValue(0)
-        SD = self.listSD()
+        SD = device.listSD()
         for i in range(len(SD.splitlines())):
             if not self.directory:  # have not already saved a file, or ask for folder was checked
                 self.directory = QFileDialog.getExistingDirectory(caption="Select folder to save SD card file")
@@ -518,7 +529,7 @@ class Analyser:
             else:
                 fileName = SD.splitlines()[i].split(" ")[0]
             with open(os.path.join(self.directory, fileName), "wb") as file:
-                data = self.readSD(fileName)
+                data = device.readSD(fileName)
                 file.write(data)
             filebrowse.ui.saveProgress.setValue(int(100 * (i+1)/len(SD.splitlines())))
             filebrowse.ui.downloadInfo.setText(self.directory)  # show the path where the file was saved
@@ -528,13 +539,14 @@ class Analyser:
                 filebrowse.ui.saveProgress.setValue(100)
                 break
 
-    def fileShow(self):
+    def show_file(self):
+        device = self.dev_ref[filebrowse.ui.port.currentIndex()]
         self.memF.seek(0, 0)  # set the memory buffer pointer to the start
         self.memF.truncate()  # clear down the memory buffer to the pointer
         filebrowse.ui.picture.clear()
         fileName = filebrowse.ui.listWidget.currentItem().text()
-        self.clearBuffer()  # clear the tinySA serial buffer
-        self.memF.write(self.readSD(fileName))  # read the file from the tinySA memory card and store in memory buffer
+        device.clearBuffer()  # clear the tinySA serial buffer
+        self.memF.write(device.readSD(fileName))  # read the file from the tinySA memory card and store in memory buffer
         if fileName[-3:] == 'bmp':
             pixmap = QPixmap()
             pixmap.loadFromData(self.memF.getvalue())
@@ -579,19 +591,17 @@ class Analyser:
         limits = (maskFreq, highF.line.value(), lowF.line.value(), threshold.line.value())
         for spectrum in self.spectra:
             for marker in spectrum.mkr_list:
-                marker.mkr_update(limits, spectrum.trace.is_visible)
+                marker.mkr_update(limits, spectrum.trace.is_visible)  # update markers that are inside the mask
 
     def setMarker(self, mkr_num):  # mkr number and type are provided from the GUI field changed event
         m_type = {0: QtTSA.m1_type.currentText(),
                   1: QtTSA.m2_type.currentText(),
                   2: QtTSA.m3_type.currentText(),
                   3: QtTSA.m4_type.currentText()}
-
         m_track = {0: QtTSA.m1track.value(),
                    1: QtTSA.m2track.value(),
                    2: QtTSA.m3track.value(),
                    3: QtTSA.m4track.value()}
-
         for spectrum in self.spectra:
             spectrum.mkr_list[mkr_num].set_type(m_type.get(mkr_num), m_track.get(mkr_num))
 
@@ -985,7 +995,6 @@ class ModelView():
         if update_failed:
             popUp(offset, "One or more of the updates failed.", 'Ok', 'Critical')
 
-
 ###############################################################################
 # respond to GUI signals
 
@@ -1115,7 +1124,6 @@ def getPath(dbName):
     personalDir = platformdirs.user_config_dir(appname=app.applicationName(), appauthor=False)
     if not os.path.exists(personalDir):
         os.mkdir(personalDir)
-
     if os.path.isfile(os.path.join(personalDir, dbName)):
         logging.info(f'Database {dbName} found at {personalDir}')
         return personalDir
@@ -1248,6 +1256,8 @@ def exit_handler():
 
 
 def popUp(window, message, button, icon):
+    if window is None:
+        window = QtTSA
     icons = {'Warn': QMessageBox.Icon.Warning, 'Info': QMessageBox.Icon.Information,
              'Critical': QMessageBox.Icon.Critical, 'Question': QMessageBox.Icon.Question}
     buttons = {'Ok': QMessageBox.StandardButton.Ok, 'Cancel': QMessageBox.StandardButton.Cancel,
@@ -1350,9 +1360,9 @@ def connectActive():
     QtTSA.analyser.clicked.connect(lambda: QtTSA.stackedWidget.setCurrentWidget(QtTSA.ViewNormal))
 
     # filebrowse
-    filebrowse.ui.download.clicked.connect(lambda: tinySA.saveFile(True))
-    filebrowse.ui.saveAll.clicked.connect(lambda: tinySA.saveFile(False))
-    filebrowse.ui.listWidget.itemClicked.connect(tinySA.fileShow)
+    filebrowse.ui.download.clicked.connect(lambda: tinySA.save_file(True))
+    filebrowse.ui.saveAll.clicked.connect(lambda: tinySA.save_file(False))
+    filebrowse.ui.listWidget.itemClicked.connect(tinySA.show_file)
 
     # Sweep time
     # QtTSA.sweepTime.valueChanged.connect(lambda: tinySA.sweepTime(QtTSA.sweepTime.value()))
@@ -1438,8 +1448,8 @@ def connectPassive():
     phasenoise.ui.centre.clicked.connect(tinySA.centreTone)
 
     # File menu
-    QtTSA.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
-    QtTSA.actionBrowse_TinySA.triggered.connect(tinySA.dialogBrowse)
+    QtTSA.actionBrowse_TinySA.triggered.connect(tinySA.file_browser)
+    filebrowse.ui.port.currentIndexChanged.connect(tinySA.list_files)
 
     # polar pattern
     pattern.ui.measure.clicked.connect(startPolarPlot)
@@ -1459,7 +1469,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.19')
+app.setApplicationVersion(' v1.3.21')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
@@ -1672,17 +1682,16 @@ QtTSA.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 
 # try to open a USB connection to hardware....... need to check if it works in Windows now
 usbInstr = USBdevice()
-usbInstr.probe()
+tinySA = Analyser()
+# usbInstr.probe()
 
 usbCheck = QtCore.QTimer()
 usbCheck.timeout.connect(usbInstr.probe)
-# usbCheck.start(500)
+usbCheck.start(500)
 
-tinySA = Analyser()
 tinySA.setGraphs()
 tinySA.setGUI()
 tinySA.setSignals()
-
 
 ###############################################################################
 # run the application until the user closes it

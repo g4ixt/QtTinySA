@@ -22,6 +22,7 @@ threadpool = QThreadPool()
 
 class USBdevice(QObject):
     stopped = Signal(bool)
+    update_info = Signal()
 
     def __init__(self):
         super().__init__()
@@ -31,13 +32,15 @@ class USBdevice(QObject):
         self.run_connect = False
         self.is_scanning = False
         self.count = 0
+        self.dev_list = None
 
     def setSignals(self):
         self.signals = WorkerSignals()
         # dev_sigs forward the signals from devices to the analyser class in QtTinySA.py (& are connected in there)
         self.dev_sigs = {"result": self.signals.result,
                          "save": self.signals.saveResults,
-                         "ends": self.signals.sweepEnds}
+                         "ends": self.signals.sweepEnds,
+                         "error": self.signals.error}
 
     def probe(self):
         VID = (0x0483, 0x1d50)  # 1155 tinySA/NanoVNA, limeSDR
@@ -78,16 +81,22 @@ class USBdevice(QObject):
                 self.count += 1
                 hardware = self.dev_list[index]
                 hardware.test(port.device)  # invoke the test function of the device class instance
+                self.update_info.emit()
+        self.update_info.emit()
         #  self.dev_list[] now contains up to 4 device class instance objects, or None values.
 
     def disconnect(self, usbPort):  # imperfect
         for device in self.dev_list:
             if device and device.usbPort == usbPort:
-                logging.info('removing disconnected device instance')
+                logging.info(f'removing disconnected {usbPort} device instance')
+                self.stop(restart=False)
                 device.close()
                 del device
                 device = None
                 self.count -= 1
+            if self.count == 0:
+                self.dev_list = None
+        self.update_info.emit()
 
     def closePort(self):
         for device in self.dev_list:
@@ -106,6 +115,7 @@ class USBdevice(QObject):
                 device.sweeping = True
                 threadpool.start(device.sa)
                 self.is_scanning = True
+                self.update_info.emit()
 
     def controls(self, rbw, attn, lna, spur):
         for device in self.dev_list:
@@ -123,6 +133,7 @@ class USBdevice(QObject):
                     logging.debug('waiting for measurement thread to stop')
                     time.sleep(0.1)
         self.is_scanning = False
+        self.update_info.emit()
         self.stopped.emit(restart)
 
     # def identify(self, port):
@@ -134,7 +145,7 @@ class USBdevice(QObject):
 
 
 class WorkerSignals(QObject):
-    error = Signal(str)
+    error = Signal(object, str, str, str)
     result = Signal(object, np.ndarray, np.ndarray, np.ndarray, np.ndarray, bool)
     fullSweep = Signal(np.ndarray, np.ndarray)
     saveResults = Signal(np.ndarray, np.ndarray)
@@ -192,6 +203,7 @@ class Tiny(QObject):
         self.signals.result.connect(sigs["result"])
         self.signals.saveResults.connect(sigs["save"])
         self.signals.sweepEnds.connect(sigs["ends"])
+        self.signals.error.connect(sigs["error"])
 
     def setCmdQ(self):
         self.fifo = queue.SimpleQueue()
@@ -307,21 +319,28 @@ class Tiny(QObject):
                     dataBlock = ''
                 except serial.SerialException:
                     logging.info('serial port exception')
+                    self.signals.error.emit(None, 'serial port exception', 'Ok', 'Critical')
                     self.sweeping = False
                     break
 
             # read the measurement data from the tinySA
             for point in range(points):
-                dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
-                logging.debug(f'dataBlock: {dataBlock}\n')
+                try:
+                    dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
+                    logging.debug(f'dataBlock: {dataBlock}\n')
+                except serial.SerialException:
+                    self.sweeping = False
+                    break
                 if dataBlock == b'}':  # from FW165 jog button press returns different value
                     logging.info('screen touched or jog button pressed')
+                    self.signals.error.emit(None, 'screen touched or jog button pressed', 'Ok', 'Info')
                     self.sweeping = False
                     break
                 try:
                     c, data = struct.unpack('<' + 'cH', dataBlock)
                 except struct.error:
                     logging.info('data error')
+                    self.signals.error.emit(None, 'serial data error', 'Ok', 'Critical')
                     self.sweeping = False
                     break
                 levl[point] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
@@ -336,6 +355,7 @@ class Tiny(QObject):
                     if loop:
                         if self.usb.read(2) != b'}{':  # the end of scan marker character is '}{'
                             logging.info('QtTinySA display is out of sync with tinySA frequency')
+                            self.signals.error.emit(None, 'QtTinySA display out of sync', 'Ok', 'Critical')
                             self.sweeping = False
                             break
                         sweepCount += 1
@@ -348,11 +368,14 @@ class Tiny(QObject):
 
             # also send the measurement data to router() at the end of each sweep
             self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, True)
-
-        self.usb.read(2)  # discard the command prompt that the tinySA sends when sweeping ends
+        try:
+            self.usb.read(2)  # discard the command prompt that the tinySA sends when sweeping ends
+            self.serialWrite('abort\r')
+            self.clearBuffer()
+        except serial.SerialException:
+            logging.info('tinySA serial comms failed')
+            self.signals.error.emit(None, 'tinySA serial comms failed', 'Ok', 'Critical')
         self.threadRunning = False
-        self.serialWrite('abort\r')
-        self.clearBuffer()
 
     @Slot()
     def usbSend(self):

@@ -389,9 +389,11 @@ class Marker:
     def mkr_update(self, limits, trace_on):
         # called by updateGUI when scanning or by a timer when not
         arr = self.spectrum.trace.getData()
+        if arr[0] is None:
+            return
+
         frequencies = arr[0]
         levels = arr[1]
-
         if frequencies[0] == frequencies[-1]:  # markers are not relevant in zero span
             return
 
