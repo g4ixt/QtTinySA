@@ -491,17 +491,22 @@ class Analyser:
         QtTSA.scan_button.setEnabled(True)
         QtTSA.run3D.setEnabled(True)
 
-    def file_browser(self):
-        filebrowse.ui.port.clear()
+    def set_dev_combo(self, ui_name, dev_name):
+        ui_name.port.clear()
         self.dev_ref = []
         for device in usbInstr.dev_list:
-            if device and device.firmware[0] == 'tinySA4':
+            if device and device.firmware[0] == dev_name:
                 if device.sweeping:
-                    popUp(QtTSA, "Cannot browse a tinySA whilst a scan is running", 'Ok', 'Info')
+                    popUp(QtTSA, "Cannot browse whilst a scan is running", 'Ok', 'Info')
                 else:
-                    with QSignalBlocker(filebrowse.ui.port):
-                        filebrowse.ui.port.addItem(device.usbPort)
+                    with QSignalBlocker(ui_name.port):
+                        ui_name.port.addItem(device.usbPort)
                         self.dev_ref.append(device)  # keep a reference to the device for file ops
+        device = self.dev_ref[ui_name.port.currentIndex()]
+        ui_name.dev_type.setText(device.firmware[0])
+
+    def file_browser(self):
+        self.set_dev_combo(filebrowse.ui, 'tinySA4')
         filebrowse.ui.show()
         self.list_files()
 
@@ -551,6 +556,11 @@ class Analyser:
             pixmap = QPixmap()
             pixmap.loadFromData(self.memF.getvalue())
             filebrowse.ui.picture.setPixmap(pixmap)
+
+    def correction_window(self):
+        self.set_dev_combo(offset.ui, 'tinySA4')
+        offset.ui.progress.setValue(0)
+        offset.ui.show()
 
     # def sweepTime(self, seconds):
     #     #  0.003 to 60S
@@ -928,10 +938,9 @@ class ModelView():
         self.updateModel()
 
     def read_tables(self):  # read the correction tables from the tinySA and display in a table widget
-        if tinySA.usb is None:
-            popUp(offset, 'TinySA not found', 'Ok', 'Critical')
-            return
-        if tinySA.threadRunning:
+        device = tinySA.dev_ref[offset.ui.port.currentIndex()]
+        offset.ui.dev_type.setText(device.firmware[0])
+        if device.sweeping:
             popUp(offset, "Cannot read from tinySA whilst a scan is running", 'Ok', 'Info')
             return
         self.unlimited()
@@ -952,7 +961,7 @@ class ModelView():
         for i in range(correctiontext.tm.rowCount()):
             # step through each correction mode, fetch its table from the tinySA
             command = 'correction ' + correctiontext.tm.record(i).value('value') + '\r'
-            data = tinySA.serialQuery(command)
+            data = device.serialQuery(command)
             mode_table = data.splitlines()[1:]  # make a list of the rows, discard the mode header
             mode_rows = [row.split(' ')[1:] for row in mode_table]  # split each row into a list, discard first col
             for j in range(20):
@@ -971,8 +980,10 @@ class ModelView():
             k += 20
 
     def upload_correction(self):  # upload the correction table(s) from the config database to the tinySA
-        if tinySA.threadRunning:
-            popUp(offset, "Cannot update tinySA whilst a scan is running", 'Ok', 'Info')
+        device = tinySA.dev_ref[offset.ui.port.currentIndex()]
+        offset.ui.dev_type.setText(device.firmware[0])
+        if device.sweeping:
+            popUp(offset, "Cannot read from tinySA whilst a scan is running", 'Ok', 'Info')
             return
         self.unlimited()
         offset.ui.progress.setValue(0)
@@ -984,7 +995,7 @@ class ModelView():
             frequency = str(record.value('frequency')) + ' '
             dB = str(record.value('dB'))
             command = 'correction ' + mode + entry + frequency + dB + '\r'
-            response = tinySA.serialQuery(command)
+            response = device.serialQuery(command)
             logging.debug(f'upload_correction(): {response}')
             if response != 'updated ' + entry + 'to ' + frequency + dB:
                 # the error trapping on the tinySA is not comprehensive so this may not work for all scenarios
@@ -1327,11 +1338,6 @@ def startPolarPlot():
     #     M4.setPolarPlot()
 
 
-def correction_window():
-    offset.ui.progress.setValue(0)
-    offset.ui.show()
-
-
 def connectActive():
     '''Connect signals from controls that send messages to tinySA or use trace data.  Called by setGUI().'''
 
@@ -1431,7 +1437,7 @@ def connectPassive():
     QtTSA.filterBox.currentTextChanged.connect(lambda: bandselect.filterType(False, QtTSA.filterBox.currentText()))
     QtTSA.actionPresets.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
     QtTSA.actionSettings.triggered.connect(settings.ui.show)
-    QtTSA.actionCorrection.triggered.connect(correction_window)
+    QtTSA.actionCorrection.triggered.connect(tinySA.correction_window)
 
     # preferences
     QtTSA.actionAbout_QtTinySA.triggered.connect(about)
@@ -1469,7 +1475,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.21')
+app.setApplicationVersion(' v1.3.22')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
