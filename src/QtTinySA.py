@@ -1475,7 +1475,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.22')
+app.setApplicationVersion(' v1.3.23')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)

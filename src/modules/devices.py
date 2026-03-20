@@ -62,7 +62,7 @@ class USBdevice(QObject):
         if self.run_connect:
             self.connect()
 
-    def connect(self):  # imperfect, need to handle test fails and different devices reconnecting
+    def connect(self):  # imperfect, need to handle test fails
         # try to set USB connections to different hardware....... need to check if it works in Windows now
         self.dev0 = self.dev1 = self.dev2 = self.dev3 = None
         self.dev_list = [self.dev0, self.dev1, self.dev2, self.dev3]  # all of which are set as None
@@ -85,17 +85,15 @@ class USBdevice(QObject):
         self.update_info.emit()
         #  self.dev_list[] now contains up to 4 device class instance objects, or None values.
 
-    def disconnect(self, usbPort):  # imperfect
-        for device in self.dev_list:
+    def disconnect(self, usbPort):
+        for i, device in enumerate(self.dev_list):
             if device and device.usbPort == usbPort:
                 logging.info(f'removing disconnected {usbPort} device instance')
                 self.stop(restart=False)
                 device.close()
                 del device
-                device = None
+                self.dev_list[i] = None
                 self.count -= 1
-            if self.count == 0:
-                self.dev_list = None
         self.update_info.emit()
 
     def closePort(self):
@@ -240,6 +238,7 @@ class Tiny(QObject):
                 logging.info(f'firmware {firmware} on {usbPort} is not a tinySA')
 
     def set_ctrls(self, rbw, attn, lna, spur):
+        self.clearBuffer()
         self.attenuator(attn)
         self.lna(lna)
         self.spur(spur)
