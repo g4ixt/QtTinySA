@@ -376,13 +376,17 @@ class SpectrumGraph(QObject):
                 ui_widget.removeItem(marker)
                 self.ps_markers.remove(marker)
 
-    def label_ps_mkr(self, marker, colour, band):
+    def label_ps_mkr(self, marker, colour, rotate, band):
+        if rotate:
+            txt_angle = 90
+        else:
+            txt_angle = 0
         if band:
             pyqtgraph.InfLineLabel(marker, marker._name, movable=True, position=0.94,
-                                   angle=0, color=colour)
+                                   angle=txt_angle, color=colour)
         else:
             pyqtgraph.InfLineLabel(marker, marker._name, movable=True, position=0.08, anchors=(0.5, 0.5),
-                                   angle=90, color=colour)
+                                   angle=txt_angle, color=colour)
 
 
 class Marker:

@@ -29,7 +29,7 @@ from PySide6 import QtCore
 from PySide6 import QtWidgets
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtCore import QFile, Slot, QSignalBlocker
-from PySide6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QTableWidgetItem
+from PySide6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog,QTableWidgetItem, QInputDialog, QLineEdit
 from PySide6.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
 from PySide6.QtGui import QPixmap, QIcon
 
@@ -189,10 +189,10 @@ class Analyser:
                     name = usbInstr.dev_list[i].firmware[0] + " "
                     fwvers = usbInstr.dev_list[i].firmware[1] + "." + usbInstr.dev_list[i].firmware[2] + " "
                     vers = usbInstr.dev_list[i].firmware[3]
-                    battery = usbInstr.dev_list[i].volts
-                    desc = port + name + battery
+                    battery = "\nbattery=" + usbInstr.dev_list[i].volts
+                    desc = port + name
                     gui_field.get(i).setText(desc)
-                    gui_field.get(i).setToolTip(name + fwvers + vers)
+                    gui_field.get(i).setToolTip(name + fwvers + vers + battery)
         else:
             for i in range(4):
                 gui_field.get(i).setText('')
@@ -343,6 +343,12 @@ class Analyser:
         if QtTSA.span_freq.value() != 0:
             lowF.line.setValue((startF + QtTSA.span_freq.value()/20) * 1e6)
             highF.line.setValue((stopF - QtTSA.span_freq.value()/20) * 1e6)
+
+    def setToMarker(self):
+        mkr_freq = self.s0.trace.m0.line.value()
+        with QSignalBlocker(QtTSA.centre_freq):
+            QtTSA.centre_freq.setValue(mkr_freq / 1e6)
+        self.setCentreFreq()
 
     def freqOffset(self, startF, stopF):  # for mixers or LNBs external to TinySA.  Returns a tuple (startF, stopF)
         spanF = stopF - startF
@@ -632,14 +638,15 @@ class Analyser:
                 name = presetmarker.tm.record(i).value('name')
                 visible = presetmarker.tm.record(i).value('visible')
                 on = QtTSA.presetMarker.isChecked()
+                rotate = QtTSA.presetLabel.isChecked()
                 if on and visible and stopF in (0, ''):  # it is not a band marker
                     marker = self.s0.set_ps_mkr(QtTSA.graphWidget, startF, colour, name)
-                    self.s0.label_ps_mkr(marker, colour, False)
+                    self.s0.label_ps_mkr(marker, colour, rotate, False)
                 if on and visible and stopF not in (0, '', startF):  # it is a band marker
                     band_start = self.s0.set_ps_mkr(QtTSA.graphWidget, startF, colour, name)
-                    self.s0.label_ps_mkr(band_start, colour, True)
+                    self.s0.label_ps_mkr(band_start, colour, rotate, True)
                     band_end = self.s0.set_ps_mkr(QtTSA.graphWidget, stopF, colour, name)
-                    self.s0.label_ps_mkr(band_end, colour, True)
+                    self.s0.label_ps_mkr(band_end, colour, rotate, True)
             except ValueError:
                 logging.info('preset_marker {name} value error')
                 continue
@@ -761,7 +768,7 @@ class ModelView():
         self.tm.insertRecord(-1, record)
         self.tm.select()
         self.tm.layoutChanged.emit()
-        self.dwm.submit()
+        # self.dwm.submit()
 
     def filterType(self, prefsDialog, boxText):
         sql = 'preset = "' + boxText + '"'
@@ -971,30 +978,12 @@ def band_changed():
     numbers.dwm.submit()
 
 
-# def addBand():
-#     if QtTSA.m1_type.currentText() == 'Off':
-#         message = 'Please enable Marker 1'
-#         popUp(QtTSA, message, 'Ok', 'Info')
-#         return
-#     if QtTSA.m1_type.currentText() != 'Off' and QtTSA.m2_type.currentText() != 'Off':  # Two markers to set a band limit
-#         if M1.line.value() >= M2.line.value():
-#             message = 'M1 frequency >= M2 frequency'
-#             popUp(QtTSA, message, 'Ok', 'Info')
-#             return
-#         ID = bandstype.fetch_ID('preset', str(QtTSA.filterBox.currentText()))
-#         title = "New Frequency Band"
-#         message = "Enter a name for the new band."
-#         bandName, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-#         bands.insertData(name=bandName, type=ID, startF=f'{int(M1.line.value())}',
-#                          stopF=f'{int(M2.line.value())}', visible=1, colour=colours.fetch_ID('colour', 'green'))
-
-
-# def addFixed():
-#     title = "New fixed frequency Marker"
-#     message = "Enter a name for the fixed Marker"
-#     fixedMkr, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-#     bands.insertData(name=fixedMkr, type=12, startF=f'{int(M1.line.value())}',
-#                      stopF=0, visible=1, colour=colours.fetch_ID('colour', 'orange'))  # preset type 12 = fixed Marker
+def addFixed():
+    title = "New fixed frequency Marker"
+    message = "Enter a name for the fixed Marker"
+    fixedMkr, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
+    bands.insertData(name=fixedMkr, preset=12, startF=f'{int(tinySA.s0.trace.m0.line.value())}',
+                     stopF=0, visible=1, colour=colours.fetch_ID('colour', 'orange'))  # preset type 12 = fixed Marker
 
 
 def pointsChanged():
@@ -1251,7 +1240,6 @@ def connectActive():
     QtTSA.atten_auto.clicked.connect(tinySA.setting_change)
     QtTSA.spur_box.currentIndexChanged.connect(tinySA.setting_change)
     QtTSA.lna_box.clicked.connect(tinySA.setting_change)
-    QtTSA.setRange.clicked.connect(tinySA.sweep_as_zoomed)
 
     # frequencies
     QtTSA.start_freq.valueChanged.connect(tinySA.setStartFreq)
@@ -1259,6 +1247,8 @@ def connectActive():
     QtTSA.centre_freq.valueChanged.connect(tinySA.setCentreFreq)  # centre/span mode
     QtTSA.span_freq.valueChanged.connect(tinySA.setCentreFreq)  # centre/span mode
     QtTSA.band_box.currentIndexChanged.connect(band_changed)
+    QtTSA.setRange.clicked.connect(tinySA.sweep_as_zoomed)
+    QtTSA.setToMkr.clicked.connect(tinySA.setToMarker)
 
     QtTSA.rbw_auto.clicked.connect(tinySA.rbwChanged)
     QtTSA.rbw_box.currentIndexChanged.connect(tinySA.rbwChanged)
@@ -1314,9 +1304,8 @@ def connectPassive():
 
     # # frequency band and fixed markers
     QtTSA.presetMarker.clicked.connect(tinySA.set_preset_marker)
-    # QtTSA.presetLabel.clicked.connect()
-    # QtTSA.addBandPreset.clicked.connect(addBand)
-    # QtTSA.addFix.clicked.connect(addFixed)
+    QtTSA.presetLabel.clicked.connect(tinySA.set_preset_marker)
+    QtTSA.addFix.clicked.connect(addFixed)
     QtTSA.filterBox.currentTextChanged.connect(tinySA.set_preset_marker)
 
     # trace checkboxes
@@ -1381,7 +1370,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.25')
+app.setApplicationVersion(' v1.3.26')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
@@ -1462,7 +1451,7 @@ phasenoise.ui.plotWidget.setLabel('left', 'Phase Noise', units='dBc/Hz')
 logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 1315)  # third parameter is the database version
+config = connect("QtTSAprefs.db", "settings", 1326)  # third parameter is the database version
 
 # field mapping of the checkboxes and numbers database tables, for storing startup configuration
 maps = ModelView('mapping', config, ())
