@@ -45,7 +45,7 @@ import pyqtgraph
 from io import BytesIO
 
 from modules.exporters import WWBExporter, WSMExporter
-from modules.graphs import SurfaceGraph, PhaseNoiseGraph, Spectrum
+from modules.graphs import SurfaceGraph, PhaseNoiseGraph, SpectrumGraph, PolarGraph
 
 from modules.devices import USBdevice, Worker
 
@@ -114,15 +114,16 @@ class Analyser:
 
     def setGraphs(self):
         self.phaseNoise = PhaseNoiseGraph(phasenoise.ui.plotWidget, np.ndarray, np.ndarray, 1)
+        self.polar = PolarGraph(pattern.ui, 4, 40)
         self.timespectrum = SurfaceGraph(QtTSA.plot_3D, np.ndarray, np.ndarray)
         self.timespectrum.zoom(QtTSA.zoom.value())
         self.timespectrum.rotateX(QtTSA.x_rotation.value())
         self.timespectrum.rotateY(QtTSA.y_rotation.value())
         # instantiate each spectrum, which has four elements: 1 trace; 4 markers; 1 waterfall; 1 monitor
-        self.s0 = Spectrum(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot)
-        self.s1 = Spectrum(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot)
-        self.s2 = Spectrum(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot)
-        self.s3 = Spectrum(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot)
+        self.s0 = SpectrumGraph(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot)
+        self.s1 = SpectrumGraph(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot)
+        self.s2 = SpectrumGraph(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot)
+        self.s3 = SpectrumGraph(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot)
         self.spectra = (self.s0, self.s1, self.s2, self.s3)
 
     def setSignals(self):
@@ -460,9 +461,12 @@ class Analyser:
             timeNow = time.time()
             spectrum.wfall_data = np.roll(spectrum.wfall_data, 1, axis=0)
             spectrum.update_monitor(freq, timeNow)
-            if phasenoise.ui.isVisible() and not QtTSA.rbw_auto.isChecked():
-                lineIndex = np.argmin(np.abs(freq - (self.s0.trace.m0.line.value())))  # find index of marker 1
-                self.phaseNoise.update(lineIndex, freq, levl, float(QtTSA.rbw_box.currentText()))
+            if spectrum == self.s0:  # phase noise and pattern measurements use trace 1 only
+                m0_index = np.argmin(np.abs(freq - (spectrum.trace.m0.line.value())))  # marker 1 index
+                if phasenoise.ui.isVisible() and not QtTSA.rbw_auto.isChecked():
+                    self.phaseNoise.update(m0_index, freq, levl, float(QtTSA.rbw_box.currentText()))
+                if pattern.ui.isVisible():
+                    self.polar.update_plot(pattern.ui, m0_index, levl)
 
         # update the waterfall
         wf_height = QtTSA.waterfall_size.value()
@@ -572,10 +576,12 @@ class Analyser:
         xaxis = (QtTSA.graphWidget.getAxis('bottom').range)
         startF = float(xaxis[0]/1e6)
         stopF = float(xaxis[1]/1e6)
-        logging.debug(f'mouseScaled: start = {startF} stop = {stopF}')
-        QtTSA.start_freq.setValue(startF)
-        QtTSA.stop_freq.setValue(stopF)
-        self.freq_changed(False)
+        logging.debug(f'sweep_as_zoomed: start = {startF} stop = {stopF}')
+        with QSignalBlocker(QtTSA.start_freq):
+            QtTSA.start_freq.setValue(startF)
+        with QSignalBlocker(QtTSA.stop_freq):
+            QtTSA.stop_freq.setValue(stopF)
+        self.setStartFreq()
 
     def markerToStart(self):
         startF = QtTSA.start_freq.value()
@@ -684,74 +690,7 @@ class Limit:
 #         M3.tplot.setXLink(M1.tplot)
 #         M4.tplot.setXLink(M1.tplot)
 
-#     def setPolarPlot(self):
-#         if self.markerType != 'Off':
-#             pattern.ui.progress.setValue(0)
-#             if pattern.ui.manual.isChecked():
-#                 self.samples = []
-#             else:
-#                 self.sweeptime = []
-#                 self.amplitude = []
-#             self.runTimer.start()
 
-#     def updatePolarPlot(self):
-#         if pattern.ui.manual.isChecked():
-#             if len(self.samples) < pattern.scanCount.value():
-#                 self.samples.append(self.dBm)
-#                 pattern.ui.progress.setValue(int(100 * len(self.samples) / pattern.scanCount.value()))
-#                 return
-#             else:
-#                 if pattern.ui.max.isChecked():
-#                     self.amplitude.append(np.max(self.samples))
-#                 if pattern.ui.avg.isChecked():
-#                     self.amplitude.append(np.average(self.samples))
-#                 if pattern.ui.min.isChecked():
-#                     self.amplitude.append(np.min(self.samples))
-#                 self.sweeptime.append(pattern.heading.value())  # append the current heading (instead of rotation time)
-#                 self.runTimer.invalidate()
-#                 theta = np.divide((np.multiply(self.sweeptime, np.pi)), 180)  # convert heading in degrees to radians
-#         else:
-#             if self.sweeptime == []:  # auto plot has just been started
-#                 self.sweeptime.append(0)
-#             else:
-#                 self.sweeptime.append(self.runTimer.elapsed() / 1000)
-#             self.amplitude.append(self.dBm)
-#             if pattern.ui.clockwise.isChecked():
-#                 theta = np.divide((np.multiply(self.sweeptime, 2 * np.pi)), pattern.ui.rotateTime.value())
-#                 pattern.ui.heading.setValue(int(360*(theta[-1] / (2 * np.pi))))
-#             else:
-#                 theta = np.divide((np.multiply(self.sweeptime, -2 * np.pi)), pattern.ui.rotateTime.value())
-#                 pattern.ui.heading.setValue(360 + int(360*(theta[-1] / (2 * np.pi))))
-#             pattern.ui.progress.setValue(int(100 * (abs(theta[-1]) / (2 * np.pi))))
-
-#         peak = max(np.max(self.amplitude), pattern.ui.refdBm.value())  # peak is maximum when antenna points at Tx
-#         factor = 40 - peak  # correction factor to make the max signal amplitude read 40 units on the polar grid
-#         dBm = np.round(np.add(self.amplitude, factor), decimals=1)
-
-#         r = np.clip(dBm, 0, 40)  # clip the signal vector to a max amplitude of 40 and minimum of 0
-#         x = np.multiply(r, np.sin(theta))
-#         y = np.multiply(r, np.cos(theta))
-#         self.polar.setData(x, y, pen=self.linked.pen)
-
-#         if self.sweeptime[-1] >= pattern.ui.rotateTime.value():  # rotation is complete
-#             self.runTimer.invalidate()
-#             if pattern.ui.beamUp.isChecked() and not pattern.ui.manual.isChecked():
-#                 self.rotatePolarPlot(r, theta)
-
-#     def rotatePolarPlot(self, r, theta):
-#         pkIndex = np.argmax(self.amplitude)  # find the array index of the maximum signal
-#         width = 0
-#         for i in range(pkIndex, len(self.amplitude) - 1):
-#             if self.amplitude[i] == self.amplitude[pkIndex]:
-#                 width += 1
-#         pkIndex = pkIndex + int(width / 2)  # beam centre is half the width of a symetrical antenna main lobe
-#         pkBearing = 2 * np.pi * pkIndex / len(self.amplitude)
-
-#         # calculate new values to rotate display
-#         theta = np.subtract(theta, pkBearing)
-#         x = np.multiply(r, np.sin(theta))
-#         y = np.multiply(r, np.cos(theta))
-#         self.polar.setData(x, y, pen=self.linked.pen)
 
 
 class ModelView():
@@ -1246,7 +1185,6 @@ def fetchVersion(db):
 
 def exit_handler():
     usbCheck.stop()
-    usbInstr.stop(restart=False)
     if len(usbInstr.ports) != 0:
         # save the marker frequencies
         record = numbers.tm.record(0)
@@ -1255,8 +1193,7 @@ def exit_handler():
         # record.setValue('m3f', float(M3.line.value()))
         # record.setValue('m4f', float(M4.line.value()))
         numbers.tm.setRecord(0, record)
-
-    usbInstr.closePort()
+        usbInstr.closePort()
 
     # save the gui field values and checkbox states
     checkboxes.dwm.submit()
@@ -1303,39 +1240,8 @@ def setSize():
     QtTSA.waterfall.setMaximumSize(QtCore.QSize(16777215, QtTSA.waterfall_size.value()))
 
 
-def createPolarGrid(rings, radius):
-    '''Draw concentric circles and radial lines to simulate polar axes.'''
-    pattern.ui.plotwidget.setAspectLocked(True)
-    pattern.ui.plotwidget.hideAxis('bottom')
-    pattern.ui.plotwidget.hideAxis('left')
-    for i in range(1, rings + 1):
-        r = i * radius / rings
-        circle = QtWidgets.QGraphicsEllipseItem(-r, -r, 2 * r, 2 * r)
-        circle.setPen(pyqtgraph.mkPen('grey', width=0.3))
-        pattern.ui.plotwidget.addItem(circle)
-    r = radius - (radius/(rings*3))
-    circle = QtWidgets.QGraphicsEllipseItem(-r, -r, 2 * r, 2 * r)
-    circle.setPen(pyqtgraph.mkPen('red', width=0.3))
-    pattern.ui.plotwidget.addItem(circle)
-
-    # Add radial lines
-    for angle_deg in range(0, 360, 15):
-        angle_rad = np.deg2rad(angle_deg)
-        x = radius * np.cos(angle_rad)
-        y = radius * np.sin(angle_rad)
-        line = QtWidgets.QGraphicsLineItem(0, 0, x, y)
-        line.setPen(pyqtgraph.mkPen('grey', width=0.5))
-        pattern.ui.plotwidget.addItem(line)
-
-
 def startPolarPlot():
-    if not fading.ui.isVisible():
-        popUp(QtTSA, 'Measurement requires Signal Level Monitor window to be open', 'Ok', 'Critical')
-    # else:
-    #     M1.setPolarPlot()
-    #     M2.setPolarPlot()
-    #     M3.setPolarPlot()
-    #     M4.setPolarPlot()
+    tinySA.polar.set_plot(pattern.ui)
 
 
 def connectActive():
@@ -1475,7 +1381,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.23')
+app.setApplicationVersion(' v1.3.25')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
@@ -1548,7 +1454,7 @@ phasenoise.ui.plotWidget.setLabel('left', 'Phase Noise', units='dBc/Hz')
 # (maxTickLevel=0, tickAlpha=int)
 
 # pyqtgraph settings for antenna pattern display
-createPolarGrid(4, 40)
+# createPolarGrid(4, 40)
 
 
 ###############################################################################

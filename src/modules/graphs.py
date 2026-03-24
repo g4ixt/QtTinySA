@@ -11,12 +11,12 @@ Created on Wed Nov 26 15:42:02 2025
 """
 import logging
 import numpy as np
-from PySide6.QtCore import QObject, Qt, QSize
-from PySide6.QtGui import QLinearGradient
+from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsLineItem, QGraphicsSimpleTextItem
+from PySide6.QtCore import QObject, Qt, QElapsedTimer
+from PySide6.QtGui import QLinearGradient, QBrush, QColor, QTransform
 from PySide6.QtGraphs import QSurface3DSeries, QSurfaceDataProxy, QGraphsTheme
 from PySide6.QtGraphsWidgets import Q3DSurfaceWidgetItem
 import pyqtgraph
-import queue
 
 from modules.utility import Calc
 
@@ -128,7 +128,7 @@ class PhaseNoiseGraph(QObject):
     def update(self, index, frequencies, levels, rbw):  # index = marker index in 'frequencies'
         '''M1 is used in max tracking mode to find the frequency and level reference of the signal to be measured'''
 
-        # Calculate Noise Power in 1Hz bandwidth, correcting for tinySA rbw filter shape and measured bandwidth
+        # Noise Power is defined in 1Hz bandwidth, so calc correction factors for tinySA filter shape and rbw
         eqnbw = SHAPE_FACTOR.get(rbw)
         factor = 10 * np.log10(rbw * 1e3)  # correction factor from rbw to 1Hz bandwidth
         fStep = frequencies[1] - frequencies[0]
@@ -160,7 +160,114 @@ class PhaseNoiseGraph(QObject):
         self.base_noise.setData(freqOffset, baseline)
 
 
-class Spectrum(QObject):
+class PolarGraph(QObject):
+    def __init__(self, ui_widget, rings, radius):
+        super().__init__()
+        self.create_plot(ui_widget, rings, radius)
+        self.runTimer = QElapsedTimer()
+        self.samples = []
+        self.sweeptime = []  # list of timestamps of each update
+        self.amplitude = []  # list of dBm levels for the marked frequency at each update
+        self.polar = ui_widget.plotwidget.plot([], [], name='pattern', width=1, padding=0)
+
+    def create_plot(self, ui_widget, rings, radius):
+        '''Draw concentric circles and radial lines to simulate polar axes.'''
+        ui_widget.plotwidget.setAspectLocked(True)
+        ui_widget.plotwidget.hideAxis('bottom')
+        ui_widget.plotwidget.hideAxis('left')
+        for i in range(0, rings + 1):
+            r = i * radius / rings
+            circle = QGraphicsEllipseItem(-r, -r, 2 * r, 2 * r)
+            circle.setPen(pyqtgraph.mkPen('grey', width=0.3))
+            label = QGraphicsSimpleTextItem(str(-40 + 10 * i))
+            label.setBrush(QBrush(QColor('red')))
+            label.setPos(0.5, r+2)
+            label.setScale(0.2)
+            label.setTransform(QTransform().scale(1, -1))  # otherwise the text is mysteriously inverted
+            ui_widget.plotwidget.addItem(circle)
+            ui_widget.plotwidget.addItem(label)
+        r = radius - (radius/(rings*3))
+        circle = QGraphicsEllipseItem(-r, -r, 2 * r, 2 * r)
+        circle.setPen(pyqtgraph.mkPen('red', width=0.3))
+        ui_widget.plotwidget.addItem(circle)
+
+        # Add radial lines
+        for angle_deg in range(0, 360, 15):
+            angle_rad = np.deg2rad(angle_deg)
+            x = radius * np.cos(angle_rad)
+            y = radius * np.sin(angle_rad)
+            line = QGraphicsLineItem(0, 0, x, y)
+            line.setPen(pyqtgraph.mkPen('grey', width=0.5))
+            ui_widget.plotwidget.addItem(line)
+
+    def set_plot(self, ui_widget):
+        ui_widget.progress.setValue(0)
+        if ui_widget.manual.isChecked():
+            self.samples = []
+        else:
+            self.sweeptime = []  # list of timestamps of each update
+            self.amplitude = []  # list of dBm levels for the marked frequency at each update
+        self.runTimer.start()
+
+    def update_plot(self, ui_widget, index, levl):
+        if self.runTimer.isValid():
+            if ui_widget.manual.isChecked():
+                self.amplitude.append(levl[index])
+                self.sweeptime.append(ui_widget.heading.value())  # append current heading, not rotation time
+                theta = np.divide((np.multiply(self.sweeptime, np.pi)), 180)  # convert heading degrees to radians
+                self.runTimer.invalidate()
+            else:
+                if self.sweeptime == []:  # list is empty so auto-plot has just been started
+                    self.sweeptime.append(0)
+                else:
+                    self.sweeptime.append(self.runTimer.elapsed() / 1000)
+                self.amplitude.append(levl[index])
+                if ui_widget.clockwise.isChecked():
+                    # theta is the current heading in radians (based on rotation time set in GUI)
+                    theta = np.divide((np.multiply(self.sweeptime, 2 * np.pi)), ui_widget.rotateTime.value())
+                    ui_widget.heading.setValue(int(360*(theta[-1] / (2 * np.pi))))
+                else:
+                    theta = np.divide((np.multiply(self.sweeptime, -2 * np.pi)), ui_widget.rotateTime.value())
+                    ui_widget.heading.setValue(360 + int(360*(theta[-1] / (2 * np.pi))))
+                ui_widget.progress.setValue(int(100 * (abs(theta[-1]) / (2 * np.pi))))
+
+            if ui_widget.manual.isChecked():
+                peak = max(np.max(self.amplitude), ui_widget.refdBm.value())
+            else:
+                peak = np.max(self.amplitude)
+                ui_widget.refdBm.setValue(peak)
+            factor = 40 - peak  # correction to make the max signal amplitude read 40 units on the polar grid
+            dBm = np.round(np.add(self.amplitude, factor), decimals=1)
+
+            # clip to min 0 max 40dB and convert to cartesian co-ords in order to plot on simulated polar chart
+            r = np.clip(dBm, 0, 40)
+            x = np.multiply(r, np.sin(theta))
+            y = np.multiply(r, np.cos(theta))
+            self.polar.setData(x, y, pen='y')
+
+            if self.sweeptime[-1] >= ui_widget.rotateTime.value():  # auto-plot is complete
+                ui_widget.progress.setValue(100)
+                self.runTimer.invalidate()
+                if ui_widget.beamUp.isChecked() and not ui_widget.manual.isChecked():
+                    self.rotate_plot(r, theta)
+
+    def rotate_plot(self, r, theta):
+        pkIndex = np.argmax(self.amplitude)  # find the array index of the maximum signal
+        width = 0
+        for i in range(pkIndex, len(self.amplitude) - 1):
+            if self.amplitude[i] == self.amplitude[pkIndex]:
+                width += 1
+        pkIndex = pkIndex + int(width / 2)  # beam centre is half the width of a symetrical antenna main lobe
+        pkBearing = 2 * np.pi * pkIndex / len(self.amplitude)
+
+        # calculate new values to rotate display
+        theta = np.subtract(theta, pkBearing)
+        x = np.multiply(r, np.sin(theta))
+        y = np.multiply(r, np.cos(theta))
+        self.polar.setData(x, y, pen='y')
+
+
+class SpectrumGraph(QObject):
 
     def __init__(self, s_widget, w_widget, h_widget, m_widget):
         super().__init__()
@@ -233,14 +340,6 @@ class Spectrum(QObject):
                 mkr.line.setValue(startF * 1e6)
                 mkr.mkr_type()
 
-    # def updateWaterfall(self, levl, wf_size, wf_auto, dev_count, sweep_end=False):
-    #     if sweep_end:
-    #         self.wfall_data = np.roll(self.wfall_data, 1, axis=0)
-    #     if np.size(self.wfall_data, axis=1) == np.size(levl):
-    #         self.wfall_data[0] = levl  # data array is also used to calculate averages so must be updated
-    #         if wf_size > 0:
-    #             self.waterfall.setImage(self.wfall_data, autoLevels=wf_auto)
-
     def update_monitor(self, frequencies, timeNow):  # called by updateGUI at the end of every scan
         self.monitor.clear()  # if it's not cleared the GUI runs slower and slower
         if self.trace.is_visible:
@@ -264,9 +363,6 @@ class Spectrum(QObject):
             self.monitor_data[-1, 0] = timeNow
             self.monitor_data[-1, 1] = self.trace.m0.dBm
         self.monitor.plot(self.monitor_data[:, 0], self.monitor_data[:, 1], pen=self.pen)
-
-        # if self.runTimer.isValid():  # polar pattern plot is active
-        #     self.updatePolarPlot()
 
     def set_ps_mkr(self, ui_widget, freq, colour, name):  # sets preset freq markers
         mkr_pen = pyqtgraph.mkPen(colour, width=0.5, style=Qt.PenStyle.DashLine)
@@ -295,12 +391,6 @@ class Marker:
         self.create_lines(ui_widget, name, box)
         self.setSignals()
         self.spectrum = trace
-
-        # self.polar = pattern.ui.plotwidget.plot([], [], name=name, width=1, padding=0)
-        # self.runTimer = QtCore.QElapsedTimer()  # for polar plot
-        # self.sweeptime = []  # for polar plot
-        # self.amplitude = []  # for polar plot
-        # self.samples = []  # for polar plot
 
     def create_lines(self, ui_widget, name, box):
         self.line = ui_widget.addLine(88, 90, movable=True, name=name,
@@ -446,73 +536,3 @@ class Marker:
 
     def setLevel(self, setting):
         self.level = setting - 1  # array indexes start at 0 not 1
-
-
-        # def setPolarPlot(self):
-        #     if self.mkr_type != 'Off':
-        #         pattern.ui.progress.setValue(0)
-        #         if pattern.ui.manual.isChecked():
-        #             self.samples = []
-        #         else:
-        #             self.sweeptime = []
-        #             self.amplitude = []
-        #         self.runTimer.start()
-
-        # def updatePolarPlot(self):
-        #     if pattern.ui.manual.isChecked():
-        #         if len(self.samples) < pattern.scanCount.value():
-        #             self.samples.append(self.dBm)
-        #             pattern.ui.progress.setValue(int(100 * len(self.samples) / pattern.scanCount.value()))
-        #             return
-        #         else:
-        #             if pattern.ui.max.isChecked():
-        #                 self.amplitude.append(np.max(self.samples))
-        #             if pattern.ui.avg.isChecked():
-        #                 self.amplitude.append(np.average(self.samples))
-        #             if pattern.ui.min.isChecked():
-        #                 self.amplitude.append(np.min(self.samples))
-        #             self.sweeptime.append(pattern.heading.value())  # append the current heading (instead of rotation time)
-        #             self.runTimer.invalidate()
-        #             theta = np.divide((np.multiply(self.sweeptime, np.pi)), 180)  # convert heading in degrees to radians
-        #     else:
-        #         if self.sweeptime == []:  # auto plot has just been started
-        #             self.sweeptime.append(0)
-        #         else:
-        #             self.sweeptime.append(self.runTimer.elapsed() / 1000)
-        #         self.amplitude.append(self.dBm)
-        #         if pattern.ui.clockwise.isChecked():
-        #             theta = np.divide((np.multiply(self.sweeptime, 2 * np.pi)), pattern.ui.rotateTime.value())
-        #             pattern.ui.heading.setValue(int(360*(theta[-1] / (2 * np.pi))))
-        #         else:
-        #             theta = np.divide((np.multiply(self.sweeptime, -2 * np.pi)), pattern.ui.rotateTime.value())
-        #             pattern.ui.heading.setValue(360 + int(360*(theta[-1] / (2 * np.pi))))
-        #         pattern.ui.progress.setValue(int(100 * (abs(theta[-1]) / (2 * np.pi))))
-
-        #     peak = max(np.max(self.amplitude), pattern.ui.refdBm.value())  # peak is maximum when antenna points at Tx
-        #     factor = 40 - peak  # correction factor to make the max signal amplitude read 40 units on the polar grid
-        #     dBm = np.round(np.add(self.amplitude, factor), decimals=1)
-
-        #     r = np.clip(dBm, 0, 40)  # clip the signal vector to a max amplitude of 40 and minimum of 0
-        #     x = np.multiply(r, np.sin(theta))
-        #     y = np.multiply(r, np.cos(theta))
-        #     self.polar.setData(x, y, pen=self.linked.pen)
-
-        #     if self.sweeptime[-1] >= pattern.ui.rotateTime.value():  # rotation is complete
-        #         self.runTimer.invalidate()
-        #         if pattern.ui.beamUp.isChecked() and not pattern.ui.manual.isChecked():
-        #             self.rotatePolarPlot(r, theta)
-
-        # def rotatePolarPlot(self, r, theta):
-        #     pkIndex = np.argmax(self.amplitude)  # find the array index of the maximum signal
-        #     width = 0
-        #     for i in range(pkIndex, len(self.amplitude) - 1):
-        #         if self.amplitude[i] == self.amplitude[pkIndex]:
-        #             width += 1
-        #     pkIndex = pkIndex + int(width / 2)  # beam centre is half the width of a symetrical antenna main lobe
-        #     pkBearing = 2 * np.pi * pkIndex / len(self.amplitude)
-
-        #     # calculate new values to rotate display
-        #     theta = np.subtract(theta, pkBearing)
-        #     x = np.multiply(r, np.sin(theta))
-        #     y = np.multiply(r, np.cos(theta))
-        #     self.polar.setData(x, y, pen=self.linked.pen)
