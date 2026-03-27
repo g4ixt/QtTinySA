@@ -111,6 +111,7 @@ class Analyser:
         self.readings = np.ndarray(2)
         self.mkr_update_timer = QtCore.QTimer()
         self.dev_ref = []
+        self.dev_count = 0
 
     def setGraphs(self):
         self.phaseNoise = PhaseNoiseGraph(phasenoise.ui.plotWidget, np.ndarray, np.ndarray, 1)
@@ -149,11 +150,13 @@ class Analyser:
                   (2, 3): (self.s2),
                   (2, 4): (self.s2),
                   (3, 4): (self.s3)}
-        dev_count = len(usbInstr.ports)
-        for i in range(dev_count):
+        # dev_count = len(usbInstr.ports)
+        # for i in range(dev_count):
+        for i in range(self.dev_count):
             if usbInstr.ports[i].device == usbPort:  # find the device number from its USB port
                 dev_num = i
-        route = routes.get((dev_num, dev_count))  # route is the list of spectrum instances
+        # route = routes.get((dev_num, dev_count))  # route is the list of spectrum instances
+        route = routes.get((dev_num, self.dev_count))  # route is the list of spectrum instances
         try:
             for spectrum in route:  # update each spectrum with the data from the right device
                 self.updateGUI(spectrum, freq, levl, maxl, minl, sweep_end)
@@ -178,25 +181,23 @@ class Analyser:
         for mkr_num in range(4):
             self.setMarker(mkr_num)
 
-    def set_device_info(self):
+    def set_device_info(self, connect, dev_num):
         # show device information in GUI
-        gui_field = {0: QtTSA.dev0, 1: QtTSA.dev1, 2: QtTSA.dev2, 3: QtTSA.dev3}
+        gui_ctrl = {0: QtTSA.dev0, 1: QtTSA.dev1, 2: QtTSA.dev2, 3: QtTSA.dev3}
         if usbInstr.dev_list:
             for i, device in enumerate(usbInstr.dev_list):
-                gui_field.get(i).setText('')
+                gui_ctrl.get(i).setText('')
                 if device is not None:
-                    port = usbInstr.dev_list[i].usbPort[-4:] + " "
-                    name = usbInstr.dev_list[i].firmware[0] + " "
-                    fwvers = usbInstr.dev_list[i].firmware[1] + "." + usbInstr.dev_list[i].firmware[2] + " "
-                    vers = usbInstr.dev_list[i].firmware[3]
-                    battery = "\nbattery=" + usbInstr.dev_list[i].volts
-                    desc = port + name
-                    gui_field.get(i).setText(desc)
-                    gui_field.get(i).setToolTip(name + fwvers + vers + battery)
+                    gui_ctrl.get(i).setText(device.name[:12])
+                    port = device.usbPort + ' '
+                    name = device.name + ' '
+                    gui_ctrl.get(i).setToolTip(port + name + device.firmware) # + battery)
         else:
             for i in range(4):
-                gui_field.get(i).setText('')
-                gui_field.get(i).setToolTip('')
+                gui_ctrl.get(i).setText('')
+                gui_ctrl.get(i).setToolTip('')
+        if dev_num >= 0:
+            gui_ctrl.get(dev_num).setChecked(connect)
 
     def setting_change(self):
         if usbInstr.is_scanning:
@@ -207,28 +208,34 @@ class Analyser:
         tint = str("background-color: '" + pen + "';")
         boxes[box].setStyleSheet(tint)
 
+    def count_enabled(self):
+        # count the number of devices with checkboxes set to 'on'
+        gui_ctrl = np.array((QtTSA.dev0.isChecked(), QtTSA.dev1.isChecked(),
+                            QtTSA.dev2.isChecked(), QtTSA.dev3.isChecked()), dtype=np.bool)
+        return gui_ctrl.sum()
+            
     def split_scan(self, startF, stopF, points, split):
         # splits the scan startF/stopF/points across multiple devices by setting the spectrum start/stop variables
-        if not split or usbInstr.count == 1:
+        if not split or self.dev_count == 1:
             for spectrum in self.spectra:
                 spectrum.startF = startF
                 spectrum.stopF = stopF
                 spectrum.points = points  # set points per spectrum = future potential for different vals
             return
-        points = int(points/usbInstr.count)
-        span = int((stopF - startF)/usbInstr.count)
+        points = int(points/self.dev_count)
+        span = int((stopF - startF)/self.dev_count)
         starts = {1: (startF, startF, startF, startF),
                   2: (startF, startF+span, startF, startF+span),
                   3: (startF, startF+span, startF+2*span, 0),  # what happens to the zero?
                   4: (startF, startF+span, startF+2*span, startF+3*span)}
         for indx, spectrum in enumerate(self.spectra):
-            spectrum.startF = starts.get(usbInstr.count)[indx]
-            spectrum.stopF = starts.get(usbInstr.count)[indx] + span
+            spectrum.startF = starts.get(self.dev_count)[indx]
+            spectrum.stopF = starts.get(self.dev_count)[indx] + span
             spectrum.points = points
 
     def join_wf(self):
-        # join the waterfall data arrays depending on the number of devices (usbInstr.count)
-        if usbInstr.count == 1:
+        # join the waterfall data arrays depending on the number of devices (self.dev_count)
+        if self.dev_count == 1:
             wfall_data = self.s0.wfall_data
         else:
             join = {2: (self.s0.wfall_data, self.s2.wfall_data),
@@ -237,10 +244,10 @@ class Analyser:
                         self.s2.wfall_data, self.s3.wfall_data)}
             if QtTSA.split_scan.isChecked():
                 # waterfall display is join of trace frequencies
-                wfall_data = np.concatenate(join.get(usbInstr.count), axis=1)
+                wfall_data = np.concatenate(join.get(self.dev_count), axis=1)
             else:
                 # waterfall data is a stack of traces
-                wfall_data = np.concatenate(join.get(usbInstr.count), axis=0)
+                wfall_data = np.concatenate(join.get(self.dev_count), axis=0)
         QtTSA.waterfall.setXRange(0, np.size(wfall_data, axis=1))
         return wfall_data
 
@@ -252,6 +259,7 @@ class Analyser:
         self.mkr_update_timer.stop()  # stop updating markers on timer as updateGUI does it when scanning
 
         # set sweep and device-specific control values
+        self.dev_count = self.count_enabled()
         points = self.setPoints()
         time_points = settings.ui.timePoints.value()
         startF = QtTSA.start_freq.value() * 1e6  # freq in Hz
@@ -262,8 +270,8 @@ class Analyser:
         attn = self.attn()
         lna = self.lna()
         spur = self.spur()
-        if not usbInstr.dev_list:
-            popUp(QtTSA, 'TinySA not found', 'Ok', 'Critical')
+        if self.dev_count == 0 or not usbInstr.dev_list:
+            popUp(QtTSA, 'No devices found or none enabled', 'Ok', 'Critical')
             return
         usbInstr.controls(rbw, attn, lna, spur)
 
@@ -353,7 +361,8 @@ class Analyser:
     def freqOffset(self, startF, stopF):  # for mixers or LNBs external to TinySA.  Returns a tuple (startF, stopF)
         spanF = stopF - startF
         loF = bandstype.freq
-        if bandstype.freq > startF:  # LNB LO is higher in freq than wanted signal
+        logging.info(f'LO freq = {loF} startF = {startF} stopF = {stopF}')
+        if loF > startF:  # high side LO so IF is inverted compared to (usual) low side LO
             scanF = (loF - startF - spanF, loF - startF)
         else:
             scanF = (startF - loF, startF - loF + spanF)
@@ -362,7 +371,7 @@ class Analyser:
             scanF = (88 * 1e6, 108 * 1e6)
             logging.info('LO frequency offset error, check settings')
             popUp(QtTSA, "LO frequency offset error, check settings", 'Ok', 'Critical')
-        logging.debug(f'freqOffset(): scanF = {scanF}')
+        logging.info(f'freqOffset(): scanF = {scanF}')
         return scanF
 
     def rbwMask(self, startF, stopF):
@@ -420,12 +429,11 @@ class Analyser:
     # called by router()
     def updateGUI(self, spectrum, freq, levl, maxl, minl, sweep_end):
         # reverse the arrays if in LNB/Mixer mode when LO is above measured freq
-        if bandstype.freq > QtTSA.start_freq.value():
+        if bandstype.freq > QtTSA.start_freq.value() * 1e6:
             freq = freq[::-1]
             levl = levl[::-1]
             maxl = maxl[::-1]
             minl = minl[::-1]
-            logging.info(f'startF = {freq[0]} stopF = {freq[-1]}')
             QtTSA.waterfall.invertX(True)
         else:
             QtTSA.waterfall.invertX(False)
@@ -502,6 +510,7 @@ class Analyser:
         QtTSA.run3D.setEnabled(True)
 
     def set_dev_combo(self, ui_name, dev_name):
+        # populates a combo box 'dev_type' on 'ui_name' with a list of devices of type 'dev_name'
         ui_name.port.clear()
         self.dev_ref = []
         for device in usbInstr.dev_list:
@@ -1108,7 +1117,7 @@ def connect(dbFile, con, target):
     if QtCore.QFile.exists(os.path.join(dbPath, dbFile)):
         db.setDatabaseName(os.path.join(dbPath, dbFile))
         db.open()
-        logging.info(f'{dbFile} open: {db.isOpen()}  Connection = "{db.connectionName()}"')
+        logging.debug(f'{dbFile} open: {db.isOpen()}  Connection = "{db.connectionName()}"')
         logging.debug(f'tables available = {db.tables()}')
         checkVersion(db, target, dbFile)  # check that the actual database version matches the target version
     else:
@@ -1120,7 +1129,7 @@ def connect(dbFile, con, target):
 
 def disconnect(db):
     db.close()
-    logging.info(f'Database {db.databaseName()} open: {db.isOpen()}')
+    logging.debug(f'Database {db.databaseName()} open: {db.isOpen()}')
     QSqlDatabase.removeDatabase(db.databaseName())
 
 
@@ -1370,7 +1379,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.26')
+app.setApplicationVersion(' v1.3.27')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
@@ -1584,7 +1593,6 @@ QtTSA.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
 # try to open a USB connection to hardware....... need to check if it works in Windows now
 usbInstr = USBdevice()
 tinySA = Analyser()
-# usbInstr.probe()
 
 usbCheck = QtCore.QTimer()
 usbCheck.timeout.connect(usbInstr.probe)

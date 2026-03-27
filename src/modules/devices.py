@@ -22,7 +22,7 @@ threadpool = QThreadPool()
 
 class USBdevice(QObject):
     stopped = Signal(bool)
-    update_info = Signal()
+    update_info = Signal(bool, int)
 
     def __init__(self):
         super().__init__()
@@ -31,7 +31,7 @@ class USBdevice(QObject):
         self.setSignals()
         self.run_connect = False
         self.is_scanning = False
-        self.count = 0
+        self.count = 0  # used to count 'available' devices, not 'in use' devices
         self.dev_list = None
 
     def setSignals(self):
@@ -43,8 +43,8 @@ class USBdevice(QObject):
                          "error": self.signals.error}
 
     def probe(self):
-        VID = (0x0483, 0x1d50)  # 1155 tinySA/NanoVNA, limeSDR
-        PID = (0x5740, 0x6108)  # 22336 tinySA/NanoVNA, limeSDR
+        VID = (0x0483, 0x1d50, 0x04b4)  # 1155 tinySA/NanoVNA, limeSDR, Clivo
+        PID = (0x5740, 0x6108, 0x0008)  # 22336 tinySA/NanoVNA, limeSDR, Clivo
         usbPorts = list_ports.comports()
         # detect devices as they connect
         for port in usbPorts:
@@ -62,28 +62,31 @@ class USBdevice(QObject):
         if self.run_connect:
             self.connect()
 
-    def connect(self):  # imperfect, need to handle test fails
-        # try to set USB connections to different hardware....... need to check if it works in Windows now
+    def connect(self):
+        # try to set USB connections to different hardware... need to check if it works in Windows now
         self.dev0 = self.dev1 = self.dev2 = self.dev3 = None
         self.dev_list = [self.dev0, self.dev1, self.dev2, self.dev3]  # all of which are set as None
         self.run_connect = False
         self.count = 0
-
         for index, port in enumerate(self.ports):
-            dev_type = {"tinySA": Tiny(port.device, port.product, self.dev_sigs, basic=True),
-                        "tinySA4": Tiny(port.device, port.product, self.dev_sigs, basic=False),
-                        "LimeSDR-USB": Lime(port.device, port.product, self.dev_sigs),
-                        "NanoVnaPro Virtual ComPort": Nano(port.device, port.product, self.dev_sigs)}
-
-            # iterate through the usb ports with appropriate VID/PID devices connected and test serial comms
+            # iterate through the ports, instantiate device classes and test serial comms
             if self.dev_list[index] is None and len(self.ports) > index:
-                self.dev_list[index] = dev_type[port.product]  # instantiate device class & write instance to list
+                # instantiate device class & write its instance to the list, overwriting 'None'
+                if port.product == "tinySA":  
+                    self.dev_list[index] = Tiny(port.device, port.product, self.dev_sigs, basic=True)
+                if port.product == "tinySA4":  
+                    self.dev_list[index] = Tiny(port.device, port.product, self.dev_sigs, basic=False)
+                if port.product == "LimeSDR-USB":
+                    self.dev_list[index] = Lime(port.device, port.product, self.dev_sigs)
+                if port.product == "NanoVnaPro Virtual ComPort":
+                    self.dev_list[index] = Nano(port.device, port.product, self.dev_sigs)
                 self.count += 1
-                hardware = self.dev_list[index]
-                hardware.test(port.device)  # invoke the test function of the device class instance
-                self.update_info.emit()
-        self.update_info.emit()
-        #  self.dev_list[] now contains up to 4 device class instance objects, or None values.
+                # test using its specific commands and store results in its class instance
+                test = self.dev_list[index].test(port.device)
+                if test is True:
+                    self.update_info.emit(True, index)
+                else:
+                    logging.info(f'test of {port} failed')
 
     def disconnect(self, usbPort):
         for i, device in enumerate(self.dev_list):
@@ -94,7 +97,8 @@ class USBdevice(QObject):
                 del device
                 self.dev_list[i] = None
                 self.count -= 1
-        self.update_info.emit()
+                self.update_info.emit(False, i)
+        # self.update_info.emit()
 
     def closePort(self):
         for device in self.dev_list:
@@ -113,7 +117,7 @@ class USBdevice(QObject):
                 device.sweeping = True
                 threadpool.start(device.sa)
                 self.is_scanning = True
-                self.update_info.emit()
+                self.update_info.emit(False, -1)
 
     def controls(self, rbw, attn, lna, spur):
         for device in self.dev_list:
@@ -131,7 +135,7 @@ class USBdevice(QObject):
                     logging.debug('waiting for measurement thread to stop')
                     time.sleep(0.1)
         self.is_scanning = False
-        self.update_info.emit()
+        self.update_info.emit(False, -1)
         self.stopped.emit(restart)
 
     # def identify(self, port):
@@ -174,19 +178,22 @@ class Tiny(QObject):
         self.usb = None
         self.usbPort = usbPort
         self.firmware = None
+        self.name = None
+        self.volts = 0
         self.sweeping = None
         self.threadRunning = False
+        self.enabled = False
         self.basic = basic
         self.setSignals(sigs)
         self.setDevice(usbPort)
-        self.volts = 0
+        self.id = None
 
     def setDevice(self, usbPort):
         self.setScale()
         # self.scanMemory = 10  # test, need to get this from the GUI
         try:
             self.usb = serial.Serial(usbPort, baudrate=576000)
-            logging.info(f'Serial port {usbPort} open: {self.usb.isOpen()}')
+            logging.debug(f'Serial port {usbPort} open: {self.usb.isOpen()}')
         except serial.SerialException:
             logging.info('Serial port exception. Is your username in the "dialout" group?')
             # popUp(QtTSA, 'Serial port exception', 'Ok', 'Critical')
@@ -209,33 +216,26 @@ class Tiny(QObject):
         self.fifoTimer.timeout.connect(self.usbSend)  # sends queued commands to tinySA (when not scanning)
         self.fifoTimer.start(500)  # 500mS
 
-    def test(self, usbPort):  # tests tinySA comms and initialise if found
-        self.is_tinySA = False
+    def test(self, usbPort):  # tests tinySA comms
         if self.usb:
             for i in range(4):  # try 4 times to communicate with tinySA over USB serial
-                firmware = self.version()
-                if firmware[:6] == 'tinySA':
-                    logging.info(f'{usbPort} test {i} reports firmware version {firmware[:16]}')
+                version = self.version()
+                if version is not None:
+                    firmware = str.splitlines(version)
+                    self.firmware = firmware[0].split('_')[-1]
+                    # logging.info(f'{usbPort} test {i} reports {self.firmware}')
                     break
                 else:
-                    time.sleep(1)
-            # split firmware into a list of [device, major version number, minor version number, other stuff]
-            self.firmware = firmware.replace('_', '-').split('-')
-            if firmware[:6] == 'tinySA':
-                self.is_tinySA = True
-                sd_card = str.splitlines(self.listSD())
-                if "ID.bmp 307322" in sd_card:
-                    logging.info(f'ID found = {sd_card[-1]}')
-
-                if firmware[0] == 'tinySA4' and float(self.firmware[1][-3:] + self.firmware[2]) < 1.4177:
-                    logging.info('for fastest scan speed, upgrade firmware to v1.4-177 or later')
+                    time.sleep(0.5)
+            if version is not None:
                 self.volts = self.battery()
-                if self.firmware[1][0] == "v":
-                    return self.firmware  # setForDevice needs this info
-                else:
-                    logging.info(f'{usbPort} test found unexpected firmware {firmware}')
+                info = self.info()
+                self.id = self.serial_num().split(' ')[-1]
+                self.name = str.splitlines(info)[0]
+                logging.info(f'Connected {self.name} {self.id} {self.firmware} on {usbPort}')
+                return True
             else:
-                logging.info(f'firmware {firmware} on {usbPort} is not a tinySA')
+                return False
 
     def set_ctrls(self, rbw, attn, lna, spur):
         self.clearBuffer()
@@ -247,14 +247,8 @@ class Tiny(QObject):
     def close(self):
         if self.usb:
             self.usb.close()
-            logging.info(f'Close: Serial port {self.usbPort} open: {self.usb.isOpen()}')
+            logging.debug(f'Close: Serial port {self.usbPort} open: {self.usb.isOpen()}')
             self.usb = None
-
-    def clearBuffer(self):
-        # self.usb.timeout = 1
-        while self.usb.inWaiting():
-            self.usb.read_all()  # keep the serial buffer clean
-            time.sleep(0.01)
 
     def sweepTimeout(self, frequencies, rbwTxt, spur):  # freqs are in Hz
         startF = frequencies[0]
@@ -431,6 +425,14 @@ class Tiny(QObject):
         # version = 'tinySA_v1.4-175-g1419a93'   # for testing basic
         return version
 
+    def info(self):
+        info = self.serialQuery('info\r')
+        return info
+
+    def serial_num(self):
+        sn = self.serialQuery('deviceid\r')
+        return sn
+
     def spur(self, sType):
         if sType == 'auto' and self.basic:  # tinySA3 (basic) has no auto spur mode
             sType = 'on'
@@ -492,6 +494,35 @@ class Tiny(QObject):
             for i in range(len(SD.splitlines())):
                 ls.append(SD.splitlines()[i].split(" ")[0])
 
+    def lna(self, on=True):
+        if self.basic:  # it has no LNA
+            return
+        if on:
+            command = 'lna on\r'
+            self.fifo.put('attenuate 0\r')
+        else:
+            command = 'lna off\r'
+            self.fifo.put('attenuate auto\r')
+        self.fifo.put(command)
+
+    def attenuator(self, setting):
+        if setting != "auto":
+            command = f'attenuate {str(setting)}\r'
+        else:
+            command = f'attenuate {setting}\r'
+        self.fifo.put(command)
+
+    def setRBW(self, rbw):  # may be called by measurement thread as well as normally ## stop doing that ########
+        logging.debug(f'rbw = {rbw}')
+        command = f'rbw {rbw}\r'
+        self.fifo.put(command)
+
+    # @Slot()
+    # def threadEnds(self):
+    #     if int(self.firmware[2]) >= 177:  # the firmware version number
+    #         self.serialWrite('abort\r')
+    #     self.fifoTimer.start(500)  # start watching for commands
+
     # @Slot()
     # def saveFile(self, saveSingle=True):
     #     filebrowse.ui.saveProgress.setValue(0)
@@ -528,44 +559,66 @@ class Tiny(QObject):
     #         pixmap.loadFromData(self.memF.getvalue())
     #         filebrowse.ui.picture.setPixmap(pixmap)
 
-    def lna(self, on=True):
-        if self.basic:  # it has no LNA
-            return
-        if on:
-            command = 'lna on\r'
-            self.fifo.put('attenuate 0\r')
-        else:
-            command = 'lna off\r'
-            self.fifo.put('attenuate auto\r')
-        self.fifo.put(command)
-
-    def attenuator(self, setting):
-        if setting != "auto":
-            command = f'attenuate {str(setting)}\r'
-        else:
-            command = f'attenuate {setting}\r'
-        self.fifo.put(command)
-
-    def setRBW(self, rbw):  # may be called by measurement thread as well as normally ## stop doing that ########
-        logging.debug(f'rbw = {rbw}')
-        command = f'rbw {rbw}\r'
-        self.fifo.put(command)
-
-    # @Slot()
-    # def threadEnds(self):
-    #     if int(self.firmware[2]) >= 177:  # the firmware version number
-    #         self.serialWrite('abort\r')
-    #     self.fifoTimer.start(500)  # start watching for commands
-
-
 class Nano(QObject):
     def __init__(self, usbPort, product, sigs):
         super().__init__()
-        self.usb = usbPort
+        self.usb = None
+        self.usbPort = usbPort
         self.product = product
+        self.firmware = None
+        self.sweeping = None
         self.setSignals(sigs)
-        # self.device_id = self.ports.index(usbPort)
-        # nano vna
+        self.threadRunning = False
+        self.setDevice(usbPort)
+        self.sn = None
+
+    def setDevice(self, usbPort):
+        try:
+            self.usb = serial.Serial(usbPort, baudrate=576000)
+            logging.debug(f'Serial port {usbPort} open: {self.usb.isOpen()}')
+        except serial.SerialException:
+            logging.info('Serial port exception. Is your username in the "dialout" group?')
+            # popUp(QtTSA, 'Serial port exception', 'Ok', 'Critical')
+            return
+        self.clearBuffer()
+        self.setCmdQ()
+        # self.setAbort(True)
+        # self.setTime()
+
+    def close(self):
+        if self.usb:
+            self.usb.close()
+            logging.debug(f'Close: Serial port {self.usbPort} open: {self.usb.isOpen()}')
+            self.usb = None
+
+    def clearBuffer(self):
+        while self.usb.inWaiting():
+            self.usb.read_all()  # keep the serial buffer clean
+            time.sleep(0.01)
+
+    @Slot()
+    def usbSend(self):
+        while self.fifo.qsize() > 0:
+            command = self.fifo.get(block=True, timeout=1)
+            logging.debug(f' command = {command}')
+            self.serialWrite(command)
+
+    def serialQuery(self, command):
+        self.usb.write(command.encode())
+        self.usb.read_until(command.encode() + b'\n')  # skip command echo
+        response = self.usb.read_until(b'ch> ')  # until prompt
+        return response[:-6].decode()  # remove prompt
+
+    def serialWrite(self, command):
+        logging.debug(f'serialWrite: command = {command}')
+        self.usb.write(command.encode())
+        self.usb.read_until(b'ch> ')  # skip command echo and prompt
+ 
+    def setCmdQ(self):
+        self.fifo = queue.SimpleQueue()
+        self.fifoTimer = QTimer(self)
+        self.fifoTimer.timeout.connect(self.usbSend)  # sends queued commands to Nano (when not scanning)
+        self.fifoTimer.start(500)  # 500mS
 
     def setSignals(self, sigs):
         self.signals = WorkerSignals()
@@ -573,33 +626,39 @@ class Nano(QObject):
         self.signals.saveResults.connect(sigs["save"])
         self.signals.sweepEnds.connect(sigs["ends"])
 
-    def test(self, usbPort):  # tests NanoVNA comms and initialise if found
-        try:
-            self.usb = serial.Serial(usbPort, baudrate=576000)
-            logging.info(f'Serial port {usbPort} open: {self.usb.isOpen()}')
-        except serial.SerialException:
-            logging.info('Serial port exception. Is your username in the "dialout" group?')
-            # popUp(QtTSA, 'Serial port exception', 'Ok', 'Critical')
+    def test(self, usbPort):  # tests tinySA comms
         if self.usb:
             for i in range(4):  # try 4 times to communicate with tinySA over USB serial
-                firmware = self.version()
-                if firmware:
-                    logging.info(f'{usbPort} test {i} reports firmware version {firmware}')
+                version = self.version()
+                if version is not None:
+                    self.firmware = version
                     break
+                else:
+                    time.sleep(0.5)
+            if version is not None:
+                info = self.info()
+                self.sn = self.serial_num()
+                self.name = str.splitlines(info)[0].split(' ')[-1]
+                logging.info(f'Connected {self.name} {self.sn} v{self.firmware} on {usbPort}')
+                return True
             else:
-                time.sleep(1)
+                return False
+
+    def set_ctrls(self, rbw, attn, lna, spur):
+        self.clearBuffer()
 
     def version(self):
         version = self.serialQuery('version\r')
         return version
 
-    def serialQuery(self, command):
-        self.usb.write(command.encode())
-        self.usb.read_until(command.encode() + b'\n')  # skip command echo
-        response = self.usb.read_until(b'ch> ')  # until prompt
-        logging.debug(f'serialQuery: response = {response}')
-        return response[:-6].decode()  # remove prompt
-
+    def info(self):
+        info = self.serialQuery('info\r')
+        return info
+    
+    def serial_num(self):
+        sn = self.serialQuery('SN\r')
+        return sn
+    
     # all commands
 
     # help:                lists all the registered commands
