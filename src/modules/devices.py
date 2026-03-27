@@ -72,13 +72,15 @@ class USBdevice(QObject):
             # iterate through the ports, instantiate device classes and test serial comms
             if self.dev_list[index] is None and len(self.ports) > index:
                 # instantiate device class & write its instance to the list, overwriting 'None'
-                if port.product == "tinySA":  
+                if port.product == "tinySA":
                     self.dev_list[index] = Tiny(port.device, port.product, self.dev_sigs, basic=True)
-                if port.product == "tinySA4":  
+                if port.product == "tinySA4":
                     self.dev_list[index] = Tiny(port.device, port.product, self.dev_sigs, basic=False)
                 if port.product == "LimeSDR-USB":
                     self.dev_list[index] = Lime(port.device, port.product, self.dev_sigs)
                 if port.product == "NanoVnaPro Virtual ComPort":
+                    self.dev_list[index] = Nano(port.device, port.product, self.dev_sigs)
+                if port.product == "CDC-ACM Demo":
                     self.dev_list[index] = Nano(port.device, port.product, self.dev_sigs)
                 self.count += 1
                 # test using its specific commands and store results in its class instance
