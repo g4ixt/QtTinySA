@@ -43,8 +43,8 @@ class USBdevice(QObject):
                          "error": self.signals.error}
 
     def probe(self):
-        VID = (0x0483, 0x1d50, 0x04b4)  # 1155 tinySA/NanoVNA, limeSDR, Clivo
-        PID = (0x5740, 0x6108, 0x0008)  # 22336 tinySA/NanoVNA, limeSDR, Clivo
+        VID = (0x0483, 0x1d50, 0x04b4)  # 1155 tinySA/NanoVNA, limeSDR, NanoVNA V2 +4
+        PID = (0x5740, 0x6108, 0x0008)  # 22336 tinySA/NanoVNA, limeSDR, NanoVNA V2 +4
         usbPorts = list_ports.comports()
         # detect devices as they connect
         for port in usbPorts:
@@ -55,10 +55,8 @@ class USBdevice(QObject):
         # detect devices that have been turned off or lost contact
         for port in self.ports:
             if port not in usbPorts:
-                logging.info(f'{port.product} has disconnected from {port.device}')
                 self.disconnect(port.device)
                 self.ports.remove(port)
-
         if self.run_connect:
             self.connect()
 
@@ -73,15 +71,15 @@ class USBdevice(QObject):
             if self.dev_list[index] is None and len(self.ports) > index:
                 # instantiate device class & write its instance to the list, overwriting 'None'
                 if port.product == "tinySA":
-                    self.dev_list[index] = Tiny(port.device, port.product, self.dev_sigs, basic=True)
+                    self.dev_list[index] = Tiny(port.device, port.product, self.dev_sigs, index, basic=True)
                 if port.product == "tinySA4":
-                    self.dev_list[index] = Tiny(port.device, port.product, self.dev_sigs, basic=False)
+                    self.dev_list[index] = Tiny(port.device, port.product, self.dev_sigs, index, basic=False)
                 if port.product == "LimeSDR-USB":
-                    self.dev_list[index] = Lime(port.device, port.product, self.dev_sigs)
+                    self.dev_list[index] = Lime(port.device, port.product, self.dev_sigs, index)
                 if port.product == "NanoVnaPro Virtual ComPort":
-                    self.dev_list[index] = Nano(port.device, port.product, self.dev_sigs)
+                    self.dev_list[index] = Nano(port.device, port.product, self.dev_sigs, index)
                 if port.product == "CDC-ACM Demo":
-                    self.dev_list[index] = Nano(port.device, port.product, self.dev_sigs)
+                    self.dev_list[index] = Nano(port.device, port.product, self.dev_sigs, index)
                 self.count += 1
                 # test using its specific commands and store results in its class instance
                 test = self.dev_list[index].test(port.device)
@@ -93,7 +91,9 @@ class USBdevice(QObject):
     def disconnect(self, usbPort):
         for i, device in enumerate(self.dev_list):
             if device and device.usbPort == usbPort:
-                logging.info(f'removing disconnected {usbPort} device instance')
+               #logging.info(f'{port.product} has disconnected from {port.device}')
+               #logging.info(f'removing disconnected {device.name} {usbPort} device instance')
+                logging.info(f'{device.name} {device.sn} has disconnected from {device.usbPort}')
                 self.stop(restart=False)
                 device.close()
                 del device
@@ -107,19 +107,31 @@ class USBdevice(QObject):
             if device:
                 device.close()
 
-    def start(self, spectra, rbw, depth, split, loop):
+    def renumber(self, num_on):
+        count = 0
+        for device in self.dev_list:
+            if device is not None:
+                if device.enabled:
+                    device.id = count
+                    count += 1
+                else:
+                    device.id = num_on + 1
+            
+
+    def start(self, spectra, rbw, depth, loop):
         for index, device in enumerate(self.dev_list):  # dev_list contains the device class instances
             if device is not None:
-                device.usbSend()
-                startF = spectra[index].startF
-                stopF = spectra[index].stopF
-                points = spectra[index].points
-                device.sa = Worker(device.measurement, startF, stopF, points, rbw, loop)
-                device.fifoTimer.stop()
-                device.sweeping = True
-                threadpool.start(device.sa)
-                self.is_scanning = True
-                self.update_info.emit(False, -1)
+                if device.enabled:
+                    device.usbSend()
+                    startF = spectra[index].startF
+                    stopF = spectra[index].stopF
+                    points = spectra[index].points
+                    device.sa = Worker(device.measurement, startF, stopF, points, rbw, loop)
+                    device.fifoTimer.stop()
+                    device.sweeping = True
+                    threadpool.start(device.sa)
+                    self.is_scanning = True
+                    self.update_info.emit(False, -1)
 
     def controls(self, rbw, attn, lna, spur):
         for device in self.dev_list:
@@ -150,7 +162,7 @@ class USBdevice(QObject):
 
 class WorkerSignals(QObject):
     error = Signal(object, str, str, str)
-    result = Signal(object, np.ndarray, np.ndarray, np.ndarray, np.ndarray, bool)
+    result = Signal(object, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, bool)
     fullSweep = Signal(np.ndarray, np.ndarray)
     saveResults = Signal(np.ndarray, np.ndarray)
     sweepEnds = Signal(np.ndarray)
@@ -175,7 +187,7 @@ class Worker(QRunnable):
 
 
 class Tiny(QObject):
-    def __init__(self, usbPort, product, sigs, basic=False):
+    def __init__(self, usbPort, product, sigs, index, basic=False):
         super().__init__()
         self.usb = None
         self.usbPort = usbPort
@@ -188,7 +200,8 @@ class Tiny(QObject):
         self.basic = basic
         self.setSignals(sigs)
         self.setDevice(usbPort)
-        self.id = None
+        self.id = index
+        self.sn = None
 
     def setDevice(self, usbPort):
         self.setScale()
@@ -232,9 +245,9 @@ class Tiny(QObject):
             if version is not None:
                 self.volts = self.battery()
                 info = self.info()
-                self.id = self.serial_num().split(' ')[-1]
+                self.sn = self.serial_num().split(' ')[-1]
                 self.name = str.splitlines(info)[0]
-                logging.info(f'Connected {self.name} {self.id} {self.firmware} on {usbPort}')
+                logging.info(f'Connected {self.name} {self.sn} {self.firmware} on {usbPort}')
                 return True
             else:
                 return False
@@ -304,7 +317,7 @@ class Tiny(QObject):
             else:
                 command = f'scanraw {int(startF)} {int(stopF)} {int(points)} 1\r'
 
-            self.usb.timeout = 10  # self.sweepTimeout(frequencies)
+            self.usb.timeout = 1  # self.sweepTimeout(frequencies)
 
             # firmware versions before 4.177 don't support auto-repeating scanraw so command must be sent each sweep
             if firstRun or not loop:
@@ -316,6 +329,7 @@ class Tiny(QObject):
                     logging.info('serial port exception')
                     self.signals.error.emit(None, 'serial port exception', 'Ok', 'Critical')
                     self.sweeping = False
+                    self.usb.reset_input_buffer()
                     break
 
             # read the measurement data from the tinySA
@@ -325,11 +339,14 @@ class Tiny(QObject):
                     logging.debug(f'dataBlock: {dataBlock}\n')
                 except serial.SerialException:
                     self.sweeping = False
+                    self.signals.error.emit(None, 'serial port exception', 'Ok', 'Critical')
+                    self.usb.reset_input_buffer()
                     break
                 if dataBlock == b'}':  # from FW165 jog button press returns different value
                     logging.info('screen touched or jog button pressed')
                     self.signals.error.emit(None, 'screen touched or jog button pressed', 'Ok', 'Info')
                     self.sweeping = False
+                    self.usb.reset_input_buffer()
                     break
                 try:
                     c, data = struct.unpack('<' + 'cH', dataBlock)
@@ -337,6 +354,7 @@ class Tiny(QObject):
                     logging.info('data error')
                     self.signals.error.emit(None, 'serial data error', 'Ok', 'Critical')
                     self.sweeping = False
+                    self.usb.reset_input_buffer()
                     break
                 levl[point] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
 
@@ -352,24 +370,26 @@ class Tiny(QObject):
                             logging.info('QtTinySA display is out of sync with tinySA frequency')
                             self.signals.error.emit(None, 'QtTinySA display out of sync', 'Ok', 'Critical')
                             self.sweeping = False
+                            self.usb.reset_input_buffer()
                             break
                         sweepCount += 1
                         firstRun = False
                 timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
                 if timeElapsed/1e6 > 100:  # mS needs to be settings.ui.intervalBox.value():
                     # send the measurement data to router() in the Analyser class
-                    self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, False)
+                    self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, self.id, False)
                     updateTimer.start()
 
             # also send the measurement data to router() at the end of each sweep
-            self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, True)
+            self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, self.id, True)
         try:
             self.usb.read(2)  # discard the command prompt that the tinySA sends when sweeping ends
             self.serialWrite('abort\r')
-            self.clearBuffer()
+            self.usb.reset_input_buffer()
         except serial.SerialException:
             logging.info('tinySA serial comms failed')
             self.signals.error.emit(None, 'tinySA serial comms failed', 'Ok', 'Critical')
+            self.usb.reset_input_buffer()
         self.threadRunning = False
 
     @Slot()
@@ -392,9 +412,10 @@ class Tiny(QObject):
         self.usb.read_until(b'ch> ')  # skip command echo and prompt
 
     def clearBuffer(self):
-        while self.usb.inWaiting():
-            self.usb.read_all()  # keep the serial buffer clean
-            time.sleep(0.01)
+        self.usb.reset_input_buffer()
+        # while self.usb.inWaiting():
+        #     self.usb.read_all()  # keep the serial buffer clean
+        #     time.sleep(0.01)
 
     def pause(self):
         self.fifo.put('pause\r')
@@ -562,7 +583,7 @@ class Tiny(QObject):
     #         filebrowse.ui.picture.setPixmap(pixmap)
 
 class Nano(QObject):
-    def __init__(self, usbPort, product, sigs):
+    def __init__(self, usbPort, product, sigs, index):
         super().__init__()
         self.usb = None
         self.usbPort = usbPort
@@ -571,12 +592,14 @@ class Nano(QObject):
         self.sweeping = None
         self.setSignals(sigs)
         self.threadRunning = False
+        self.enabled = False
         self.setDevice(usbPort)
+        self.id = index
         self.sn = None
 
     def setDevice(self, usbPort):
         try:
-            self.usb = serial.Serial(usbPort, baudrate=576000)
+            self.usb = serial.Serial(usbPort, baudrate=576000, timeout=3)
             logging.debug(f'Serial port {usbPort} open: {self.usb.isOpen()}')
         except serial.SerialException:
             logging.info('Serial port exception. Is your username in the "dialout" group?')
@@ -584,8 +607,7 @@ class Nano(QObject):
             return
         self.clearBuffer()
         self.setCmdQ()
-        # self.setAbort(True)
-        # self.setTime()
+        self.signals.error.emit(None, 'nanoVNA support is experimental.  Readings are never calibrated', 'Ok', 'Warn')
 
     def close(self):
         if self.usb:
@@ -594,9 +616,10 @@ class Nano(QObject):
             self.usb = None
 
     def clearBuffer(self):
-        while self.usb.inWaiting():
-            self.usb.read_all()  # keep the serial buffer clean
-            time.sleep(0.01)
+        self.usb.reset_input_buffer()
+        # while self.usb.inWaiting():
+        #     self.usb.read_all()  # keep the serial buffer clean
+        #     time.sleep(0.01)
 
     @Slot()
     def usbSend(self):
@@ -627,6 +650,7 @@ class Nano(QObject):
         self.signals.result.connect(sigs["result"])
         self.signals.saveResults.connect(sigs["save"])
         self.signals.sweepEnds.connect(sigs["ends"])
+        self.signals.error.connect(sigs["error"])
 
     def test(self, usbPort):  # tests tinySA comms
         if self.usb:
@@ -645,6 +669,82 @@ class Nano(QObject):
                 return True
             else:
                 return False
+
+    def measurement(self, startF, stopF, points, rbw, depth, loop=True):  # run in separate thread
+        # Nano points range capability is 11 to 301
+        chunk_points = 100
+        points = round(int(points/chunk_points)) * chunk_points  # set points to a whole multiple of chunk
+        self.threadRunning = True
+        
+        # # create freq array here.  Non-Tiny devices may send list of freqs measured, so this preserves compatibility
+        levl = np.full(points, -140, dtype=float)
+        maxl = np.full(points, -140, dtype=float)
+        minl = np.full(points, 0, dtype=float)
+        
+        # the freqs measured by the nano !== freq but near enough for testing
+        freq = np.linspace(startF, stopF, points, dtype=np.int64)
+        
+        cr = b'\r'
+        lf = b'\n'
+        crlf = cr + lf
+        prompt = b'ch> '
+    
+        while self.sweeping:
+            # updateTimer.start()  # used to trigger the signal that sends measurements to updateGUI()
+            
+            for i in range(0, points, chunk_points):   
+                start = freq[i]
+                if i + chunk_points < points:
+                    stop = freq[i + chunk_points]
+                else:
+                    stop = freq[-1]
+                scan = f'scan {int(start)} {int(stop)} {int(chunk_points)} 7'  # opt 7 = freq, S11, S21
+                
+                # send scan command and options terminated by CR
+                try:
+                    self.usb.timeout = 0  # don't block
+                    self.usb.write(scan.encode() + cr)
+                    while self.usb.in_waiting == 0:
+                        time.sleep(0.000001)
+    
+                    self.usb.timeout = None  # block until response is read
+                    response = self.usb.read_until(scan.encode() + crlf)
+                    chunk = self.usb.read_until(crlf + prompt)
+                    chunk = chunk[:-len(crlf + prompt)].decode()
+                    response = chunk.split()
+                    response = np.loadtxt(response, delimiter=' ', dtype=float)
+                    response = np.reshape(response, (-1, 5))
+                except (serial.SerialException, ValueError):
+                    self.sweeping = False
+                    self.usb.reset_input_buffer()
+                    break
+                
+                dB = 20 * np.log10(abs(response[0:, 1])) # RL from s11
+                try:
+                    if i + chunk_points <= points:
+                        levl[i:i+chunk_points] = dB
+                    else:
+                        levl[i:-1] = dB[0:len(levl[i:-1])]
+                    np.fmax(levl, maxl, out=maxl)  # compare current level with max and min
+                    np.fmin(levl, minl, out=minl)  # and save them back on themselves
+                    if not self.sweeping:
+                        self.usb.reset_input_buffer()
+                        break
+                except ValueError:
+                    # may happen on auto-restart after settings change
+                    continue
+                
+                logging.debug(f'{levl}')
+                
+                #timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
+                #if timeElapsed/1e6 > 100:  # mS needs to be settings.ui.intervalBox.value():
+                    # send the measurement data to router() in the Analyser class
+                self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, self.id, False)
+                    #updateTimer.start()
+            # also send the measurement data to router() at the end of each sweep
+            self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, self.id, True)
+            self.usb.reset_input_buffer()
+        self.threadRunning = False
 
     def set_ctrls(self, rbw, attn, lna, spur):
         self.clearBuffer()
@@ -671,6 +771,7 @@ class Nano(QObject):
     # data:                usage: data [array]
     # frequencies:         usage: frequencies
     # scan:                usage: scan {start(Hz)} {stop(Hz)} [points] [outmask]
+    #                               points range 11 to 301
     # sweep:               usage: sweep [start(Hz)] [stop(Hz)] [points]
     # touchcal:            usage: touchcal
     # touchtest:           usage: touchtest
@@ -690,11 +791,17 @@ class Nano(QObject):
     # info:                usage: NanoVNA-F V2 info
     # SN:                  usage: NanoVNA-F V2 Serial Numbel
 
+# data [0-6]: Dumps specific sweep data?
+# 0:S11, 1:S21, 2:Directivity, 3:Source Match, 4:Reflection Tracking
+# 5:Transmission Tracking, 6:Isolation
+
 
 class Lime(QObject):
-    def __init__(self, usbPort, product, sigs):
+    def __init__(self, usbPort, product, sigs, index):
         super().__init__()
         self.setSignals(sigs)
+        self.enabled = False
+        self.id = index
         # soapy
 
     def setSignals(self, sigs):
@@ -711,15 +818,19 @@ class Lime(QObject):
 
 
 class RTL(QObject):
-    def __init__(self, usbPort, product):
+    def __init__(self, usbPort, product, index):
         super().__init__()
+        self.enabled = False
+        self.id = index
         # soapy
 
 
 class SiglentSA(QObject):
-    def __init__(self, visaPort, product, sigs):
+    def __init__(self, visaPort, product, sigs, index):
         super().__init__()
         self.setSignals(sigs)
+        self.enabled = False
+        self.id = index
         # pyvisa
 
     def setSignals(self, sigs):

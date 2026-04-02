@@ -352,8 +352,8 @@ class SpectrumGraph(QObject):
         unit, multiple = Calc.unit(self.trace.m0.line.value())  # set units
         self.monitor.setTitle(f'{(self.trace.m0.line.value()/multiple):.{decimal}f} {unit}')
 
-        depth = np.size(self.monitor_data, 0)  # depth is set in 'preferences'
-        if self.count < depth:
+        time_points = np.size(self.monitor_data, 0)  # set in 'QtTinySA.scan'
+        if self.count < time_points:
             # the array still has space for new readings, so write them in the next position (scan count)
             self.monitor_data[self.count, 0] = timeNow
             self.monitor_data[self.count, 1] = self.trace.m0.dBm

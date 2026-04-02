@@ -23,6 +23,7 @@ import os
 import sys
 import time
 import logging
+import warnings
 
 from platform import system
 from PySide6 import QtCore
@@ -136,7 +137,7 @@ class Analyser:
         self.mkr_update_timer.timeout.connect(self.updateMarker)
 
     @Slot()
-    def router(self, usbPort, freq, levl, maxl, minl, sweep_end):
+    def router(self, usbPort, freq, levl, maxl, minl, dev_num, sweep_end):
         '''take measurement data, ID it by usbPort & route data to update the right spectrum graph(s)'''
         # tuple 1 = (device, number of devices) tuple 2 = (spectrum to update with tuple 1 device's data)
         # 1 tinySA updates all 4 spectra. 2 tinySAs: first updates 1&2, second 3&4; so on as set by routes
@@ -152,9 +153,9 @@ class Analyser:
                   (3, 4): (self.s3)}
         # dev_count = len(usbInstr.ports)
         # for i in range(dev_count):
-        for i in range(self.dev_count):
-            if usbInstr.ports[i].device == usbPort:  # find the device number from its USB port
-                dev_num = i
+        # for i in range(self.dev_count):
+        #     if usbInstr.ports[i].device == usbPort:  # find the device number from its USB port
+        #         dev_num = i
         # route = routes.get((dev_num, dev_count))  # route is the list of spectrum instances
         route = routes.get((dev_num, self.dev_count))  # route is the list of spectrum instances
         try:
@@ -189,9 +190,11 @@ class Analyser:
                 gui_ctrl.get(i).setText('')
                 if device is not None:
                     gui_ctrl.get(i).setText(device.name[:12])
-                    port = device.usbPort + ' '
-                    name = device.name + ' '
-                    gui_ctrl.get(i).setToolTip(port + name + device.firmware) # + battery)
+                    port = device.usbPort + '\n'
+                    name = device.name + '\n'
+                    sn = 'serial number ' + device.sn + '\n'
+                    fw = device.firmware
+                    gui_ctrl.get(i).setToolTip(port + name + sn + fw)
         else:
             for i in range(4):
                 gui_ctrl.get(i).setText('')
@@ -209,9 +212,13 @@ class Analyser:
         boxes[box].setStyleSheet(tint)
 
     def count_enabled(self):
-        # count the number of devices with checkboxes set to 'on'
         gui_ctrl = np.array((QtTSA.dev0.isChecked(), QtTSA.dev1.isChecked(),
                             QtTSA.dev2.isChecked(), QtTSA.dev3.isChecked()), dtype=np.bool)
+        # set the device enabled flags, which are used by 'renumber'
+        for i, device in enumerate(usbInstr.dev_list):
+            if device is not None:
+                device.enabled = gui_ctrl[i]
+        usbInstr.renumber(gui_ctrl.sum())
         return gui_ctrl.sum()
             
     def split_scan(self, startF, stopF, points, split):
@@ -261,7 +268,7 @@ class Analyser:
         # set sweep and device-specific control values
         self.dev_count = self.count_enabled()
         points = self.setPoints()
-        time_points = settings.ui.timePoints.value()
+        time_points = fading.ui.timePoints.value()
         startF = QtTSA.start_freq.value() * 1e6  # freq in Hz
         stopF = QtTSA.stop_freq.value() * 1e6
         depth = QtTSA.memBox.value()
@@ -292,7 +299,7 @@ class Analyser:
             spectrum.wfall_data = np.full((depth, spectrum.points), None, dtype=float)
 
         # start device(s) scanning
-        usbInstr.start(self.spectra, rbw, depth, split, loop=True)
+        usbInstr.start(self.spectra, rbw, depth, loop=True)
         self.runButton('Stop')
 
     def lna(self):
@@ -439,21 +446,35 @@ class Analyser:
             QtTSA.waterfall.invertX(False)
 
         # check for zero span and update the spectrum graph x-axis if so
-        if freq[0] == freq[-1]:
-            QtTSA.graphWidget.setLabel('bottom', 'Time')
-            freq = np.arange(1, len(freq) + 1, dtype=int)
-            QtTSA.graphWidget.setXRange(freq[0], freq[-1])
-        else:
-            QtTSA.graphWidget.setLabel('bottom', units='Hz')
+        try:
+            if freq[0] == freq[-1]:
+                QtTSA.graphWidget.setLabel('bottom', 'Time')
+                freq = np.arange(1, len(freq) + 1, dtype=int)
+                QtTSA.graphWidget.setXRange(freq[0], freq[-1])
+            else:
+                QtTSA.graphWidget.setLabel('bottom', units='Hz')
+        except IndexError:
+            return
+
+        # update the waterfall
+        wf_height = QtTSA.waterfall_size.value()
+        wf_auto = QtTSA.waterfall_auto.isChecked()
+        if np.size(spectrum.wfall_data, axis=1) == np.size(levl):
+            spectrum.wfall_data[0] = levl  # wf data array is used for averages so must always be updated
+            data = self.join_wf()
+            if wf_height > 0:
+                spectrum.waterfall.setImage(data, autoLevels=wf_auto)
 
         # calculate the average value for the trace, using its waterfall data array
-        if spectrum.count <= 1:
+        if spectrum.count <= 2:
             avg = levl
         else:
-            if spectrum.count < QtTSA.avgBox.value():
-                avg = np.nanmean(spectrum.wfall_data[0:spectrum.count], axis=0)
-            else:
-                avg = np.nanmean(spectrum.wfall_data[0:QtTSA.avgBox.value()], axis=0)
+            with warnings.catch_warnings():
+                warnings.filterwarnings(action='ignore', message='Mean of empty slice')
+                if spectrum.count < QtTSA.avgBox.value():
+                    avg = np.nanmean(spectrum.wfall_data[0:spectrum.count], axis=0)
+                else:
+                    avg = np.nanmean(spectrum.wfall_data[0:QtTSA.avgBox.value()], axis=0)
 
         # update the main spectrum trace
         gui_boxes = {0: QtTSA.t1_type, 1: QtTSA.t2_type, 2: QtTSA.t3_type, 3: QtTSA.t4_type}
@@ -481,15 +502,6 @@ class Analyser:
                     self.phaseNoise.update(m0_index, freq, levl, float(QtTSA.rbw_box.currentText()))
                 if pattern.ui.isVisible():
                     self.polar.update_plot(pattern.ui, m0_index, levl)
-
-        # update the waterfall
-        wf_height = QtTSA.waterfall_size.value()
-        wf_auto = QtTSA.waterfall_auto.isChecked()
-        if np.size(spectrum.wfall_data, axis=1) == np.size(levl):
-            spectrum.wfall_data[0] = levl  # wf data array is used for averages so must always be updated
-            data = self.join_wf()
-            if wf_height > 0:
-                spectrum.waterfall.setImage(data, autoLevels=wf_auto)
 
         # update 3D graph if visible
         if QtTSA.stackedWidget.currentWidget() == QtTSA.View3D:
@@ -1379,7 +1391,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.27')
+app.setApplicationVersion(' v1.3.28')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
