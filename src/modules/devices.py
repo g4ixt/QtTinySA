@@ -31,7 +31,7 @@ class USBdevice(QObject):
         self.setSignals()
         self.run_connect = False
         self.is_scanning = False
-        self.count = 0  # used to count 'available' devices, not 'in use' devices
+        self.cnx_count = 0  # used to count 'connected' devices, not 'enabled' devices
         self.dev_list = None
 
     def setSignals(self):
@@ -65,7 +65,7 @@ class USBdevice(QObject):
         self.dev0 = self.dev1 = self.dev2 = self.dev3 = None
         self.dev_list = [self.dev0, self.dev1, self.dev2, self.dev3]  # all of which are set as None
         self.run_connect = False
-        self.count = 0
+        self.cnx_count = 0
         for index, port in enumerate(self.ports):
             # iterate through the ports, instantiate device classes and test serial comms
             if self.dev_list[index] is None and len(self.ports) > index:
@@ -80,7 +80,7 @@ class USBdevice(QObject):
                     self.dev_list[index] = Nano(port.device, port.product, self.dev_sigs, index)
                 if port.product == "CDC-ACM Demo":
                     self.dev_list[index] = Nano(port.device, port.product, self.dev_sigs, index)
-                self.count += 1
+                self.cnx_count += 1
                 # test using its specific commands and store results in its class instance
                 test = self.dev_list[index].test(port.device)
                 if test is True:
@@ -98,7 +98,7 @@ class USBdevice(QObject):
                 device.close()
                 del device
                 self.dev_list[i] = None
-                self.count -= 1
+                self.cnx_count -= 1
                 self.update_info.emit(False, i)
         # self.update_info.emit()
 
@@ -162,7 +162,7 @@ class USBdevice(QObject):
 
 class WorkerSignals(QObject):
     error = Signal(object, str, str, str)
-    result = Signal(object, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, bool)
+    result = Signal(np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, str, bool)
     fullSweep = Signal(np.ndarray, np.ndarray)
     saveResults = Signal(np.ndarray, np.ndarray)
     sweepEnds = Signal(np.ndarray)
@@ -290,7 +290,6 @@ class Tiny(QObject):
             rbw = np.clip(rbw, 3, 600)
             startF = np.clip(startF, 100000, 960000000)
             stopF = np.clip(stopF, 100000, 960000000)
-        sweepCount = 0
         updateTimer = QElapsedTimer()
         self.threadRunning = True
         firstRun = True
@@ -359,6 +358,7 @@ class Tiny(QObject):
                 levl[point] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
 
                 if not self.sweeping:  # end without completing sweep
+                    self.usb.reset_input_buffer()
                     break
 
                 # If it's the final point of this sweep, set up for the next sweep
@@ -372,16 +372,15 @@ class Tiny(QObject):
                             self.sweeping = False
                             self.usb.reset_input_buffer()
                             break
-                        sweepCount += 1
                         firstRun = False
                 timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
                 if timeElapsed/1e6 > 100:  # mS needs to be settings.ui.intervalBox.value():
                     # send the measurement data to router() in the Analyser class
-                    self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, self.id, False)
+                    self.signals.result.emit(freq, levl, maxl, minl, self.id, self.sn, False)
                     updateTimer.start()
 
             # also send the measurement data to router() at the end of each sweep
-            self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, self.id, True)
+            self.signals.result.emit(freq, levl, maxl, minl, self.id, self.sn, True)
         try:
             self.usb.read(2)  # discard the command prompt that the tinySA sends when sweeping ends
             self.serialWrite('abort\r')
@@ -739,10 +738,10 @@ class Nano(QObject):
                 #timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
                 #if timeElapsed/1e6 > 100:  # mS needs to be settings.ui.intervalBox.value():
                     # send the measurement data to router() in the Analyser class
-                self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, self.id, False)
+                self.signals.result.emit(freq, levl, maxl, minl, self.id, self.sn, False)
                     #updateTimer.start()
             # also send the measurement data to router() at the end of each sweep
-            self.signals.result.emit(self.usbPort, freq, levl, maxl, minl, self.id, True)
+            self.signals.result.emit(freq, levl, maxl, minl, self.id, self.sn, True)
             self.usb.reset_input_buffer()
         self.threadRunning = False
 
