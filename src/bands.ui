@@ -28,7 +28,6 @@
       <property name="font">
        <font>
         <pointsize>7</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -51,6 +50,9 @@
         <height>300</height>
        </size>
       </property>
+      <property name="sortingEnabled">
+       <bool>true</bool>
+      </property>
      </widget>
     </item>
     <item row="0" column="3" colspan="3">
@@ -58,7 +60,6 @@
       <property name="font">
        <font>
         <pointsize>7</pointsize>
-        <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
@@ -68,7 +69,11 @@
      </widget>
     </item>
     <item row="1" column="0" colspan="2">
-     <widget class="QTableView" name="typeTable"/>
+     <widget class="QTableView" name="typeTable">
+      <property name="sortingEnabled">
+       <bool>true</bool>
+      </property>
+     </widget>
     </item>
     <item row="3" column="0">
      <widget class="QPushButton" name="addPsType">
@@ -115,13 +120,13 @@
        <bool>false</bool>
       </property>
       <property name="alignment">
-       <set>Qt::AlignCenter</set>
+       <set>Qt::AlignmentFlag::AlignCenter</set>
       </property>
       <property name="readOnly">
        <bool>true</bool>
       </property>
       <property name="buttonSymbols">
-       <enum>QAbstractSpinBox::NoButtons</enum>
+       <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
       </property>
       <property name="suffix">
        <string> listed</string>

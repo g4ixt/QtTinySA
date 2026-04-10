@@ -29,7 +29,7 @@ from platform import system
 from PySide6 import QtCore
 from PySide6 import QtWidgets
 from PySide6.QtUiTools import QUiLoader
-from PySide6.QtCore import QFile, Slot, QSignalBlocker
+from PySide6.QtCore import QFile, Slot, QSignalBlocker, QElapsedTimer
 from PySide6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog,QTableWidgetItem, QInputDialog, QLineEdit
 from PySide6.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
 from PySide6.QtGui import QPixmap, QIcon
@@ -48,7 +48,7 @@ from io import BytesIO
 from modules.exporters import WWBExporter, WSMExporter
 from modules.graphs import SurfaceGraph, PhaseNoiseGraph, SpectrumGraph, PolarGraph
 
-from modules.devices import USBdevice, Worker
+from modules.devices import USBdevice, Worker, WorkerSignals
 
 # Defaults to non local configuration/data dirs - needed for packaging
 if system() == "Linux":
@@ -131,8 +131,9 @@ class Analyser:
 
     def setSignals(self):
         usbInstr.signals.result.connect(self.router)
-        usbInstr.signals.saveResults.connect(saveFile)
+        usbInstr.signals.saveResults.connect(save_data)
         usbInstr.signals.error.connect(popUp)
+        usbInstr.signals.progress.connect(rec.import_progress)
         usbInstr.stopped.connect(self.allStopped)
         usbInstr.update_info.connect(self.set_device_info)
         self.mkr_update_timer.timeout.connect(self.updateMarker)
@@ -264,13 +265,12 @@ class Analyser:
         else:
             join = {2: (self.s0.wf_data, self.s2.wf_data),
                     3: (self.s0.wf_data, self.s1.wf_data, self.s2.wf_data),
-                    4: (self.s0.wf_data, self.s1.wf_data,
-                        self.s2.wf_data, self.s3.wf_data)}
+                    4: (self.s0.wf_data, self.s1.wf_data, self.s2.wf_data, self.s3.wf_data)}
             if QtTSA.split_scan.isChecked():
-                # waterfall display is join of trace frequencies
+                # the sweep was split in frequency across devices so the data must be joined in columns
                 wf_data = np.concatenate(join.get(self.dev_count), axis=1)
             else:
-                # waterfall data is a stack of traces
+                # each device is measuring the same frequency span so the data must be joined in rows
                 wf_data = np.concatenate(join.get(self.dev_count), axis=0)
         QtTSA.waterfall.setXRange(0, np.size(wf_data, axis=1))
         return wf_data
@@ -279,6 +279,9 @@ class Analyser:
         # collect all the settings from the GUI and call usbDevice.start, which interfaces to the hardware
         if usbInstr.is_scanning:
             usbInstr.stop(restart=False)
+            return
+        if usbInstr.dev_list is None:
+            popUp(QtTSA, 'No scectrum analyser devices found', 'Ok', 'Critical')
             return
         self.mkr_update_timer.stop()  # stop updating markers on timer as updateGUI does it when scanning
 
@@ -294,8 +297,8 @@ class Analyser:
         attn = self.attn()
         lna = self.lna()
         spur = self.spur()
-        if self.dev_count == 0 or not usbInstr.dev_list:
-            popUp(QtTSA, 'No devices found or none enabled', 'Ok', 'Critical')
+        if self.dev_count == 0:
+            popUp(QtTSA, 'No devices enabled', 'Ok', 'Critical')
             return
         usbInstr.controls(rbw, attn, lna, spur)
 
@@ -455,91 +458,6 @@ class Analyser:
         if restart:
             self.scan()
 
-    # # called by router()
-    # def updateGUI(self, spectrum, freq, levl, maxl, minl, ser_num, sweep_end):
-    #     # reverse the arrays if in LNB/Mixer mode when LO is above measured freq
-    #     if bandstype.freq > QtTSA.start_freq.value() * 1e6:
-    #         freq = freq[::-1]
-    #         levl = levl[::-1]
-    #         maxl = maxl[::-1]
-    #         minl = minl[::-1]
-    #         QtTSA.waterfall.invertX(True)
-    #     else:
-    #         QtTSA.waterfall.invertX(False)
-
-    #     # check for zero span and update the spectrum graph x-axis if so
-    #     try:
-    #         if freq[0] == freq[-1]:
-    #             QtTSA.graphWidget.setLabel('bottom', 'Time')
-    #             freq = np.arange(1, len(freq) + 1, dtype=int)
-    #             QtTSA.graphWidget.setXRange(freq[0], freq[-1])
-    #         else:
-    #             QtTSA.graphWidget.setLabel('bottom', units='Hz')
-    #     except IndexError:
-    #         return
-
-    #     # update the waterfall
-    #     wf_height = QtTSA.waterfall_size.value()
-    #     wf_auto = QtTSA.waterfall_auto.isChecked()
-    #     if np.size(spectrum.wf_data, axis=1) == np.size(levl):
-    #         spectrum.wf_data[0] = levl  # wf data array is used for averages so must always be updated
-    #         data = self.join_wf()
-    #         if wf_height > 0:
-    #             spectrum.waterfall.setImage(data, autoLevels=wf_auto)
-
-    #     # calculate the average value for the trace, using its waterfall data array
-    #     if spectrum.count <= 1:
-    #         avg = levl
-    #     else:
-    #         with warnings.catch_warnings():
-    #             warnings.filterwarnings(action='ignore', message='Mean of empty slice')
-    #             if spectrum.count < QtTSA.avgBox.value():
-    #                 avg = np.nanmean(spectrum.wf_data[0:spectrum.count], axis=0)
-    #             else:
-    #                 avg = np.nanmean(spectrum.wf_data[0:QtTSA.avgBox.value()], axis=0)
-
-    #     # update the main spectrum trace
-    #     gui_boxes = {0: QtTSA.t1_type, 1: QtTSA.t2_type, 2: QtTSA.t3_type, 3: QtTSA.t4_type}
-    #     trace_type = gui_boxes.get(self.spectra.index(spectrum)).currentText()
-    #     data = {'Normal': levl, 'Average': avg, 'Max': maxl, 'Min': minl, 'Freeze': levl}
-    #     if trace_type != 'Freeze':
-    #         spectrum.updateTrace(freq, data.get(trace_type))
-    #     logging.debug(f'updating {self.spectra.index(spectrum)}')
-
-    #     # update the markers
-    #     maskFreq = self.rbwMask(freq[0], freq[-1])
-    #     limits = (maskFreq, highF.line.value(), lowF.line.value(), threshold.line.value())
-    #     for marker in spectrum.mkr_list:
-    #         marker.mkr_update(limits, spectrum.trace.is_visible)
-
-    #     # update the scan count, monitor graph and phase noise graph once per sweep
-    #     if sweep_end:
-    #         spectrum.count += 1
-    #         timeNow = time.time()
-    #         spectrum.wf_data = np.roll(spectrum.wf_data, 1, axis=0)
-    #         spectrum.update_monitor(freq, timeNow)
-    #         if spectrum == self.s0:  # phase noise and pattern measurements use trace 1 only
-    #             m0_index = np.argmin(np.abs(freq - (spectrum.trace.m0.line.value())))  # marker 1 index
-    #             if phasenoise.ui.isVisible() and not QtTSA.rbw_auto.isChecked():
-    #                 self.phaseNoise.update(m0_index, freq, levl, float(QtTSA.rbw_box.currentText()))
-    #             if pattern.ui.isVisible():
-    #                 self.polar.update_plot(pattern.ui, m0_index, levl)
-
-    #     # update 3D graph if visible
-    #     if QtTSA.stackedWidget.currentWidget() == QtTSA.View3D:
-    #         self.timespectrum.surface.setHorizontalAspectRatio(1)  # keep the xz surface square
-    #         if data is not None:
-    #             self.timespectrum.updater.updateTimeSpectrum(freq, data)
-    #             self.timespectrum.setRange()
-
-    #     # other updates
-    #     if QtTSA.points_auto.isChecked():
-    #         with QSignalBlocker(QtTSA.points_box):
-    #             QtTSA.points_box.setValue(np.size(freq))
-    #     if spectrum.count == self.depth:
-    #         saveFile(freq, spectrum.wf_data, ser_num)
-    #         spectrum.count = 0
-
     # called by router()
     def updateGUI(self, route, freq, levl, maxl, minl, ser_num, sweep_end):
         # reverse the arrays if in LNB/Mixer mode when LO is above measured freq
@@ -563,18 +481,24 @@ class Analyser:
         except IndexError:
             return
 
-        spectrum = route[0]
-
+        spectrum = route[0]  # if the device provides more than one trace route, the waterfall needs just one
         # update the waterfall
         wf_height = QtTSA.waterfall_size.value()
         wf_auto = QtTSA.waterfall_auto.isChecked()
         if np.size(route[0].wf_data, axis=1) == np.size(levl):
             spectrum.wf_data[0] = levl  # wf data array is used for averages so must always be updated
             data = self.join_wf()
-            if wf_height > 0:
+            if wf_height > 0:  # then waterfall hasn't been hidden, so update it
                 spectrum.waterfall.setImage(data, autoLevels=wf_auto)
+            
+            # update 3D graph (if visible) on the same basis as waterfall
+            if QtTSA.stackedWidget.currentWidget() == QtTSA.View3D:
+                self.timespectrum.surface.setHorizontalAspectRatio(1)  # keep the xz surface square
+                if data is not None:
+                    self.timespectrum.updater.updateTimeSpectrum(freq, data)
+                    self.timespectrum.setRange(data)
 
-        # calculate the average value for the trace, using its waterfall data array
+        # calculate the average value for the trace(s), using its waterfall data array
         if spectrum.count <= 1:
             avg = levl
         else:
@@ -585,7 +509,7 @@ class Analyser:
                 else:
                     avg = np.nanmean(spectrum.wf_data[0:QtTSA.avgBox.value()], axis=0)
 
-        # update the main spectrum trace
+        # update the all spectrum traces provided by the device via the router, according to trace type
         for spectrum in route:
             gui_boxes = {0: QtTSA.t1_type, 1: QtTSA.t2_type, 2: QtTSA.t3_type, 3: QtTSA.t4_type}
             trace_type = gui_boxes.get(self.spectra.index(spectrum)).currentText()
@@ -613,18 +537,14 @@ class Analyser:
                     if pattern.ui.isVisible():
                         self.polar.update_plot(pattern.ui, m0_index, levl)
 
-        # save sweep data to file
-        if route[0].count == self.depth and settings.ui.saveSweep.isChecked():
-            saveFile(freq, spectrum.wf_data, ser_num)
+        # save sweep data to file and to the recorder if the waterfall data array is full
+        if route[0].count == self.depth:
+            if settings.ui.saveSweep.isChecked():
+                save_data(freq, spectrum.wf_data, ser_num)
+            if QtTSA.record.isChecked():
+                usbInstr.virtual.update(spectrum.wf_data)
             for spectrum in route:
-                spectrum.count = 0
-            
-        # update 3D graph if visible
-        if QtTSA.stackedWidget.currentWidget() == QtTSA.View3D:
-            self.timespectrum.surface.setHorizontalAspectRatio(1)  # keep the xz surface square
-            if data is not None:
-                self.timespectrum.updater.updateTimeSpectrum(freq, data)
-                self.timespectrum.setRange()
+                spectrum.count = 0  # resets the counter only for the traces being updated by this route
 
         # other updates
         if QtTSA.points_auto.isChecked():
@@ -638,61 +558,40 @@ class Analyser:
         QtTSA.run3D.setEnabled(True)
 
     def set_dev_combo(self, ui_name, dev_name):
-        # populates a combo box 'dev_type' on 'ui_name' with a list of devices of type 'dev_name'
-        ui_name.port.clear()
+        # populates a combo box 'device' on 'ui_name' with a list of devices of type 'dev_name'
+        ui_name.device.clear()
         self.dev_ref = []
         for device in usbInstr.dev_list:
-            if device and device.firmware[0] == dev_name:
-                if device.sweeping:
-                    popUp(QtTSA, "Cannot browse whilst a scan is running", 'Ok', 'Info')
-                else:
-                    with QSignalBlocker(ui_name.port):
-                        ui_name.port.addItem(device.usbPort)
-                        self.dev_ref.append(device)  # keep a reference to the device for file ops
-        device = self.dev_ref[ui_name.port.currentIndex()]
-        ui_name.dev_type.setText(device.firmware[0])
+            #if device and device.firmware[0] == dev_name:
+            if device:
+                if device.name in dev_name:
+                    if device.sweeping:
+                        popUp(QtTSA, "Cannot browse whilst a scan is running", 'Ok', 'Info')
+                    else:
+                        with QSignalBlocker(ui_name.device):
+                            ui_name.device.addItem(device.name + ' serial ' + device.sn)
+                            self.dev_ref.append(device)  # keep a reference to the device for file ops
+        device = self.dev_ref[ui_name.device.currentIndex()]
 
     def file_browser(self):
-        self.set_dev_combo(filebrowse.ui, 'tinySA4')
-        filebrowse.ui.show()
-        self.list_files()
+        if usbInstr.dev_list:
+            self.set_dev_combo(filebrowse.ui, ('tinySA ULTRA ZS405', 'tinySA ULTRA ZS406', 'tinySA ULTRA ZS407'))
+            filebrowse.ui.show()
+            self.list_files()
 
     def list_files(self):
-        device = self.dev_ref[filebrowse.ui.port.currentIndex()]
-        filebrowse.ui.dev_type.setText(device.firmware[0])
+        device = self.dev_ref[filebrowse.ui.device.currentIndex()]
         SD = device.listSD()
         filebrowse.ui.listWidget.clear()
         ls = []
         for i in range(len(SD.splitlines())):
-            ls.append(SD.splitlines()[i].split(" ")[0])
+            file_name = SD.splitlines()[i].split(" ")[0]
+            if file_name != '.Trash-1000':
+                ls.append(file_name)
         filebrowse.ui.listWidget.insertItems(0, ls)
 
-    def save_file(self, saveSingle=True):
-        device = self.dev_ref[filebrowse.ui.port.currentIndex()]
-        filebrowse.ui.saveProgress.setValue(0)
-        SD = device.listSD()
-        for i in range(len(SD.splitlines())):
-            if not self.directory:  # have not already saved a file, or ask for folder was checked
-                self.directory = QFileDialog.getExistingDirectory(caption="Select folder to save SD card file")
-            if not self.directory:
-                break
-            if saveSingle:
-                fileName = filebrowse.ui.listWidget.currentItem().text()  # the file selected in the list widget
-            else:
-                fileName = SD.splitlines()[i].split(" ")[0]
-            with open(os.path.join(self.directory, fileName), "wb") as file:
-                data = device.readSD(fileName)
-                file.write(data)
-            filebrowse.ui.saveProgress.setValue(int(100 * (i+1)/len(SD.splitlines())))
-            filebrowse.ui.downloadInfo.setText(self.directory)  # show the path where the file was saved
-            if filebrowse.ui.askForPath.isChecked():
-                self.directory = None
-            if saveSingle:
-                filebrowse.ui.saveProgress.setValue(100)
-                break
-
     def show_file(self):
-        device = self.dev_ref[filebrowse.ui.port.currentIndex()]
+        device = self.dev_ref[filebrowse.ui.device.currentIndex()]
         self.memF.seek(0, 0)  # set the memory buffer pointer to the start
         self.memF.truncate()  # clear down the memory buffer to the pointer
         filebrowse.ui.picture.clear()
@@ -705,7 +604,7 @@ class Analyser:
             filebrowse.ui.picture.setPixmap(pixmap)
 
     def correction_window(self):
-        self.set_dev_combo(offset.ui, 'tinySA4')
+        self.set_dev_combo(offset.ui, ('tinySA ULTRA ZS405', 'tinySA ULTRA ZS406', 'tinySA ULTRA ZS407'))
         offset.ui.progress.setValue(0)
         offset.ui.show()
 
@@ -788,6 +687,29 @@ class Analyser:
                 logging.info('preset_marker {name} value error')
                 continue
 
+    # def recordSweep(self, frequencies, readings, ser_num):
+    #     # dBm = np.transpose(np.round(array, decimals=2))  # transpose columns and rows
+    #     folder = settings.ui.save_folder.text()
+    #     fileName = str(timeStamp + '_RBW' + QtTSA.rbw_box.currentText() + '_' + ser_num + '.csv')
+    #     fileName = os.path.join(folder, fileName)
+
+    def start_recording(self):
+        # if not usbInstr.is_scanning:
+        #     popUp(QtTSA, 'cannot record unless a scan is already running', 'Ok', 'Info')
+        #     QtTSA.record.setChecked(False)
+        #     return
+        if QtTSA.record.isChecked():
+            index = rec.add_recording()
+            logging.info(f'index = {index}')
+            # record = rec.tm.record(index)
+            start = QtTSA.start_freq.value()  # freq in MHz
+            stop = QtTSA.stop_freq.value()
+            scan_pts = QtTSA.points_box.value()  # if auto-points, this value is updated by updateGui
+            time_now = time.clock_gettime(0)  # only works in unix
+            rec.tm.update_row(index, start_time=time_now, startF=start, stopF=stop, points=scan_pts)
+        else:
+            logging.info('stop recording')
+        
 
 class Limit:
     def __init__(self, pen, x, y, movable):  # x = None, horizontal.  y = None, vertical
@@ -1021,8 +943,7 @@ class ModelView():
         self.updateModel()
 
     def read_tables(self):  # read the correction tables from the tinySA and display in a table widget
-        device = tinySA.dev_ref[offset.ui.port.currentIndex()]
-        offset.ui.dev_type.setText(device.firmware[0])
+        device = tinySA.dev_ref[offset.ui.device.currentIndex()]
         if device.sweeping:
             popUp(offset, "Cannot read from tinySA whilst a scan is running", 'Ok', 'Info')
             return
@@ -1063,8 +984,7 @@ class ModelView():
             k += 20
 
     def upload_correction(self):  # upload the correction table(s) from the config database to the tinySA
-        device = tinySA.dev_ref[offset.ui.port.currentIndex()]
-        offset.ui.dev_type.setText(device.firmware[0])
+        device = tinySA.dev_ref[offset.ui.device.currentIndex()]
         if device.sweeping:
             popUp(offset, "Cannot read from tinySA whilst a scan is running", 'Ok', 'Info')
             return
@@ -1089,6 +1009,19 @@ class ModelView():
         if update_failed:
             popUp(offset, "One or more of the updates failed.", 'Ok', 'Critical')
 
+    def import_progress(self, progress):
+        recordings.ui.progress.setValue(progress)
+        
+    # def import_recording(self):
+    #     x = 0
+
+    def add_recording(self):
+        path = settings.ui.save_folder.text()
+        timeStamp = time.strftime('%Y-%m-%d-%H%M%S')
+        self.insertData(file_name=timeStamp, folder=path)
+        return self.currentRow
+
+        
 ###############################################################################
 # respond to GUI signals
 
@@ -1171,18 +1104,51 @@ def correction_filter():
 ##############################################################################
 # other methods
 
-def saveFolder():
+def set_folder(ui_name):
     folder = QFileDialog.getExistingDirectory()
-    settings.ui.save_folder.setText(folder)
+    ui_name.save_folder.setText(folder)
 
 
-def saveFile(frequencies, readings, ser_num):
+def save_data(frequencies, readings, ser_num):
     # folder = QFileDialog.getExistingDirectory()
     timeStamp = time.strftime('%Y-%m-%d-%H%M%S')
-    saver = Worker(writeSweep, timeStamp, frequencies, readings, ser_num)  # workers deleted when thread ends
-    threadpool.start(saver)
+    saver = Worker(writeSweep, timeStamp, frequencies, readings, ser_num)
+    threadpool.start(saver)  # workers deleted when thread ends
 
 
+def set_sd_file_save(single=True):
+    device = tinySA.dev_ref[filebrowse.ui.device.currentIndex()]
+    folder = QFileDialog.getExistingDirectory(caption="Select folder to save SD card files")
+    if single:
+        file_name = filebrowse.ui.listWidget.currentItem().text()  # the file selected in the list widget
+    else:
+        file_name = None
+    saver = Worker(sd_file_save, device, file_name, folder, single)
+    threadpool.start(saver)  # workers deleted when thread ends
+    
+
+def sd_file_save(device, file_name, folder, single):
+    signals = WorkerSignals()
+    signals.progress.connect(sd_save_progress)
+    signals.progress.emit(0)
+    SD = device.listSD()
+    for i in range(len(SD.splitlines())):
+        if not single:
+            file_name = SD.splitlines()[i].split(" ")[0]
+        if file_name != '.Trash-1000':
+            with open(os.path.join(folder, file_name), "wb") as file:
+                data = device.readSD(file_name)
+                file.write(data)
+            signals.progress.emit(int(100 * (i+1)/len(SD.splitlines())))
+            if single:
+                signals.progress.emit(100)
+                break
+    signals.progress.emit(100)
+
+def sd_save_progress(progress):
+    filebrowse.ui.saveProgress.setValue(progress)
+  
+    
 def writeSweep(timeStamp, frequencies, readings, ser_num):
     array = np.insert(readings, 0, frequencies, axis=0)  # insert the measurement freqs at the top of the readings array
     dBm = np.transpose(np.round(array, decimals=2))  # transpose columns and rows
@@ -1194,7 +1160,6 @@ def writeSweep(timeStamp, frequencies, readings, ser_num):
         for rowNumber in range(0, np.shape(dBm)[0]):
             fields = [dBm[rowNumber, columnNumber] for columnNumber in range(0, np.shape(dBm)[1])]
             output.writerow(fields)
-
 
 def getPath(dbName):
     # 1. check if a personal database file exists already
@@ -1400,8 +1365,8 @@ def connectActive():
     QtTSA.analyser.clicked.connect(lambda: QtTSA.stackedWidget.setCurrentWidget(QtTSA.ViewNormal))
 
     # filebrowse
-    filebrowse.ui.download.clicked.connect(lambda: tinySA.save_file(True))
-    filebrowse.ui.saveAll.clicked.connect(lambda: tinySA.save_file(False))
+    filebrowse.ui.download.clicked.connect(lambda: set_sd_file_save(True))
+    filebrowse.ui.saveAll.clicked.connect(lambda: set_sd_file_save(False))
     filebrowse.ui.listWidget.itemClicked.connect(tinySA.show_file)
 
     # Sweep time
@@ -1428,7 +1393,7 @@ def connectPassive():
     QtTSA.mkr_start.clicked.connect(tinySA.markerToStart)
     QtTSA.mkr_centre.clicked.connect(tinySA.markerSpread)
 
-    # # marker tracking level
+    # marker tracking level
     QtTSA.m1track.valueChanged.connect(lambda: tinySA.setMarker(0))
     QtTSA.m2track.valueChanged.connect(lambda: tinySA.setMarker(1))
     QtTSA.m3track.valueChanged.connect(lambda: tinySA.setMarker(2))
@@ -1461,9 +1426,7 @@ def connectPassive():
     presetFreqs.ui.addPsType.clicked.connect(bandstype.addRow)
     presetFreqs.ui.deletePsType.clicked.connect(bandstype.deletePsType)
     presetFreqs.ui.clearFilter.clicked.connect(bands.showAll)
-
     presetFreqs.ui.finished.connect(setPreferences)  # update database checkboxes table on dialogue window close
-
     presetFreqs.ui.exportPs.pressed.connect(lambda: bands.exportData(''))
     presetFreqs.ui.importPs.pressed.connect(lambda: bands.importData(''))
 
@@ -1488,7 +1451,8 @@ def connectPassive():
 
     # File menu
     QtTSA.actionBrowse_TinySA.triggered.connect(tinySA.file_browser)
-    filebrowse.ui.port.currentIndexChanged.connect(tinySA.list_files)
+    filebrowse.ui.device.currentIndexChanged.connect(tinySA.list_files)
+    QtTSA.actionLoad_recording.triggered.connect(recordings.ui.show)
 
     # polar pattern
     pattern.ui.measure.clicked.connect(startPolarPlot)
@@ -1502,8 +1466,12 @@ def connectPassive():
     QtTSA.x_rotation.valueChanged.connect(lambda: tinySA.timespectrum.rotateX(QtTSA.x_rotation.value()))
     
     # settings
-    settings.ui.set_folder.clicked.connect(saveFolder)
+    settings.ui.set_folder.clicked.connect(lambda:set_folder(settings.ui))
 
+    # recording and playback
+    recordings.ui.record_table.clicked.connect(lambda: rec.tableClicked(recordings.ui.record_table))
+    recordings.ui.addFile.clicked.connect(rec.add_recording)
+    QtTSA.record.clicked.connect(tinySA.start_recording)
 
 ###############################################################################
 # Instantiate classes
@@ -1511,7 +1479,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.30')
+app.setApplicationVersion(' v1.3.31')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
@@ -1522,6 +1490,7 @@ phasenoise = CustomDialogue(app_dir('phasenoise.ui'))
 fading = CustomDialogue(app_dir('fading.ui'))
 pattern = CustomDialogue(app_dir('pattern.ui'))
 offset = CustomDialogue(app_dir('offset.ui'))
+recordings = CustomDialogue(app_dir('recordings.ui'))
 
 # Markers
 multiplot = pyqtgraph.GraphicsLayout()  # for plotting marker signal level over time
@@ -1581,18 +1550,13 @@ phasenoise.ui.plotWidget.plotItem.setLogMode(x=True)
 phasenoise.ui.plotWidget.setLabel('bottom', 'Offset Frequency', units='Hz')
 phasenoise.ui.plotWidget.setLabel('left', 'Phase Noise', units='dBc/Hz')
 
-# (maxTickLevel=0, tickAlpha=int)
-
-# pyqtgraph settings for antenna pattern display
-# createPolarGrid(4, 40)
-
 
 ###############################################################################
 # set up the application
 logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 1330)  # third parameter is the database version
+config = connect("QtTSAprefs.db", "settings", 1331)  # third parameter is the database version
 
 # field mapping of the checkboxes and numbers database tables, for storing startup configuration
 maps = ModelView('mapping', config, ())
@@ -1717,6 +1681,13 @@ numbers.createMapper()
 numbers.mapWidget('numbers')  # uses mapping table from database
 numbers.tm.select()
 numbers.dwm.setCurrentIndex(0)
+
+# The model for saving and loading sweep data recordings
+rec = ModelView(('recording'), config, ())
+recordings.ui.record_table.setModel(rec.tm)
+rec_header = recordings.ui.record_table.horizontalHeader()
+rec_header.setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+rec.tm.select()
 
 QtTSA.show()
 QtTSA.setWindowTitle(app.applicationName() + app.applicationVersion())

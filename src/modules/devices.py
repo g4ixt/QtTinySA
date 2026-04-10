@@ -33,14 +33,15 @@ class USBdevice(QObject):
         self.is_scanning = False
         self.cnx_count = 0  # used to count 'connected' devices, not 'enabled' devices
         self.dev_list = None
+        self.virtual = Recorder(self.dev_sigs, 100)
 
     def setSignals(self):
         self.signals = WorkerSignals()
         # dev_sigs forward the signals from devices to the analyser class in QtTinySA.py (& are connected in there)
         self.dev_sigs = {"result": self.signals.result,
                          "save": self.signals.saveResults,
-                         "ends": self.signals.sweepEnds,
-                         "error": self.signals.error}
+                         "error": self.signals.error,
+                         "progress": self.signals.progress}
 
     def probe(self):
         VID = (0x0483, 0x1d50, 0x04b4)  # 1155 tinySA/NanoVNA, limeSDR, NanoVNA V2 +4
@@ -117,7 +118,6 @@ class USBdevice(QObject):
                 else:
                     device.id = num_on + 1
             
-
     def start(self, spectra, rbw, depth, loop):
         for index, device in enumerate(self.dev_list):  # dev_list contains the device class instances
             if device is not None:
@@ -163,10 +163,11 @@ class USBdevice(QObject):
 class WorkerSignals(QObject):
     error = Signal(object, str, str, str)
     result = Signal(np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, str, bool)
-    fullSweep = Signal(np.ndarray, np.ndarray)
     saveResults = Signal(np.ndarray, np.ndarray)
-    sweepEnds = Signal(np.ndarray)
-    stop_worker = Signal()
+    progress = Signal(int)
+    # fullSweep = Signal(np.ndarray, np.ndarray)
+    # sweepEnds = Signal(np.ndarray)
+    # stop_worker = Signal()
 
 
 class Worker(QRunnable):
@@ -222,7 +223,7 @@ class Tiny(QObject):
         self.signals = WorkerSignals()
         self.signals.result.connect(sigs["result"])
         self.signals.saveResults.connect(sigs["save"])
-        self.signals.sweepEnds.connect(sigs["ends"])
+        # self.signals.sweepEnds.connect(sigs["ends"])
         self.signals.error.connect(sigs["error"])
 
     def setCmdQ(self):
@@ -238,7 +239,7 @@ class Tiny(QObject):
                 if version is not None:
                     firmware = str.splitlines(version)
                     self.firmware = firmware[0].split('_')[-1]
-                    # logging.info(f'{usbPort} test {i} reports {self.firmware}')
+                    logging.info(f'{usbPort} test {i} reports {self.firmware}')
                     break
                 else:
                     time.sleep(0.5)
@@ -545,42 +546,6 @@ class Tiny(QObject):
     #         self.serialWrite('abort\r')
     #     self.fifoTimer.start(500)  # start watching for commands
 
-    # @Slot()
-    # def saveFile(self, saveSingle=True):
-    #     filebrowse.ui.saveProgress.setValue(0)
-    #     SD = self.listSD()
-    #     for i in range(len(SD.splitlines())):
-    #         if not self.directory:  # have not already saved a file, or ask for folder was checked
-    #             self.directory = QFileDialog.getExistingDirectory(caption="Select folder to save SD card file")
-    #         if not self.directory:
-    #             break
-    #         if saveSingle:
-    #             fileName = filebrowse.ui.listWidget.currentItem().text()  # the file selected in the list widget
-    #         else:
-    #             fileName = SD.splitlines()[i].split(" ")[0]
-    #         with open(os.path.join(self.directory, fileName), "wb") as file:
-    #             data = self.readSD(fileName)
-    #             file.write(data)
-    #         filebrowse.ui.saveProgress.setValue(int(100 * (i+1)/len(SD.splitlines())))
-    #         filebrowse.ui.downloadInfo.setText(self.directory)  # show the path where the file was saved
-    #         if filebrowse.ui.askForPath.isChecked():
-    #             self.directory = None
-    #         if saveSingle:
-    #             filebrowse.ui.saveProgress.setValue(100)
-    #             break
-
-    # def fileShow(self):
-    #     self.memF.seek(0, 0)  # set the memory buffer pointer to the start
-    #     self.memF.truncate()  # clear down the memory buffer to the pointer
-    #     filebrowse.ui.picture.clear()
-    #     fileName = filebrowse.ui.listWidget.currentItem().text()
-    #     self.clearBuffer()  # clear the tinySA serial buffer
-    #     self.memF.write(self.readSD(fileName))  # read the file from the tinySA memory card and store in memory buffer
-    #     if fileName[-3:] == 'bmp':
-    #         pixmap = QPixmap()
-    #         pixmap.loadFromData(self.memF.getvalue())
-    #         filebrowse.ui.picture.setPixmap(pixmap)
-
 class Nano(QObject):
     def __init__(self, usbPort, product, sigs, index):
         super().__init__()
@@ -648,7 +613,7 @@ class Nano(QObject):
         self.signals = WorkerSignals()
         self.signals.result.connect(sigs["result"])
         self.signals.saveResults.connect(sigs["save"])
-        self.signals.sweepEnds.connect(sigs["ends"])
+        # self.signals.sweepEnds.connect(sigs["ends"])
         self.signals.error.connect(sigs["error"])
 
     def test(self, usbPort):  # tests tinySA comms
@@ -807,7 +772,7 @@ class Lime(QObject):
         self.signals = WorkerSignals()
         self.signals.result.connect(sigs["result"])
         self.signals.saveResults.connect(sigs["save"])
-        self.signals.sweepEnds.connect(sigs["ends"])
+        # self.signals.sweepEnds.connect(sigs["ends"])
 
     def test(self):
         try:
@@ -836,4 +801,65 @@ class SiglentSA(QObject):
         self.signals = WorkerSignals()
         self.signals.result.connect(sigs["result"])
         self.signals.saveResults.connect(sigs["save"])
-        self.signals.sweepEnds.connect(sigs["ends"])
+        # self.signals.sweepEnds.connect(sigs["ends"])
+
+
+class Recorder(QObject):
+    def __init__(self, sigs, update_time):
+        super().__init__()
+        self.sweeping = None
+        self.threadRunning = False
+        self.enabled = False
+        self.setSignals(sigs)
+        self.id = None
+        self.sn = None
+        self.name = None
+        self.data_arr = np.ndarray(2)
+        self.file_ID = None  # the ID of the recording database record containing the filename and details
+        
+    def setSignals(self, sigs):
+        self.signals = WorkerSignals()
+        self.signals.result.connect(sigs["result"])
+        self.signals.saveResults.connect(sigs["save"])
+        self.signals.progress.connect(sigs["progress"])
+
+    def play(self, duration, refresh_t, dev_sn, startF, stopF, points, rbw):  # run in separate thread
+        runTimer = QElapsedTimer()
+        self.threadRunning = True
+        self.sn = dev_sn
+        self.id = 0
+        sweep_rate = duration / np.size(self.data_arr, axis=0)  # seconds per sweep
+        
+        # create freq array here.  Non-Tiny devices may send list of freqs measured, so this preserves compatibility
+        freq = np.linspace(startF, stopF, points, dtype=np.int64)
+        levl = np.full(points, -140, dtype=float)
+        maxl = np.full(points, -140, dtype=float)
+        minl = np.full(points, 0, dtype=float)
+   
+        runTimer.start()  # used to trigger the signal that sends measurements to updateGUI()
+        while self.sweeping:
+            # read the measurement data from the array
+            for i in range(np.size(self.data_arr, axis=0)):
+                levl = self.data_arr[i, :]
+                np.fmax(levl, maxl, out=maxl)  # compare current level with max and min
+                np.fmin(levl, minl, out=minl)  # and save them back on themselves
+                timeElapsed = runTimer.nsecsElapsed()
+                while timeElapsed < sweep_rate:
+                    time.sleep(0.005)
+                if timeElapsed/1e6 > refresh_t:
+                    # send the measurement data to router() in the Analyser class
+                    self.signals.result.emit(freq, levl, maxl, minl, self.id, self.sn, False)
+                    runTimer.start()
+        self.threadRunning = False
+        
+    def load_file(self, file_name):  # run in separate thread
+        self.signals.progress.emit(10)
+        self.data_arr = np.loadtxt(file_name, delimiter=',', dtype=float)
+        self.signals.progress.emit(100)
+
+    def update(self, data):
+        record = rec.tm.currentIndex()
+        
+    def start(self):
+        if self.file_ID is None:
+            x = 0
