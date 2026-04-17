@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>912</width>
+    <width>800</width>
     <height>600</height>
    </rect>
   </property>
@@ -18,12 +18,25 @@
     <rect>
      <x>10</x>
      <y>10</y>
-     <width>832</width>
+     <width>781</width>
      <height>581</height>
     </rect>
    </property>
    <layout class="QGridLayout" name="gridLayout">
-    <item row="2" column="5">
+    <item row="0" column="0" colspan="3">
+     <widget class="QLabel" name="label_3">
+      <property name="font">
+       <font>
+        <pointsize>8</pointsize>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="text">
+       <string>Sweep recording database entries</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="6">
      <widget class="QPushButton" name="load">
       <property name="enabled">
        <bool>true</bool>
@@ -55,21 +68,6 @@
       </property>
      </widget>
     </item>
-    <item row="2" column="3">
-     <widget class="QLabel" name="label">
-      <property name="font">
-       <font>
-        <italic>true</italic>
-       </font>
-      </property>
-      <property name="text">
-       <string>Add/remove from database does not</string>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignmentFlag::AlignCenter</set>
-      </property>
-     </widget>
-    </item>
     <item row="2" column="1">
      <widget class="QPushButton" name="delete_2">
       <property name="enabled">
@@ -86,14 +84,28 @@
       </property>
      </widget>
     </item>
-    <item row="2" column="0">
-     <widget class="QPushButton" name="addFile">
+    <item row="2" column="3" colspan="2">
+     <widget class="QLabel" name="label">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="font">
+       <font>
+        <italic>true</italic>
+       </font>
+      </property>
       <property name="text">
-       <string>Add</string>
+       <string>Deletes record from database.  Files are not deletd.</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignmentFlag::AlignCenter</set>
       </property>
      </widget>
     </item>
-    <item row="2" column="6">
+    <item row="2" column="7">
      <widget class="QProgressBar" name="progressBar">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -106,7 +118,7 @@
       </property>
      </widget>
     </item>
-    <item row="2" column="4">
+    <item row="2" column="5">
      <spacer name="horizontalSpacer">
       <property name="orientation">
        <enum>Qt::Orientation::Horizontal</enum>
@@ -119,7 +131,7 @@
       </property>
      </spacer>
     </item>
-    <item row="1" column="0" colspan="7">
+    <item row="1" column="0" colspan="8">
      <widget class="QTableView" name="record_table">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
@@ -135,19 +147,6 @@
       </property>
       <property name="sortingEnabled">
        <bool>true</bool>
-      </property>
-     </widget>
-    </item>
-    <item row="0" column="0" colspan="3">
-     <widget class="QLabel" name="label_3">
-      <property name="font">
-       <font>
-        <pointsize>8</pointsize>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="text">
-       <string>Sweep recordings database</string>
       </property>
      </widget>
     </item>

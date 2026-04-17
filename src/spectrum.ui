@@ -7,8 +7,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1080</width>
-    <height>800</height>
+    <width>1161</width>
+    <height>916</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -2024,50 +2024,10 @@ and Colours</string>
        <layout class="QGridLayout" name="gridLayout_6">
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_4">
-          <item row="1" column="2" colspan="3">
-           <widget class="QQuickWidget" name="plot_3D">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="resizeMode">
-             <enum>QQuickWidget::ResizeMode::SizeRootObjectToView</enum>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="6">
-           <widget class="QToolButton" name="analyser">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <family>DejaVu Sans</family>
-              <pointsize>9</pointsize>
-              <italic>true</italic>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Analyser</string>
-            </property>
-            <property name="text">
-             <string>2D</string>
-            </property>
-            <property name="arrowType">
-             <enum>Qt::ArrowType::NoArrow</enum>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="2">
+          <item row="4" column="2">
            <widget class="QSpinBox" name="maxY">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -2100,7 +2060,55 @@ and Colours</string>
             </property>
            </widget>
           </item>
-          <item row="4" column="2">
+          <item row="4" column="3">
+           <widget class="QLabel" name="label_8">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>8</pointsize>
+              <italic>true</italic>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Rotate horizontally</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="5">
+           <widget class="QLabel" name="label_10">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>8</pointsize>
+              <italic>true</italic>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Rotate vertically</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="2">
            <widget class="QSpinBox" name="minY">
             <property name="sizePolicy">
              <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
@@ -2136,10 +2144,10 @@ and Colours</string>
             </property>
            </widget>
           </item>
-          <item row="3" column="3">
-           <widget class="QLabel" name="label_8">
+          <item row="5" column="4">
+           <widget class="QSlider" name="zoom">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
+             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -2147,20 +2155,38 @@ and Colours</string>
             <property name="font">
              <font>
               <family>DejaVu Sans</family>
-              <pointsize>8</pointsize>
+              <pointsize>9</pointsize>
               <italic>true</italic>
               <bold>false</bold>
              </font>
             </property>
-            <property name="text">
-             <string>Rotate horizontally</string>
+            <property name="minimum">
+             <number>100</number>
             </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignCenter</set>
+            <property name="maximum">
+             <number>200</number>
+            </property>
+            <property name="singleStep">
+             <number>10</number>
+            </property>
+            <property name="pageStep">
+             <number>50</number>
+            </property>
+            <property name="value">
+             <number>120</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+            <property name="tickPosition">
+             <enum>QSlider::TickPosition::TicksBothSides</enum>
+            </property>
+            <property name="tickInterval">
+             <number>10</number>
             </property>
            </widget>
           </item>
-          <item row="4" column="5">
+          <item row="5" column="5">
            <widget class="QSlider" name="y_rotation">
             <property name="sizePolicy">
              <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
@@ -2205,34 +2231,10 @@ and Colours</string>
             </property>
            </widget>
           </item>
-          <item row="3" column="4">
-           <widget class="QLabel" name="label_4">
+          <item row="4" column="6">
+           <widget class="QPushButton" name="run3D">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <family>DejaVu Sans</family>
-              <pointsize>8</pointsize>
-              <italic>true</italic>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Zoom</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignCenter</set>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="4">
-           <widget class="QSlider" name="zoom">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -2245,57 +2247,22 @@ and Colours</string>
               <bold>false</bold>
              </font>
             </property>
-            <property name="minimum">
-             <number>100</number>
-            </property>
-            <property name="maximum">
-             <number>200</number>
-            </property>
-            <property name="singleStep">
-             <number>10</number>
-            </property>
-            <property name="pageStep">
-             <number>50</number>
-            </property>
-            <property name="value">
-             <number>120</number>
-            </property>
-            <property name="orientation">
-             <enum>Qt::Orientation::Horizontal</enum>
-            </property>
-            <property name="tickPosition">
-             <enum>QSlider::TickPosition::TicksBothSides</enum>
-            </property>
-            <property name="tickInterval">
-             <number>10</number>
+            <property name="text">
+             <string>Run</string>
             </property>
            </widget>
           </item>
-          <item row="3" column="5">
-           <widget class="QLabel" name="label_10">
+          <item row="1" column="2" colspan="5">
+           <widget class="QQuickWidget" name="plot_3D" native="true">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Expanding">
+             <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
-            <property name="font">
-             <font>
-              <family>DejaVu Sans</family>
-              <pointsize>8</pointsize>
-              <italic>true</italic>
-              <bold>false</bold>
-             </font>
-            </property>
-            <property name="text">
-             <string>Rotate vertically</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignCenter</set>
-            </property>
            </widget>
           </item>
-          <item row="4" column="3">
+          <item row="5" column="3">
            <widget class="QSlider" name="x_rotation">
             <property name="sizePolicy">
              <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
@@ -2343,8 +2310,32 @@ and Colours</string>
             </property>
            </widget>
           </item>
-          <item row="3" column="6">
-           <widget class="QPushButton" name="run3D">
+          <item row="4" column="4">
+           <widget class="QLabel" name="label_4">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <family>DejaVu Sans</family>
+              <pointsize>8</pointsize>
+              <italic>true</italic>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Zoom</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="6">
+           <widget class="QToolButton" name="analyser">
             <property name="sizePolicy">
              <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -2359,8 +2350,14 @@ and Colours</string>
               <bold>false</bold>
              </font>
             </property>
+            <property name="toolTip">
+             <string>Analyser</string>
+            </property>
             <property name="text">
-             <string>Run</string>
+             <string>2D</string>
+            </property>
+            <property name="arrowType">
+             <enum>Qt::ArrowType::NoArrow</enum>
             </property>
            </widget>
           </item>
@@ -2399,8 +2396,8 @@ and Colours</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1080</width>
-     <height>23</height>
+     <width>1161</width>
+     <height>30</height>
     </rect>
    </property>
    <widget class="QMenu" name="menu_Help">
@@ -2518,7 +2515,7 @@ and Colours</string>
   </action>
   <action name="actionLoad_recording">
    <property name="text">
-    <string>Load recording</string>
+    <string>Recordings</string>
    </property>
   </action>
  </widget>

@@ -1,0 +1,136 @@
+name,preset,startF,stopF,value,colour
+24MHz,amateur,24890000,24990000,True,lime
+10m,amateur,28000000,29700000,True,lightgreen
+GB3NWB,beacon,28247000,0,True,cyan
+GB3AAX,beacon,28268000,0,True,cyan
+GB3XMB,beacon,28287000,0,True,cyan
+GB3BUX,beacon,50000000,0,True,cyan
+6m,amateur,50000000,52000000,True,lime
+GB3RMK,beacon,50002000,0,True,cyan
+GB3NGI,beacon,50004000,0,True,cyan
+GB3MCB,beacon,50005000,0,True,cyan
+GB3BAA,beacon,50416000,0,True,cyan
+GB3MCB,beacon,50443000,0,True,cyan
+GB3RMK,beacon,50460000,0,True,cyan
+GB3NGI,beacon,50462000,0,True,cyan
+GB3LER,beacon,50464000,0,True,cyan
+GB3BUX,beacon,70000000,0,False,cyan
+4m,amateur,70000000,70500000,True,lime
+GB3WSX,beacon,70007000,0,False,cyan
+GB3BAA,beacon,70016000,0,False,cyan
+GB3ANG,beacon,70020000,0,False,cyan
+GB3MCB,beacon,70025000,0,False,cyan
+GB3CFG,beacon,70027000,0,False,cyan
+GB3MBD,beacon,70050000,0,False,cyan
+FM,broadcast,87500000,108000000,True,lime
+WV R2,fixed,89900000,0,True,blue
+R3 to 4,broadcast,92100000,94300000,True,lime
+WV R3,fixed,92100000,0,True,blue
+WV R4,fixed,94300000,0,True,blue
+WV RCy,fixed,96800000,0,True,blue
+WV R1,fixed,99500000,0,True,blue
+WV CLA,fixed,101700000,0,True,blue
+WV R Wales,fixed,103900000,0,True,blue
+2m,amateur,144000000,146000000,True,lime
+GB3ANG,beacon,144453000,0,False,cyan
+GB3SEV,beacon,144462000,0,False,cyan
+GB3MCB,beacon,144469000,0,False,cyan
+GB3NGI,beacon,144482000,0,False,cyan
+GB3WGI,beacon,144487000,0,False,cyan
+DAB,broadcast,175000000,230000000,True,lime
+5B,fixed,176640000,0,True,blue
+5C,fixed,178352000,0,True,blue
+5D,fixed,180064000,0,True,blue
+6A,fixed,181936000,0,True,blue
+6B,fixed,183648000,0,True,blue
+6C,fixed,185360000,0,True,blue
+6D,fixed,187072000,0,True,blue
+7A,fixed,188928000,0,True,blue
+7B,fixed,190640000,0,True,blue
+7C,fixed,192352000,0,True,blue
+7D,fixed,194064000,0,True,blue
+8A,fixed,195936000,0,True,blue
+8B,fixed,197648000,0,True,blue
+8C,fixed,199360000,0,True,blue
+8D,fixed,201072000,0,True,blue
+9A,fixed,202928000,0,True,blue
+9B,fixed,204640000,0,True,blue
+9C,fixed,206352000,0,True,blue
+9D,fixed,208064000,0,True,blue
+10A,fixed,209936000,0,True,blue
+10B,fixed,211648000,0,True,blue
+10C,fixed,213360000,0,True,blue
+10D,fixed,215072000,0,True,blue
+11A,fixed,216928000,0,True,blue
+11B,fixed,218640000,0,True,blue
+11C,fixed,220352000,0,True,blue
+11D,fixed,222064000,0,True,blue
+12A,fixed,223936000,0,True,blue
+12B,fixed,225648000,0,True,blue
+12C,fixed,227360000,0,True,blue
+12D,fixed,229072000,0,True,blue
+13A,fixed,230784000,0,True,blue
+13B,fixed,232496000,0,True,blue
+13C,fixed,234208000,0,True,blue
+13D,fixed,235776000,0,True,blue
+70cm,amateur,430000000,440000000,True,lime
+GB3UHF,beacon,432430000,0,False,cyan
+GB3FNY,beacon,432445000,0,False,cyan
+GB3ANG,beacon,432453000,0,False,cyan
+GB3MCB,beacon,432470000,0,False,darkgreen
+GB3NGI,beacon,432482000,0,False,cyan
+GB3LEU,beacon,432490000,0,False,cyan
+GB3ME,repeater,433150000,,True,orange
+est2,broadcast,470000000,700000000,True,lime
+Guest 32,RF mic,470125000,0,False,red
+Guest 33,RF mic,470475000,0,False,red
+Guest 34,RF mic,470975000,0,False,red
+1152,local osc,1152000000,0,True,cornsilk
+23cm,amateur,1240000000,1325000000,True,lime
+1246,local osc,1246000000,0,True,indigo
+23cm SSB,amateur,1296000000,1296500000,True,lime
+1296,local osc,1296000000,0,True,lightblue
+23cm,23cm/6m,1296000000,1298000000,True,honeydew
+23cm beacons,beacon,1296810863,1297037470,True,green
+GB3MHZ 23cm,beacon,1296830000,0,True,cyan
+ GB3BED 23cm,beacon,1296840000,0,True,cyan
+GB3FRS 23cm,beacon,1296850000,0,True,cyan
+GB3MCB 23cm,beacon,1296860000,0,True,cyan
+GB3USK 23cm,beacon,1296870000,0,True,cyan
+GB3DUN 23cm,beacon,1296890000,0,True,yellowgreen
+GB3CFG 23cm,beacon,1296905000,0,True,lemonchiffon
+GB3NGI 23cm,beacon,1296905000,0,True,cyan
+GB3ANG 23cm,beacon,1296965000,0,True,cyan
+GB3CSB 23cm,beacon,1296985000,0,True,cyan
+GB3EDN 23cm,beacon,1296990000,0,True,cyan
+13cm,amateur,2310000000,2450000000,True,lime
+GB3MHZ,beacon,2320830000,0,True,cyan
+GB3ZME,beacon,2320870000,0,True,cyan
+GB3ANT,beacon,2320890000,0,True,cyan
+GB3SCS,beacon,2320905000,0,True,cyan
+GB3BSS,beacon,2320925000,0,True,cyan
+GB3LES,beacon,2320955000,0,True,cyan
+GB3CSB,beacon,2320985000,0,True,cyan
+2G band,WiFi,2390000000,2450000000,True,skyblue
+9cm,amateur,3300000000,3500000000,True,lime
+GB3MHZ,beacon,3400830000,0,False,cyan
+GB3OHM,beacon,3400900000,0,False,cyan
+GB3SCF,beacon,3400905000,0,False,cyan
+GB3ZME,beacon,3400910000,0,False,cyan
+GB3LPC,beacon,3400935000,0,False,cyan
+GB3LEF,beacon,3400955000,0,False,cyan
+GB3CSB,beacon,3400985000,0,False,cyan
+SatComm,C band,3700000000,4200000000,True,firebrick
+5G band,WiFi,5150000000,5850000000,True,skyblue
+6cm,amateur,5650000000,5925000000,True,lime
+GB3MHZ,beacon,5760830000,0,False,cyan
+GB3OHM,beacon,5760900000,0,False,cyan
+GB3SCC,beacon,5760905000,0,False,cyan
+GB3ZME,beacon,5760910000,0,False,cyan
+GB3FNM,beacon,5760920000,0,False,cyan
+GB3KEU,beacon,5760925000,0,False,cyan
+GB3CSB,beacon,5760985000,0,False,cyan
+Es'h-NB,Ku band,10489500000,10490000000,True,lime
+NB low,Ku beacon,10489500000,0,True,lightgreen
+NB mid,Ku beacon,10489750000,0,True,lightgreen
+Es'h-WB,C beacon,10491000000,10499000000,True,lime

@@ -14,6 +14,7 @@ import queue
 import struct
 import numpy as np
 from PySide6.QtCore import QObject, QElapsedTimer, QTimer, Signal, Slot, QRunnable, QThreadPool
+from PySide6.QtWidgets import QFileDialog
 from serial.tools import list_ports
 from datetime import datetime
 
@@ -37,9 +38,9 @@ class USBdevice(QObject):
 
     def setSignals(self):
         self.signals = WorkerSignals()
-        # dev_sigs forward the signals from devices to the analyser class in QtTinySA.py (& are connected in there)
+        # dev_sigs forward the signals from devices to the router in QtTinySA.py (& are connected in there)
         self.dev_sigs = {"result": self.signals.result,
-                         "save": self.signals.saveResults,
+                         "save": self.signals.save,
                          "error": self.signals.error,
                          "progress": self.signals.progress}
 
@@ -64,28 +65,28 @@ class USBdevice(QObject):
     def connect(self):
         # try to set USB connections to different hardware... need to check if it works in Windows now
         self.dev0 = self.dev1 = self.dev2 = self.dev3 = None
-        self.dev_list = [self.dev0, self.dev1, self.dev2, self.dev3]  # all of which are set as None
+        self.dev_list = [self.dev0, self.dev1, self.dev2, self.dev3]  # all of which are initially set as None above
         self.run_connect = False
         self.cnx_count = 0
-        for index, port in enumerate(self.ports):
-            # iterate through the ports, instantiate device classes and test serial comms
-            if self.dev_list[index] is None and len(self.ports) > index:
+        for dev_id, port in enumerate(self.ports):
+            # iterate through the ports in order of connection, instantiate device classes and test serial comms
+            if self.dev_list[dev_id] is None and len(self.ports) > dev_id:
                 # instantiate device class & write its instance to the list, overwriting 'None'
                 if port.product == "tinySA":
-                    self.dev_list[index] = Tiny(port.device, port.product, self.dev_sigs, index, basic=True)
+                    self.dev_list[dev_id] = Tiny(port.device, port.product, self.dev_sigs, dev_id, basic=True)
                 if port.product == "tinySA4":
-                    self.dev_list[index] = Tiny(port.device, port.product, self.dev_sigs, index, basic=False)
+                    self.dev_list[dev_id] = Tiny(port.device, port.product, self.dev_sigs, dev_id, basic=False)
                 if port.product == "LimeSDR-USB":
-                    self.dev_list[index] = Lime(port.device, port.product, self.dev_sigs, index)
+                    self.dev_list[dev_id] = Lime(port.device, port.product, self.dev_sigs, dev_id)
                 if port.product == "NanoVnaPro Virtual ComPort":
-                    self.dev_list[index] = Nano(port.device, port.product, self.dev_sigs, index)
+                    self.dev_list[dev_id] = Nano(port.device, port.product, self.dev_sigs, dev_id)
                 if port.product == "CDC-ACM Demo":
-                    self.dev_list[index] = Nano(port.device, port.product, self.dev_sigs, index)
+                    self.dev_list[dev_id] = Nano(port.device, port.product, self.dev_sigs, dev_id)
                 self.cnx_count += 1
                 # test using its specific commands and store results in its class instance
-                test = self.dev_list[index].test(port.device)
+                test = self.dev_list[dev_id].test(port.device)
                 if test is True:
-                    self.update_info.emit(True, index)
+                    self.update_info.emit(True, dev_id)
                 else:
                     logging.info(f'test of {port} failed')
 
@@ -163,7 +164,7 @@ class USBdevice(QObject):
 class WorkerSignals(QObject):
     error = Signal(object, str, str, str)
     result = Signal(np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, str, bool)
-    saveResults = Signal(np.ndarray, np.ndarray)
+    save = Signal(np.ndarray, np.ndarray, int, bool)
     progress = Signal(int)
     # fullSweep = Signal(np.ndarray, np.ndarray)
     # sweepEnds = Signal(np.ndarray)
@@ -182,13 +183,13 @@ class Worker(QRunnable):
     @Slot()
     def run(self):
         '''Initialise the runner'''
-        logging.debug(f'{self.fn.__name__} thread running')
+        logging.info(f'{self.fn.__name__} thread running')
         self.fn(*self.args)
-        logging.debug(f'{self.fn.__name__} thread stopped')
+        logging.info(f'{self.fn.__name__} thread stopped')
 
 
 class Tiny(QObject):
-    def __init__(self, usbPort, product, sigs, index, basic=False):
+    def __init__(self, usbPort, product, sigs, dev_id, basic=False):
         super().__init__()
         self.usb = None
         self.usbPort = usbPort
@@ -201,7 +202,7 @@ class Tiny(QObject):
         self.basic = basic
         self.setSignals(sigs)
         self.setDevice(usbPort)
-        self.id = index
+        self.id = dev_id  # this is the device_ID, 0 to 3, where 0 = first device to connect on USB ports, etc.
         self.sn = None
 
     def setDevice(self, usbPort):
@@ -222,7 +223,7 @@ class Tiny(QObject):
     def setSignals(self, sigs):
         self.signals = WorkerSignals()
         self.signals.result.connect(sigs["result"])
-        self.signals.saveResults.connect(sigs["save"])
+        self.signals.save.connect(sigs["save"])
         # self.signals.sweepEnds.connect(sigs["ends"])
         self.signals.error.connect(sigs["error"])
 
@@ -547,7 +548,7 @@ class Tiny(QObject):
     #     self.fifoTimer.start(500)  # start watching for commands
 
 class Nano(QObject):
-    def __init__(self, usbPort, product, sigs, index):
+    def __init__(self, usbPort, product, sigs, dev_id):
         super().__init__()
         self.usb = None
         self.usbPort = usbPort
@@ -558,7 +559,7 @@ class Nano(QObject):
         self.threadRunning = False
         self.enabled = False
         self.setDevice(usbPort)
-        self.id = index
+        self.id = dev_id  # this is the device_ID, 0 to 3, where 0 = first device to connect on USB ports, etc.
         self.sn = None
 
     def setDevice(self, usbPort):
@@ -612,7 +613,7 @@ class Nano(QObject):
     def setSignals(self, sigs):
         self.signals = WorkerSignals()
         self.signals.result.connect(sigs["result"])
-        self.signals.saveResults.connect(sigs["save"])
+        self.signals.save.connect(sigs["save"])
         # self.signals.sweepEnds.connect(sigs["ends"])
         self.signals.error.connect(sigs["error"])
 
@@ -761,17 +762,17 @@ class Nano(QObject):
 
 
 class Lime(QObject):
-    def __init__(self, usbPort, product, sigs, index):
+    def __init__(self, usbPort, product, sigs, dev_id):
         super().__init__()
         self.setSignals(sigs)
         self.enabled = False
-        self.id = index
+        self.id = dev_id  # this is the device_ID, 0 to 3, where 0 = first device to connect on USB ports, etc.
         # soapy
 
     def setSignals(self, sigs):
         self.signals = WorkerSignals()
         self.signals.result.connect(sigs["result"])
-        self.signals.saveResults.connect(sigs["save"])
+        self.signals.save.connect(sigs["save"])
         # self.signals.sweepEnds.connect(sigs["ends"])
 
     def test(self):
@@ -782,25 +783,25 @@ class Lime(QObject):
 
 
 class RTL(QObject):
-    def __init__(self, usbPort, product, index):
+    def __init__(self, usbPort, product, dev_id):
         super().__init__()
         self.enabled = False
-        self.id = index
+        self.id = dev_id  # this is the device_ID, 0 to 3, where 0 = first device to connect on USB ports, etc.
         # soapy
 
 
 class SiglentSA(QObject):
-    def __init__(self, visaPort, product, sigs, index):
+    def __init__(self, visaPort, product, sigs, dev_id):
         super().__init__()
         self.setSignals(sigs)
         self.enabled = False
-        self.id = index
+        self.id = dev_id  # this is the device_ID, 0 to 3, where 0 = first device to connect on USB ports, etc.
         # pyvisa
 
     def setSignals(self, sigs):
         self.signals = WorkerSignals()
         self.signals.result.connect(sigs["result"])
-        self.signals.saveResults.connect(sigs["save"])
+        self.signals.save.connect(sigs["save"])
         # self.signals.sweepEnds.connect(sigs["ends"])
 
 
@@ -811,19 +812,19 @@ class Recorder(QObject):
         self.threadRunning = False
         self.enabled = False
         self.setSignals(sigs)
-        self.id = None
-        self.sn = None
-        self.name = None
         self.data_arr = np.ndarray(2)
-        self.file_ID = None  # the ID of the recording database record containing the filename and details
+        self.data_count = 0
+        # self.file = "Test_file"  # file name/folder from the recording database record
+        self.MAX_FIELDS = 10e6   # 10e6 fields in array gives ~32MB mem/file size and 6h with 4 devices at 101 points
         
     def setSignals(self, sigs):
         self.signals = WorkerSignals()
         self.signals.result.connect(sigs["result"])
-        self.signals.saveResults.connect(sigs["save"])
+        self.signals.save.connect(sigs["save"])
         self.signals.progress.connect(sigs["progress"])
 
     def play(self, duration, refresh_t, dev_sn, startF, stopF, points, rbw):  # run in separate thread
+    # need to get the duration from the timestamps: playback speed might be different for different devices
         runTimer = QElapsedTimer()
         self.threadRunning = True
         self.sn = dev_sn
@@ -839,27 +840,62 @@ class Recorder(QObject):
         runTimer.start()  # used to trigger the signal that sends measurements to updateGUI()
         while self.sweeping:
             # read the measurement data from the array
+            
+            # max min avg not going to work for multi-device like this
+            
             for i in range(np.size(self.data_arr, axis=0)):
                 levl = self.data_arr[i, :]
                 np.fmax(levl, maxl, out=maxl)  # compare current level with max and min
                 np.fmin(levl, minl, out=minl)  # and save them back on themselves
                 timeElapsed = runTimer.nsecsElapsed()
                 while timeElapsed < sweep_rate:
+                    # need to set this according to the timestamps and playback speed.  Note that the timestamp 
+                    # playback speed might be different for different devices
                     time.sleep(0.005)
                 if timeElapsed/1e6 > refresh_t:
                     # send the measurement data to router() in the Analyser class
+                    
+                    # need to use dev_num and dev_id from array.  First sn=dev0, second= dev1 etc
                     self.signals.result.emit(freq, levl, maxl, minl, self.id, self.sn, False)
                     runTimer.start()
         self.threadRunning = False
         
-    def load_file(self, file_name):  # run in separate thread
-        self.signals.progress.emit(10)
-        self.data_arr = np.loadtxt(file_name, delimiter=',', dtype=float)
-        self.signals.progress.emit(100)
+    def read_file(self, file_name):  # run in separate thread
+        # self.signals.progress.emit(10)
+        self.data_arr = np.load(file_name)
+        # self.signals.progress.emit(100)
+    
+    def load_file(self, folder):
+        dialog = QFileDialog()
+        dialog.setDirectory(folder)
+        file_name = dialog.getOpenFileName(caption="Select file to load", filter="NumPy array (*.npy)")[0]
+        logging.info(f'importing data from {file_name}')
+        if file_name != '':
+            loader = Worker(self.read_file, file_name)
+            threadpool.start(loader)
 
-    def update(self, data):
-        record = rec.tm.currentIndex()
-        
-    def start(self):
-        if self.file_ID is None:
-            x = 0
+    def update(self, freq, levl, dev_id):
+        if self.data_count == 0:
+            # set the first row for each device to its frequency point values, starting from column 1
+            self.data_arr[0, 1:, dev_id] = freq
+        self.data_count += 1
+        if self.data_count + 1 < np.size(self.data_arr, axis=0) and self.sweeping:
+            self.data_arr[self.data_count, 0, dev_id] = time.time()
+            self.data_arr[self.data_count, 1:, dev_id] = levl
+        else:
+            # reset and save data to file, using a copy of the array to avoid over-writing whilst thread is running
+            # and suppress NaN values to avoid saving large empty files for short recordings
+            copy_arr = self.data_arr[~np.isnan(self.data_arr)].copy()
+            logging.info(f'copy arr = {copy_arr}')
+            self.signals.save.emit(None, copy_arr, 0, True)  # sends the data to analyser.save_data()
+            self.data_count = 0
+            # reset array
+            self.data_arr = np.full_like(self.data_arr, np.nan, dtype=np.float32)  # float32 is enough precision for dBm
+           
+    def configure(self, points, dev_count):
+        # array rows: 0=measurement point frequency; 1 onwards=dBm readings
+        # array columns: 0=timestamp; 1 onwards=points dBm values.  Depth = dev_id
+        rows = int(self.MAX_FIELDS / (points * dev_count))
+        self.data_arr = np.full((rows, points+1, dev_count), np.nan, dtype=np.float32)  # why is points+1 needed?
+        self.sweeping = True
+        # code = {0:(0, 1), 1:(0, 2), 2:(0, 3), 3:(0, 4), 4:(1, 2), 5:(1, 3), 6:(1, 4), 7:(2, 3), 8:(2, 4), 9:(3, 4)}
