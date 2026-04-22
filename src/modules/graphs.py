@@ -285,7 +285,7 @@ class SpectrumGraph(QObject):
         self.wfall_data = np.ndarray(2)
         self.startF = None
         self.stopF = None
-        self.points = None
+        self.points = 101
         self.ps_markers = []
 
     def create(self, s_widget, w_widget, h_widget, m_widget):

@@ -20,7 +20,6 @@ from datetime import datetime
 
 threadpool = QThreadPool()
 
-
 class USBdevice(QObject):
     stopped = Signal(bool)
     update_info = Signal(bool, int)
@@ -30,11 +29,10 @@ class USBdevice(QObject):
         self.ports = []
         # self.firmware = None
         self.setSignals()
+        self.setDevices()
         self.run_connect = False
         self.is_scanning = False
-        self.cnx_count = 0  # used to count 'connected' devices, not 'enabled' devices
-        self.dev_list = None
-        self.virtual = Recorder(self.dev_sigs, 100)
+        self.rec_data = None  # a single master array that contains 
 
     def setSignals(self):
         self.signals = WorkerSignals()
@@ -43,6 +41,17 @@ class USBdevice(QObject):
                          "save": self.signals.save,
                          "error": self.signals.error,
                          "progress": self.signals.progress}
+
+    def setDevices(self):
+        self.cnx_count = 0  # used to count 'connected' devices, not 'enabled' devices
+        self.dev_list = None
+        self.rec_0 = Recorder(self.dev_sigs)
+        self.rec_1 = Recorder(self.dev_sigs)
+        self.rec_2 = Recorder(self.dev_sigs)
+        self.rec_3 = Recorder(self.dev_sigs)
+        # each instance of 'recorder' is used for a single spectrum analyser's measurement results
+        self.rec_list = (self.rec_0, self.rec_1, self.rec_2, self.rec_3)
+        
 
     def probe(self):
         VID = (0x0483, 0x1d50, 0x04b4)  # 1155 tinySA/NanoVNA, limeSDR, NanoVNA V2 +4
@@ -163,8 +172,8 @@ class USBdevice(QObject):
 
 class WorkerSignals(QObject):
     error = Signal(object, str, str, str)
-    result = Signal(np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, str, bool)
-    save = Signal(np.ndarray, np.ndarray, int, bool)
+    result = Signal(np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, int, bool)
+    save = Signal(np.ndarray, np.ndarray, int, int, bool)
     progress = Signal(int)
     # fullSweep = Signal(np.ndarray, np.ndarray)
     # sweepEnds = Signal(np.ndarray)
@@ -202,8 +211,8 @@ class Tiny(QObject):
         self.basic = basic
         self.setSignals(sigs)
         self.setDevice(usbPort)
-        self.id = dev_id  # this is the device_ID, 0 to 3, where 0 = first device to connect on USB ports, etc.
-        self.sn = None
+        self.id = dev_id  # 0 to 3, where 0 = first device to connect on USB ports, etc.
+        self.sn = 0
 
     def setDevice(self, usbPort):
         self.setScale()
@@ -247,7 +256,7 @@ class Tiny(QObject):
             if version is not None:
                 self.volts = self.battery()
                 info = self.info()
-                self.sn = self.serial_num().split(' ')[-1]
+                self.sn = float(self.serial_num().split(' ')[-1])
                 self.name = str.splitlines(info)[0]
                 logging.info(f'Connected {self.name} {self.sn} {self.firmware} on {usbPort}')
                 return True
@@ -560,7 +569,7 @@ class Nano(QObject):
         self.enabled = False
         self.setDevice(usbPort)
         self.id = dev_id  # this is the device_ID, 0 to 3, where 0 = first device to connect on USB ports, etc.
-        self.sn = None
+        self.sn = 0
 
     def setDevice(self, usbPort):
         try:
@@ -806,16 +815,22 @@ class SiglentSA(QObject):
 
 
 class Recorder(QObject):
-    def __init__(self, sigs, update_time):
+    '''data_arr rows: 0=measurement point frequencies; 1 onwards=dBm readings
+                cols: 0=times; 1 onwards=points dBm values
+       10e6 fields in arr gives ~32MB mem/file size and ~6h for 4 devices at 101 points'''
+    def __init__(self, sigs):
         super().__init__()
         self.sweeping = None
         self.threadRunning = False
         self.enabled = False
         self.setSignals(sigs)
-        self.data_arr = np.ndarray(2)
-        self.data_count = 0
-        # self.file = "Test_file"  # file name/folder from the recording database record
-        self.MAX_FIELDS = 10e6   # 10e6 fields in array gives ~32MB mem/file size and 6h with 4 devices at 101 points
+        self.data_arr = []
+        self.row_count = 0
+        self.MAX_FIELDS = 10e6
+        self.dev_num = 0
+        self.sn = 0
+        self.rec_time = 0
+        self.speed = 1
         
     def setSignals(self, sigs):
         self.signals = WorkerSignals()
@@ -823,47 +838,33 @@ class Recorder(QObject):
         self.signals.save.connect(sigs["save"])
         self.signals.progress.connect(sigs["progress"])
 
-    def play(self, duration, refresh_t, dev_sn, startF, stopF, points, rbw):  # run in separate thread
-    # need to get the duration from the timestamps: playback speed might be different for different devices
-        runTimer = QElapsedTimer()
+    def play(self, dev_id):  # run in separate thread
         self.threadRunning = True
-        self.sn = dev_sn
-        self.id = 0
-        sweep_rate = duration / np.size(self.data_arr, axis=0)  # seconds per sweep
-        
-        # create freq array here.  Non-Tiny devices may send list of freqs measured, so this preserves compatibility
-        freq = np.linspace(startF, stopF, points, dtype=np.int64)
-        levl = np.full(points, -140, dtype=float)
+        row_count = 1    
+        scans = np.shape(self.data_arr)[0] - 1
+        points = np.shape(self.data_arr)[1] - 1
+        times = self.data_arr[1:, 0]
+        freq = self.data_arr[0, 1:]  # freqs are in row 0 from col 1 onwards
         maxl = np.full(points, -140, dtype=float)
         minl = np.full(points, 0, dtype=float)
-   
-        runTimer.start()  # used to trigger the signal that sends measurements to updateGUI()
-        while self.sweeping:
-            # read the measurement data from the array
-            
-            # max min avg not going to work for multi-device like this
-            
-            for i in range(np.size(self.data_arr, axis=0)):
-                levl = self.data_arr[i, :]
-                np.fmax(levl, maxl, out=maxl)  # compare current level with max and min
-                np.fmin(levl, minl, out=minl)  # and save them back on themselves
-                timeElapsed = runTimer.nsecsElapsed()
-                while timeElapsed < sweep_rate:
-                    # need to set this according to the timestamps and playback speed.  Note that the timestamp 
-                    # playback speed might be different for different devices
-                    time.sleep(0.005)
-                if timeElapsed/1e6 > refresh_t:
-                    # send the measurement data to router() in the Analyser class
-                    
-                    # need to use dev_num and dev_id from array.  First sn=dev0, second= dev1 etc
-                    self.signals.result.emit(freq, levl, maxl, minl, self.id, self.sn, False)
-                    runTimer.start()
+        
+        while self.sweeping and row_count < scans:
+            interval = float(times[row_count] - times[row_count - 1])
+            levl = self.data_arr[row_count, 1:]
+            logging.info(f'row = {row_count}')
+            np.fmax(levl, maxl, out=maxl)  # compare current level with max and min
+            np.fmin(levl, minl, out=minl)  # and save them back on themselves           
+            # send the measurement data to router() in the Analyser class
+            self.signals.result.emit(freq, levl, maxl, minl, dev_id, self.sn, False)
+            time.sleep(interval / self.speed)
+            row_count += 1
         self.threadRunning = False
+        # need to un-check the play button
         
     def read_file(self, file_name):  # run in separate thread
-        # self.signals.progress.emit(10)
+        # need to load the 'n' separate arrays into the correct data_arr
         self.data_arr = np.load(file_name)
-        # self.signals.progress.emit(100)
+        # logging.info(f'read_file: data_arr = {self.data_arr}')
     
     def load_file(self, folder):
         dialog = QFileDialog()
@@ -874,28 +875,31 @@ class Recorder(QObject):
             loader = Worker(self.read_file, file_name)
             threadpool.start(loader)
 
-    def update(self, freq, levl, dev_id):
-        if self.data_count == 0:
-            # set the first row for each device to its frequency point values, starting from column 1
-            self.data_arr[0, 1:, dev_id] = freq
-        self.data_count += 1
-        if self.data_count + 1 < np.size(self.data_arr, axis=0) and self.sweeping:
-            self.data_arr[self.data_count, 0, dev_id] = time.time()
-            self.data_arr[self.data_count, 1:, dev_id] = levl
+    def update(self, freq, levl, ser_num):
+        logging.info(f'ser_num = {ser_num}')
+        if ser_num == 0:
+            self.sn = self.dev_num
+        if self.row_count == 0:
+            # set row 0 to the frequency values for each point, starting from column 1
+            self.data_arr[0, 1:] = freq
+        self.row_count += 1
+        if self.row_count + 1 < np.size(self.data_arr, axis=0) and self.sweeping:
+            # to avoid float32 precision loss, use time offset from the time set in configure()
+            self.data_arr[self.row_count, 0] = time.time() - self.rec_time
+            self.data_arr[self.row_count, 1:] = levl
         else:
-            # reset and save data to file, using a copy of the array to avoid over-writing whilst thread is running
-            # and suppress NaN values to avoid saving large empty files for short recordings
-            copy_arr = self.data_arr[~np.isnan(self.data_arr)].copy()
-            logging.info(f'copy arr = {copy_arr}')
-            self.signals.save.emit(None, copy_arr, 0, True)  # sends the data to analyser.save_data()
-            self.data_count = 0
-            # reset array
-            self.data_arr = np.full_like(self.data_arr, np.nan, dtype=np.float32)  # float32 is enough precision for dBm
+            # save a copy of arr to file; omit all-NaN rows to minimise file size for short recordings
+            nan_rows = np.isnan(self.data_arr).all(axis=1)
+            copy_arr = self.data_arr[~nan_rows].copy()
+            self.signals.save.emit(None, copy_arr, ser_num, self.dev_num, True)  # send to analyser.save_data()
+            self.row_count = 0
+            # reset the array; float32 is enough precision for dBm
+            self.data_arr = np.full_like(self.data_arr, np.nan, dtype=np.float32)
            
-    def configure(self, points, dev_count):
-        # array rows: 0=measurement point frequency; 1 onwards=dBm readings
-        # array columns: 0=timestamp; 1 onwards=points dBm values.  Depth = dev_id
-        rows = int(self.MAX_FIELDS / (points * dev_count))
-        self.data_arr = np.full((rows, points+1, dev_count), np.nan, dtype=np.float32)  # why is points+1 needed?
+    def configure(self, points, dev_num):
+        self.dev_num = dev_num
+        rows = int(self.MAX_FIELDS / points)
+        self.data_arr = np.full((rows, points+1), np.nan, dtype=np.float32)
         self.sweeping = True
+        self.rec_time = time.time()
         # code = {0:(0, 1), 1:(0, 2), 2:(0, 3), 3:(0, 4), 4:(1, 2), 5:(1, 3), 6:(1, 4), 7:(2, 3), 8:(2, 4), 9:(3, 4)}
