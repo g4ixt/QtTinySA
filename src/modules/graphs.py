@@ -277,28 +277,28 @@ class PolarGraph(QObject):
 
 class SpectrumGraph(QObject):
 
-    def __init__(self, s_widget, w_widget, h_widget, m_widget):
+    def __init__(self, s_widget, w_widget, h_widget, m_widget, h_pos):
         super().__init__()
-        self.create(s_widget, w_widget, h_widget, m_widget)
+        self.create(s_widget, w_widget, h_widget, m_widget, h_pos)
         self.count = 0  # the number of completed scans
         self.monitor_data = np.ndarray(2)
-        self.wfall_data = np.ndarray(2)
+        # self.wf_data = np.ndarray(2)
         self.startF = None
         self.stopF = None
         self.points = 101
         self.ps_markers = []
 
-    def create(self, s_widget, w_widget, h_widget, m_widget):
+    def create(self, s_widget, w_widget, h_widget, m_widget, h_pos):
         # create the main spectrum screen trace
         s_widget.addLegend(offset=(30, 400))
         self.trace = s_widget.plot([], [], width=1, padding=0)
         self.trace.is_visible = True
 
         # create four markers, all bound to this trace
-        self.trace.m0 = Marker(s_widget, self, 'm1', 0.1)
-        self.trace.m1 = Marker(s_widget, self, 'm2', 0.9)
-        self.trace.m2 = Marker(s_widget, self, 'm3', 1.7)
-        self.trace.m3 = Marker(s_widget, self, 'm4', 2.5)
+        self.trace.m0 = Marker(s_widget, self, 'm1', 0.1, h_pos)
+        self.trace.m1 = Marker(s_widget, self, 'm2', 0.9, h_pos)
+        self.trace.m2 = Marker(s_widget, self, 'm3', 1.7, h_pos)
+        self.trace.m3 = Marker(s_widget, self, 'm4', 2.5, h_pos)
         self.mkr_list = [self.trace.m0, self.trace.m1, self.trace.m2, self.trace.m3]
 
         # create the waterfall graph and its histogram
@@ -331,11 +331,13 @@ class SpectrumGraph(QObject):
         self.trace.setData(frequencies, levels)
 
     def set_colour(self, pen):
+        # set the trace and marker colours the same
         self.pen = pen
         self.trace.setPen(pen)
         for mkr in self.mkr_list:
             mkr.line.setPen(pen, style=Qt.DashLine)
             mkr.delta.setPen(pen, style=Qt.DotLine)
+            mkr.markerBox.setColor(pen)
 
     def fetch_data(self):
         '''return the (freq, level) data used to plot the trace'''
@@ -398,13 +400,14 @@ class SpectrumGraph(QObject):
 
 
 class Marker:
-    def __init__(self, ui_widget, trace, name, box):
+    '''Each trace has 4 markers associated with it and they work independently'''
+    def __init__(self, ui_widget, trace, name, v_pos, h_pos):
         self.dBm = -140
-        self.create_lines(ui_widget, name, box)
+        self.create_lines(ui_widget, name, v_pos, h_pos)
         self.setSignals()
         self.spectrum = trace
 
-    def create_lines(self, ui_widget, name, box):
+    def create_lines(self, ui_widget, name, v_pos, h_pos):
         self.line = ui_widget.addLine(88, 90, movable=True, name=name,
                                       pen=pyqtgraph.mkPen('y', width=0.5), label=name)
         self.delta = ui_widget.addLine(0, 90, movable=True, name=name,
@@ -413,7 +416,7 @@ class Marker:
         self.line.addMarker('^', 0, 10)
         self.deltaF = 0  # the delta marker frequency difference
         self.deltaRelative = True
-        self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(-0.7, -box), fill='k')  # box is vertical posn
+        self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(-h_pos, -v_pos), fill='k')  # box is vertical posn
         self.markerBox.setParentItem(ui_widget.plotItem)
         self.line.hide()
         self.delta.hide()
