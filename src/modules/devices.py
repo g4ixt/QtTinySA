@@ -833,7 +833,8 @@ class Recorder(QObject):
        10e6 fields in array gives ~32MB mem/file size and ~6h for 4 devices at 101 points'''
     def __init__(self, sigs):
         super().__init__()
-        self.sweeping = None
+        self.sweeping = False
+        self.recording = False
         self.threadRunning = False
         self.enabled = False
         self.setSignals(sigs)
@@ -877,29 +878,32 @@ class Recorder(QObject):
             self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, False)
             time.sleep(interval / self.speed)
             row += 1
+        self.sweeping = False
         self.threadRunning = False
         
     def record(self, freq, levl, ser_num):  # called by a signal from router() in analyser
-        logging.info(f'ser_num = {ser_num}')
+        logging.debug(f'record: ser_num = {ser_num}')
         # if ser_num == 0:
         #     self.sn = self.dev_num
         if self.row_count == 0:
-            # set row 0: col 0 to serial num and col 1 onward to frequency values for each point
+            # set row 0 col 0 to serial num and col 1 onward to frequency values for each point
             self.data_arr[0, 0] = ser_num
             self.data_arr[0, 1:] = freq
         self.row_count += 1
-        if self.row_count + 1 < np.size(self.data_arr, axis=0) and self.sweeping:
+        if self.row_count + 1 < np.size(self.data_arr, axis=0) and self.recording:
             # to avoid float32 precision loss, use time offset from the time set in configure()
             self.data_arr[self.row_count, 0] = time.time() - self.rec_time
             self.data_arr[self.row_count, 1:] = levl
-        else:
+
+    def save_recording(self):
             # save a copy of arr to file; omit all-NaN rows to minimise file size for short recordings
+            logging.info(f'saving recording {self.dev_num} at row {self.row_count}')
             nan_rows = np.isnan(self.data_arr).all(axis=1)
             copy_arr = self.data_arr[~nan_rows].copy()
-            self.signals.save.emit(None, copy_arr, ser_num, self.dev_num, True)  # send to analyser.save_data()
+            self.signals.save.emit(None, copy_arr, copy_arr[0, 0], self.dev_num, True)  # send to analyser.save_data()
             self.row_count = 0
             self.reset_arr()
-
+        
     def reset_arr(self):
         # reset the array; float32 is enough precision for dBm
         self.data_arr = np.full_like(self.data_arr, np.nan, dtype=np.float32)
@@ -907,7 +911,5 @@ class Recorder(QObject):
     def configure(self, points, dev_id, dev_count):
         self.dev_id = dev_id
         rows = int(self.MAX_FIELDS / (dev_count * points))  # give a file size of ~32MB for 1 device
-        self.data_arr = np.full((rows, points+1), np.nan, dtype=np.float32)
-        # self.sweeping = True
+        self.data_arr = np.full((rows, points+1), np.nan, dtype=np.float64)
         self.rec_time = time.time()
-        # code = {0:(0, 1), 1:(0, 2), 2:(0, 3), 3:(0, 4), 4:(1, 2), 5:(1, 3), 6:(1, 4), 7:(2, 3), 8:(2, 4), 9:(3, 4)}

@@ -1082,6 +1082,12 @@ and Colours</string>
             <property name="icon">
              <iconset theme="media-playback-stop"/>
             </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
+            </property>
            </widget>
           </item>
           <item row="0" column="11">
@@ -1669,7 +1675,7 @@ and Colours</string>
              </size>
             </property>
             <property name="checkable">
-             <bool>true</bool>
+             <bool>false</bool>
             </property>
            </widget>
           </item>
@@ -2012,6 +2018,16 @@ and Colours</string>
              </size>
             </property>
            </spacer>
+          </item>
+          <item row="1" column="17">
+           <widget class="QToolButton" name="eject">
+            <property name="text">
+             <string>...</string>
+            </property>
+            <property name="icon">
+             <iconset theme="media-eject"/>
+            </property>
+           </widget>
           </item>
          </layout>
         </item>

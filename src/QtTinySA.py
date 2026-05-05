@@ -23,18 +23,17 @@ import os
 import sys
 import time
 import logging
-import warnings
 
 from platform import system
 from PySide6 import QtCore
 from PySide6 import QtWidgets
 from PySide6.QtUiTools import QUiLoader
-from PySide6.QtCore import QFile, Slot, QSignalBlocker, QElapsedTimer
-from PySide6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog,QTableWidgetItem, QInputDialog, QLineEdit
+from PySide6.QtCore import QFile, Slot, QSignalBlocker
+from PySide6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog
+from PySide6.QtWidgets import QTableWidgetItem, QInputDialog, QLineEdit
 from PySide6.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
 from PySide6.QtGui import QPixmap, QIcon
 
-import queue
 import shutil
 import platformdirs
 import csv
@@ -157,8 +156,8 @@ class Analyser:
         route = routes.get((dev_id, self.dev_count))  # route is the list of spectrum instances
         try:
             self.updateGUI(route, freq, levl, maxl, minl, buffer, ser_num, dev_id, sweep_end)
-            if QtTSA.record.isChecked() and sweep_end:
-                usbInstr.rec_list[dev_id].record(freq, levl, ser_num)             
+            if usbInstr.rec_list[dev_id].recording and sweep_end:
+                usbInstr.rec_list[dev_id].record(freq, levl, ser_num)       
         except TypeError:
             logging.info(f'failed to route data from {dev_id} of {self.dev_count} to spectrum trace')
             usbInstr.stop(restart=False)
@@ -670,30 +669,32 @@ class Analyser:
                 continue
 
     def recording(self):
+        self.stop_playback()
+        QtTSA.record.setEnabled(False)
         if not usbInstr.is_scanning:
             QtTSA.scan_button.clicked.emit()
-        if QtTSA.record.isChecked():
-            if QtTSA.play.isChecked():
-                QtTSA.play.setChecked(False)
-                QtTSA.play.clicked.emit()
-            logging.info('start recording')
-            for i in range(self.dev_count):
-                usbInstr.rec_list[i].configure(self.points, i, self.dev_count)
-                usbInstr.rec_list[i].sn = usbInstr.dev_list[i].sn
-        else:
-            logging.info('stop recording')
-            for i in range(self.dev_count):
-                usbInstr.rec_list[i].sweeping = False
-                usbInstr.rec_list[i].record(None, None, 0)
+        logging.info(f'start recording from {self.dev_count} devices')
+        for i in range(self.dev_count):
+            usbInstr.rec_list[i].configure(self.points, i, self.dev_count)
+            usbInstr.rec_list[i].sn = usbInstr.dev_list[i].sn
+            usbInstr.rec_list[i].recording = True
+
+    def stop_recording(self):
+        logging.info('stop recording')
+        for i in range(self.dev_count):
+            if usbInstr.rec_list[i].recording:
+                usbInstr.rec_list[i].recording = False
+                usbInstr.rec_list[i].save_recording()
+        QtTSA.record.setEnabled(True)
         
     def playback(self):   
-        if QtTSA.record.isChecked():
-            QtTSA.record.setChecked(False)
-            QtTSA.record.clicked.emit()
-        if usbInstr.loaded_files == 0:
-            popUp(QtTSA, "No recorded spectrum data was loaded", 'Ok', 'Critical')
+        self.stop_recording()
+        if np.isnan(usbInstr.rec_list[0].data_arr).all():
+            popUp(QtTSA, "No recorded spectrum data is loaded", 'Ok', 'Critical')
             return
-
+        for i in range(4):
+            if usbInstr.rec_list[i].sweeping:
+                return
         # stop probing usb ports & disconnect existing hardware and associated class instances
         usbCheck.stop()
         for port in usbInstr.ports:
@@ -706,8 +707,8 @@ class Analyser:
         stop = usbInstr.rec_list[0].data_arr[0, -1] / 1e6
         self.dev_count = usbInstr.loaded_files
         for i in range(usbInstr.loaded_files):
-            start = min(start, usbInstr.rec_list[i].data_arr[0, 1] / 1e6)
-            stop = max(stop, usbInstr.rec_list[i].data_arr[0, -1] / 1e6)
+            start = int(min(start, usbInstr.rec_list[i].data_arr[0, 1] / 1e6))
+            stop = int(max(stop, usbInstr.rec_list[i].data_arr[0, -1] / 1e6))
         self.setGraphFreq(start, stop)
 
         self.set_gui_colours()
@@ -740,11 +741,12 @@ class Analyser:
             player = Worker(usbInstr.rec_list[i].measurement_player, self.depth, i)
             threadpool.start(player)
 
-    def stop(self):
+    def stop_playback(self):
         # stop playing, start probing usb ports to re-connect hardware and create class instances
         for i in range(self.dev_count):
-            logging.info(f'stop player {i}')
-            usbInstr.rec_list[i].sweeping = False
+            if usbInstr.rec_list[i].sweeping:
+                logging.info(f'stopping player {i}')
+                usbInstr.rec_list[i].sweeping = False
         usbInstr.probe()
         usbCheck.start()
 
@@ -790,6 +792,10 @@ class Analyser:
             loader = Worker(usbInstr.read_file, file_name)
             threadpool.start(loader)
     
+    def clear_data(self):
+        for i in range(usbInstr.loaded_files): 
+            usbInstr.rec_list[i].reset_arr()
+            
 class Limit:
     def __init__(self, pen, x, y, movable):  # x = None, horizontal.  y = None, vertical
         self.pen = pen
@@ -1531,8 +1537,10 @@ def connectPassive():
     # recording and playback
     QtTSA.record.clicked.connect(tinySA.recording)
     QtTSA.play.clicked.connect(tinySA.playback)
-    QtTSA.stop.clicked.connect(tinySA.stop)
+    QtTSA.stop.clicked.connect(tinySA.stop_playback)
+    QtTSA.stop.clicked.connect(tinySA.stop_recording)
     QtTSA.speed.valueChanged.connect(tinySA.set_speed)
+    QtTSA.eject.clicked.connect(tinySA.clear_data)
 
 ###############################################################################
 # Instantiate classes
@@ -1540,7 +1548,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.34')
+app.setApplicationVersion(' v1.3.35')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
