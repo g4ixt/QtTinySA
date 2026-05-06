@@ -251,7 +251,7 @@
              </font>
             </property>
             <property name="toolTip">
-             <string>Set Attenuation</string>
+             <string>Set attenuator</string>
             </property>
             <property name="readOnly">
              <bool>false</bool>
@@ -401,7 +401,7 @@
              </font>
             </property>
             <property name="toolTip">
-             <string>Trace Type</string>
+             <string>Trace type</string>
             </property>
            </widget>
           </item>
@@ -434,7 +434,7 @@
              </font>
             </property>
             <property name="toolTip">
-             <string>Waterfall/3D Time axis depth Depth</string>
+             <string>Waterfall/3D Time axis depth</string>
             </property>
             <property name="suffix">
              <string/>
@@ -593,7 +593,7 @@
              </font>
             </property>
             <property name="toolTip">
-             <string>Set Resolution Bandwidth in kHz</string>
+             <string>Set resolution bandwidth in kHz</string>
             </property>
             <property name="editable">
              <bool>false</bool>
@@ -617,7 +617,7 @@
              </font>
             </property>
             <property name="toolTip">
-             <string>Trace Type</string>
+             <string>Trace type</string>
             </property>
            </widget>
           </item>
@@ -638,7 +638,7 @@
              </font>
             </property>
             <property name="toolTip">
-             <string>Trace Type</string>
+             <string>Trace type</string>
             </property>
             <property name="modelColumn">
              <number>0</number>
@@ -844,7 +844,7 @@ and Colours</string>
              </font>
             </property>
             <property name="toolTip">
-             <string>Set the number of repeat measurements at each frequency Point</string>
+             <string>Set the number of repeat measurements at each frequency point</string>
             </property>
             <property name="alignment">
              <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
@@ -919,7 +919,7 @@ and Colours</string>
              </font>
             </property>
             <property name="toolTip">
-             <string>Trace Averaging</string>
+             <string>Trace averaging</string>
             </property>
             <property name="prefix">
              <string>Trace avg </string>
@@ -991,7 +991,7 @@ and Colours</string>
              </font>
             </property>
             <property name="toolTip">
-             <string>Trace Type</string>
+             <string>Trace type</string>
             </property>
            </widget>
           </item>
@@ -1026,8 +1026,11 @@ and Colours</string>
               <bold>false</bold>
              </font>
             </property>
+            <property name="toolTip">
+             <string>Split scan across enabled devices</string>
+            </property>
             <property name="text">
-             <string>Split Scan</string>
+             <string>Split scan</string>
             </property>
            </widget>
           </item>
@@ -1076,6 +1079,9 @@ and Colours</string>
           </item>
           <item row="1" column="18">
            <widget class="QToolButton" name="stop">
+            <property name="toolTip">
+             <string>Stop recording or playing</string>
+            </property>
             <property name="text">
              <string>...</string>
             </property>
@@ -1660,7 +1666,7 @@ and Colours</string>
              </font>
             </property>
             <property name="toolTip">
-             <string>Record spectrum</string>
+             <string>Start recording</string>
             </property>
             <property name="text">
              <string>...</string>
@@ -2021,6 +2027,9 @@ and Colours</string>
           </item>
           <item row="1" column="17">
            <widget class="QToolButton" name="eject">
+            <property name="toolTip">
+             <string>Clear loaded files</string>
+            </property>
             <property name="text">
              <string>...</string>
             </property>
