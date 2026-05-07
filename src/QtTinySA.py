@@ -755,7 +755,6 @@ class Analyser:
         slider = QtTSA.speed.value()
         speed = slider / 10
         for i in range(usbInstr.loaded_files):
-            logging.info(f'speed {speed}')
             usbInstr.rec_list[i].speed = speed
     
     def save_data(self, frequencies, data_arr, ser_num, dev_num):
@@ -1545,7 +1544,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.36')
+app.setApplicationVersion(' v1.3.37')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
@@ -1611,7 +1610,7 @@ phasenoise.ui.plotWidget.setLabel('left', 'Phase Noise', units='dBc/Hz')
 logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 1331)  # third parameter is the database version
+config = connect("QtTSAprefs.db", "settings", 1337)  # third parameter is the database version
 
 # field mapping of the checkboxes and numbers database tables, for storing startup configuration
 maps = ModelView('mapping', config, ())
@@ -1757,6 +1756,8 @@ tinySA.setSignals()
 # run the application until the user closes it
 if settings.ui.bold_text.isChecked():
     app.setStyleSheet("QWidget { font-weight: bold; }")  # enhancement issue 118
+if settings.ui.auto_run.isChecked():
+    QtTSA.scan_button.clicked.emit()
 
 try:
     app.exec()
