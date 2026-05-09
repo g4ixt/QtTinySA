@@ -215,7 +215,7 @@ class Analyser:
 
     def count_enabled(self):
         gui_ctrl = np.array((QtTSA.dev0.isChecked(), QtTSA.dev1.isChecked(),
-                            QtTSA.dev2.isChecked(), QtTSA.dev3.isChecked()), dtype=np.bool)
+                            QtTSA.dev2.isChecked(), QtTSA.dev3.isChecked()), dtype=bool)
         # set the device enabled flags, which are used by 'renumber'
         for i, device in enumerate(usbInstr.dev_list):
             if device is not None:
@@ -495,9 +495,10 @@ class Analyser:
                     spectrum.waterfall.setImage(self.wf_data, autoLevels=wf_auto)
                 # update 3D graph if visible
                 if QtTSA.stackedWidget.currentWidget() == QtTSA.View3D:
-                    self.timespectrum.surface.setHorizontalAspectRatio(1)  # keep the xz surface square
-                    self.timespectrum.updater.updateTimeSpectrum(freq, self.wf_data)
-                    self.timespectrum.setRange(self.wf_data)
+                    if ~np.isnan(self.wf_data[0, :]).any():
+                        self.timespectrum.surface.setHorizontalAspectRatio(1)  # keep the xz surface square
+                        self.timespectrum.updater.updateTimeSpectrum(freq, self.wf_data)
+                        self.timespectrum.set_range(self.wf_data)
                              
                 # update the spectrum trace, according to trace type
                 gui_boxes = {0: QtTSA.t1_type, 1: QtTSA.t2_type, 2: QtTSA.t3_type, 3: QtTSA.t4_type}
@@ -1504,6 +1505,7 @@ def connectPassive():
     # 3D
     QtTSA.zoom.valueChanged.connect(lambda: tinySA.timespectrum.zoom(QtTSA.zoom.value()))
     QtTSA.x_rotation.valueChanged.connect(lambda: tinySA.timespectrum.rotateX(QtTSA.x_rotation.value()))
+    QtTSA.y_rotation.valueChanged.connect(lambda: tinySA.timespectrum.rotateY(QtTSA.y_rotation.value()))
     
     # settings
     settings.ui.set_folder.clicked.connect(lambda:set_folder(settings.ui))
@@ -1522,7 +1524,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.38')
+app.setApplicationVersion(' v1.3.39')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)

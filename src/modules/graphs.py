@@ -66,15 +66,7 @@ class SurfaceGraph(QObject):
     def rotateY(self, angle):
         self.surface.setCameraYRotation(angle)
 
-    # def setRange(self):
-    #     axis = self.surface.axisY()
-    #     maximum = np.round(axis.max(), decimals=-1)
-    #     minimum = np.round(axis.min(), decimals=-1)
-    #     logging.info(f'surface max= {maximum} min= {minimum}')
-    #     axis.setMax(maximum)
-    #     axis.setMin(minimum)
-
-    def setRange(self, data):
+    def set_range(self, data):
         axis = self.surface.axisY()
         maximum = round(np.nanmax(data), -1) + 10  # rounds to nearest 10
         minimum = round(np.nanmin(data, initial=-120), -1)

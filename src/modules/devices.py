@@ -18,6 +18,7 @@ from PySide6.QtCore import QObject, QElapsedTimer, QTimer, Signal, Slot, QRunnab
 # from PySide6.QtWidgets import QFileDialog
 from serial.tools import list_ports
 from datetime import datetime
+from platform import system
 
 threadpool = QThreadPool()
 
@@ -53,7 +54,7 @@ class USBdevice(QObject):
         self.rec_3 = Recorder(self.dev_sigs)
         # each instance of 'recorder' is used for a single spectrum analyser's measurement results
         self.rec_list = (self.rec_0, self.rec_1, self.rec_2, self.rec_3)
-        
+
     def probe(self):
         VID = (0x0483, 0x1d50, 0x04b4)  # 1155 tinySA/NanoVNA, limeSDR, NanoVNA V2 +4
         PID = (0x5740, 0x6108, 0x0008)  # 22336 tinySA/NanoVNA, limeSDR, NanoVNA V2 +4
@@ -63,7 +64,8 @@ class USBdevice(QObject):
             if port.vid in VID and port.pid in PID and port not in self.ports:
                 self.ports.append(port)
                 self.run_connect = True
-                logging.debug(f'found {port.product} on {port.device}')
+                logging.debug(f'found {self.identify(port)} on {port.device}')
+
         # detect devices that have been turned off or lost contact
         for port in self.ports:
             if port not in usbPorts:
@@ -73,25 +75,33 @@ class USBdevice(QObject):
         if self.run_connect:
             self.connect()
 
+    def identify(self, port):
+        # Windows returns no description information to pySerial list_ports.comports()
+        if system() == 'Linux' or system() == 'Darwin':
+            return port.product
+        else:
+            return 'tinySA4'
+
     def connect(self):
         # try to set USB connections to different hardware... need to check if it works in Windows now
         self.dev0 = self.dev1 = self.dev2 = self.dev3 = None
         self.dev_list = [self.dev0, self.dev1, self.dev2, self.dev3]  # all of which are initially set as None above
         self.run_connect = False
         for dev_id, port in enumerate(self.ports):
+            description = self.identify(port)
             # iterate through the ports in the list, instantiate device classes and test serial comms
             if self.dev_list[dev_id] is None and len(self.ports) > dev_id:
                 # instantiate a device class, replacing 'None' with the instance, in, e.g. self.dev2
-                if port.product == "tinySA":
-                    self.dev_list[dev_id] = Tiny(port.device, port.product, self.dev_sigs, dev_id, basic=True)
-                if port.product == "tinySA4":
-                    self.dev_list[dev_id] = Tiny(port.device, port.product, self.dev_sigs, dev_id, basic=False)
-                if port.product == "LimeSDR-USB":
-                    self.dev_list[dev_id] = Lime(port.device, port.product, self.dev_sigs, dev_id)
-                if port.product == "NanoVnaPro Virtual ComPort":
-                    self.dev_list[dev_id] = Nano(port.device, port.product, self.dev_sigs, dev_id)
-                if port.product == "CDC-ACM Demo":
-                    self.dev_list[dev_id] = Nano(port.device, port.product, self.dev_sigs, dev_id)
+                if description == "tinySA":
+                    self.dev_list[dev_id] = Tiny(port.device, description, self.dev_sigs, dev_id, basic=True)
+                if description == "tinySA4":
+                    self.dev_list[dev_id] = Tiny(port.device, description, self.dev_sigs, dev_id, basic=False)
+                if description == "LimeSDR-USB":
+                    self.dev_list[dev_id] = Lime(port.device, description, self.dev_sigs, dev_id)
+                if description == "NanoVnaPro Virtual ComPort":
+                    self.dev_list[dev_id] = Nano(port.device, description, self.dev_sigs, dev_id)
+                if description == "CDC-ACM Demo":
+                    self.dev_list[dev_id] = Nano(port.device, description, self.dev_sigs, dev_id)
                 # test using its specific commands and store results in its class instance
                 test = self.dev_list[dev_id].test(port.device)
                 if test is True:
@@ -166,15 +176,16 @@ class USBdevice(QObject):
                 device.set_ctrls(rbw, attn, lna, spur)  # device specific
 
     def stop(self, restart=False):
+        if not self.dev_list:
+            return
         for device in self.dev_list:  # dev_list contains the device class instances
-            if device:
-                if device.sweeping:
-                    device.sweeping = False  # the measurement threads keep looping if this is True
+            if device is not None:
+                if device and device.sweeping:
+                        device.sweeping = False  # the measurement threads keep looping if this is True
         for device in self.dev_list:
-            if device:
-                if device.threadRunning:
-                    logging.debug('waiting for measurement thread to stop')
-                    time.sleep(0.1)
+            if device and device.threadRunning:
+                logging.debug('waiting for measurement thread to stop')
+                time.sleep(0.1)
         self.is_scanning = False
         self.stopped.emit(restart)
 
@@ -191,13 +202,6 @@ class USBdevice(QObject):
         recording.file = file_name
         self.set_rec_info(i)
         self.loaded_files += 1
-
-    # def identify(self, port):
-    #     # Windows returns no information to pySerial list_ports.comports()
-    #     if system() == 'Linux' or system() == 'Darwin':
-    #         return port.product
-    #     else:
-    #         return 'USB device'S-2026-2837
 
 
 class WorkerSignals(QObject):
