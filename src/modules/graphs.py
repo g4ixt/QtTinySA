@@ -282,7 +282,6 @@ class SpectrumGraph(QObject):
         self.create(s_widget, w_widget, h_widget, m_widget, h_pos)
         self.count = 0  # the number of completed scans
         self.monitor_data = np.ndarray(2)
-        # self.wf_data = np.ndarray(2)
         self.startF = None
         self.stopF = None
         self.points = 101
@@ -424,21 +423,11 @@ class Marker:
     # def setup(self, colour):
     #     '''restore the marker frequencies from the configuration database and set starting conditions'''
     #     self.line.setValue(numbers.tm.record(0).value(self.guiRef(2)))
-    #     self.line.label.setColor(colour)
-    #     self.line.label.setPosition(0.02)
-    #     self.line.label.setMovable(True)
-    #     self.line.setPen(color=colour, width=0.5)
-    #     self.mType()
-    #     # self.traceLink(self.guiRef(1).value())
-    #     self.setLevel(self.guiRef(3).value())
+
     #     self.delta.hide()
     #     self.delta.setValue(0)
     #     self.deltaF = 0
-    #     self.delta.label.setPosition(0.05)
-    #     self.delta.label.setMovable(True)
-    #     M2.tplot.setXLink(M1.tplot)
-    #     M3.tplot.setXLink(M1.tplot)
-    #     M4.tplot.setXLink(M1.tplot)
+
 
     def setSignals(self):
         self.line.sigPositionChanged.connect(self.set_delta)
@@ -446,8 +435,8 @@ class Marker:
         self.delta.sigClicked.connect(self.dmkr_click)
         self.line.sigClicked.connect(self.mkr_click)
 
-    def to_start(self, startF):  # set marker to the sweep start frequency
-        self.line.setValue(startF * 1e6)
+    def to_freq(self, freq):  # set marker to the frequency value in Hz
+        self.line.setValue(freq)
         self.delta.hide()
 
     def spread(self, startF, stopF, gap):  # spread markers equally across scan range

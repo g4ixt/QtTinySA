@@ -15,7 +15,7 @@ import queue
 import struct
 import numpy as np
 from PySide6.QtCore import QObject, QElapsedTimer, QTimer, Signal, Slot, QRunnable, QThreadPool
-from PySide6.QtWidgets import QFileDialog
+# from PySide6.QtWidgets import QFileDialog
 from serial.tools import list_ports
 from datetime import datetime
 
@@ -23,7 +23,8 @@ threadpool = QThreadPool()
 
 class USBdevice(QObject):
     stopped = Signal(bool)
-    update_info = Signal(bool, bool, int)
+    update_info = Signal(str, int, int, str)
+    dev_enable = Signal(int, bool)
 
     def __init__(self):
         super().__init__()
@@ -94,16 +95,20 @@ class USBdevice(QObject):
                 # test using its specific commands and store results in its class instance
                 test = self.dev_list[dev_id].test(port.device)
                 if test is True:
-                    self.update_info.emit(True, True, dev_id)
+                    self.set_sa_info(dev_id)
+                    self.dev_enable.emit(dev_id, True)
                 else:
                     logging.info(f'test of {port} failed')
+                    self.update_info.emit('', dev_id, -1, '') # (name, id, sn, port)
+                    self.dev_enable.emit(dev_id, False)
 
     def disconnect(self, usbPort):
         for i, device in enumerate(self.dev_list):
             if device and device.usbPort == usbPort:
                 logging.info(f'{device.name} {device.sn} has disconnected from {device.usbPort}')
+                self.update_info.emit('', i, -1, '') # (name, dev_id, sn, port
+                self.dev_enable.emit(i, False)
                 self.stop(restart=False)
-                self.update_info.emit(True, False, i)
                 device.close()
                 del device  # delete the class instance
                 self.dev_list[i] = None
@@ -113,6 +118,21 @@ class USBdevice(QObject):
             if device:
                 device.close()
 
+    def set_sa_info(self, i):
+        try:
+            name = self.dev_list[i].name
+            sn = self.dev_list[i].sn
+            usbPort = self.dev_list[i].usbPort
+            self.update_info.emit(name, i, sn, usbPort)
+        except AttributeError:
+            return
+    
+    def set_rec_info(self, i):
+        name = 'File ' + str(i)
+        sn = self.rec_list[i].sn
+        file = self.rec_list[i].file
+        self.update_info.emit(name, i, sn, file)
+        
     def renumber(self, num_enabled):
         # re-number the devices (id) so that only enabled ones are numbered below the enabled count
         count = 0
@@ -158,11 +178,18 @@ class USBdevice(QObject):
         self.is_scanning = False
         self.stopped.emit(restart)
 
-    def read_file(self, file_name):  # run in separate thread to avoid blocking GUI for large files
+    def read_file(self, file):  # run in separate thread to avoid blocking GUI for large files
         i = self.loaded_files
-        self.rec_list[i].data_arr = np.load(file_name)
-        self.rec_list[i].id = i
-        self.update_info.emit(False, True, i)
+        recording = self.rec_list[i]
+        for j in range(i, 4):
+            self.update_info.emit('', j, 0, '')
+        recording.data_arr = np.load(file)
+        file_name = file.split('/')[-1]
+        logging.info(f'imported {file_name} for playback')
+        recording.id = i
+        recording.sn = self.rec_list[i].data_arr[0, 0]
+        recording.file = file_name
+        self.set_rec_info(i)
         self.loaded_files += 1
 
     # def identify(self, port):
@@ -248,6 +275,7 @@ class Tiny(QObject):
         if self.usb:
             for i in range(4):  # try 4 times to communicate with tinySA over USB serial
                 version = self.version()
+                logging.debug(f'Tiny {self.id} test {i} version = {version}')
                 if version is not None:
                     firmware = str.splitlines(version)
                     self.firmware = firmware[0].split('_')[-1]
@@ -255,6 +283,7 @@ class Tiny(QObject):
                     break
                 else:
                     time.sleep(0.5)
+                    
             if version is not None:
                 self.volts = self.battery()
                 info = self.info()
@@ -631,6 +660,7 @@ class Nano(QObject):
         if self.usb:
             for i in range(4):  # try 4 times to communicate with tinySA over USB serial
                 version = self.version()
+                logging.debug(f'Nano test {i} version = {version}')
                 if version is not None:
                     self.firmware = version
                     break
@@ -841,7 +871,8 @@ class Recorder(QObject):
         self.dev_num = 0
         self.id = 0  # 0 to 3, where 0=player for the first measurement recording file that was loaded, etc.
         self.sn = 0
-        self.name = None
+        self.name = ''
+        self.file = ''
         self.rec_time = 0
         self.speed = 1
         
