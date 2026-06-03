@@ -104,7 +104,7 @@ class Analyser:
     '''sets up and controls the GUI, and starts and stops measurements'''
 
     def __init__(self):
-        self.maxF = 6000
+        self.maxF = 12000
         self.memF = BytesIO()
         self.mkr_update_timer = QtCore.QTimer()
         self.dev_ref = []
@@ -243,7 +243,7 @@ class Analyser:
             spectrum.points = points
 
     def scan(self):  # called by the run/stop button
-        ''''take settings from GUI boxes and call usbDevice.start, which interfaces to the hardware'''
+        ''''take settings from GUI boxes and start usbDevice, which interfaces to the hardware'''
         if usbInstr.is_scanning:
             usbInstr.stop(restart=False)
             return
@@ -261,6 +261,7 @@ class Analyser:
         startF = QtTSA.start_freq.value() * 1e6  # freq in Hz
         stopF = QtTSA.stop_freq.value() * 1e6
         split = QtTSA.split_scan.isChecked()
+        maxF = settings.ui.maxFreqBox.value() * 1e6
         rbw = self.setRBW()
         attn = self.attn()
         lna = self.lna()
@@ -280,7 +281,7 @@ class Analyser:
         self.set_arrays()
 
         # start device(s) scanning
-        usbInstr.start(self.spectra, rbw, self.depth, split, loop=True)
+        usbInstr.start(self.spectra, rbw, self.depth, maxF, split, loop=True)
         self.runButton('Stop')
 
     def set_gui_colours(self):
@@ -1524,7 +1525,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.39')
+app.setApplicationVersion(' v1.3.40')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)

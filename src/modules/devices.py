@@ -155,7 +155,7 @@ class USBdevice(QObject):
                     # set it to a value above the range of counted devices
                     device.id = num_enabled + 1
             
-    def start(self, spectra, rbw, depth, split, loop):
+    def start(self, spectra, rbw, depth, maxF, split, loop):
         for index, device in enumerate(self.dev_list):  # dev_list contains the device class instances
             if device is not None:
                 if device.enabled:
@@ -164,7 +164,7 @@ class USBdevice(QObject):
                     stopF = spectra[index].stopF
                     points = spectra[index].points
                     logging.debug(f'usbInstr.start: startF={startF} stopF={stopF} pts={points}')
-                    device.sa = Worker(device.measurement, startF, stopF, points, rbw, depth, split, loop)
+                    device.sa = Worker(device.measurement, startF, stopF, points, rbw, depth, maxF, split, loop)
                     device.fifoTimer.stop()
                     device.sweeping = True
                     threadpool.start(device.sa)
@@ -331,11 +331,15 @@ class Tiny(QObject):
         logging.debug(f'sweepTimeout = {timeout:.2f} s')
         return timeout
 
-    def measurement(self, startF, stopF, points, rbw, depth, split, loop=True):  # run in separate thread
+    def measurement(self, startF, stopF, points, rbw, depth, maxF, split, loop=True):  # run in separate thread
         if self.basic:
             rbw = np.clip(rbw, 3, 600)
-            startF = np.clip(startF, 100000, 960000000)
-            stopF = np.clip(stopF, 100000, 960000000)
+            maxF = min(960000000, maxF)
+            startF = np.clip(startF, 100000, maxF)
+            stopF = np.clip(stopF, 100000, maxF)
+        else:
+            startF = np.clip(startF, 100000, maxF)
+            stopF = np.clip(stopF, 100000, maxF)
         updateTimer = QElapsedTimer()
         self.threadRunning = True
         firstRun = True
@@ -679,7 +683,7 @@ class Nano(QObject):
             else:
                 return False
 
-    def measurement(self, startF, stopF, points, rbw, depth, split, loop=True):  # run in separate thread
+    def measurement(self, startF, stopF, points, rbw, depth, maxF, split, loop=True):  # run in separate thread
         # Nano points range capability is 11 to 301 so chop into subsets
         for i in range(11, 301, 1):
             rem = points - (i * int(points / i))
@@ -687,6 +691,10 @@ class Nano(QObject):
                 subset = i
                 break
         
+        maxF = min(3 * 1e9, maxF)  # nanoVNA-FV2 max F is 3GHz
+        startF = np.clip(startF, 50000, maxF)
+        stopF = np.clip(stopF, 50000, maxF)
+
         self.threadRunning = True
         
         # # create freq array here.  Non-Tiny devices may send list of freqs measured, so this preserves compatibility
