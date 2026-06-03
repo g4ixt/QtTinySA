@@ -918,8 +918,16 @@ class ModelView():
                     break
 
     def readCSV(self, fileName):
+        # Build a set of existing (startF, preset) pairs to prevent duplicates
+        existing = set()
+        for i in range(self.tm.rowCount()):
+            rec = self.tm.record(i)
+            existing.add((str(rec.value('name')), str(rec.value('startF'))))
+
         with open(fileName, "r") as fileInput:
             reader = csv.DictReader(fileInput)
+            inserted = 0
+            skipped = 0
             for row in reader:
                 logging.debug(f'readCSV(): row = {row}')
                 record = self.tm.record()
@@ -930,21 +938,35 @@ class ModelView():
                         value = colours.fetch_ID('colour', value)
                     if key == 'value':
                         value = int(eval(value))
-
                     if key == 'Frequency':  # to match RF mic CSV files
                         key = 'startF'
                         value = str(float(value) / 1e3)
-
-                    if key != 'ID':  # ID is the table primary key and is auto-populated
+                    if key != 'ID': # ID is the table primary key and is auto-populated
                         record.setValue(str(key), value)
-
-                if record.value('value') not in (0, 1):  # because it's not present in RF mic CSV files
+                if record.value('value') not in (0, 1): # because it's not present in RF mic CSV files
                     record.setValue('value', 1)
-                if record.value('preset') == '':  # preset missing so use current preferences filterbox text
+                if record.value('preset') == '': # preset missing so use current preferences filterbox text
                     record.setValue('preset', bandstype.fetch_ID('preset', presetFreqs.ui.filterBox.currentText()))
+
+                # Duplicate check: skip if this startF + preset already exists
+                key_tuple = (str(record.value('name')), str(record.value('startF')))
+            
+                if key_tuple in existing:
+                    logging.info(f'readCSV(): skipping duplicate entry name={record.value("name")}')
+                    skipped += 1
+                    continue
+
+                existing.add(key_tuple)
                 self.tm.insertRecord(-1, record)
-        self.tm.select()
-        self.tm.layoutChanged.emit()
+                inserted += 1
+
+            self.tm.select()
+            self.tm.layoutChanged.emit()
+            if skipped:
+                logging.info(f'readCSV(): inserted {inserted} rows, skipped {skipped} duplicates')
+
+        message = 'Inserted ' + str(inserted) + ' rows, skipped ' + str(skipped) + ' duplicates'
+        popUp(QtTSA, message, 'Ok', 'Info')
         # self.dwm.submit()
 
     def fetch_ID(self, field, lookup_value):
