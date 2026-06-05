@@ -14,7 +14,7 @@
 """TinySA GUI programme using Qt, PySide6 and PyQtGraph.
 
 This code provides some of the TinySA Ultra on-screen commands and PC control.
-Development is now on Kubuntu 25.10 with Python 3.13 and PySide6 using Spyder.
+Development is now on Kubuntu 26.04LTS with Python 3.14 and PySide6 using Spyder.
 TinySA, TinySA Ultra and the tinysa icon are trademarks of Erik Kaashoek and are used with permission.
 TinySA commands are based on Erik's Python examples: http://athome.kaashoek.com/tinySA/python/
 Serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset: https://github.com/Ho-Ro"""
@@ -121,11 +121,13 @@ class Analyser:
         self.timespectrum.zoom(QtTSA.zoom.value())
         self.timespectrum.rotateX(QtTSA.x_rotation.value())
         self.timespectrum.rotateY(QtTSA.y_rotation.value())
+      
         # instantiate each spectrum, which has three elements: 1 trace; 4 markers; 1 monitor
-        self.s0 = SpectrumGraph(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot, 0.5)
-        self.s1 = SpectrumGraph(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot, 1.7)
-        self.s2 = SpectrumGraph(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot, 3.1)
-        self.s3 = SpectrumGraph(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot, 4.2)
+        self.s0 = SpectrumGraph(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot, 100)
+        self.s1 = SpectrumGraph(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot, 300)
+        self.s2 = SpectrumGraph(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot, 500)
+        self.s3 = SpectrumGraph(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot, 700)
+        
         self.spectra = (self.s0, self.s1, self.s2, self.s3)
 
     def setSignals(self):
@@ -139,7 +141,7 @@ class Analyser:
         self.mkr_update_timer.timeout.connect(self.updateMarker)
 
     @Slot()
-    def router(self, freq, levl, maxl, minl, buffer, dev_id, ser_num, split, sweep_end):
+    def router(self, freq, levl, maxl, minl, buffer, dev_id, ser_num, tim, split, sweep_end):
         '''Called by a signal from the measurement threads to route updates to
            the spectrum trace(s) & recorder based on the device number and device count.
            tuple 1 = (device, number of devices) tuple 2 = trace(s) to update
@@ -156,7 +158,7 @@ class Analyser:
                   (3, 4): (self.s3, None)}
         route = routes.get((dev_id, self.dev_count))  # route is the list of spectrum instances
         try:
-            self.updateGUI(route, freq, levl, maxl, minl, buffer, ser_num, dev_id, split, sweep_end)
+            self.updateGUI(route, freq, levl, maxl, minl, buffer, ser_num, dev_id, tim, split, sweep_end)
             if usbInstr.rec_list[dev_id].recording and sweep_end:
                 usbInstr.rec_list[dev_id].record(freq, levl, ser_num)       
         except TypeError:
@@ -255,6 +257,7 @@ class Analyser:
 
         for j in range(0, 4):
             usbInstr.set_sa_info(j)
+
         # set sweep and device-specific control values
         self.dev_count = self.count_enabled()
         self.setPoints()
@@ -262,6 +265,7 @@ class Analyser:
         stopF = QtTSA.stop_freq.value() * 1e6
         split = QtTSA.split_scan.isChecked()
         maxF = settings.ui.maxFreqBox.value() * 1e6
+        interval = settings.ui.intervalBox.value()
         rbw = self.setRBW()
         attn = self.attn()
         lna = self.lna()
@@ -281,7 +285,7 @@ class Analyser:
         self.set_arrays()
 
         # start device(s) scanning
-        usbInstr.start(self.spectra, rbw, self.depth, maxF, split, loop=True)
+        usbInstr.start(self.spectra, rbw, self.depth, maxF, interval, split, loop=True)
         self.runButton('Stop')
 
     def set_gui_colours(self):
@@ -438,7 +442,7 @@ class Analyser:
         if restart:
             self.scan()
 
-    def updateGUI(self, route, freq, levl, maxl, minl, buffer, ser_num, dev_id, split, sweep_end):
+    def updateGUI(self, route, freq, levl, maxl, minl, buffer, ser_num, dev_id, tim, split, sweep_end):
         ''''updates all the traces in the route in one call'''
         if bandstype.freq !=0 and bandstype.freq < QtTSA.start_freq.value() * 1e6:
             freq = freq + bandstype.freq
@@ -508,6 +512,10 @@ class Analyser:
                 if trace_type != 'Freeze':
                     spectrum.updateTrace(freq, data.get(trace_type))
                 logging.debug(f'updating {self.spectra.index(spectrum)}')
+                if tim != 0:
+                    spectrum.timestamp.setText(time.ctime(tim))
+                else:
+                    spectrum.timestamp.setText('')
     
                 # update the markers
                 maskFreq = self.rbwMask(freq[0], freq[-1])
@@ -519,7 +527,10 @@ class Analyser:
                 if sweep_end:
                     spectrum.count += 1
                     timeNow = time.time()
-                    spectrum.update_monitor(freq, timeNow)
+                    if tim == 0:
+                        spectrum.update_monitor(freq, timeNow)
+                    else:
+                        spectrum.update_monitor(freq, tim)
                     if spectrum == self.s0:  # phase noise and pattern measurements use trace 1 only
                         m0_index = np.argmin(np.abs(freq - (spectrum.trace.m0.line.value())))  # marker 1 index
                         if phasenoise.ui.isVisible() and not QtTSA.rbw_auto.isChecked():
@@ -718,6 +729,8 @@ class Analyser:
             if usbInstr.rec_list[i].sweeping:
                 return
         
+        interval = settings.ui.intervalBox.value()
+        
         # set the graph frequency axis to the maximum range of the loaded recordings
         start = usbInstr.rec_list[0].data_arr[0, 1] / 1e6
         stop = usbInstr.rec_list[0].data_arr[0, -1] / 1e6
@@ -748,7 +761,7 @@ class Analyser:
         for i in range(usbInstr.loaded_files):    
             self.spectra[i].points = points[i]
             usbInstr.rec_list[i].sweeping = True
-            player = Worker(usbInstr.rec_list[i].measurement_player, self.depth, i, split)
+            player = Worker(usbInstr.rec_list[i].measurement_player, self.depth, i, interval, split)
             threadpool.start(player)
             name = 'File ' + str(i)
             sn = str(usbInstr.rec_list[i].sn)
@@ -1547,7 +1560,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.40')
+app.setApplicationVersion(' v1.3.41')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)

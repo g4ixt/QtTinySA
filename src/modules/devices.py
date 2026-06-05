@@ -155,7 +155,7 @@ class USBdevice(QObject):
                     # set it to a value above the range of counted devices
                     device.id = num_enabled + 1
             
-    def start(self, spectra, rbw, depth, maxF, split, loop):
+    def start(self, spectra, rbw, depth, maxF, interval, split, loop):
         for index, device in enumerate(self.dev_list):  # dev_list contains the device class instances
             if device is not None:
                 if device.enabled:
@@ -164,7 +164,7 @@ class USBdevice(QObject):
                     stopF = spectra[index].stopF
                     points = spectra[index].points
                     logging.debug(f'usbInstr.start: startF={startF} stopF={stopF} pts={points}')
-                    device.sa = Worker(device.measurement, startF, stopF, points, rbw, depth, maxF, split, loop)
+                    device.sa = Worker(device.measurement, startF, stopF, points, rbw, depth, maxF, interval, split, loop)
                     device.fifoTimer.stop()
                     device.sweeping = True
                     threadpool.start(device.sa)
@@ -206,7 +206,7 @@ class USBdevice(QObject):
 
 class WorkerSignals(QObject):
     error = Signal(object, str, str, str)
-    result = Signal(np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, int, bool, bool)
+    result = Signal(np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, int, float, bool, bool)
     save = Signal(np.ndarray, np.ndarray, int, int, bool)
     progress = Signal(int)
     # fullSweep = Signal(np.ndarray, np.ndarray)
@@ -331,7 +331,7 @@ class Tiny(QObject):
         logging.debug(f'sweepTimeout = {timeout:.2f} s')
         return timeout
 
-    def measurement(self, startF, stopF, points, rbw, depth, maxF, split, loop=True):  # run in separate thread
+    def measurement(self, startF, stopF, points, rbw, depth, maxF, interval, split, loop=True):  # run in separate thread
         if self.basic:
             rbw = np.clip(rbw, 3, 600)
             maxF = min(960000000, maxF)
@@ -349,8 +349,6 @@ class Tiny(QObject):
         maxl = np.full(points, -140, dtype=float)
         minl = np.full(points, 0, dtype=float)
         buffer = np.full((depth, points), np.nan, dtype=float)  # used for waterfall and calculating averages
-
-        # version = int(self.firmware[2])  # just the firmware version number
 
         # self.runTimer.start()  # debug
         # logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6:.3f}mS')  # debug
@@ -424,13 +422,13 @@ class Tiny(QObject):
                             break
                         firstRun = False
                 timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
-                if timeElapsed/1e6 > 100:  # mS needs to be settings.ui.intervalBox.value():
+                if timeElapsed/1e6 > interval:  # GUI update interval mS
                     # send the measurement data to router() in the Analyser class
-                    self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, split, False)
+                    self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, 0, split, False)
                     updateTimer.start()
 
             # also send the measurement data to router() at the end of each sweep
-            self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, split, True)
+            self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, 0, split, True)
         try:
             self.usb.read(2)  # discard the command prompt that the tinySA sends when sweeping ends
             self.serialWrite('abort\r')
@@ -761,12 +759,12 @@ class Nano(QObject):
                     continue
                 
                 logging.debug(f'levl = {np.shape(levl)} freq = {np.shape(freq)}')
-                self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, split, False)
+                self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, 0, split, False)
 
             buffer = np.roll(buffer, 1, axis=0)
             buffer[0] = levl
             # also send the measurement data to router() at the end of each sweep
-            self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, split, True)
+            self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, 0, split, True)
             self.usb.reset_input_buffer()
         self.threadRunning = False
 
@@ -894,35 +892,50 @@ class Recorder(QObject):
         self.signals.save.connect(sigs["save"])
         self.signals.progress.connect(sigs["progress"])
 
-    def measurement_player(self, depth, dev_id, split):
+    def measurement_player(self, depth, dev_id, interval, split):
         '''runs in a separate thread, sending data to the router from a file loaded into self.data_arr'''
         self.threadRunning = True
         scans = np.shape(self.data_arr)[0] - 1
         points = np.shape(self.data_arr)[1] - 1
         freq = self.data_arr[0, 1:]  # freqs are in row 0 from col 1 onwards
+        levl = np.full(points, -140, dtype=float)
         times = self.data_arr[1:, 0]  # time stamps are in col 0 from row 1 onwards
         maxl = np.full(points, -140, dtype=float)
         minl = np.full(points, 0, dtype=float)
-        buffer = np.full((depth, points), None, dtype=float)  # used for waterfall and calculating averages
-        
-        row = 1    
+        buffer = np.full((depth, points), None, dtype=float)  # used for waterfall and calculating averages 
+        updateTimer = QElapsedTimer()
+        row = sweep_time = 1
+        if scans > 1:
+            sweep_time = float(times[1] - times[0])
+
+        updateTimer.start()
         while self.sweeping and row < scans:
-            interval = float(times[row] - times[row - 1])
-            levl = self.data_arr[row, 1:]
-            np.fmax(levl, maxl, out=maxl)  # compare current level with max and min
-            np.fmin(levl, minl, out=minl)  # and save them back on themselves
-            
-            buffer = np.roll(buffer, 1, axis=0)
-            buffer[0] = levl
-            
-            # send the measurement data to router() in the Analyser class
-            self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, split, False)
-            time.sleep(interval / self.speed)
+            if row > 1:
+                sweep_time = float(times[row] - times[row - 1])
+            tim = float(times[row]) - sweep_time  # timestamp is set at the end of a sweep
+            for point in range(points):
+                levl[point] = self.data_arr[row, point + 1]  # first column in the array is a timestamp
+                if point == points - 1:
+                    np.fmax(levl, maxl, out=maxl)  # compare current level with max and min
+                    np.fmin(levl, minl, out=minl)  # and save them back on themselves
+                    buffer = np.roll(buffer, 1, axis=0)
+                    buffer[0] = levl
+                time.sleep(sweep_time/points)
+                tim += sweep_time/points
+                timeElapsed = updateTimer.nsecsElapsed() / 1e6  # how long the player has been running, mS
+                if timeElapsed >= interval:  # mS
+                    # send the measurement data to router() in the Analyser class
+                    self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, tim, split, False)
+                    updateTimer.start()
+                if not self.sweeping:
+                    break
+            # also send the measurement data to router() at the end of each sweep
+            self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, tim, split, True)
             row += 1
         self.sweeping = False
         self.threadRunning = False
         
-    def record(self, freq, levl, ser_num):  # called by a signal from router() in analyser
+    def record(self, freq, levl, ser_num):  # called once each sweep by a signal from router() in analyser
         logging.debug(f'record: ser_num = {ser_num}')
         if self.row_count == 0:
             # set row 0 col 0 to serial num and col 1 onward to frequency values for each point

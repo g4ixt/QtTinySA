@@ -284,12 +284,17 @@ class SpectrumGraph(QObject):
         s_widget.addLegend(offset=(30, 400))
         self.trace = s_widget.plot([], [], width=1, padding=0)
         self.trace.is_visible = True
+        # self.timestamp = pyqtgraph.TextItem(text='timestamp', border=None, anchor=(0, 0))
+        self.timestamp = pyqtgraph.TextItem(border=None, anchor=(0, 0))
+        self.timestamp.setParentItem(s_widget.plotItem)
+        self.timestamp.setPos(h_pos, 0)
 
         # create four markers, all bound to this trace
-        self.trace.m0 = Marker(s_widget, self, 'm1', 0.1, h_pos)
-        self.trace.m1 = Marker(s_widget, self, 'm2', 0.9, h_pos)
-        self.trace.m2 = Marker(s_widget, self, 'm3', 1.7, h_pos)
-        self.trace.m3 = Marker(s_widget, self, 'm4', 2.5, h_pos)
+        self.trace.m0 = Marker(s_widget, self, 'm1', 20, h_pos)
+        self.trace.m1 = Marker(s_widget, self, 'm2', 40, h_pos)
+        self.trace.m2 = Marker(s_widget, self, 'm3', 60, h_pos)
+        self.trace.m3 = Marker(s_widget, self, 'm4', 80, h_pos)
+        
         self.mkr_list = [self.trace.m0, self.trace.m1, self.trace.m2, self.trace.m3]
 
         # create the waterfall graph and its histogram
@@ -307,14 +312,16 @@ class SpectrumGraph(QObject):
         self.monitor.showGrid(x=True, y=True)
         m_widget.nextRow()
         self.monitor.plot([], [])
-
+        
     def enable(self, show=True):  # show or hide a trace
         if show:
             self.trace.show()
             self.trace.is_visible = True
+            self.timestamp.show()
         else:
             self.trace.hide()
             self.trace.is_visible = False
+            self.timestamp.hide()
             for mkr in self.mkr_list:
                 mkr.line.hide()
 
@@ -325,6 +332,7 @@ class SpectrumGraph(QObject):
         # set the trace and marker colours the same
         self.pen = pen
         self.trace.setPen(pen)
+        self.timestamp.setColor(pen)
         for mkr in self.mkr_list:
             mkr.line.setPen(pen, style=Qt.DashLine)
             mkr.delta.setPen(pen, style=Qt.DotLine)
@@ -407,8 +415,10 @@ class Marker:
         self.line.addMarker('^', 0, 10)
         self.deltaF = 0  # the delta marker frequency difference
         self.deltaRelative = True
-        self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(-h_pos, -v_pos), fill='k')  # box is vertical posn
+        # self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(0, 0), fill='k')
+        self.markerBox = pyqtgraph.TextItem(text='', border=None, anchor=(0, 0))
         self.markerBox.setParentItem(ui_widget.plotItem)
+        self.markerBox.setPos(h_pos, v_pos)
         self.line.hide()
         self.delta.hide()
 
