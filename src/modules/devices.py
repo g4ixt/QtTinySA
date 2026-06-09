@@ -904,6 +904,8 @@ class Recorder(QObject):
         buffer = np.full((depth, points), None, dtype=float)  # used for waterfall and calculating averages 
         updateTimer = QElapsedTimer()
         sweep_time = 1
+        if scans > 1:
+            sweep_time = float(times[1] - times[0])
         if play_clicked:
             target_row = scans
             row = int(scans * target/100)
@@ -911,8 +913,6 @@ class Recorder(QObject):
         # the slider is controlling playback
             target_row = int(scans * target/100)
             row = target_row - 1
-        if scans > 1:
-            sweep_time = float(times[1] - times[0])
         buffer_start = max(0, target_row - depth)
         buffer = self.data_arr[buffer_start:target_row, 1:]
 
@@ -927,7 +927,7 @@ class Recorder(QObject):
             if play_clicked:
                 buffer = np.roll(buffer, 1, axis=0)
                 buffer[0] = levl
-                time.sleep(self.speed*sweep_time)
+                time.sleep(self.speed * sweep_time)
             else:
                 time.sleep(interval / 1e3)  # interval is in mS
             timestamp += sweep_time
@@ -939,8 +939,6 @@ class Recorder(QObject):
                 updateTimer.start()
                 if play_clicked:
                     self.signals.progress.emit(100 * row/scans)
-            # if not self.sweeping:
-            #     break
         self.sweeping = False
         self.threadRunning = False   
 
