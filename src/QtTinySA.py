@@ -134,7 +134,7 @@ class Analyser:
         usbInstr.signals.result.connect(self.router)
         usbInstr.signals.save.connect(self.save_data)
         usbInstr.signals.error.connect(popUp)
-        # usbInstr.signals.progress.connect(rec.import_progress)
+        usbInstr.signals.progress.connect(self.time_path_indicator)
         usbInstr.stopped.connect(self.allStopped)
         usbInstr.update_info.connect(self.set_device_info)
         usbInstr.dev_enable.connect(self.set_enabled)
@@ -222,7 +222,7 @@ class Analyser:
         gui_ctrl = np.array((QtTSA.dev0.isChecked(), QtTSA.dev1.isChecked(),
                             QtTSA.dev2.isChecked(), QtTSA.dev3.isChecked()), dtype=bool)
         # set the device enabled flags, which are used by 'renumber'
-        for i, device in enumerate(usbInstr.dev_list):
+        for i, device in enumerate(usbInstr.devices):
             if device is not None:
                 device.enabled = gui_ctrl[i]
         usbInstr.renumber(gui_ctrl.sum())
@@ -253,7 +253,7 @@ class Analyser:
             usbInstr.stop(restart=False)
             return
         self.stop_playback()
-        if usbInstr.dev_list is None:
+        if usbInstr.devices is None:
             popUp(QtTSA, 'No spectrum analyser devices found', 'Ok', 'Critical')
             return
         self.mkr_update_timer.stop()  # stop it because updateGUI does it when scanning
@@ -560,7 +560,7 @@ class Analyser:
         ''''populates a combo box 'device' on 'ui_name' with a list of devices of type dev_name'''
         ui_name.device.clear()
         self.dev_ref = []
-        for device in usbInstr.dev_list:
+        for device in usbInstr.devices:
             #if device and device.firmware[0] == dev_name:
             if device:
                 if device.name in dev_name:
@@ -573,7 +573,7 @@ class Analyser:
         device = self.dev_ref[ui_name.device.currentIndex()]
 
     def file_browser(self):
-        if usbInstr.dev_list:
+        if usbInstr.devices:
             self.set_dev_combo(filebrowse.ui, ('tinySA ULTRA ZS405', 'tinySA ULTRA ZS406', 'tinySA ULTRA ZS407'))
             filebrowse.ui.show()
             self.list_files()
@@ -712,7 +712,7 @@ class Analyser:
         for i in range(self.dev_count):
             points = self.spectra[i].points
             usbInstr.recorders[i].configure(points, i, self.dev_count)
-            usbInstr.recorders[i].sn = usbInstr.dev_list[i].sn
+            usbInstr.recorders[i].sn = usbInstr.devices[i].sn
             usbInstr.recorders[i].id = i
             usbInstr.recorders[i].recording = True
 
@@ -825,7 +825,11 @@ class Analyser:
             self.set_device_info('', i, -1, '') # name, dev_id, sn, port)
         usbInstr.loaded_files = 0
         QtTSA.vortex.hide()
-            
+
+    def time_path_indicator(self, position):
+        QtTSA.vortex.setValue(position)
+        
+
 class Limit:
     def __init__(self, pen, x, y, movable):  # x = None, horizontal.  y = None, vertical
         self.pen = pen
@@ -1570,7 +1574,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.42')
+app.setApplicationVersion(' v1.3.43')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)

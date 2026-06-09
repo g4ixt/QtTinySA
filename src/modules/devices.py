@@ -47,7 +47,7 @@ class USBdevice(QObject):
 
     def setDevices(self):
         # self.cnx_count = 0  # used to count 'connected' devices, not 'enabled' devices
-        self.dev_list = None
+        self.devices = None
         self.rec_0 = Recorder(self.dev_sigs)
         self.rec_1 = Recorder(self.dev_sigs)
         self.rec_2 = Recorder(self.dev_sigs)
@@ -85,25 +85,25 @@ class USBdevice(QObject):
     def connect(self):
         # try to set USB connections to different hardware... need to check if it works in Windows now
         self.dev0 = self.dev1 = self.dev2 = self.dev3 = None
-        self.dev_list = [self.dev0, self.dev1, self.dev2, self.dev3]  # all of which are initially set as None above
+        self.devices = [self.dev0, self.dev1, self.dev2, self.dev3]  # all of which are initially set as None above
         self.run_connect = False
         for dev_id, port in enumerate(self.ports):
             description = self.identify(port)
             # iterate through the ports in the list, instantiate device classes and test serial comms
-            if self.dev_list[dev_id] is None and len(self.ports) > dev_id:
+            if self.devices[dev_id] is None and len(self.ports) > dev_id:
                 # instantiate a device class, replacing 'None' with the instance, in, e.g. self.dev2
                 if description == "tinySA":
-                    self.dev_list[dev_id] = Tiny(port.device, description, self.dev_sigs, dev_id, basic=True)
+                    self.devices[dev_id] = Tiny(port.device, description, self.dev_sigs, dev_id, basic=True)
                 if description == "tinySA4":
-                    self.dev_list[dev_id] = Tiny(port.device, description, self.dev_sigs, dev_id, basic=False)
+                    self.devices[dev_id] = Tiny(port.device, description, self.dev_sigs, dev_id, basic=False)
                 if description == "LimeSDR-USB":
-                    self.dev_list[dev_id] = Lime(port.device, description, self.dev_sigs, dev_id)
+                    self.devices[dev_id] = Lime(port.device, description, self.dev_sigs, dev_id)
                 if description == "NanoVnaPro Virtual ComPort":
-                    self.dev_list[dev_id] = Nano(port.device, description, self.dev_sigs, dev_id)
+                    self.devices[dev_id] = Nano(port.device, description, self.dev_sigs, dev_id)
                 if description == "CDC-ACM Demo":
-                    self.dev_list[dev_id] = Nano(port.device, description, self.dev_sigs, dev_id)
+                    self.devices[dev_id] = Nano(port.device, description, self.dev_sigs, dev_id)
                 # test using its specific commands and store results in its class instance
-                test = self.dev_list[dev_id].test(port.device)
+                test = self.devices[dev_id].test(port.device)
                 if test is True:
                     self.set_sa_info(dev_id)
                     self.dev_enable.emit(dev_id, True)
@@ -113,7 +113,7 @@ class USBdevice(QObject):
                     self.dev_enable.emit(dev_id, False)
 
     def disconnect(self, usbPort):
-        for i, device in enumerate(self.dev_list):
+        for i, device in enumerate(self.devices):
             if device and device.usbPort == usbPort:
                 logging.info(f'{device.name} {device.sn} has disconnected from {device.usbPort}')
                 self.update_info.emit('', i, -1, '') # (name, dev_id, sn, port
@@ -121,18 +121,18 @@ class USBdevice(QObject):
                 self.stop(restart=False)
                 device.close()
                 del device  # delete the class instance
-                self.dev_list[i] = None
+                self.devices[i] = None
 
     def closePort(self):
-        for device in self.dev_list:
+        for device in self.devices:
             if device:
                 device.close()
 
     def set_sa_info(self, i):
         try:
-            name = self.dev_list[i].name
-            sn = self.dev_list[i].sn
-            usbPort = self.dev_list[i].usbPort
+            name = self.devices[i].name
+            sn = self.devices[i].sn
+            usbPort = self.devices[i].usbPort
             self.update_info.emit(name, i, sn, usbPort)
         except AttributeError:
             return
@@ -146,7 +146,7 @@ class USBdevice(QObject):
     def renumber(self, num_enabled):
         # re-number the devices (id) so that only enabled ones are numbered below the enabled count
         count = 0
-        for device in self.dev_list:
+        for device in self.devices:
             if device is not None:
                 if device.enabled:
                     device.id = count
@@ -156,7 +156,7 @@ class USBdevice(QObject):
                     device.id = num_enabled + 1
             
     def start(self, spectra, rbw, depth, maxF, interval, split, loop):
-        for index, device in enumerate(self.dev_list):  # dev_list contains the device class instances
+        for index, device in enumerate(self.devices):  # devices contains the device class instances
             if device is not None:
                 if device.enabled:
                     device.usbSend()
@@ -171,18 +171,18 @@ class USBdevice(QObject):
                     self.is_scanning = True
 
     def controls(self, rbw, attn, lna, spur):
-        for device in self.dev_list:
+        for device in self.devices:
             if device is not None:
                 device.set_ctrls(rbw, attn, lna, spur)  # device specific
 
     def stop(self, restart=False):
-        if not self.dev_list:
+        if not self.devices:
             return
-        for device in self.dev_list:  # dev_list contains the device class instances
+        for device in self.devices:  # devices contains the device class instances
             if device is not None:
                 if device and device.sweeping:
                         device.sweeping = False  # the measurement threads keep looping if this is True
-        for device in self.dev_list:
+        for device in self.devices:
             if device and device.threadRunning:
                 logging.debug('waiting for measurement thread to stop')
                 time.sleep(0.1)
@@ -932,13 +932,15 @@ class Recorder(QObject):
                 time.sleep(interval / 1e3)  # interval is in mS
             timestamp += sweep_time
             timeElapsed = updateTimer.nsecsElapsed() / 1e6  # how long the player has been running, mS
+            row += 1
             if timeElapsed >= interval:
             # send the measurement data to router() in the Analyser class
                 self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, timestamp, split, False)
                 updateTimer.start()
-            if not self.sweeping:
-                break
-            row += 1
+                if play_clicked:
+                    self.signals.progress.emit(100 * row/scans)
+            # if not self.sweeping:
+            #     break
         self.sweeping = False
         self.threadRunning = False   
 
