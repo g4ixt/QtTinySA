@@ -53,7 +53,7 @@ class USBdevice(QObject):
         self.rec_2 = Recorder(self.dev_sigs)
         self.rec_3 = Recorder(self.dev_sigs)
         # each instance of 'recorder' is used for a single spectrum analyser's measurement results
-        self.rec_list = (self.rec_0, self.rec_1, self.rec_2, self.rec_3)
+        self.recorders = (self.rec_0, self.rec_1, self.rec_2, self.rec_3)
 
     def probe(self):
         VID = (0x0483, 0x1d50, 0x04b4)  # 1155 tinySA/NanoVNA, limeSDR, NanoVNA V2 +4
@@ -139,8 +139,8 @@ class USBdevice(QObject):
     
     def set_rec_info(self, i):
         name = 'File ' + str(i)
-        sn = self.rec_list[i].sn
-        file = self.rec_list[i].file
+        sn = self.recorders[i].sn
+        file = self.recorders[i].file
         self.update_info.emit(name, i, sn, file)
         
     def renumber(self, num_enabled):
@@ -191,14 +191,14 @@ class USBdevice(QObject):
 
     def read_file(self, file):  # run in separate thread to avoid blocking GUI for large files
         i = self.loaded_files
-        recording = self.rec_list[i]
+        recording = self.recorders[i]
         for j in range(i, 4):
             self.update_info.emit('', j, 0, '')
         recording.data_arr = np.load(file)
         file_name = file.split('/')[-1]
         logging.info(f'imported {file_name} for playback')
         recording.id = i
-        recording.sn = self.rec_list[i].data_arr[0, 0]
+        recording.sn = self.recorders[i].data_arr[0, 0]
         recording.file = file_name
         self.set_rec_info(i)
         self.loaded_files += 1
@@ -360,7 +360,7 @@ class Tiny(QObject):
             else:
                 command = f'scanraw {int(startF)} {int(stopF)} {int(points)} 1\r'
 
-            self.usb.timeout = 1  # self.sweepTimeout(frequencies)
+            self.usb.timeout = 1  # should be from self.sweepTimeout(frequencies)
 
             # firmware versions before 4.177 don't support auto-repeating scanraw so command must be sent each sweep
             if firstRun or not loop:
@@ -882,7 +882,6 @@ class Recorder(QObject):
         self.id = 0  # 0 to 3, where 0=player for the first measurement recording file that was loaded, etc.
         self.sn = 0
         self.name = ''
-        self.file = ''
         self.rec_time = 0
         self.speed = 1
         
@@ -891,9 +890,9 @@ class Recorder(QObject):
         self.signals.result.connect(sigs["result"])
         self.signals.save.connect(sigs["save"])
         self.signals.progress.connect(sigs["progress"])
-
-    def measurement_player(self, depth, dev_id, interval, split):
-        '''runs in a separate thread, sending data to the router from a file loaded into self.data_arr'''
+   
+    def player(self, depth, dev_id, interval, target, play_clicked, split):
+        '''runs in a thread, sending data to the router from a file loaded into self.data_arr'''
         self.threadRunning = True
         scans = np.shape(self.data_arr)[0] - 1
         points = np.shape(self.data_arr)[1] - 1
@@ -904,37 +903,45 @@ class Recorder(QObject):
         minl = np.full(points, 0, dtype=float)
         buffer = np.full((depth, points), None, dtype=float)  # used for waterfall and calculating averages 
         updateTimer = QElapsedTimer()
-        row = sweep_time = 1
+        sweep_time = 1
+        if play_clicked:
+            target_row = scans
+            row = int(scans * target/100)
+        else:
+        # the slider is controlling playback
+            target_row = int(scans * target/100)
+            row = target_row - 1
         if scans > 1:
             sweep_time = float(times[1] - times[0])
+        buffer_start = max(0, target_row - depth)
+        buffer = self.data_arr[buffer_start:target_row, 1:]
 
         updateTimer.start()
-        while self.sweeping and row < scans:
+        while self.sweeping and row < target_row:
             if row > 1:
                 sweep_time = float(times[row] - times[row - 1])
-            tim = float(times[row]) - sweep_time  # timestamp is set at the end of a sweep
-            for point in range(points):
-                levl[point] = self.data_arr[row, point + 1]  # first column in the array is a timestamp
-                if point == points - 1:
-                    np.fmax(levl, maxl, out=maxl)  # compare current level with max and min
-                    np.fmin(levl, minl, out=minl)  # and save them back on themselves
-                    buffer = np.roll(buffer, 1, axis=0)
-                    buffer[0] = levl
-                time.sleep(sweep_time/points)
-                tim += sweep_time/points
-                timeElapsed = updateTimer.nsecsElapsed() / 1e6  # how long the player has been running, mS
-                if timeElapsed >= interval:  # mS
-                    # send the measurement data to router() in the Analyser class
-                    self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, tim, split, False)
-                    updateTimer.start()
-                if not self.sweeping:
-                    break
-            # also send the measurement data to router() at the end of each sweep
-            self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, tim, split, True)
+            timestamp = float(times[row]) - sweep_time  # time is stamped at the end of a sweep
+            levl = self.data_arr[row, 1:]  # first column in the array is a timestamp
+            np.fmax(levl, maxl, out=maxl)  # compare current level with max and min
+            np.fmin(levl, minl, out=minl)  # and save them back on themselves
+            if play_clicked:
+                buffer = np.roll(buffer, 1, axis=0)
+                buffer[0] = levl
+                time.sleep(self.speed*sweep_time)
+            else:
+                time.sleep(interval / 1e3)  # interval is in mS
+            timestamp += sweep_time
+            timeElapsed = updateTimer.nsecsElapsed() / 1e6  # how long the player has been running, mS
+            if timeElapsed >= interval:
+            # send the measurement data to router() in the Analyser class
+                self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, timestamp, split, False)
+                updateTimer.start()
+            if not self.sweeping:
+                break
             row += 1
         self.sweeping = False
-        self.threadRunning = False
-        
+        self.threadRunning = False   
+
     def record(self, freq, levl, ser_num):  # called once each sweep by a signal from router() in analyser
         logging.debug(f'record: ser_num = {ser_num}')
         if self.row_count == 0:
@@ -949,8 +956,8 @@ class Recorder(QObject):
     def save_recording(self, folder):
             # save a copy of arr to file; omit all-NaN rows to minimise file size for short recordings
             logging.info(f'saving recording from {self.sn} dev{self.id} at row {self.row_count}')
-            timeStamp = time.strftime('%Y-%m-%d-%H%M%S')
-            file_name = str(timeStamp + '_s' + str(self.sn) + '_d' + str(self.id))
+            timestamp = time.strftime('%Y-%m-%d-%H%M%S')
+            file_name = str(timestamp + '_s' + str(self.sn) + '_d' + str(self.id))
             file_name = os.path.join(folder, file_name)
             nan_rows = np.isnan(self.data_arr).all(axis=1)
             copy_arr = self.data_arr[~nan_rows].copy()

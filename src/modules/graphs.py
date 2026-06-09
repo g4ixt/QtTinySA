@@ -81,7 +81,6 @@ class SurfaceUpdater(QObject):
 
         self._dataProxy = QSurfaceDataProxy()
         self._dataSeries = QSurface3DSeries(self._dataProxy)
-        # self.updateTimeSpectrum(frequencies, readings)
 
     def updateTimeSpectrum(self, frequencies, readings):
         startF = frequencies[0] / 1e6
@@ -274,6 +273,7 @@ class SpectrumGraph(QObject):
         self.create(s_widget, w_widget, h_widget, m_widget, h_pos)
         self.count = 0  # the number of completed scans
         self.monitor_data = np.ndarray(2)
+        self.monitor_idx = 0
         self.startF = None
         self.stopF = None
         self.points = 101
@@ -284,7 +284,6 @@ class SpectrumGraph(QObject):
         s_widget.addLegend(offset=(30, 400))
         self.trace = s_widget.plot([], [], width=1, padding=0)
         self.trace.is_visible = True
-        # self.timestamp = pyqtgraph.TextItem(text='timestamp', border=None, anchor=(0, 0))
         self.timestamp = pyqtgraph.TextItem(border=None, anchor=(0, 0))
         self.timestamp.setParentItem(s_widget.plotItem)
         self.timestamp.setPos(h_pos, 0)
@@ -349,7 +348,7 @@ class SpectrumGraph(QObject):
                 mkr.line.setValue(startF * 1e6)
                 mkr.mkr_type()
 
-    def update_monitor(self, frequencies, timeNow):  # called by updateGUI at the end of every scan
+    def update_monitor(self, frequencies, timestamp):  # called by updateGUI at the end of every scan
         self.monitor.clear()  # if it's not cleared the GUI runs slower and slower
         if self.trace.is_visible:
             self.monitor.show()
@@ -361,15 +360,15 @@ class SpectrumGraph(QObject):
         unit, multiple = Calc.unit(self.trace.m0.line.value())  # set units
         self.monitor.setTitle(f'{(self.trace.m0.line.value()/multiple):.{decimal}f} {unit}')
 
-        time_points = np.size(self.monitor_data, 0)  # set in 'QtTinySA.scan'
-        if self.count < time_points:
-            # the array still has space for new readings, so write them in the next position (scan count)
-            self.monitor_data[self.count, 0] = timeNow
-            self.monitor_data[self.count, 1] = self.trace.m0.dBm
+        if self.monitor_idx < np.size(self.monitor_data, 0):
+            # array has space for new tuples, so write them in the next position (monitor_idx)
+            self.monitor_data[self.monitor_idx, 0] = timestamp
+            self.monitor_data[self.monitor_idx, 1] = self.trace.m0.dBm
+            self.monitor_idx += 1
         else:
-            # the array is full, so roll it left and write new readings to the end instead
+            # the array is full, so roll it left and write new tuples to the end instead
             self.monitor_data = np.roll(self.monitor_data, -1, axis=0)
-            self.monitor_data[-1, 0] = timeNow
+            self.monitor_data[-1, 0] = timestamp
             self.monitor_data[-1, 1] = self.trace.m0.dBm
         self.monitor.plot(self.monitor_data[:, 0], self.monitor_data[:, 1], pen=self.pen)
 
