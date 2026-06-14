@@ -891,7 +891,7 @@ class Recorder(QObject):
         self.signals.save.connect(sigs["save"])
         self.signals.progress.connect(sigs["progress"])
    
-    def player(self, depth, dev_id, interval, target, play_clicked, split):
+    def player(self, depth, dev_id, interval, slider, play_clicked, split):
         '''runs in a thread, sending data to the router from a file loaded into self.data_arr'''
         self.threadRunning = True
         scans = np.shape(self.data_arr)[0] - 1
@@ -901,23 +901,28 @@ class Recorder(QObject):
         times = self.data_arr[1:, 0]  # time stamps are in col 0 from row 1 onwards
         maxl = np.full(points, -140, dtype=float)
         minl = np.full(points, 0, dtype=float)
-        buffer = np.full((depth, points), None, dtype=float)  # used for waterfall and calculating averages 
         updateTimer = QElapsedTimer()
         sweep_time = 1
         if scans > 1:
             sweep_time = float(times[1] - times[0])
+        start_row = int(scans * slider/100) + 1
+        row = start_row
         if play_clicked:
-            target_row = scans
-            row = int(scans * target/100)
+            final_row = scans
         else:
         # the slider is controlling playback
-            target_row = int(scans * target/100)
-            row = target_row - 1
-        buffer_start = max(0, target_row - depth)
-        buffer = self.data_arr[buffer_start:target_row, 1:]
+            final_row = min(row + 1, scans)
+        buffer = np.full((depth, points), None, dtype=float)  # used for waterfall and averages 
+        if start_row >=2:
+            if start_row > depth:
+                slice_start = start_row - depth
+            else:
+                slice_start = 1
+            buffer = self.data_arr[slice_start:start_row, 1:]
+            buffer = np.flip(buffer, axis=0)
 
         updateTimer.start()
-        while self.sweeping and row < target_row:
+        while self.sweeping and row < final_row:
             if row > 1:
                 sweep_time = float(times[row] - times[row - 1])
             timestamp = float(times[row]) - sweep_time  # time is stamped at the end of a sweep
@@ -927,7 +932,8 @@ class Recorder(QObject):
             if play_clicked:
                 buffer = np.roll(buffer, 1, axis=0)
                 buffer[0] = levl
-                time.sleep(self.speed * sweep_time)
+                pause = min(1, sweep_time * self.speed)  # clip playback sweep time to max 1 second
+                time.sleep(pause)
             else:
                 time.sleep(interval / 1e3)  # interval is in mS
             timestamp += sweep_time

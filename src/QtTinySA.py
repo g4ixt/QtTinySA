@@ -57,7 +57,7 @@ if system() == "Linux":
 # force Qt to use OpenGL rather than DirectX for Windows OS
 # QtCore.QCoreApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_UseDesktopOpenGL)
 
-logging.basicConfig(format="%(message)s", level=logging.INFO)
+logging.basicConfig(format="%(message)s", level=logging.info)
 threadpool = QtCore.QThreadPool()
 basedir = os.path.dirname(__file__)
 
@@ -212,6 +212,7 @@ class Analyser:
     def setting_change(self):
         if usbInstr.is_scanning:
             usbInstr.stop(True)
+        self.stop_recording()
 
     def set_box_colour(self, pen, box):
         boxes = [QtTSA.trace1, QtTSA.trace2, QtTSA.trace3, QtTSA.trace4]
@@ -486,7 +487,7 @@ class Analyser:
             slice_end = slice_start + buffer_cols
             self.wf_data[:, slice_start:slice_end] = buffer
         else:
-            self.wf_data = buffer       
+            self.wf_data = buffer  
         QtTSA.waterfall.setXRange(0, np.size(self.wf_data, axis=1))
 
         # update the average values (nan check to prevent "mean of empty slice" error)
@@ -735,7 +736,7 @@ class Analyser:
                 return
         
         interval = settings.ui.intervalBox.value()
-        target = QtTSA.vortex.value()
+        slider = QtTSA.vortex.value()
         
         # set the graph frequency axis to the maximum range of the loaded recordings
         start = usbInstr.recorders[0].data_arr[0, 1] / 1e6
@@ -768,7 +769,7 @@ class Analyser:
         for i in range(usbInstr.loaded_files):    
             self.spectra[i].points = points[i]
             usbInstr.recorders[i].sweeping = True
-            player = Worker(usbInstr.recorders[i].player, self.depth, i, interval, target, play, split)
+            player = Worker(usbInstr.recorders[i].player, self.depth, i, interval, slider, play, split)
             threadpool.start(player)
             name = 'File ' + str(i)
             sn = str(usbInstr.recorders[i].sn)
@@ -779,7 +780,7 @@ class Analyser:
         for i in range(self.dev_count):
             if usbInstr.recorders[i].sweeping:
                 usbInstr.recorders[i].sweeping = False
-
+    
     def set_speed(self):
         slider = QtTSA.speed.value()
         speed = 10 / slider
@@ -818,12 +819,15 @@ class Analyser:
         QtTSA.vortex.show()
     
     def clear_data(self):
-        self.stop_recording()
         self.stop_playback()
+        self.stop_recording()
         for i in range(usbInstr.loaded_files): 
             usbInstr.recorders[i].reset_arr()
             self.set_device_info('', i, -1, '') # name, dev_id, sn, port)
+        for spectrum in self.spectra:
+            spectrum.waterfall.clear()
         usbInstr.loaded_files = 0
+        QtTSA.vortex.setValue(0)
         QtTSA.vortex.hide()
 
     def time_path_indicator(self, position):
@@ -1574,7 +1578,7 @@ def connectPassive():
 # create QApplication for the GUI
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.43')
+app.setApplicationVersion(' v1.3.44')
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
