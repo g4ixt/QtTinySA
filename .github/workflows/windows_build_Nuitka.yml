@@ -1,0 +1,46 @@
+name: Windows Build with Nuitka
+
+permissions:
+  contents: read
+  actions: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'windows latest nuitka'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    # Check-out repository
+    - uses: actions/checkout@v4
+    
+    # Setup Python
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+        architecture: 'x64'
+        cache: 'pip'
+        cache-dependency-path: |
+            **/requirements*.txt
+
+    - name: Install Dependencies
+      run: |
+          pip install -r src/requirements.txt
+    
+    # Build python script into a single executable
+    - uses: Nuitka/Nuitka-Action@main
+      with:
+        nuitka-version: main
+        script-name: QtTinySA.py
+        working-directory: ./src
+        mode: standalone
+
+    # Uploads artifact
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: QtTinySA_windows_latest
+        path: ./src/build
