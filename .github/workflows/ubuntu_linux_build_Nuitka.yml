@@ -34,7 +34,7 @@ jobs:
     # Build python script into a single executable
     - uses: Nuitka/Nuitka-Action@v1.3
       with:
-        nuitka-version: v1.3
+        nuitka-version: 4.1
         script-name: QtTinySA.py
         working-directory: ./src
         mode: standalone
