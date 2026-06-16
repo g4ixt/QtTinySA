@@ -40,13 +40,10 @@ import csv
 import numpy as np
 import pyqtgraph
 
-# from datetime import datetime
-
 from io import BytesIO
 
 from modules.exporters import WWBExporter, WSMExporter
 from modules.graphs import SurfaceGraph, PhaseNoiseGraph, SpectrumGraph, PolarGraph
-
 from modules.devices import USBdevice, Worker, WorkerSignals
 
 # Defaults to non local configuration/data dirs - needed for packaging
@@ -1195,7 +1192,7 @@ def dialogPrefs():  # called by clicking on the setup > preferences menu
 
 
 def about():
-    message = ('TinySA Ultra GUI programme using Qt and PySide6\
+    message = ('TinySA Ultra GUI programme using Qt6 PySide6\
                nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
                .format(app.applicationVersion(), config.databaseName()))
     popUp(QtTSA, message, 'Ok', 'Info')
@@ -1378,15 +1375,15 @@ def run_on_start():
 def exit_handler():
     '''Save gui field vals, marker freqs and checkbox states. Close usb ports, config database and windows'''
     usbCheck.stop()
+    tinySA.mkr_update_timer.stop()
+    app.closeAllWindows()
     if len(usbInstr.ports) != 0:
         tinySA.marker_save()
         usbInstr.closePort()
     checkboxes.dwm.submit()
     numbers.dwm.submit()
     disconnect(config)
-    app.closeAllWindows()
     logging.info('QtTinySA Closed')
-
 
 def popUp(window, message, button, icon):
     if window is None:
@@ -1476,11 +1473,12 @@ def connectPassive():
     '''Connect signals from GUI controls that don't cause messages to go to the tinySA'''
 
     QtTSA.memBox.valueChanged.connect(tinySA.memChanged)
-
-    # Quit
-    QtTSA.actionQuit.triggered.connect(app.closeAllWindows)
     QtTSA.scan_button.clicked.connect(tinySA.scan)
     QtTSA.run3D.clicked.connect(tinySA.scan)
+
+    # Quit
+    # QtTSA.actionQuit.triggered.connect(app.closeAllWindows)
+    QtTSA.actionQuit.triggered.connect(exit_handler)
 
     # # marker setting within span range
     QtTSA.mkr_start.clicked.connect(tinySA.markerToStart)
@@ -1576,9 +1574,12 @@ def connectPassive():
 # Instantiate classes
 
 # create QApplication for the GUI
-app = QtWidgets.QApplication([])
+app = QtWidgets.QApplication.instance()
+if not app:
+    app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
 app.setApplicationVersion(' v1.3.44')
+# app.setAttribute(QtCore.Qt.WA_DeleteOnClose)
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
@@ -1798,3 +1799,5 @@ try:
     app.exec()
 finally:
     exit_handler()  # close cleanly
+    app.quit()
+    del app
