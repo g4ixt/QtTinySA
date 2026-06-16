@@ -4,4 +4,3 @@ platformdirs
 pyserial
 pyqtgraph
 pyside6
-patchelf==0.17.2.2
