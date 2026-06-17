@@ -44,5 +44,4 @@ jobs:
       with:
         # name: bin
         name: QtTinySA_ubuntu_latest
-        path: ~/work/QtTinySA/QtTinySA/src/build
-        include-hidden-files: true
+        path: ./src/build

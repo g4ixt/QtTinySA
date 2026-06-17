@@ -39,5 +39,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: QtTinySA_arm64_2404
-        path: ~/work/QtTinySA/QtTinySA/src/build
+        path: ./src/build
         include-hidden-files: true
