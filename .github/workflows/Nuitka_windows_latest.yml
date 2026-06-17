@@ -1,4 +1,4 @@
-name: Windows Build with Nuitka
+name: Windows latest Build with Nuitka
 
 permissions:
   contents: read
