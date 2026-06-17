@@ -114,7 +114,7 @@ class Analyser:
         self.scale = 174
         self.scanMemory = 50
         self.fifo = queue.SimpleQueue()
-        self.maxF = 6000
+        self.maxF = 12000
         self.memF = BytesIO()
         self.ports = []
 
@@ -242,6 +242,11 @@ class Analyser:
         # show device information in GUI
         QtTSA.battery.setText(self.battery())
         QtTSA.version.setText(product[0] + " " + product[1] + " " + product[2])
+        QtTSA.start_freq.setMaximum(self.maxF)
+        QtTSA.centre_freq.setMaximum(self.maxF)
+        QtTSA.stop_freq.setMaximum(self.maxF)
+        if QtTSA.stop_freq.value() > self.maxF:
+            QtTSA.stop_freq.setValue(self.maxF)
 
         # self.fifoTimer.start(200)  # call self.usbSend() every 200mS to commands & update markers when scan is stopped
 
@@ -1887,17 +1892,11 @@ def isMixerMode():
         QtTSA.start_freq.setStyleSheet('background-color:None')
         QtTSA.stop_freq.setStyleSheet('background-color:None')
         QtTSA.centre_freq.setStyleSheet('background-color:None')
-        QtTSA.start_freq.setMaximum(tinySA.maxF)
-        QtTSA.centre_freq.setMaximum(tinySA.maxF)
-        QtTSA.stop_freq.setMaximum(tinySA.maxF)
     else:
         QtTSA.mixerMode.setVisible(True)
         QtTSA.start_freq.setStyleSheet('background-color:lightGreen')
         QtTSA.stop_freq.setStyleSheet('background-color:lightGreen')
         QtTSA.centre_freq.setStyleSheet('background-color:lightGreen')
-        QtTSA.start_freq.setMaximum(100000)
-        QtTSA.centre_freq.setMaximum(100000)
-        QtTSA.stop_freq.setMaximum(100000)
 
 
 def setSize():
@@ -2107,7 +2106,7 @@ tinySA = Analyser()
 loader = CustomLoader()
 app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.2.4')
+app.setApplicationVersion(' v1.2.5')
 
 QtTSA = loader.load("spectrum.ui", None)
 presetFreqs = CustomDialogue(app_dir('bands.ui'))

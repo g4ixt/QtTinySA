@@ -7,7 +7,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1058</width>
+    <width>1064</width>
     <height>780</height>
    </rect>
   </property>
@@ -970,7 +970,7 @@ and Colours</string>
              <double>0.100000000000000</double>
             </property>
             <property name="maximum">
-             <double>6000.000000000000000</double>
+             <double>12000.000000000000000</double>
             </property>
             <property name="stepType">
              <enum>QAbstractSpinBox::StepType::AdaptiveDecimalStepType</enum>
@@ -1156,7 +1156,7 @@ and Colours</string>
              <number>4</number>
             </property>
             <property name="maximum">
-             <double>100000.000000000000000</double>
+             <double>12000.000000000000000</double>
             </property>
             <property name="stepType">
              <enum>QAbstractSpinBox::StepType::AdaptiveDecimalStepType</enum>
@@ -1399,7 +1399,7 @@ and Colours</string>
              <double>0.100000000000000</double>
             </property>
             <property name="maximum">
-             <double>6000.000000000000000</double>
+             <double>12000.000000000000000</double>
             </property>
             <property name="singleStep">
              <double>1.000000000000000</double>
@@ -1888,7 +1888,7 @@ and Colours</string>
              <double>0.100000000000000</double>
             </property>
             <property name="maximum">
-             <double>6000.000000000000000</double>
+             <double>12000.000000000000000</double>
             </property>
             <property name="singleStep">
              <double>1.000000000000000</double>
@@ -2173,7 +2173,7 @@ and Colours</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1058</width>
+     <width>1064</width>
      <height>23</height>
     </rect>
    </property>
