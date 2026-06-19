@@ -33,7 +33,7 @@ jobs:
     # Build python script into a single executable
     - uses: Nuitka/Nuitka-Action@main
       with:
-        nuitka-version: main
+        nuitka-version: hotfix/4.1.3
         script-name: QtTinySA.py
         working-directory: ./src
         mode: standalone
