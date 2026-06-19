@@ -29,7 +29,7 @@ from PySide6 import QtCore
 from PySide6 import QtWidgets
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtCore import QFile, Slot, QSignalBlocker
-from PySide6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog
+from PySide6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QApplication
 from PySide6.QtWidgets import QTableWidgetItem, QInputDialog, QLineEdit
 from PySide6.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
 from PySide6.QtGui import QPixmap, QIcon
@@ -58,9 +58,17 @@ logging.basicConfig(format="%(message)s", level=logging.info)
 threadpool = QtCore.QThreadPool()
 basedir = os.path.dirname(__file__)
 
+# create QApplication for the GUI
+app = QApplication.instance()
+if not app:
+    app = QApplication([])
+app.setApplicationName('QtTinySA')
+app.setApplicationVersion(' v1.3.45')
+
 # pyqtgraph custom exporters
 WWBExporter.register()
 WSMExporter.register()
+
 
 # classes ##############################################################################
 
@@ -1193,7 +1201,7 @@ def dialogPrefs():  # called by clicking on the setup > preferences menu
 
 def about():
     message = ('TinySA Ultra GUI programme using Qt6 PySide6\
-               nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
+               \nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
                .format(app.applicationVersion(), config.databaseName()))
     popUp(QtTSA, message, 'Ok', 'Info')
 
@@ -1358,7 +1366,6 @@ def checkVersion(db, target, dbFile):
                 logging.info(f'Deleting records from frequencies table of database version {found}')
                 impex.tm.submit()
                 impex.importData(fileName)
-
 
 def fetchVersion(db):
     query = QSqlQuery(db)
@@ -1526,8 +1533,9 @@ def connectPassive():
     QtTSA.actionSettings.triggered.connect(settings.ui.show)
     QtTSA.actionCorrection.triggered.connect(tinySA.correction_window)
 
-    # preferences
+    # Help
     QtTSA.actionAbout_QtTinySA.triggered.connect(about)
+    QtTSA.actionAbout_Qt.triggered.connect(app.aboutQt)
 
     # Waterfall
     QtTSA.waterfall_size.valueChanged.connect(setSize)
@@ -1572,14 +1580,6 @@ def connectPassive():
 
 ###############################################################################
 # Instantiate classes
-
-# create QApplication for the GUI
-app = QtWidgets.QApplication.instance()
-if not app:
-    app = QtWidgets.QApplication([])
-app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.44')
-# app.setAttribute(QtCore.Qt.WA_DeleteOnClose)
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
@@ -1800,4 +1800,4 @@ try:
 finally:
     exit_handler()  # close cleanly
     app.quit()
-    del app
+

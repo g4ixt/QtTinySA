@@ -2442,6 +2442,7 @@ and Colours</string>
      <string>&amp;Help</string>
     </property>
     <addaction name="actionAbout_QtTinySA"/>
+    <addaction name="actionAbout_Qt"/>
    </widget>
    <widget class="QMenu" name="menuSettings">
     <property name="title">
@@ -2553,6 +2554,11 @@ and Colours</string>
   <action name="actionLoad_recording">
    <property name="text">
     <string>Recordings</string>
+   </property>
+  </action>
+  <action name="actionAbout_Qt">
+   <property name="text">
+    <string>About Qt</string>
    </property>
   </action>
  </widget>

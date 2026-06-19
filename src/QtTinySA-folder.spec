@@ -5,7 +5,7 @@ a = Analysis(
     ['QtTinySA.py'],
     pathex=[],
     binaries=[],
-    datas=[('QtTSAprefs.db', '.'), ('*.ui', '.')],
+    datas=[('QtTSAprefs.db', '.'), ('*.ui', '.'), ('10_baseline.txt', '.'), ('1152_baseline.txt', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
