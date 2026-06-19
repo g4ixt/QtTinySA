@@ -1,14 +1,18 @@
-name: Ubuntu 24.04 Nuitka build for arm64
+name: Windows latest Build with Nuitka
+
+permissions:
+  contents: read
+  actions: read
 
 on:
   workflow_dispatch:
     inputs:
       tags:
-        description: 'ubuntu 24.04 Nuitka arm64'
+        description: 'windows latest nuitka'
 
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
+    runs-on: windows-latest
     steps:
     # Check-out repository
     - uses: actions/checkout@v4
@@ -16,16 +20,16 @@ jobs:
     # Setup Python
     - uses: actions/setup-python@v5
       with:
-        python-version: '3.13' # Version range or exact version of a Python version to use, using SemVer's version range syntax
-        architecture: 'arm64'
+        python-version: '3.13'
+        architecture: 'x64'
         cache: 'pip'
         cache-dependency-path: |
             **/requirements*.txt
 
     - name: Install Dependencies
       run: |
-          pip install -r src/requirements_arm64.txt
-
+          pip install -r src/requirements.txt
+    
     # Build python script into a single executable
     - uses: Nuitka/Nuitka-Action@main
       with:
@@ -38,6 +42,5 @@ jobs:
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: QtTinySA_arm64_2404
-        path: ~/work/QtTinySA/QtTinySA/src/build
-        include-hidden-files: true
+        name: QtTinySA_windows_latest
+        path: ./src/build

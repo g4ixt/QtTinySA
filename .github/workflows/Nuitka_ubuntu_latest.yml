@@ -20,7 +20,7 @@ jobs:
     # Setup Python
     - uses: actions/setup-python@v5
       with:
-        python-version: '3.14' # Version range or exact version of a Python version to use, using SemVer's version range syntax
+        python-version: '3.13' # Version range or exact version of a Python version to use, using SemVer's version range syntax
         architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
         cache: 'pip'
         cache-dependency-path: |
@@ -29,12 +29,11 @@ jobs:
     - name: Install Dependencies
       run: |
           pip install -r src/requirements.txt
-          pip install patchelf
     
     # Build python script into a single executable
-    - uses: Nuitka/Nuitka-Action@v1.3
+    - uses: Nuitka/Nuitka-Action@main
       with:
-        nuitka-version: 4.1.2
+        nuitka-version: develop
         script-name: QtTinySA.py
         working-directory: ./src
         mode: standalone
@@ -45,6 +44,4 @@ jobs:
       with:
         # name: bin
         name: QtTinySA_ubuntu_latest
-        # path: ~/work/QtTinySA/QtTinySA/src/build
         path: ./src/build
-        # include-hidden-files: true
