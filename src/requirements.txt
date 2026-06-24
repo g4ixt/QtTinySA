@@ -1,7 +1,8 @@
 numpy
+pandas
+matplotlib
 Pillow
 platformdirs
 pyserial
 pyqtgraph
 pyside6
-
