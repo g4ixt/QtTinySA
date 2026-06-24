@@ -12,8 +12,10 @@ from PySide6.QtGui import QLinearGradient
 from PySide6.QtGraphs import QSurface3DSeries, QSurfaceDataProxy, QGraphsTheme
 from PySide6.QtGraphsWidgets import Q3DSurfaceWidgetItem
 
+from QtTinyResources import resource_path
+
 logging.basicConfig(format="%(message)s", level=logging.INFO)
-PN_AT_1152MHZ = np.loadtxt("1152_baseline.txt")
+PN_AT_1152MHZ = np.loadtxt(resource_path("1152_baseline.txt"))
 
 
 class SurfaceGraph(QObject):

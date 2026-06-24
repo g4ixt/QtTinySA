@@ -46,7 +46,7 @@ from datetime import datetime
 from serial.tools import list_ports
 from io import BytesIO
 from QtTinyExporters import WWBExporter, WSMExporter
-
+from QtTinyResources import resource_path
 from QtTinySAGraphs import SurfaceGraph
 
 # Defaults to non local configuration/data dirs - needed for packaging
@@ -59,7 +59,6 @@ if system() == "Linux":
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 threadpool = QtCore.QThreadPool()
-basedir = os.path.dirname(__file__)
 
 # pyqtgraph custom exporters
 WWBExporter.register()
@@ -68,8 +67,8 @@ WSMExporter.register()
 # From https://github.com/Hagtronics/tinySA-Ultra-Phase-Noise
 SHAPE_FACTOR = {0.2: 3.4, 1: -0.6, 3: -0.53, 10: 0, 30: 0, 100: 0, 300: 0, 600: 0, 850: 0}
 # tinySA typical phase noise
-PN_AT_10MHZ = np.loadtxt("10_baseline.txt")
-PN_AT_1152MHZ = np.loadtxt("1152_baseline.txt")
+PN_AT_10MHZ = np.loadtxt(resource_path("10_baseline.txt"))
+PN_AT_1152MHZ = np.loadtxt(resource_path("1152_baseline.txt"))
 
 # classes ##############################################################################
 
@@ -91,7 +90,7 @@ class CustomDialogue(QtWidgets.QDialog):
         ui_file.open(QFile.ReadOnly)
         loader = CustomLoader()
         self.ui = loader.load(ui_file)
-        self.ui.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
+        self.ui.setWindowIcon(QIcon(resource_path('tinySAsmall.png')))
 
 
 class Analyser:
@@ -2108,7 +2107,7 @@ app = QtWidgets.QApplication([])
 app.setApplicationName('QtTinySA')
 app.setApplicationVersion(' v1.2.5')
 
-QtTSA = loader.load("spectrum.ui", None)
+QtTSA = loader.load(resource_path("spectrum.ui"), None)
 presetFreqs = CustomDialogue(app_dir('bands.ui'))
 settings = CustomDialogue(app_dir('settings.ui'))
 filebrowse = CustomDialogue(app_dir('filebrowse.ui'))
@@ -2324,7 +2323,7 @@ numbers.dwm.setCurrentIndex(0)
 
 QtTSA.show()
 QtTSA.setWindowTitle(app.applicationName() + app.applicationVersion())
-QtTSA.setWindowIcon(QIcon(os.path.join(basedir, 'tinySAsmall.png')))
+QtTSA.setWindowIcon(QIcon(resource_path('tinySAsmall.png')))
 
 # connect GUI controls that don't interfere with restoration of data at startup
 connectPassive()
