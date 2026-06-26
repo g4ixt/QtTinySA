@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
-    <height>600</height>
+    <width>1024</width>
+    <height>768</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -18,9 +18,14 @@
     <rect>
      <x>15</x>
      <y>11</y>
-     <width>771</width>
-     <height>571</height>
+     <width>1001</width>
+     <height>741</height>
     </rect>
+   </property>
+   <property name="font">
+    <font>
+     <pointsize>12</pointsize>
+    </font>
    </property>
    <layout class="QGridLayout" name="gridLayout_2">
     <item row="3" column="1">
@@ -36,6 +41,11 @@
         <width>100</width>
         <height>16777215</height>
        </size>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
       </property>
       <property name="buttonSymbols">
        <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
@@ -65,6 +75,11 @@
         <height>16777215</height>
        </size>
       </property>
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="toolTip">
        <string>Nominal</string>
       </property>
@@ -89,8 +104,7 @@
      <widget class="QLabel" name="label_18">
       <property name="font">
        <font>
-        <italic>true</italic>
-        <bold>false</bold>
+        <pointsize>12</pointsize>
        </font>
       </property>
       <property name="text">
@@ -100,6 +114,11 @@
     </item>
     <item row="3" column="3">
      <widget class="QLabel" name="label_9">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string>Max for best accuracy</string>
       </property>
@@ -107,6 +126,11 @@
     </item>
     <item row="8" column="3">
      <widget class="QLabel" name="label_12">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string>Maximum number of sweeps per file (max waterfall depth)</string>
       </property>
@@ -126,6 +150,11 @@
         <height>16777215</height>
        </size>
       </property>
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="buttonSymbols">
        <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
       </property>
@@ -144,7 +173,7 @@
      <widget class="QLabel" name="label_14">
       <property name="font">
        <font>
-        <bold>true</bold>
+        <pointsize>12</pointsize>
        </font>
       </property>
       <property name="text">
@@ -160,6 +189,11 @@
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string/>
       </property>
@@ -169,6 +203,7 @@
      <widget class="QLabel" name="label_5">
       <property name="font">
        <font>
+        <pointsize>12</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -179,16 +214,32 @@
     </item>
     <item row="4" column="0">
      <widget class="QLabel" name="label_19">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string>Display update interval</string>
       </property>
      </widget>
     </item>
     <item row="8" column="4">
-     <widget class="QSpinBox" name="maxWF"/>
+     <widget class="QSpinBox" name="maxWF">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+     </widget>
     </item>
     <item row="5" column="0">
      <widget class="QLabel" name="label_2">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string>Max/Min marker threshold</string>
       </property>
@@ -198,6 +249,7 @@
      <widget class="QLabel" name="label_6">
       <property name="font">
        <font>
+        <pointsize>12</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -208,6 +260,11 @@
     </item>
     <item row="5" column="3">
      <widget class="QLabel" name="label_17">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string>Sync Date and Time from PC</string>
       </property>
@@ -215,6 +272,11 @@
     </item>
     <item row="9" column="1">
      <widget class="QCheckBox" name="bold_text">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string/>
       </property>
@@ -222,6 +284,11 @@
     </item>
     <item row="1" column="3">
      <widget class="QLabel" name="label_11">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string>Absolute maximum</string>
       </property>
@@ -231,7 +298,7 @@
      <widget class="QLabel" name="label_13">
       <property name="font">
        <font>
-        <bold>true</bold>
+        <pointsize>12</pointsize>
        </font>
       </property>
       <property name="text">
@@ -246,6 +313,11 @@
         <horstretch>0</horstretch>
         <verstretch>0</verstretch>
        </sizepolicy>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
       </property>
       <property name="text">
        <string>+6dBm</string>
@@ -263,6 +335,11 @@
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string>Set Folder</string>
       </property>
@@ -272,7 +349,7 @@
      <widget class="QLabel" name="label_16">
       <property name="font">
        <font>
-        <bold>false</bold>
+        <pointsize>12</pointsize>
        </font>
       </property>
       <property name="text">
@@ -282,6 +359,11 @@
     </item>
     <item row="9" column="3">
      <widget class="QLabel" name="label_20">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string>Enable Save to CSV file</string>
       </property>
@@ -303,7 +385,7 @@
       </property>
       <property name="font">
        <font>
-        <pointsize>9</pointsize>
+        <pointsize>12</pointsize>
        </font>
       </property>
       <property name="suffix">
@@ -337,6 +419,11 @@
         <height>0</height>
        </size>
       </property>
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="clearButtonEnabled">
        <bool>true</bool>
       </property>
@@ -344,6 +431,11 @@
     </item>
     <item row="12" column="3">
      <spacer name="verticalSpacer">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="orientation">
        <enum>Qt::Orientation::Vertical</enum>
       </property>
@@ -363,6 +455,11 @@
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string> 0dBm</string>
       </property>
@@ -373,6 +470,11 @@
     </item>
     <item row="2" column="3">
      <widget class="QLabel" name="label_10">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string>Max with auto attenuator</string>
       </property>
@@ -380,6 +482,11 @@
     </item>
     <item row="2" column="0">
      <widget class="QLabel" name="label_3">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string>Auto minimum points</string>
       </property>
@@ -389,6 +496,7 @@
      <widget class="QLabel" name="label_8">
       <property name="font">
        <font>
+        <pointsize>12</pointsize>
         <bold>true</bold>
        </font>
       </property>
@@ -399,6 +507,11 @@
     </item>
     <item row="3" column="0">
      <widget class="QLabel" name="label_4">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string>Auto maximum points</string>
       </property>
@@ -406,6 +519,11 @@
     </item>
     <item row="1" column="0">
      <widget class="QLabel" name="label">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string>Points / Resolution Bandwidth</string>
       </property>
@@ -413,6 +531,11 @@
     </item>
     <item row="11" column="0" colspan="2">
      <widget class="QTableView" name="colourTable">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="sizeAdjustPolicy">
        <enum>QAbstractScrollArea::SizeAdjustPolicy::AdjustIgnored</enum>
       </property>
@@ -425,6 +548,11 @@
         <horstretch>0</horstretch>
         <verstretch>0</verstretch>
        </sizepolicy>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
       </property>
       <property name="toolTip">
        <string>Must be selected each time programme is run</string>
@@ -448,6 +576,11 @@
         <height>16777215</height>
        </size>
       </property>
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="minimum">
        <number>2</number>
       </property>
@@ -467,6 +600,11 @@
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string/>
       </property>
@@ -480,6 +618,11 @@
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string>-25dBm</string>
       </property>
@@ -490,6 +633,11 @@
     </item>
     <item row="6" column="3">
      <widget class="QLabel" name="label_21">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string>Start scanning when programme loads (auto run)</string>
       </property>
@@ -497,6 +645,11 @@
     </item>
     <item row="6" column="4">
      <widget class="QCheckBox" name="auto_run">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string/>
       </property>
@@ -504,6 +657,11 @@
     </item>
     <item row="6" column="0">
      <widget class="QLabel" name="label_7">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="text">
        <string>Maximum operating frequency</string>
       </property>
@@ -522,6 +680,11 @@
         <width>100</width>
         <height>16777215</height>
        </size>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
       </property>
       <property name="toolTip">
        <string>Maximum Frequency allowed.  Note: TinySA-Ultra is not calibrated above 6GHz </string>
