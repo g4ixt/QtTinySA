@@ -50,7 +50,7 @@
        <number>1</number>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="ViewNormal">
        <layout class="QGridLayout" name="gridLayout_7">
@@ -1950,10 +1950,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <family>DejaVu Sans</family>
-              <pointsize>8</pointsize>
-              <italic>true</italic>
-              <bold>false</bold>
+              <pointsize>12</pointsize>
              </font>
             </property>
             <property name="text">
@@ -1971,10 +1968,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <family>DejaVu Sans</family>
-              <pointsize>9</pointsize>
-              <italic>true</italic>
-              <bold>false</bold>
+              <pointsize>12</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -2022,10 +2016,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <family>DejaVu Sans</family>
-              <pointsize>9</pointsize>
-              <italic>true</italic>
-              <bold>false</bold>
+              <pointsize>12</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -2061,10 +2052,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <family>DejaVu Sans</family>
-              <pointsize>9</pointsize>
-              <italic>true</italic>
-              <bold>false</bold>
+              <pointsize>12</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -2109,10 +2097,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <family>DejaVu Sans</family>
-              <pointsize>9</pointsize>
-              <italic>true</italic>
-              <bold>false</bold>
+              <pointsize>12</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -2136,10 +2121,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <family>DejaVu Sans</family>
-              <pointsize>9</pointsize>
-              <italic>true</italic>
-              <bold>false</bold>
+              <pointsize>12</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -2173,6 +2155,11 @@ and Colours</string>
           </item>
           <item row="2" column="1">
            <spacer name="horizontalSpacer_2">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
             <property name="orientation">
              <enum>Qt::Orientation::Horizontal</enum>
             </property>
@@ -2192,6 +2179,11 @@ and Colours</string>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
            </widget>
           </item>
           <item row="1" column="3">
@@ -2204,10 +2196,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <family>DejaVu Sans</family>
-              <pointsize>9</pointsize>
-              <italic>true</italic>
-              <bold>false</bold>
+              <pointsize>12</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -2249,10 +2238,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <family>DejaVu Sans</family>
-              <pointsize>9</pointsize>
-              <italic>true</italic>
-              <bold>false</bold>
+              <pointsize>12</pointsize>
              </font>
             </property>
             <property name="text">
@@ -2262,6 +2248,11 @@ and Colours</string>
           </item>
           <item row="1" column="0">
            <widget class="QLabel" name="label">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
             <property name="text">
              <string>Rotate</string>
             </property>
