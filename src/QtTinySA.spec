@@ -45,7 +45,7 @@ if sys.platform != 'darwin':
         entitlements_file=None,
         icon='tinySA.ico'
     )
-    
+
 # macOS
 else:
     exe = EXE(
@@ -73,6 +73,7 @@ else:
         exe,
         a.binaries,
         a.datas,
+        a.zipfiles,
         strip=False,
         upx=True,
         upx_exclude=[],

@@ -15,7 +15,6 @@ import queue
 import struct
 import numpy as np
 from PySide6.QtCore import QObject, QElapsedTimer, QTimer, Signal, Slot, QRunnable, QThreadPool
-# from PySide6.QtWidgets import QFileDialog
 from serial.tools import list_ports
 from datetime import datetime
 from platform import system

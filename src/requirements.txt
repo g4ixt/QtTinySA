@@ -2,5 +2,5 @@ numpy
 Pillow
 platformdirs
 pyserial
-pyqtgraph
 pyside6
+pyqtgraph

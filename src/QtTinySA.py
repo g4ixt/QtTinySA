@@ -45,6 +45,7 @@ from io import BytesIO
 from modules.exporters import WWBExporter, WSMExporter
 from modules.graphs import SurfaceGraph, PhaseNoiseGraph, SpectrumGraph, PolarGraph
 from modules.devices import USBdevice, Worker, WorkerSignals
+from modules.utility import resource_path
 
 # Defaults to non local configuration/data dirs - needed for packaging
 if system() == "Linux":
@@ -63,7 +64,7 @@ app = QApplication.instance()
 if not app:
     app = QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.45')
+app.setApplicationVersion(' v1.3.46')
 
 # pyqtgraph custom exporters
 WWBExporter.register()
@@ -88,11 +89,12 @@ class CustomTableModel(QSqlRelationalTableModel):
 class CustomLoader(QUiLoader):
     def createWidget(self, className, parent=None, name=""):
         logging.debug(f'className = {className}')
+        file_name = resource_path(name)
         if className == "PlotWidget":
             return pyqtgraph.PlotWidget(parent=parent)
         if className == "GraphicsView":
             return pyqtgraph.GraphicsView(parent=parent)
-        return super().createWidget(className, parent, name)
+        return super().createWidget(className, parent, file_name)
 
 
 class CustomDialogue(QtWidgets.QDialog):
@@ -1281,10 +1283,10 @@ def getPath(dbName):
         return personalDir
 
     # 3. if not, check if database file exists in the app directory
-        file_path = app_dir(dbName)
+        file_path = resource_path(dbName)
         if os.path.isfile(file_path):
             shutil.copy(file_path, personalDir)
-            logging.info(f'{dbName} copied from {app_dir} to {personalDir}')
+            logging.info(f'{dbName} copied from {file_path} to {personalDir}')
             return personalDir
 
     # 4. If not, then look in current working folder & where the python file is stored/linked from
@@ -1295,16 +1297,6 @@ def getPath(dbName):
             logging.info(f'{dbName} copied from {directory} to {personalDir}')
             return personalDir
     raise FileNotFoundError("Unable to find the database {self.dbName}")
-
-
-def app_dir(filename):
-    # 'meipass' is used by pyinstaller to flag executable/file bundles
-    if getattr(sys, 'frozen', True):
-        base_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(__file__)
-        logging.debug(f'base path = {base_path} or {os.path.dirname(__file__)}')
-        bundled_file = os.path.join(base_path, filename)
-        if os.path.isfile(bundled_file):
-            return bundled_file
 
 
 def connect(dbFile, con, target):
@@ -1583,13 +1575,13 @@ def connectPassive():
 
 loader = CustomLoader()
 QtTSA = loader.load("spectrum.ui", None)
-presetFreqs = CustomDialogue(app_dir('bands.ui'))
-settings = CustomDialogue(app_dir('settings.ui'))
-filebrowse = CustomDialogue(app_dir('filebrowse.ui'))
-phasenoise = CustomDialogue(app_dir('phasenoise.ui'))
-fading = CustomDialogue(app_dir('fading.ui'))
-pattern = CustomDialogue(app_dir('pattern.ui'))
-offset = CustomDialogue(app_dir('offset.ui'))
+presetFreqs = CustomDialogue('bands.ui')
+settings = CustomDialogue('settings.ui')
+filebrowse = CustomDialogue('filebrowse.ui')
+phasenoise = CustomDialogue('phasenoise.ui')
+fading = CustomDialogue('fading.ui')
+pattern = CustomDialogue('pattern.ui')
+offset = CustomDialogue('offset.ui')
 
 # Markers
 multiplot = pyqtgraph.GraphicsLayout()  # for plotting marker signal level over time

@@ -6,9 +6,13 @@
 
 """
 Created on Mon Jan 12 11:23:46 2026
-
 @author: ian
+
+Helper functions
+
 """
+import os
+import sys
 import logging
 import numpy as np
 from PySide6.QtCore import QObject
@@ -60,3 +64,11 @@ class Calc(QObject):
             nextMin = np.ma.masked_where(np.abs(frequencies[mini[-1]] - frequencies) < maskFreq, nextMin)
             mini.append(np.argmin(nextMin))
         return (list(frequencies[maxi]), list(frequencies[mini]))
+
+def resource_path(filename: str) -> str:
+    """Get resources path in a safe way to work on terminal AND in macOS app bundles."""
+    if getattr(sys, 'frozen', False):
+        base = sys._MEIPASS
+    else:
+        base = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base, filename)
