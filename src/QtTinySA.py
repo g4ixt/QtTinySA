@@ -568,17 +568,18 @@ class Analyser:
         ''''populates a combo box 'device' on 'ui_name' with a list of devices of type dev_name'''
         ui_name.device.clear()
         self.dev_ref = []
-        for device in usbInstr.devices:
-            #if device and device.firmware[0] == dev_name:
-            if device:
-                if device.name in dev_name:
-                    if device.sweeping:
-                        popUp(QtTSA, "Cannot browse whilst a scan is running", 'Ok', 'Info')
-                    else:
-                        with QSignalBlocker(ui_name.device):
-                            ui_name.device.addItem(device.name + ' serial ' + str(device.sn))
-                            self.dev_ref.append(device)  # keep a reference to the device for file ops
-        device = self.dev_ref[ui_name.device.currentIndex()]
+        if usbInstr.devices:
+            for device in usbInstr.devices:
+                #if device and device.firmware[0] == dev_name:
+                if device:
+                    if device.name in dev_name:
+                        if device.sweeping:
+                            popUp(QtTSA, "Cannot browse whilst a scan is running", 'Ok', 'Info')
+                        else:
+                            with QSignalBlocker(ui_name.device):
+                                ui_name.device.addItem(device.name + ' serial ' + str(device.sn))
+                                self.dev_ref.append(device)  # keep a reference to the device for file ops
+            device = self.dev_ref[ui_name.device.currentIndex()]
 
     def file_browser(self):
         if usbInstr.devices:
@@ -1266,7 +1267,7 @@ def sd_file_save(device, file_name, folder, single):
 def sd_save_progress(progress):
     filebrowse.ui.saveProgress.setValue(progress)
 
-def getPath(dbName):
+def locate_db(dbName):
     # 1. check if a personal database file exists already
     personalDir = platformdirs.user_config_dir(appname=app.applicationName(), appauthor=False)
     if not os.path.exists(personalDir):
@@ -1301,7 +1302,7 @@ def getPath(dbName):
 
 def connect(dbFile, con, target):
     db = QSqlDatabase.addDatabase('QSQLITE', connectionName=con)
-    dbPath = getPath(dbFile)
+    dbPath = locate_db(dbFile)
     if QtCore.QFile.exists(os.path.join(dbPath, dbFile)):
         db.setDatabaseName(os.path.join(dbPath, dbFile))
         db.open()
@@ -1342,7 +1343,7 @@ def checkVersion(db, target, dbFile):
             disconnect(db)
             os.rename(db.databaseName(), db.databaseName() + '.' + str(existing))
 
-            getPath(dbFile)  # this ought to return the same path as when it was run earlier in connect()
+            locate_db(dbFile)  # this ought to return the same path as when it was run earlier in connect()
             db.open()  # the database connection has not changed, only the file, so can re-open it with the new file
             found = fetchVersion(db)
             logging.info(f'Found new database version {found}')

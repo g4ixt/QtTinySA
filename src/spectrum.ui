@@ -7,12 +7,12 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1280</width>
-    <height>1080</height>
+    <width>1299</width>
+    <height>1092</height>
    </rect>
   </property>
   <property name="sizePolicy">
-   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+   <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
     <horstretch>0</horstretch>
     <verstretch>0</verstretch>
    </sizepolicy>
@@ -40,7 +40,7 @@
       </property>
       <property name="font">
        <font>
-        <pointsize>12</pointsize>
+        <pointsize>11</pointsize>
        </font>
       </property>
       <property name="autoFillBackground">
@@ -69,22 +69,7 @@
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
-             </font>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="0">
-           <widget class="PlotWidget" name="graphWidget" native="true">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
            </widget>
@@ -99,7 +84,7 @@
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="minimum">
@@ -122,6 +107,21 @@
             </property>
            </widget>
           </item>
+          <item row="0" column="0">
+           <widget class="PlotWidget" name="graphWidget" native="true">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>11</pointsize>
+             </font>
+            </property>
+           </widget>
+          </item>
          </layout>
         </item>
         <item row="0" column="0">
@@ -129,14 +129,14 @@
           <item row="2" column="0" colspan="2">
            <widget class="QCheckBox" name="lna_box">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -157,7 +157,7 @@
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="currentIndex">
@@ -168,14 +168,14 @@
           <item row="1" column="0">
            <widget class="QCheckBox" name="atten_auto">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -211,7 +211,7 @@
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -244,7 +244,7 @@
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -258,10 +258,16 @@
           <item row="17" column="0" colspan="2">
            <widget class="PlotWidget" name="histogram" native="true">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
+            </property>
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>100</height>
+             </size>
             </property>
             <property name="maximumSize">
              <size>
@@ -271,7 +277,7 @@
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -302,7 +308,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -325,14 +331,14 @@ and Colours</string>
           <item row="11" column="0">
            <widget class="QCheckBox" name="trace1">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="acceptDrops">
@@ -355,14 +361,14 @@ and Colours</string>
           <item row="25" column="0" colspan="2">
            <widget class="QCheckBox" name="split_scan">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -383,7 +389,8 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>10</pointsize>
+              <bold>true</bold>
              </font>
             </property>
             <property name="text">
@@ -407,7 +414,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -436,14 +443,14 @@ and Colours</string>
           <item row="12" column="0">
            <widget class="QCheckBox" name="trace2">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -460,14 +467,14 @@ and Colours</string>
           <item row="6" column="0">
            <widget class="QCheckBox" name="rbw_auto">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -482,7 +489,8 @@ and Colours</string>
            <widget class="QLabel" name="label_11">
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>10</pointsize>
+              <bold>true</bold>
              </font>
             </property>
             <property name="text">
@@ -500,7 +508,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -511,14 +519,14 @@ and Colours</string>
           <item row="13" column="0">
            <widget class="QCheckBox" name="trace3">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -548,7 +556,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -575,7 +583,7 @@ and Colours</string>
            <spacer name="verticalSpacer">
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="orientation">
@@ -599,7 +607,8 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>10</pointsize>
+              <bold>true</bold>
              </font>
             </property>
             <property name="text">
@@ -617,7 +626,8 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>10</pointsize>
+              <bold>true</bold>
              </font>
             </property>
             <property name="text">
@@ -635,7 +645,8 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>10</pointsize>
+              <bold>true</bold>
              </font>
             </property>
             <property name="text">
@@ -653,7 +664,8 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>10</pointsize>
+              <bold>true</bold>
              </font>
             </property>
             <property name="text">
@@ -677,7 +689,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -713,7 +725,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -727,14 +739,14 @@ and Colours</string>
              <bool>true</bool>
             </property>
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -751,14 +763,14 @@ and Colours</string>
           <item row="24" column="0" colspan="2">
            <widget class="QCheckBox" name="dev3">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -782,7 +794,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -793,14 +805,14 @@ and Colours</string>
           <item row="22" column="0" colspan="2">
            <widget class="QCheckBox" name="dev1">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -817,14 +829,14 @@ and Colours</string>
           <item row="21" column="0" colspan="2">
            <widget class="QCheckBox" name="dev0">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -841,14 +853,14 @@ and Colours</string>
           <item row="19" column="0" colspan="2">
            <widget class="QSlider" name="waterfall_size">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="maximum">
@@ -877,14 +889,14 @@ and Colours</string>
           <item row="14" column="0">
            <widget class="QCheckBox" name="trace4">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -898,14 +910,14 @@ and Colours</string>
           <item row="18" column="0" colspan="2">
            <widget class="QCheckBox" name="waterfall_auto">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="text">
@@ -929,7 +941,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -943,14 +955,14 @@ and Colours</string>
           <item row="23" column="0" colspan="2">
            <widget class="QCheckBox" name="dev2">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -978,13 +990,13 @@ and Colours</string>
             </property>
             <property name="minimumSize">
              <size>
-              <width>40</width>
+              <width>80</width>
               <height>0</height>
              </size>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1008,7 +1020,7 @@ and Colours</string>
            <widget class="QToolButton" name="stop">
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1038,7 +1050,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1080,7 +1092,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1101,7 +1113,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1140,7 +1152,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1164,7 +1176,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1194,7 +1206,7 @@ and Colours</string>
             </property>
             <property name="minimumSize">
              <size>
-              <width>40</width>
+              <width>80</width>
               <height>0</height>
              </size>
             </property>
@@ -1206,7 +1218,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1242,7 +1254,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1266,7 +1278,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
               <italic>false</italic>
               <bold>false</bold>
              </font>
@@ -1307,7 +1319,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1340,7 +1352,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="focusPolicy">
@@ -1364,7 +1376,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1412,7 +1424,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1439,7 +1451,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1466,7 +1478,7 @@ and Colours</string>
            <widget class="QToolButton" name="eject">
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1490,7 +1502,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1511,7 +1523,7 @@ and Colours</string>
            <spacer name="horizontalSpacer">
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="orientation">
@@ -1541,7 +1553,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1574,7 +1586,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1622,7 +1634,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1646,7 +1658,7 @@ and Colours</string>
            <widget class="QSlider" name="speed">
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1697,7 +1709,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1745,7 +1757,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1769,7 +1781,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1799,7 +1811,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1820,7 +1832,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1871,7 +1883,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1889,7 +1901,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
              </font>
             </property>
             <property name="toolTip">
@@ -1910,7 +1922,7 @@ and Colours</string>
             </property>
             <property name="font">
              <font>
-              <pointsize>12</pointsize>
+              <pointsize>11</pointsize>
               <italic>false</italic>
               <bold>false</bold>
              </font>
@@ -1940,10 +1952,10 @@ and Colours</string>
        <layout class="QGridLayout" name="gridLayout_6">
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_4">
-          <item row="2" column="2">
-           <widget class="QCheckBox" name="auto_scale">
+          <item row="0" column="0">
+           <widget class="QSlider" name="y_rotation">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -1953,8 +1965,35 @@ and Colours</string>
               <pointsize>12</pointsize>
              </font>
             </property>
-            <property name="text">
-             <string>Auto scale</string>
+            <property name="toolTip">
+             <string>Rotate up and down</string>
+            </property>
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>90</number>
+            </property>
+            <property name="singleStep">
+             <number>15</number>
+            </property>
+            <property name="pageStep">
+             <number>45</number>
+            </property>
+            <property name="value">
+             <number>18</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Orientation::Vertical</enum>
+            </property>
+            <property name="invertedAppearance">
+             <bool>false</bool>
+            </property>
+            <property name="tickPosition">
+             <enum>QSlider::TickPosition::TicksBothSides</enum>
+            </property>
+            <property name="tickInterval">
+             <number>15</number>
             </property>
            </widget>
           </item>
@@ -2006,6 +2045,54 @@ and Colours</string>
             </property>
            </widget>
           </item>
+          <item row="1" column="4">
+           <widget class="QPushButton" name="run3D">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>80</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>Run</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="4">
+           <widget class="QToolButton" name="analyser">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
+            <property name="toolTip">
+             <string>Analyser</string>
+            </property>
+            <property name="text">
+             <string>2D</string>
+            </property>
+            <property name="arrowType">
+             <enum>Qt::ArrowType::NoArrow</enum>
+            </property>
+           </widget>
+          </item>
           <item row="2" column="3">
            <widget class="QSpinBox" name="minY">
             <property name="sizePolicy">
@@ -2042,10 +2129,10 @@ and Colours</string>
             </property>
            </widget>
           </item>
-          <item row="0" column="0">
-           <widget class="QSlider" name="y_rotation">
+          <item row="2" column="2">
+           <widget class="QCheckBox" name="auto_scale">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -2054,60 +2141,9 @@ and Colours</string>
              <font>
               <pointsize>12</pointsize>
              </font>
-            </property>
-            <property name="toolTip">
-             <string>Rotate up and down</string>
-            </property>
-            <property name="minimum">
-             <number>0</number>
-            </property>
-            <property name="maximum">
-             <number>90</number>
-            </property>
-            <property name="singleStep">
-             <number>15</number>
-            </property>
-            <property name="pageStep">
-             <number>45</number>
-            </property>
-            <property name="value">
-             <number>18</number>
-            </property>
-            <property name="orientation">
-             <enum>Qt::Orientation::Vertical</enum>
-            </property>
-            <property name="invertedAppearance">
-             <bool>false</bool>
-            </property>
-            <property name="tickPosition">
-             <enum>QSlider::TickPosition::TicksBothSides</enum>
-            </property>
-            <property name="tickInterval">
-             <number>15</number>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="4">
-           <widget class="QToolButton" name="analyser">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>12</pointsize>
-             </font>
-            </property>
-            <property name="toolTip">
-             <string>Analyser</string>
             </property>
             <property name="text">
-             <string>2D</string>
-            </property>
-            <property name="arrowType">
-             <enum>Qt::ArrowType::NoArrow</enum>
+             <string>Auto scale</string>
             </property>
            </widget>
           </item>
@@ -2153,39 +2189,6 @@ and Colours</string>
             </property>
            </widget>
           </item>
-          <item row="2" column="1">
-           <spacer name="horizontalSpacer_2">
-            <property name="font">
-             <font>
-              <pointsize>12</pointsize>
-             </font>
-            </property>
-            <property name="orientation">
-             <enum>Qt::Orientation::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="0" column="1" colspan="3">
-           <widget class="QQuickWidget" name="plot_3D">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>12</pointsize>
-             </font>
-            </property>
-           </widget>
-          </item>
           <item row="1" column="3">
            <widget class="QSpinBox" name="maxY">
             <property name="sizePolicy">
@@ -2222,18 +2225,12 @@ and Colours</string>
             </property>
            </widget>
           </item>
-          <item row="1" column="4">
-           <widget class="QPushButton" name="run3D">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="maximumSize">
+          <item row="1" column="0">
+           <widget class="QLabel" name="label">
+            <property name="minimumSize">
              <size>
-              <width>40</width>
-              <height>16777215</height>
+              <width>80</width>
+              <height>0</height>
              </size>
             </property>
             <property name="font">
@@ -2242,21 +2239,33 @@ and Colours</string>
              </font>
             </property>
             <property name="text">
-             <string>Run</string>
+             <string>Rotate</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
-          <item row="1" column="0">
-           <widget class="QLabel" name="label">
+          <item row="2" column="1">
+           <spacer name="horizontalSpacer_2">
             <property name="font">
              <font>
               <pointsize>12</pointsize>
              </font>
             </property>
-            <property name="text">
-             <string>Rotate</string>
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
             </property>
-           </widget>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item row="0" column="1" colspan="3">
+           <widget class="QQuickWidget" name="plot_3D" native="true"/>
           </item>
          </layout>
         </item>
@@ -2272,8 +2281,8 @@ and Colours</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1280</width>
-     <height>23</height>
+     <width>1299</width>
+     <height>30</height>
     </rect>
    </property>
    <widget class="QMenu" name="menu_Help">
@@ -2403,15 +2412,15 @@ and Colours</string>
  </widget>
  <customwidgets>
   <customwidget>
+   <class>PlotWidget</class>
+   <extends>QWidget</extends>
+   <header location="global">pyqtgraph</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
    <class>QQuickWidget</class>
    <extends>QWidget</extends>
    <header location="global">QtQuickWidgets/QQuickWidget</header>
-  </customwidget>
-  <customwidget>
-   <class>PlotWidget</class>
-   <extends>QWidget</extends>
-   <header>pyqtgraph</header>
-   <container>1</container>
   </customwidget>
  </customwidgets>
  <resources/>

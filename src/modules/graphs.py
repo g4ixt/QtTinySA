@@ -18,7 +18,7 @@ from PySide6.QtGraphs import QSurface3DSeries, QSurfaceDataProxy, QGraphsTheme
 from PySide6.QtGraphsWidgets import Q3DSurfaceWidgetItem
 import pyqtgraph
 
-from modules.utility import Calc
+from modules.utility import Calc, resource_path
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 
@@ -26,8 +26,8 @@ logging.basicConfig(format="%(message)s", level=logging.INFO)
 SHAPE_FACTOR = {0.2: 3.6, 1: -0.6, 3: -0.53, 10: 0, 30: 0, 100: 0, 300: 0, 600: 0, 850: 0}
 
 # tinySA typical phase noise
-PN_AT_10MHZ = np.loadtxt("10_baseline.txt")
-PN_AT_1152MHZ = np.loadtxt("1152_baseline.txt")
+PN_AT_10MHZ = np.loadtxt(resource_path("10_baseline.txt"))
+PN_AT_1152MHZ = np.loadtxt(resource_path("1152_baseline.txt"))
 
 
 class SurfaceGraph(QObject):
