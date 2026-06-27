@@ -7,7 +7,7 @@
 # nuitka-project: --enable-plugin=pyside6
 # nuitka-project: --include-qt-plugins=sqldrivers,designer,qml
 # nuitka-project: --include-data-file=QtTSAprefs.db=./
-# nuitka-project: --include-data-file=*baseline.txt=./
+# nuitka-project: --include-data-file=./modules/*baseline.txt=./
 # nuitka-project: --include-data-file=*.ui=./
 # nuitka-project: --remove-output
 
@@ -20,7 +20,6 @@ TinySA commands are based on Erik's Python examples: http://athome.kaashoek.com/
 Serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset: https://github.com/Ho-Ro"""
 
 import os
-import sys
 import time
 import logging
 
