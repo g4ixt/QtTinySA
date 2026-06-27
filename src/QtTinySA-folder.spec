@@ -5,7 +5,7 @@ import sys
 common = {
     'pathex': [],
     'binaries': [],
-    'datas': [('QtTSAprefs.db', '.'), ('*.ui', '.'), ('10_baseline.txt', '.'), ('1152_baseline.txt', '.')],
+    'datas': [('QtTSAprefs.db', '.'), ('*.ui', '.'), ('./modules/10_baseline.txt', '.'), ('./modules/1152_baseline.txt', '.')],
     'hiddenimports': [],
     'hookspath': [],
     'hooksconfig': {},
@@ -50,5 +50,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='QtTinySA.bin',
+    name='QtTinySA.module',
 )
