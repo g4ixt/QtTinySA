@@ -36,7 +36,7 @@ jobs:
         nuitka-version: develop
         script-name: QtTinySA.py
         working-directory: ./src
-        mode: standalone
+        # mode: standalone
 
     # Uploads artifact
     - name: Upload Artifact
