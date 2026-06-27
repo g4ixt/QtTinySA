@@ -9,7 +9,6 @@
 # nuitka-project: --include-data-file=QtTSAprefs.db=./
 # nuitka-project: --include-data-file=./modules/*baseline.txt=./
 # nuitka-project: --include-data-file=*.ui=./
-# nuitka-project: --onefile
 
 """TinySA GUI programme using Qt, PySide6 and PyQtGraph.
 
