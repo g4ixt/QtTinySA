@@ -9,7 +9,7 @@
 # nuitka-project: --include-data-file=QtTSAprefs.db=./
 # nuitka-project: --include-data-file=./modules/*baseline.txt=./
 # nuitka-project: --include-data-file=*.ui=./
-# nuitka-project: --remove-output
+# nuitka-project: --onefile
 
 """TinySA GUI programme using Qt, PySide6 and PyQtGraph.
 
@@ -87,7 +87,7 @@ class CustomTableModel(QSqlRelationalTableModel):
 
 class CustomLoader(QUiLoader):
     def createWidget(self, className, parent=None, name=""):
-        logging.debug(f'className = {className}')
+        logging.info(f'className = {className}')
         file_name = resource_path(name)
         if className == "PlotWidget":
             return pyqtgraph.PlotWidget(parent=parent)
