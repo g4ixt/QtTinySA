@@ -3,4 +3,4 @@ Pillow
 platformdirs
 pyserial
 pyqtgraph
-pyside6
+pyside6==6.11.0
