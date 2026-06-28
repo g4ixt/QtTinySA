@@ -2,5 +2,5 @@ numpy
 Pillow
 platformdirs
 pyserial
-pyside6
+pyside6==6.11.0
 pyqtgraph

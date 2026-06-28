@@ -7,8 +7,11 @@
 # nuitka-project: --enable-plugin=pyside6
 # nuitka-project: --include-qt-plugins=sqldrivers,designer,qml
 # nuitka-project: --include-data-file=QtTSAprefs.db=./
-# nuitka-project: --include-data-file=./modules/*baseline.txt=./
+# nuitka-project: --include-data-file=./*baseline.txt=./
 # nuitka-project: --include-data-file=*.ui=./
+# nuitka-project: --follow-imports
+# nuitka-project: --mode=onefile
+# nuitka-project: --remove-output
 
 """TinySA GUI programme using Qt, PySide6 and PyQtGraph.
 
