@@ -5,12 +5,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # nuitka-project: --enable-plugin=pyside6
-# nuitka-project: --include-qt-plugins=sqldrivers,designer,qml
+# nuitka-project: --include-qt-plugins=sqldrivers,designer
 # nuitka-project: --include-data-file=QtTSAprefs.db=./
-# nuitka-project: --include-data-file=./*baseline.txt=./
+# nuitka-project: --include-data-files=./modules/*baseline.txt=modules/
 # nuitka-project: --include-data-file=*.ui=./
-# nuitka-project: --follow-imports
-# nuitka-project: --mode=onefile
+# nuitka-project: --nofollow-import-to=tkinter,pandas,setuptools,tk,wheel,zipp,pyyaml
+# nuitka-project: --nofollow-import-to=packaging,altgraph,mkl,fortran,matlab
+# nuitka-project: --mode=standalone
 # nuitka-project: --remove-output
 
 """TinySA GUI programme using Qt, PySide6 and PyQtGraph.
@@ -65,7 +66,7 @@ app = QApplication.instance()
 if not app:
     app = QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.46')
+app.setApplicationVersion(' v1.3.47')
 
 # pyqtgraph custom exporters
 WWBExporter.register()
@@ -89,7 +90,7 @@ class CustomTableModel(QSqlRelationalTableModel):
 
 class CustomLoader(QUiLoader):
     def createWidget(self, className, parent=None, name=""):
-        logging.info(f'className = {className}')
+        logging.debug(f'className = {className}')
         file_name = resource_path(name)
         if className == "PlotWidget":
             return pyqtgraph.PlotWidget(parent=parent)
