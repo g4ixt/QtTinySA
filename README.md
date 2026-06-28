@@ -8,7 +8,7 @@ For information on how to install it and how to use some of the features, see th
 https://github.com/g4ixt/QtTinySA/wiki
   
 The code attempts to replicate some of the TinySA Ultra on-screen commands on the PC.
-Development and testing are now on Kubuntu 25.10 with Python 3.13 using the Spyder IDE.
+Development and testing are now on Kubuntu 26.04 with Python 3.14 and PySide6 using the Spyder IDE.
 
 'TinySA', 'TinySA Ultra' and the TinySA icon are trademarks of Erik Kaashoek and are used with his permission.
 
@@ -21,4 +21,4 @@ https://github.com/Ho-Ro
 I learnt a lot about how to create Python GUIs from Martin Fitzpatrick's excellent books.  
 https://www.pythonguis.com/books/
   
-The GUI appearence may change significantly due to development.
+The GUI appearance may change significantly due to development.
