@@ -1018,6 +1018,12 @@ and Colours</string>
           </item>
           <item row="1" column="19">
            <widget class="QToolButton" name="stop">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="font">
              <font>
               <pointsize>11</pointsize>
@@ -1169,7 +1175,7 @@ and Colours</string>
           <item row="1" column="15">
            <widget class="QToolButton" name="presetLabel">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -1312,7 +1318,7 @@ and Colours</string>
           <item row="0" column="19">
            <widget class="QToolButton" name="play">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -1444,7 +1450,7 @@ and Colours</string>
           <item row="0" column="18">
            <widget class="QToolButton" name="record">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -1476,6 +1482,12 @@ and Colours</string>
           </item>
           <item row="1" column="18">
            <widget class="QToolButton" name="eject">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="font">
              <font>
               <pointsize>11</pointsize>
@@ -1656,6 +1668,12 @@ and Colours</string>
           </item>
           <item row="0" column="20" rowspan="2">
            <widget class="QSlider" name="speed">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="font">
              <font>
               <pointsize>11</pointsize>
@@ -1915,7 +1933,7 @@ and Colours</string>
           <item row="0" column="15">
            <widget class="QToolButton" name="presetMarker">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
