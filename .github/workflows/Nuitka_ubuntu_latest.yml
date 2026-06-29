@@ -10,6 +10,9 @@ on:
       tags:
         description: 'ubuntu latest nuitka'
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest

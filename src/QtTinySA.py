@@ -66,7 +66,7 @@ app = QApplication.instance()
 if not app:
     app = QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v1.3.47')
+app.setApplicationVersion(' v2.0.rc0')
 
 # pyqtgraph custom exporters
 WWBExporter.register()

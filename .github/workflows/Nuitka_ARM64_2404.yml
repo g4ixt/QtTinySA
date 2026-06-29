@@ -6,6 +6,9 @@ on:
       tags:
         description: 'ubuntu 24.04 Nuitka arm64'
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-24.04-arm
