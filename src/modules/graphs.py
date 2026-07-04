@@ -14,7 +14,7 @@ import numpy as np
 from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsLineItem, QGraphicsSimpleTextItem
 from PySide6.QtCore import QObject, Qt, QElapsedTimer
 from PySide6.QtGui import QLinearGradient, QBrush, QColor, QTransform
-from PySide6.QtGraphs import QSurface3DSeries, QSurfaceDataProxy, QGraphsTheme
+from PySide6.QtGraphs import QSurface3DSeries, QSurfaceDataProxy, QGraphsTheme, QtGraphs3D
 from PySide6.QtGraphsWidgets import Q3DSurfaceWidgetItem
 import pyqtgraph
 
@@ -34,31 +34,32 @@ class SurfaceGraph(QObject):
 
     def __init__(self, ui_widget, frequencies, readings):
         super().__init__()
-
         self.surface = Q3DSurfaceWidgetItem()
         self.surface.setWidget(ui_widget)
-        self.surface.setAmbientLightStrength(0.5)
-        self.surface.setLightStrength(0.4)
-
         self._dataProxy = QSurfaceDataProxy()
         self._dataSeries = QSurface3DSeries(self._dataProxy)
-
-        self.setAxis(self.surface.axisX, "Frequency MHz")
-        self.setAxis(self.surface.axisY, "Signal dBm")
-        self.setAxis(self.surface.axisZ, "Sweep number")
-
         self.updater = SurfaceUpdater(frequencies, readings)
         self.surface.addSeries(self.updater._dataSeries)
-        self.surface.setShadowStrength(0)
+        self.initial_aspect = 100/15
+        self.initial_zoom = 470
+        self.set_axis(self.surface.axisX, "Frequency MHz")
+        self.set_axis(self.surface.axisY, "Signal dBm")
+        self.set_axis(self.surface.axisZ, "Sweep number")
+        self.set_display()
 
-    def setAxis(self, axis, name):
+    def set_axis(self, axis, name):
         ax = axis()
-        ax.setTitle(name)
-        ax.setTitleVisible(True)
-        # ax.setLabelSize(1.5)
+        # ax.setTitle(name)
+        # ax.setTitleVisible(False)
+        ax.setLabelsVisible(False)
+        # ax.setLabelBackgroundVisible(False)
+        # ax.setLabelSize(5)
+        ax.setSubSegmentCount(9)
 
-    def zoom(self, zoom):
-        self.surface.setCameraZoomLevel(zoom)
+    def zoom(self, width_ratio, height):
+        self.surface.setCameraZoomLevel(self.initial_zoom)
+        self.surface.setHorizontalAspectRatio(100/height)
+
 
     def rotateX(self, angle):
         self.surface.setCameraXRotation(angle)
@@ -66,13 +67,35 @@ class SurfaceGraph(QObject):
     def rotateY(self, angle):
         self.surface.setCameraYRotation(angle)
 
-    def set_range(self, data):
+    def set_dynamic_range(self, wf_levels):
         axis = self.surface.axisY()
-        maximum = round(np.nanmax(data), -1) + 10  # rounds to nearest 10
-        minimum = round(np.nanmin(data, initial=-120), -1)
-        axis.setMax(maximum)
+        maximum = round(wf_levels[1]) + 10  # rounds to nearest 10
+        minimum = round(wf_levels[0])
         axis.setMin(minimum)
+        axis.setMax(maximum)
+        
+    def set_freq_range(self, startF, stopF):       
+        pad_r = round(((stopF - startF)/400), 0)
+        self.surface.axisX().setMax(stopF + pad_r)
+        pad_l = round(((stopF - startF) / 80), 0)
+        self.surface.axisX().setMin(startF - pad_l)
 
+    def set_display(self):
+        self.surface.setOrthoProjection(True)
+        self.surface.setAmbientLightStrength(0.7)
+        self.surface.setLightStrength(0.4)
+        self.surface.setShadowStrength(0)
+        self.surface.setCameraPreset(QtGraphs3D.CameraPreset.DirectlyAbove)
+        self.surface.activeTheme().setGridVisible(True)
+        self.surface.activeTheme().setPlotAreaBackgroundVisible(True)
+        self.surface.activeTheme().setLabelsVisible(False)
+        #self.surface.activeTheme().setLabelBackgroundVisible(False)
+        self.surface.setHorizontalAspectRatio(self.initial_aspect)
+        #self.surface.setAspectRatio(10)
+        self.surface.setMargin(0)
+        self.surface.axisZ().setReversed(False)
+        self.zoom(self.initial_zoom, self.initial_aspect)
+        
 
 class SurfaceUpdater(QObject):
 
@@ -83,25 +106,26 @@ class SurfaceUpdater(QObject):
         self._dataSeries = QSurface3DSeries(self._dataProxy)
 
     def updateTimeSpectrum(self, frequencies, readings):
-        startF = frequencies[0] / 1e6
-        deltaF = (frequencies[1] - frequencies[0])/1e6
+        # startF = frequencies[0] / 1e6
+        # deltaF = (frequencies[1] - frequencies[0])/1e6
+        startF = frequencies[0]
+        deltaF = (frequencies[1] - frequencies[0])
         self.setGradient()
-
         # re-populate the surface with the current readings
         self._dataProxy.resetArrayNp(startF, deltaF, 0, 1, readings)
 
     def setGradient(self):
         gr = QLinearGradient()
+        gr.setColorAt(0.1, Qt.magenta)
         gr.setColorAt(0.2, Qt.blue)
-        gr.setColorAt(0.4, Qt.cyan)
-        gr.setColorAt(0.6, Qt.magenta)
-        gr.setColorAt(0.8, Qt.yellow)
-        gr.setColorAt(0.9, Qt.red)
+        gr.setColorAt(0.3, Qt.cyan)
+        gr.setColorAt(0.5, Qt.yellow)
+        gr.setColorAt(0.8, Qt.red)
 
         self._dataSeries.setBaseGradient(gr)
         self._dataSeries.setColorStyle(QGraphsTheme.ColorStyle.RangeGradient)
         self._dataSeries.setDrawMode(QSurface3DSeries.DrawSurface)
-
+         
 
 class PhaseNoiseGraph(QObject):
 

@@ -412,6 +412,9 @@ class Tiny(QObject):
                     buffer = np.roll(buffer, 1, axis=0)
                     buffer[0] = levl
                     
+                    # buffer = np.roll(buffer, -1, axis=0)
+                    # buffer[-1] = levl
+                    
                     if loop:
                         if self.usb.read(2) != b'}{':  # the end of scan marker character is '}{'
                             logging.info('QtTinySA display is out of sync with tinySA frequency')
@@ -931,7 +934,7 @@ class Recorder(QObject):
             if play_clicked:
                 buffer = np.roll(buffer, 1, axis=0)
                 buffer[0] = levl
-                pause = min(1, sweep_time * self.speed)  # clip playback sweep time to max 1 second
+                pause = min(1, sweep_time / self.speed)  # clip playback sweep time to max 1 second
                 time.sleep(pause)
             else:
                 time.sleep(interval / 1e3)  # interval is in mS

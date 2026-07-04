@@ -66,7 +66,7 @@ app = QApplication.instance()
 if not app:
     app = QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v2.0.rc0')
+app.setApplicationVersion(' v2.0.rc0.1')
 
 # pyqtgraph custom exporters
 WWBExporter.register()
@@ -126,10 +126,10 @@ class Analyser:
     def setGraphs(self):
         self.phaseNoise = PhaseNoiseGraph(phasenoise.ui.plotWidget, np.ndarray, np.ndarray, 1)
         self.polar = PolarGraph(pattern.ui, 4, 40)
+        #self.timespectrum = SurfaceGraph(QtTSA.plot_3D, np.ndarray, np.ndarray)
         self.timespectrum = SurfaceGraph(QtTSA.plot_3D, np.ndarray, np.ndarray)
-        self.timespectrum.zoom(QtTSA.zoom.value())
-        self.timespectrum.rotateX(QtTSA.x_rotation.value())
-        self.timespectrum.rotateY(QtTSA.y_rotation.value())
+        # self.timespectrum.rotateX(QtTSA.x_rotation.value())
+        # self.timespectrum.rotateY(QtTSA.y_rotation.value())
       
         # instantiate each spectrum, which has three elements: 1 trace; 4 markers; 1 monitor
         self.s0 = SpectrumGraph(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot, 100)
@@ -184,11 +184,17 @@ class Analyser:
         bandselect.filterType(False, QtTSA.filterBox.currentText())  # setting the filter overwrites the band
         if settings.ui.bold_text.isChecked():
             app.setStyleSheet("QWidget { font-weight: bold; }")  # enhancement issue 118
+        self.initial_width = QtTSA.graphWidget.getPlotItem().viewGeometry().width()  # used to set 3D wf zoom
 
         # connect GUI controls that would interfere with restoration of data at startup
         ## may need to modify for multi-devices ##
         connectActive()
-        QtTSA.waterfall_size.valueChanged.emit(QtTSA.waterfall_size.value())
+        QtTSA.waterfall_size.valueChanged.emit(QtTSA.waterfall_size.value()) # call the waterfall size setter
+        
+        # temporary, add swap 2D/3D waterfall to settings
+        QtTSA.waterfall.hide()
+        # temporary, add to settings
+        
         self.s0.enable(QtTSA.trace1.isChecked())
         self.s1.enable(QtTSA.trace2.isChecked())
         self.s2.enable(QtTSA.trace3.isChecked())
@@ -201,6 +207,8 @@ class Analyser:
         
         # hide the playback time slider
         QtTSA.vortex.hide()
+        
+        # QtTSA.plot_3D.ResizeMode.SizeRootObjectToView
 
     @Slot()
     def set_device_info(self, name, dev_id, sn, port):
@@ -257,7 +265,7 @@ class Analyser:
             spectrum.stopF = starts.get(self.dev_count)[indx] + span
             spectrum.points = points
 
-    def scan(self):  # called by the run/stop button
+    def scan(self):  # called by the scan/stop button
         ''''take settings from GUI boxes and start usbDevice, which interfaces to the hardware'''
         if usbInstr.is_scanning:
             usbInstr.stop(restart=False)
@@ -283,7 +291,7 @@ class Analyser:
         attn = self.attn()
         lna = self.lna()
         spur = self.spur()
-        self.setGraphFreq(startF/1e6, stopF/1e6)
+        self.setGraphFreq(startF, stopF)
         if self.dev_count == 0:
             popUp(QtTSA, 'No devices enabled', 'Ok', 'Critical')
             return
@@ -299,7 +307,7 @@ class Analyser:
 
         # start device(s) scanning
         usbInstr.start(self.spectra, rbw, self.depth, maxF, interval, split, loop=True)
-        self.runButton('Stop')
+        self.scan_button('Stop Scan')
 
     def set_gui_colours(self):
         # set each spectrum (trace & marker) and box colours
@@ -351,7 +359,7 @@ class Analyser:
             QtTSA.start_freq.setValue(startF)
         with QSignalBlocker(QtTSA.stop_freq):
             QtTSA.stop_freq.setValue(stopF)
-        self.setGraphFreq(startF, stopF)
+        self.setGraphFreq(startF * 1e6, stopF * 1e6)
         self.setting_change()
 
     def setStartFreq(self):
@@ -365,14 +373,15 @@ class Analyser:
             QtTSA.centre_freq.setValue(startF + (stopF - startF) / 2)
         with QSignalBlocker(QtTSA.span_freq):
             QtTSA.span_freq.setValue(stopF - startF)
-        self.setGraphFreq(startF, stopF)
+        self.setGraphFreq(startF * 1e6, stopF * 1e6)
         self.setting_change()
 
     def setGraphFreq(self, startF, stopF):
-        QtTSA.graphWidget.setXRange(startF * 1e6, stopF * 1e6)
+        QtTSA.graphWidget.setXRange(startF, stopF)
         if QtTSA.span_freq.value() != 0:
-            lowF.line.setValue((startF + QtTSA.span_freq.value()/20) * 1e6)
-            highF.line.setValue((stopF - QtTSA.span_freq.value()/20) * 1e6)
+            lowF.line.setValue((startF + QtTSA.span_freq.value()/20))
+            highF.line.setValue((stopF - QtTSA.span_freq.value()/20))
+            self.timespectrum.set_freq_range(startF, stopF)
 
     def setToMarker(self):
         mkr_freq = self.s0.trace.m0.line.value()
@@ -450,13 +459,17 @@ class Analyser:
 
     @Slot()
     def allStopped(self, restart):
-        self.runButton('Run')
+        self.scan_button('Start scan')
         self.mkr_update_timer.start(100)
         if restart:
             self.scan()
 
     def updateGUI(self, route, freq, levl, maxl, minl, buffer, ser_num, dev_id, timestamp, split, sweep_end):
         ''''updates all the traces in the route in one call'''
+        
+        width = QtTSA.graphWidget.getPlotItem().viewGeometry().width()
+        width_ratio = width / self.initial_width
+
         if bandstype.freq !=0 and bandstype.freq < QtTSA.start_freq.value() * 1e6:
             freq = freq + bandstype.freq
         elif bandstype.freq !=0 and bandstype.freq > QtTSA.start_freq.value() * 1e6:
@@ -509,15 +522,25 @@ class Analyser:
             # enabled devices are renumbered below self.dev_count as the 'enabled' boxes are ticked
             if spectrum is not None:
                 # update waterfall display if visible
-                if wf_height > 0 and ~np.all(np.isnan(self.wf_data)):
+                # if wf_height > 0 and ~np.all(np.isnan(self.wf_data)):
+                if ~np.all(np.isnan(self.wf_data)):
                     spectrum.waterfall.setImage(self.wf_data, autoLevels=wf_auto)
-
-                # update 3D graph if visible
-                if QtTSA.stackedWidget.currentWidget() == QtTSA.View3D:
+                
+                if QtTSA.waterfall_size.value() > 0:
                     if ~np.isnan(self.wf_data[0, :]).any():
-                        self.timespectrum.surface.setHorizontalAspectRatio(1)  # keep the xz surface square
+                        # self.timespectrum.surface.setHorizontalAspectRatio(1)  # keep the xz surface square
+                        # self.timespectrum.surface.setHorizontalAspectRatio(6)  # keep the xz surface square
+                        # self.timespectrum.surface.setMargin(0.0)
+                        
                         self.timespectrum.updater.updateTimeSpectrum(freq, self.wf_data)
-                        self.timespectrum.set_range(self.wf_data)
+                        #self.timespectrum.set_range(self.wf_data)
+                        wf_levels = spectrum.waterfall.getLevels()
+                        self.timespectrum.set_dynamic_range(wf_levels)
+                        
+                        # self.timespectrum.zoom(int(width * 0.285))
+                        height = QtTSA.waterfall_size.value()
+                        self.timespectrum.zoom(width_ratio, height)
+
                              
                 # update the spectrum trace, according to trace type
                 gui_boxes = {0: QtTSA.t1_type, 1: QtTSA.t2_type, 2: QtTSA.t3_type, 3: QtTSA.t4_type}
@@ -560,11 +583,11 @@ class Analyser:
                         self.save_data(freq, self.wf_data, ser_num, 0, recording=False)
                     spectrum.count = 0  # resets the counter only for the traces being updated by this route
 
-    def runButton(self, action):
+    def scan_button(self, action):
         QtTSA.scan_button.setText(action)
-        QtTSA.run3D.setText(action)
+        # QtTSA.run3D.setText(action)
         QtTSA.scan_button.setEnabled(True)
-        QtTSA.run3D.setEnabled(True)
+        # QtTSA.run3D.setEnabled(True)
 
     def set_dev_combo(self, ui_name, dev_name):
         ''''populates a combo box 'device' on 'ui_name' with a list of devices of type dev_name'''
@@ -753,8 +776,8 @@ class Analyser:
         stop = usbInstr.recorders[0].data_arr[0, -1] / 1e6
         self.dev_count = usbInstr.loaded_files
         for i in range(usbInstr.loaded_files):
-            start = int(min(start, usbInstr.recorders[i].data_arr[0, 1] / 1e6))
-            stop = int(max(stop, usbInstr.recorders[i].data_arr[0, -1] / 1e6))
+            start = int(min(start, usbInstr.recorders[i].data_arr[0, 1]))
+            stop = int(max(stop, usbInstr.recorders[i].data_arr[0, -1]))
         self.setGraphFreq(start, stop)
 
         self.set_gui_colours()
@@ -765,7 +788,7 @@ class Analyser:
         for spectrum in self.spectra:
             spectrum.monitor_data = np.full((int(time_points), 2), None, dtype=float)
 
-        # set the waterfall size using a list points from the loaded files
+        # set the waterfall array size as the sum of the number of columns in all the loaded files
         points = []
         for rec in usbInstr.recorders:
             if ~np.isnan(rec.data_arr).all():  # array has been loaded
@@ -792,8 +815,8 @@ class Analyser:
                 usbInstr.recorders[i].sweeping = False
     
     def set_speed(self):
-        slider = QtTSA.speed.value()
-        speed = 10 / slider
+        spinbox = QtTSA.speed.value()
+        speed = spinbox / 100
         for i in range(usbInstr.loaded_files):
             usbInstr.recorders[i].speed = speed
     
@@ -843,7 +866,6 @@ class Analyser:
     def time_path_indicator(self, position):
         QtTSA.vortex.setValue(position)
         
-
 class Limit:
     def __init__(self, pen, x, y, movable):  # x = None, horizontal.  y = None, vertical
         self.pen = pen
@@ -1419,9 +1441,19 @@ def isMixerMode():
         QtTSA.centre_freq.setMaximum(100000)
         QtTSA.stop_freq.setMaximum(100000)
 
-
-def setSize():
-    QtTSA.waterfall.setMaximumSize(QtCore.QSize(16777215, QtTSA.waterfall_size.value()))
+def set_wf_size():
+    # QtTSA.waterfall.setMaximumSize(QtCore.QSize(16777215, QtTSA.waterfall_size.value()))
+    # QtTSA.graphWidget.setMaximumSize(QtCore.QSize(16777215, QtTSA.waterfall_size.value()))
+    if QtTSA.waterfall_size.value() > 0:
+        QtTSA.plot_3D.show()
+        size = QtTSA.waterfall_size.value() * 10
+        QtTSA.plot_3D.setMaximumSize(QtCore.QSize(16777215, size))
+        # tinySA.timespectrum.zoom(size * 10)
+    else:
+        QtTSA.plot_3D.hide()
+    return
+    
+# def set_3D_view():
 
 
 def startPolarPlot():
@@ -1453,8 +1485,7 @@ def connectActive():
     # QtTSA.sampleRepeat.valueChanged.connect(tinySA.sampleRep)
 
     # 3D graph controls
-    QtTSA.timeSpectrum.clicked.connect(lambda: QtTSA.stackedWidget.setCurrentWidget(QtTSA.View3D))
-    QtTSA.analyser.clicked.connect(lambda: QtTSA.stackedWidget.setCurrentWidget(QtTSA.ViewNormal))
+    # QtTSA.waterfall_size.valueChanged.connect(set_3D_view)
 
     # filebrowse
     filebrowse.ui.download.clicked.connect(lambda: set_sd_file_save(True))
@@ -1476,7 +1507,7 @@ def connectPassive():
 
     QtTSA.memBox.valueChanged.connect(tinySA.memChanged)
     QtTSA.scan_button.clicked.connect(tinySA.scan)
-    QtTSA.run3D.clicked.connect(tinySA.scan)
+    # QtTSA.run3D.clicked.connect(tinySA.scan)
 
     # Quit
     # QtTSA.actionQuit.triggered.connect(app.closeAllWindows)
@@ -1533,7 +1564,7 @@ def connectPassive():
     QtTSA.actionAbout_Qt.triggered.connect(app.aboutQt)
 
     # Waterfall
-    QtTSA.waterfall_size.valueChanged.connect(setSize)
+    QtTSA.waterfall_size.valueChanged.connect(set_wf_size)
 
     # Measurement menu
     QtTSA.actionPhNoise.triggered.connect(phasenoise.ui.show)
@@ -1544,10 +1575,10 @@ def connectPassive():
     phasenoise.ui.centre.clicked.connect(tinySA.centreTone)
 
     # File menu
-    QtTSA.actionBrowse_TinySA.triggered.connect(tinySA.file_browser)
+    QtTSA.actionBrowse.triggered.connect(tinySA.file_browser)
     filebrowse.ui.device.currentIndexChanged.connect(tinySA.list_files)
     # folder = settings.ui.save_folder.text()
-    QtTSA.actionLoad_recording.triggered.connect(tinySA.load_data)
+    QtTSA.actionRecordings.triggered.connect(tinySA.load_data)
 
     # polar pattern
     pattern.ui.measure.clicked.connect(startPolarPlot)
@@ -1557,9 +1588,9 @@ def connectPassive():
     offset.ui.import_button.clicked.connect(lambda: correction.importData(''))
 
     # 3D
-    QtTSA.zoom.valueChanged.connect(lambda: tinySA.timespectrum.zoom(QtTSA.zoom.value()))
-    QtTSA.x_rotation.valueChanged.connect(lambda: tinySA.timespectrum.rotateX(QtTSA.x_rotation.value()))
-    QtTSA.y_rotation.valueChanged.connect(lambda: tinySA.timespectrum.rotateY(QtTSA.y_rotation.value()))
+    # QtTSA.zoom.valueChanged.connect(lambda: tinySA.timespectrum.zoom(QtTSA.zoom.value()))
+    # QtTSA.x_rotation.valueChanged.connect(lambda: tinySA.timespectrum.rotateX(QtTSA.x_rotation.value()))
+    # QtTSA.y_rotation.valueChanged.connect(lambda: tinySA.timespectrum.rotateY(QtTSA.y_rotation.value()))
     
     # settings
     settings.ui.set_folder.clicked.connect(lambda:set_folder(settings.ui))

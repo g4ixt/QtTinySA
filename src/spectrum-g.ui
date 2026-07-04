@@ -7,7 +7,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1300</width>
+    <width>1301</width>
     <height>840</height>
    </rect>
   </property>
@@ -955,7 +955,7 @@
       </property>
       <property name="minimumSize">
        <size>
-        <width>135</width>
+        <width>140</width>
         <height>0</height>
        </size>
       </property>
@@ -1554,7 +1554,7 @@
           <number>0</number>
          </property>
          <property name="text">
-          <string>LNB</string>
+          <string>LNB / Transverter</string>
          </property>
          <property name="scaledContents">
           <bool>false</bool>
@@ -1619,7 +1619,7 @@
       </property>
       <property name="minimumSize">
        <size>
-        <width>135</width>
+        <width>140</width>
         <height>0</height>
        </size>
       </property>
@@ -1749,13 +1749,13 @@
           <string>Size </string>
          </property>
          <property name="maximum">
-          <number>35</number>
+          <number>100</number>
          </property>
          <property name="singleStep">
-          <number>5</number>
+          <number>10</number>
          </property>
          <property name="value">
-          <number>15</number>
+          <number>30</number>
          </property>
         </widget>
        </item>
@@ -2271,7 +2271,7 @@ and Colours</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1300</width>
+     <width>1301</width>
      <height>30</height>
     </rect>
    </property>
