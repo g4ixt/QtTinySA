@@ -66,7 +66,7 @@ app = QApplication.instance()
 if not app:
     app = QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v2.0.rc0.1')
+app.setApplicationVersion(' v2.0.rc0.3')
 
 # pyqtgraph custom exporters
 WWBExporter.register()
@@ -126,7 +126,6 @@ class Analyser:
     def setGraphs(self):
         self.phaseNoise = PhaseNoiseGraph(phasenoise.ui.plotWidget, np.ndarray, np.ndarray, 1)
         self.polar = PolarGraph(pattern.ui, 4, 40)
-        #self.timespectrum = SurfaceGraph(QtTSA.plot_3D, np.ndarray, np.ndarray)
         self.timespectrum = SurfaceGraph(QtTSA.plot_3D, np.ndarray, np.ndarray)
         # self.timespectrum.rotateX(QtTSA.x_rotation.value())
         # self.timespectrum.rotateY(QtTSA.y_rotation.value())
@@ -482,10 +481,12 @@ class Analyser:
             maxl = maxl[::-1]
             minl = minl[::-1]
             QtTSA.waterfall.invertX(True)
+            self.timespectrum.surface.axisX().setReversed(True)
         else:
             QtTSA.waterfall.invertX(False)
+            self.timespectrum.surface.axisX().setReversed(False)
 
-        # check for zero span and update the spectrum graph x-axis if so
+        # check for zero span and change the spectrum graph x-axis if so
         try:
             if freq[0] == freq[-1]:
                 QtTSA.graphWidget.setLabel('bottom', 'Time')
@@ -495,9 +496,8 @@ class Analyser:
                 QtTSA.graphWidget.setLabel('bottom', units='Hz')
         except IndexError:
             return
-
         # update the waterfall data array
-        wf_height = QtTSA.waterfall_size.value()
+        wf_height = QtTSA.waterfall_size.value() * 5
         wf_auto = QtTSA.waterfall_auto.isChecked()
         buffer_cols = np.shape(buffer)[1]
         if split:
@@ -522,26 +522,24 @@ class Analyser:
             # enabled devices are renumbered below self.dev_count as the 'enabled' boxes are ticked
             if spectrum is not None:
                 # update waterfall display if visible
-                # if wf_height > 0 and ~np.all(np.isnan(self.wf_data)):
-                if ~np.all(np.isnan(self.wf_data)):
+                if sweep_end and ~np.all(np.isnan(self.wf_data)):
                     spectrum.waterfall.setImage(self.wf_data, autoLevels=wf_auto)
                 
-                if QtTSA.waterfall_size.value() > 0:
+                if sweep_end and QtTSA.waterfall_size.value() > 0:
                     if ~np.isnan(self.wf_data[0, :]).any():
-                        # self.timespectrum.surface.setHorizontalAspectRatio(1)  # keep the xz surface square
-                        # self.timespectrum.surface.setHorizontalAspectRatio(6)  # keep the xz surface square
-                        # self.timespectrum.surface.setMargin(0.0)
-                        
-                        self.timespectrum.updater.updateTimeSpectrum(freq, self.wf_data)
-                        #self.timespectrum.set_range(self.wf_data)
                         wf_levels = spectrum.waterfall.getLevels()
                         self.timespectrum.set_dynamic_range(wf_levels)
-                        
-                        # self.timespectrum.zoom(int(width * 0.285))
+                        self.timespectrum.updater.updateTimeSpectrum(freq, self.wf_data)
                         height = QtTSA.waterfall_size.value()
-                        self.timespectrum.zoom(width_ratio, height)
-
-                             
+                        if self.timespectrum.wf_2D:
+                            self.timespectrum.zoom(width_ratio, height)
+                    if height == 7:
+                        QtTSA.graphWidget.hide()
+                        # QtTSA.graphWidget.setMaximumSize(QtCore.QSize(16777215, 0))
+                    else:
+                        QtTSA.graphWidget.show()
+                        # QtTSA.graphWidget.setMaximumSize(QtCore.QSize(16777215, QtTSA.waterfall_size.value()))
+                         
                 # update the spectrum trace, according to trace type
                 gui_boxes = {0: QtTSA.t1_type, 1: QtTSA.t2_type, 2: QtTSA.t3_type, 3: QtTSA.t4_type}
                 trace_type = gui_boxes.get(self.spectra.index(spectrum)).currentText()
@@ -1446,14 +1444,16 @@ def set_wf_size():
     # QtTSA.graphWidget.setMaximumSize(QtCore.QSize(16777215, QtTSA.waterfall_size.value()))
     if QtTSA.waterfall_size.value() > 0:
         QtTSA.plot_3D.show()
-        size = QtTSA.waterfall_size.value() * 10
+        size = QtTSA.waterfall_size.value() * 50
         QtTSA.plot_3D.setMaximumSize(QtCore.QSize(16777215, size))
-        # tinySA.timespectrum.zoom(size * 10)
     else:
         QtTSA.plot_3D.hide()
     return
-    
-# def set_3D_view():
+  
+def set_wf_format():
+    wf_2D = QtTSA.wf_2D.isChecked()
+    height = QtTSA.waterfall_size.value()
+    tinySA.timespectrum.set_format(wf_2D, height)
 
 
 def startPolarPlot():
@@ -1565,6 +1565,7 @@ def connectPassive():
 
     # Waterfall
     QtTSA.waterfall_size.valueChanged.connect(set_wf_size)
+    QtTSA.wf_2D.stateChanged.connect(set_wf_format)
 
     # Measurement menu
     QtTSA.actionPhNoise.triggered.connect(phasenoise.ui.show)
@@ -1643,7 +1644,7 @@ reference.create(True, '<|>', 0.99)
 
 # pyqtgraph settings for spectrum display
 QtTSA.graphWidget.setYRange(-112, -20)
-QtTSA.graphWidget.setDefaultPadding(padding=0.005)
+QtTSA.graphWidget.setDefaultPadding(padding=0.015) # was 0.005
 QtTSA.graphWidget.showGrid(x=True, y=True)
 QtTSA.graphWidget.setLabel('bottom', '', units='Hz')
 
