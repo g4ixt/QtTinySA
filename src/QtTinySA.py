@@ -66,7 +66,7 @@ app = QApplication.instance()
 if not app:
     app = QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v2.0.rc0.3')
+app.setApplicationVersion(' v2.0.rc0.4')
 
 # pyqtgraph custom exporters
 WWBExporter.register()
@@ -183,7 +183,8 @@ class Analyser:
         bandselect.filterType(False, QtTSA.filterBox.currentText())  # setting the filter overwrites the band
         if settings.ui.bold_text.isChecked():
             app.setStyleSheet("QWidget { font-weight: bold; }")  # enhancement issue 118
-        self.initial_width = QtTSA.graphWidget.getPlotItem().viewGeometry().width()  # used to set 3D wf zoom
+        # self.initial_width = QtTSA.graphWidget.getPlotItem().viewGeometry().width()  # used to set 3D wf zoom
+        self.initial_width = QtTSA.graphWidget.width()  # used to set 3D wf zoom
 
         # connect GUI controls that would interfere with restoration of data at startup
         ## may need to modify for multi-devices ##
@@ -207,7 +208,6 @@ class Analyser:
         # hide the playback time slider
         QtTSA.vortex.hide()
         
-        # QtTSA.plot_3D.ResizeMode.SizeRootObjectToView
 
     @Slot()
     def set_device_info(self, name, dev_id, sn, port):
@@ -466,8 +466,10 @@ class Analyser:
     def updateGUI(self, route, freq, levl, maxl, minl, buffer, ser_num, dev_id, timestamp, split, sweep_end):
         ''''updates all the traces in the route in one call'''
         
-        width = QtTSA.graphWidget.getPlotItem().viewGeometry().width()
-        width_ratio = width / self.initial_width
+        #width = QtTSA.graphWidget.getPlotItem().viewGeometry().width()
+        #width_ratio = width / self.initial_width
+        frame_width = QtTSA.display_frame.width()
+        wf_height = QtTSA.plot_3D.height()
 
         if bandstype.freq !=0 and bandstype.freq < QtTSA.start_freq.value() * 1e6:
             freq = freq + bandstype.freq
@@ -497,7 +499,7 @@ class Analyser:
         except IndexError:
             return
         # update the waterfall data array
-        wf_height = QtTSA.waterfall_size.value() * 5
+        # wf_height = QtTSA.waterfall_size.value() * 5
         wf_auto = QtTSA.waterfall_auto.isChecked()
         buffer_cols = np.shape(buffer)[1]
         if split:
@@ -521,7 +523,7 @@ class Analyser:
         for spectrum in route:
             # enabled devices are renumbered below self.dev_count as the 'enabled' boxes are ticked
             if spectrum is not None:
-                # update waterfall display if visible
+                # update waterfall display if visible and if there is data
                 if sweep_end and ~np.all(np.isnan(self.wf_data)):
                     spectrum.waterfall.setImage(self.wf_data, autoLevels=wf_auto)
                 
@@ -530,14 +532,17 @@ class Analyser:
                         wf_levels = spectrum.waterfall.getLevels()
                         self.timespectrum.set_dynamic_range(wf_levels)
                         self.timespectrum.updater.updateTimeSpectrum(freq, self.wf_data)
-                        height = QtTSA.waterfall_size.value()
-                        if self.timespectrum.wf_2D:
-                            self.timespectrum.zoom(width_ratio, height)
-                    if height == 7:
-                        QtTSA.graphWidget.hide()
-                        # QtTSA.graphWidget.setMaximumSize(QtCore.QSize(16777215, 0))
-                    else:
-                        QtTSA.graphWidget.show()
+                        # height = QtTSA.waterfall_size.value()
+                        
+                        #if self.timespectrum.wf_2D:
+                            # self.timespectrum.zoom(width_ratio, height)
+                            #self.timespectrum.zoom(width_ratio, wf_height)
+                    #if height == 12:
+                    # if wf_height == 12:
+                    #     QtTSA.graphWidget.hide()
+                    #     # QtTSA.graphWidget.setMaximumSize(QtCore.QSize(16777215, 0))
+                    # else:
+                    #     QtTSA.graphWidget.show()
                         # QtTSA.graphWidget.setMaximumSize(QtCore.QSize(16777215, QtTSA.waterfall_size.value()))
                          
                 # update the spectrum trace, according to trace type
@@ -1420,7 +1425,6 @@ def popUp(window, message, button, icon):
     msg.setStandardButtons(buttons.get(button))
     return msg.exec()
 
-
 def isMixerMode():
     if bandstype.freq == 0:
         QtTSA.mixerMode.setVisible(False)
@@ -1438,27 +1442,30 @@ def isMixerMode():
         QtTSA.start_freq.setMaximum(100000)
         QtTSA.centre_freq.setMaximum(100000)
         QtTSA.stop_freq.setMaximum(100000)
-
-def set_wf_size():
-    # QtTSA.waterfall.setMaximumSize(QtCore.QSize(16777215, QtTSA.waterfall_size.value()))
-    # QtTSA.graphWidget.setMaximumSize(QtCore.QSize(16777215, QtTSA.waterfall_size.value()))
-    if QtTSA.waterfall_size.value() > 0:
-        QtTSA.plot_3D.show()
-        size = QtTSA.waterfall_size.value() * 50
-        QtTSA.plot_3D.setMaximumSize(QtCore.QSize(16777215, size))
-    else:
-        QtTSA.plot_3D.hide()
-    return
   
-def set_wf_format():
-    wf_2D = QtTSA.wf_2D.isChecked()
-    height = QtTSA.waterfall_size.value()
-    tinySA.timespectrum.set_format(wf_2D, height)
+def set_wf_format():  # called when wf_2D checkbox state changes
+    set_wf_size()
 
-
+def set_wf_size():  # called when wf_size spinbox value changes
+    spinbox = QtTSA.waterfall_size.value()
+    frame_h = QtTSA.display_frame.height() - 50  # allow 55 for borders
+    frame_w = QtTSA.display_frame.width() - 20 # allow 16 for borders
+    wf_set_h = (spinbox / 10) * frame_h
+    if spinbox > 5:
+        QtTSA.graphWidget.hide()
+        QtTSA.plot_3D.setMaximumSize(QtCore.QSize(frame_w, frame_h))
+        QtTSA.wf_2D.setChecked(False)
+        QtTSA.wf_2D.setEnabled(False)
+    else:
+        QtTSA.graphWidget.show()
+        QtTSA.plot_3D.setMaximumSize(QtCore.QSize(frame_w, wf_set_h))
+        QtTSA.wf_2D.setEnabled(True)
+    
+    wf_is_2D = QtTSA.wf_2D.isChecked()
+    tinySA.timespectrum.set_format(wf_is_2D, spinbox, wf_set_h, frame_w)
+    
 def startPolarPlot():
     tinySA.polar.set_plot(pattern.ui)
-
 
 def connectActive():
     '''Connect signals from controls that send messages to tinySA or use trace data.  Called by setGUI().'''
@@ -1483,9 +1490,6 @@ def connectActive():
     QtTSA.points_box.valueChanged.connect(pointsChanged)
 
     # QtTSA.sampleRepeat.valueChanged.connect(tinySA.sampleRep)
-
-    # 3D graph controls
-    # QtTSA.waterfall_size.valueChanged.connect(set_3D_view)
 
     # filebrowse
     filebrowse.ui.download.clicked.connect(lambda: set_sd_file_save(True))

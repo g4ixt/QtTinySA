@@ -12,7 +12,7 @@ Created on Wed Nov 26 15:42:02 2025
 import logging
 import numpy as np
 from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsLineItem, QGraphicsSimpleTextItem
-from PySide6.QtCore import QObject, Qt, QElapsedTimer
+from PySide6.QtCore import QObject, Qt, QElapsedTimer, QSize
 from PySide6.QtGui import QLinearGradient, QBrush, QColor, QTransform
 from PySide6.QtGraphs import QSurface3DSeries, QSurfaceDataProxy, QGraphsTheme, QtGraphs3D
 from PySide6.QtGraphsWidgets import Q3DSurfaceWidgetItem
@@ -40,8 +40,6 @@ class SurfaceGraph(QObject):
         self._dataSeries = QSurface3DSeries(self._dataProxy)
         self.updater = SurfaceUpdater(frequencies, readings)
         self.surface.addSeries(self.updater._dataSeries)
-        self.initial_aspect = 5
-        self.initial_zoom = 625
         self.set_axis(self.surface.axisX, "Frequency MHz")
         self.set_axis(self.surface.axisY, "Signal dBm")
         self.set_axis(self.surface.axisZ, "Sweep number")
@@ -51,44 +49,39 @@ class SurfaceGraph(QObject):
         ax = axis()
         ax.setTitle(name)
         ax.setLabelsVisible(True)
-        # ax.setLabelBackgroundVisible(False)
         ax.setLabelSize(2)
         ax.setSubSegmentCount(9)
 
-    def zoom(self, width_ratio, height):
-        height_ratio = height / 3
-        self.surface.setCameraPreset(QtGraphs3D.CameraPreset.DirectlyAbove)
-        self.surface.setCameraZoomLevel(self.initial_zoom * width_ratio / height_ratio)
-        self.surface.setHorizontalAspectRatio(18 / height)
+    def set_format(self, wf_2D, spinbox, set_h, set_w):
+        if set_h > 0:
+            self.surface.widget().show()
+        else:
+            self.surface.widget().hide()
+            return
 
-    def set_format(self, wf_2D, height):
         if wf_2D:
             self.surface.setCameraPreset(QtGraphs3D.CameraPreset.DirectlyAbove)
-            self.surface.axisZ().setReversed(True)  # wf flows downwards
-            self.surface.setCameraZoomLevel(self.initial_zoom)
+            self.surface.axisZ().setReversed(True)  # so that 2D wf flows downwards
+            self.surface.activeTheme().setLabelsVisible(False)
+            self.surface.setCameraZoomLevel(95 * (set_w / set_h))
             self.surface.setLightStrength(0.5)  # 0.7
             self.surface.setAmbientLightStrength(0.7)  # 0.4
-            self.surface.setHorizontalAspectRatio(18 / height)
-            self.surface.setMargin(0)
+            self.surface.setHorizontalAspectRatio(set_w / set_h)
             self.wf_2D = True
         else:
-            self.surface.setCameraPreset(QtGraphs3D.CameraPreset.IsometricRight)
-            self.surface.axisZ().setReversed(False)  # 3D wf flows inwards
-            self.surface.setCameraZoomLevel(self.initial_zoom / height)
+            # self.surface.setCameraPreset(QtGraphs3D.CameraPreset.IsometricRight)
+            self.surface.setCameraPreset(QtGraphs3D.CameraPreset.FrontLow)
+            self.rotateY(15)
+            self.rotateX(30)
+            self.surface.axisZ().setReversed(False)  # so that 3D wf flows inwards
+            self.surface.activeTheme().setLabelsVisible(True)
+            self.surface.setCameraZoomLevel(100)
             self.surface.setLightStrength(1)
             self.surface.setAmbientLightStrength(0.5)
             self.surface.setHorizontalAspectRatio(1)
-            self.surface.setMargin(0)
-            self.wf_2D = False
-        
+
     def set_display(self):
-        self.wf_2D = True
-        self.surface.axisZ().setReversed(True)  # wf flows downwards
-        self.surface.setCameraPreset(QtGraphs3D.CameraPreset.DirectlyAbove)
-        self.zoom(self.initial_zoom, self.initial_aspect)
-        self.surface.setLightStrength(0.5)  # 0.4
-        self.surface.setAmbientLightStrength(0.7)  # 0.7
-        self.surface.setHorizontalAspectRatio(self.initial_aspect)
+        self.set_format(True, 3, 300, 600)
         self.surface.setMargin(0)
         self.surface.setShadowStrength(0)
         self.surface.setOrthoProjection(True)
@@ -96,7 +89,7 @@ class SurfaceGraph(QObject):
         self.surface.activeTheme().setPlotAreaBackgroundVisible(True)
         self.surface.activeTheme().setLabelsVisible(True)
         self.surface.activeTheme().setLabelBackgroundVisible(False)
-        
+        self.surface.activeTheme().setBackgroundColor(Qt.black)
         
     def rotateX(self, angle):
         self.surface.setCameraXRotation(angle)
@@ -123,7 +116,6 @@ class SurfaceUpdater(QObject):
 
     def __init__(self, frequencies, readings):
         super().__init__()
-
         self._dataProxy = QSurfaceDataProxy()
         self._dataSeries = QSurface3DSeries(self._dataProxy)
 
