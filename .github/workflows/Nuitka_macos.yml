@@ -12,15 +12,10 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        arch: ["x86_64", "arm64"]
-
     runs-on: macos-latest
-
     steps:
     # Checkout repository
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
     # Setup Python
     - uses: actions/setup-python@v5
@@ -36,7 +31,7 @@ jobs:
           pip install -r src/requirements.txt
 
     # Build python script into a single executable
-        uses: Nuitka/Nuitka-Action@main
+    -uses: Nuitka/Nuitka-Action@main
         with:
           nuitka-version: develop
           script-name: QtTinySA.py
