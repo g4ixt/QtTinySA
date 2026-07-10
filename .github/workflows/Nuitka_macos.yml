@@ -37,8 +37,8 @@ jobs:
         script-name: QtTinySA.py
         working-directory: ./src
 
-      - name: Create DMG
-        run: |
+    - name: Create DMG
+      run: |
           brew install create-dmg
           mkdir -p dist_dmg
           create-dmg \
@@ -52,8 +52,8 @@ jobs:
             "dist_dmg/QtTinySA_mac.dmg" \
             "src/dist/QtTinySA.app"
 
-      - name: Upload DMG artifact
-        uses: actions/upload-artifact@v4
+    - name: Upload DMG artifact
+      uses: actions/upload-artifact@v4
         with:
           name: QtTinySA_mac.dmg
           path: dist_dmg/QtTinySA_mac.dmg
