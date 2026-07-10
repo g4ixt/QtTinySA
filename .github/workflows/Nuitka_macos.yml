@@ -32,10 +32,10 @@ jobs:
 
     # Build python script into a single executable
     - uses: Nuitka/Nuitka-Action@main
-        with:
-          nuitka-version: develop
-          script-name: QtTinySA.py
-          working-directory: ./src
+      with:
+        nuitka-version: develop
+        script-name: QtTinySA.py
+        working-directory: ./src
 
       - name: Create DMG
         run: |
