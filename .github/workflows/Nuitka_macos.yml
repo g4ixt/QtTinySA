@@ -1,0 +1,59 @@
+name: macOS build with Nuitka
+
+permissions:
+  contents: read
+  actions: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'macOS Nuitka'
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+    # Checkout repository
+    - uses: actions/checkout@v4
+
+    # Setup Python
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.13' # Version range or exact version of a Python version to use, using SemVer's version range syntax
+        architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
+        cache: 'pip'
+        cache-dependency-path: |
+            **/requirements*.txt
+
+    - name: Install Dependencies
+      run: |
+          pip install -r src/requirements.txt
+
+    # Build python script into a single executable
+    - uses: Nuitka/Nuitka-Action@main
+      with:
+        nuitka-version: develop
+        script-name: QtTinySA.py
+        working-directory: ./src
+
+    - name: Create DMG
+      run: |
+          brew install create-dmg
+          mkdir -p dist_dmg
+          create-dmg \
+            --volname "QtTinySA \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "QtTinySA.app" 180 130 \
+            --hide-extension "QtTinySA.app" \
+            --app-drop-link 400 130 \
+            "dist_dmg/QtTinySA_mac.dmg" \
+            "src/dist/QtTinySA.app"
+
+    - name: Upload DMG artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: QtTinySA_mac.dmg
+        path: dist_dmg/QtTinySA_mac.dmg
