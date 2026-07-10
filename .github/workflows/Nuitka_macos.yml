@@ -31,7 +31,7 @@ jobs:
           pip install -r src/requirements.txt
 
     # Build python script into a single executable
-    -uses: Nuitka/Nuitka-Action@main
+    - uses: Nuitka/Nuitka-Action@main
         with:
           nuitka-version: develop
           script-name: QtTinySA.py
