@@ -66,7 +66,7 @@ app = QApplication.instance()
 if not app:
     app = QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v2.0.rc0.4')
+app.setApplicationVersion(' v2.0.rc0.5')
 
 # pyqtgraph custom exporters
 WWBExporter.register()
@@ -377,7 +377,7 @@ class Analyser:
 
     def setGraphFreq(self, startF, stopF):
         QtTSA.graphWidget.setXRange(startF, stopF)
-        if QtTSA.span_freq.value() != 0:
+        if (stopF - startF) != 0:
             lowF.line.setValue((startF + QtTSA.span_freq.value()/20))
             highF.line.setValue((stopF - QtTSA.span_freq.value()/20))
             self.timespectrum.set_freq_range(startF, stopF)
@@ -523,27 +523,16 @@ class Analyser:
         for spectrum in route:
             # enabled devices are renumbered below self.dev_count as the 'enabled' boxes are ticked
             if spectrum is not None:
-                # update waterfall display if visible and if there is data
                 if sweep_end and ~np.all(np.isnan(self.wf_data)):
+                # this is still needed because the histogram_LUT uses the image data
                     spectrum.waterfall.setImage(self.wf_data, autoLevels=wf_auto)
                 
+                # update waterfall display if visible and if there is data
                 if sweep_end and QtTSA.waterfall_size.value() > 0:
                     if ~np.isnan(self.wf_data[0, :]).any():
                         wf_levels = spectrum.waterfall.getLevels()
                         self.timespectrum.set_dynamic_range(wf_levels)
                         self.timespectrum.updater.updateTimeSpectrum(freq, self.wf_data)
-                        # height = QtTSA.waterfall_size.value()
-                        
-                        #if self.timespectrum.wf_2D:
-                            # self.timespectrum.zoom(width_ratio, height)
-                            #self.timespectrum.zoom(width_ratio, wf_height)
-                    #if height == 12:
-                    # if wf_height == 12:
-                    #     QtTSA.graphWidget.hide()
-                    #     # QtTSA.graphWidget.setMaximumSize(QtCore.QSize(16777215, 0))
-                    # else:
-                    #     QtTSA.graphWidget.show()
-                        # QtTSA.graphWidget.setMaximumSize(QtCore.QSize(16777215, QtTSA.waterfall_size.value()))
                          
                 # update the spectrum trace, according to trace type
                 gui_boxes = {0: QtTSA.t1_type, 1: QtTSA.t2_type, 2: QtTSA.t3_type, 3: QtTSA.t4_type}
@@ -566,6 +555,7 @@ class Analyser:
                 if sweep_end:
                     spectrum.count += 1
                     timeNow = time.time()
+
                     # update the monitor graph. timestamp is zero unless a recorded file is playing
                     if timestamp == 0:
                         spectrum.update_monitor(freq, timeNow)
@@ -580,7 +570,7 @@ class Analyser:
                         if pattern.ui.isVisible():
                             self.polar.update_plot(pattern.ui, m0_index, levl)
     
-                # save sweep data to file if the waterfall data array is full
+                # save sweep data to file if enabled and the waterfall data array is full
                 if spectrum.count == self.depth:
                     if settings.ui.saveSweep.isChecked():
                         self.save_data(freq, self.wf_data, ser_num, 0, recording=False)
@@ -588,9 +578,7 @@ class Analyser:
 
     def scan_button(self, action):
         QtTSA.scan_button.setText(action)
-        # QtTSA.run3D.setText(action)
         QtTSA.scan_button.setEnabled(True)
-        # QtTSA.run3D.setEnabled(True)
 
     def set_dev_combo(self, ui_name, dev_name):
         ''''populates a combo box 'device' on 'ui_name' with a list of devices of type dev_name'''
@@ -598,7 +586,6 @@ class Analyser:
         self.dev_ref = []
         if usbInstr.devices:
             for device in usbInstr.devices:
-                #if device and device.firmware[0] == dev_name:
                 if device:
                     if device.name in dev_name:
                         if device.sweeping:
@@ -775,12 +762,14 @@ class Analyser:
         slider = QtTSA.vortex.value()
         
         # set the graph frequency axis to the maximum range of the loaded recordings
-        start = usbInstr.recorders[0].data_arr[0, 1] / 1e6
-        stop = usbInstr.recorders[0].data_arr[0, -1] / 1e6
+        start = usbInstr.recorders[0].data_arr[0, 1]
+        stop = usbInstr.recorders[0].data_arr[0, -1]
         self.dev_count = usbInstr.loaded_files
+        logging.info(f'dev count = {self.dev_count}')
         for i in range(usbInstr.loaded_files):
             start = int(min(start, usbInstr.recorders[i].data_arr[0, 1]))
             stop = int(max(stop, usbInstr.recorders[i].data_arr[0, -1]))
+            logging.info(f'player startF = {start} stopF = {stop}')
         self.setGraphFreq(start, stop)
 
         self.set_gui_colours()
@@ -800,8 +789,8 @@ class Analyser:
         wf_points = sum(points)
         self.wf_data = np.full((self.depth, wf_points), np.nan, dtype=float)  
 
-        split = QtTSA.split_scan.isChecked()
         # create and start the measurement playback worker threads
+        split = QtTSA.split_scan.isChecked()
         for i in range(usbInstr.loaded_files):    
             self.spectra[i].points = points[i]
             usbInstr.recorders[i].sweeping = True
@@ -1173,6 +1162,25 @@ class ModelView():
 ###############################################################################
 # respond to GUI signals
 
+# def band_changed():
+#     index = QtTSA.band_box.currentIndex()
+#     startF = bandselect.tm.record(index).value('StartF')
+#     stopF = bandselect.tm.record(index).value('StopF')
+#     if stopF not in (0, '', startF):
+#         with QSignalBlocker(QtTSA.start_freq):
+#             QtTSA.start_freq.setValue(startF / 1e6)
+#         with QSignalBlocker(QtTSA.stop_freq):
+#             QtTSA.stop_freq.setValue(stopF / 1e6)
+#         tinySA.setStartFreq()
+#     else:          
+#         centreF = startF / 1e6
+#         with QSignalBlocker(QtTSA.centre_freq):
+#             QtTSA.centre_freq.setValue(centreF)
+#         with QSignalBlocker(QtTSA.span_freq):
+#             QtTSA.span_freq.setValue(int(centreF / 10))  # default span to a tenth of the centre freq
+#         tinySA.setCentreFreq()
+#     numbers.dwm.submit()
+
 def band_changed():
     index = QtTSA.band_box.currentIndex()
     startF = bandselect.tm.record(index).value('StartF')
@@ -1183,17 +1191,21 @@ def band_changed():
         with QSignalBlocker(QtTSA.stop_freq):
             QtTSA.stop_freq.setValue(stopF / 1e6)
         tinySA.setStartFreq()
-        # tinySA.freq_changed(False)  # start/stop mode
     else:
         centreF = startF / 1e6
+        span = int(centreF / 10)  # default span to a tenth of the centre freq
+        for i in range(bandselect.tm.rowCount()):
+            type_start = bandselect.tm.record(i).value('StartF')
+            type_stop = bandselect.tm.record(i).value('StopF')
+            if type_stop not in (0, '', startF):
+                span = (type_stop - type_start) / 1e6
+                break
         with QSignalBlocker(QtTSA.centre_freq):
             QtTSA.centre_freq.setValue(centreF)
         with QSignalBlocker(QtTSA.span_freq):
-            QtTSA.span_freq.setValue(int(centreF / 10))  # default span to a tenth of the centre freq
+            QtTSA.span_freq.setValue(span)
         tinySA.setCentreFreq()
-        # tinySA.freq_changed(True)  # centre mode
     numbers.dwm.submit()
-
 
 def addFixed():
     title = "New fixed frequency Marker"

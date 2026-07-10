@@ -943,7 +943,7 @@ class Recorder(QObject):
             row += 1
             if timeElapsed >= interval:
             # send the measurement data to router() in the Analyser class
-                self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, timestamp, split, False)
+                self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, timestamp, split, True)
                 updateTimer.start()
                 if play_clicked:
                     self.signals.progress.emit(100 * row/scans)

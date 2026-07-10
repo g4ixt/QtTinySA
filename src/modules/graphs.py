@@ -12,7 +12,7 @@ Created on Wed Nov 26 15:42:02 2025
 import logging
 import numpy as np
 from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsLineItem, QGraphicsSimpleTextItem
-from PySide6.QtCore import QObject, Qt, QElapsedTimer, QSize
+from PySide6.QtCore import QObject, Qt, QElapsedTimer
 from PySide6.QtGui import QLinearGradient, QBrush, QColor, QTransform
 from PySide6.QtGraphs import QSurface3DSeries, QSurfaceDataProxy, QGraphsTheme, QtGraphs3D
 from PySide6.QtGraphsWidgets import Q3DSurfaceWidgetItem
@@ -99,16 +99,25 @@ class SurfaceGraph(QObject):
 
     def set_dynamic_range(self, wf_levels):
         axis = self.surface.axisY()
-        maximum = round(wf_levels[1]) + 10  # rounds to nearest 10
-        minimum = round(wf_levels[0])
-        axis.setMin(minimum)
-        axis.setMax(maximum)
+        try:
+            maximum = round(wf_levels[1]) + 10  # rounds to nearest 10
+            minimum = round(wf_levels[0])
+            axis.setMin(minimum)
+            axis.setMax(maximum)
+        except OverflowError:
+            return
         
     def set_freq_range(self, startF, stopF): 
         span = stopF - startF
         pad_r = round(((span)/400), 1)
-        self.surface.axisX().setMax(stopF + pad_r)
         pad_l = round(((span)/28), 1)
+        
+        temp_max = max(stopF, self.surface.axisX().max()) + pad_r
+        temp_min = min(startF, self.surface.axisX().min()) - pad_l
+        self.surface.axisX().setMax(temp_max)
+        self.surface.axisX().setMin(temp_min)
+        
+        self.surface.axisX().setMax(stopF + pad_r)
         self.surface.axisX().setMin(startF - pad_l)
 
 
