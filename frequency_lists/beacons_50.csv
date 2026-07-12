@@ -1,0 +1,10 @@
+name,preset,startF,stopF,value,colour
+GB3BUX,beacons 50,50000000,0,True,cyan
+GB3RMK,beacons 50,50002000,0,True,cyan
+GB3NGI,beacons 50,50004000,0,True,cyan
+GB3MCB,beacons 50,50005000,0,True,cyan
+GB3BAA,beacons 50,50416000,0,True,cyan
+GB3MCB,beacons 50,50443000,0,True,cyan
+GB3RMK,beacons 50,50460000,0,True,cyan
+GB3NGI,beacons 50,50462000,0,True,cyan
+GB3LER,beacons 50,50464000,0,True,cyan

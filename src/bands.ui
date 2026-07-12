@@ -28,16 +28,87 @@
     </font>
    </property>
    <layout class="QGridLayout" name="gridLayout">
-    <item row="0" column="0">
-     <widget class="QLabel" name="label_3">
+    <item row="2" column="5">
+     <widget class="QPushButton" name="deletePs">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
       <property name="font">
        <font>
         <pointsize>11</pointsize>
-        <bold>true</bold>
        </font>
       </property>
       <property name="text">
-       <string>Preset Types</string>
+       <string>Delete Preset</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="1">
+     <widget class="QPushButton" name="deletePsType">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>11</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>Delete Preset Type</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="7">
+     <widget class="QPushButton" name="exportPs">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>11</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>Export Presets</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="4">
+     <widget class="QPushButton" name="addPs">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>11</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>Add Preset</string>
       </property>
      </widget>
     </item>
@@ -65,19 +136,6 @@
       </property>
      </widget>
     </item>
-    <item row="0" column="3" colspan="3">
-     <widget class="QLabel" name="label_2">
-      <property name="font">
-       <font>
-        <pointsize>11</pointsize>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="text">
-       <string>Preset frequencies, bands and fixed markers</string>
-      </property>
-     </widget>
-    </item>
     <item row="1" column="0" colspan="2">
      <widget class="QTableView" name="typeTable">
       <property name="font">
@@ -90,8 +148,8 @@
       </property>
      </widget>
     </item>
-    <item row="3" column="0">
-     <widget class="QPushButton" name="addPsType">
+    <item row="2" column="6">
+     <widget class="QPushButton" name="importPs">
       <property name="enabled">
        <bool>true</bool>
       </property>
@@ -107,15 +165,12 @@
        </font>
       </property>
       <property name="text">
-       <string>Add Preset Type</string>
+       <string>Import Presets</string>
       </property>
      </widget>
     </item>
-    <item row="3" column="1">
-     <widget class="QPushButton" name="deletePsType">
-      <property name="enabled">
-       <bool>true</bool>
-      </property>
+    <item row="2" column="3">
+     <widget class="QPushButton" name="deleteAll">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
         <horstretch>0</horstretch>
@@ -127,26 +182,11 @@
         <pointsize>11</pointsize>
        </font>
       </property>
-      <property name="text">
-       <string>Delete Preset Type</string>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="0">
-     <widget class="QPushButton" name="clearFilter">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="font">
-       <font>
-        <pointsize>11</pointsize>
-       </font>
+      <property name="toolTip">
+       <string>Delete all entries filtered by Preset Type table</string>
       </property>
       <property name="text">
-       <string>Clear Filter</string>
+       <string>Delete All Listed</string>
       </property>
      </widget>
     </item>
@@ -183,29 +223,21 @@
       </property>
      </widget>
     </item>
-    <item row="2" column="3">
-     <widget class="QPushButton" name="deleteAll">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
+    <item row="0" column="3" colspan="3">
+     <widget class="QLabel" name="label_2">
       <property name="font">
        <font>
         <pointsize>11</pointsize>
+        <bold>true</bold>
        </font>
       </property>
-      <property name="toolTip">
-       <string>Delete all entries filtered by Preset Type table</string>
-      </property>
       <property name="text">
-       <string>Delete All Listed</string>
+       <string>Preset frequencies, bands and fixed markers</string>
       </property>
      </widget>
     </item>
-    <item row="2" column="4">
-     <widget class="QPushButton" name="addPs">
+    <item row="3" column="0">
+     <widget class="QPushButton" name="addPsType">
       <property name="enabled">
        <bool>true</bool>
       </property>
@@ -221,15 +253,12 @@
        </font>
       </property>
       <property name="text">
-       <string>Add Preset</string>
+       <string>Add Preset Type</string>
       </property>
      </widget>
     </item>
-    <item row="2" column="5">
-     <widget class="QPushButton" name="deletePs">
-      <property name="enabled">
-       <bool>true</bool>
-      </property>
+    <item row="2" column="0">
+     <widget class="QPushButton" name="clearFilter">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
         <horstretch>0</horstretch>
@@ -242,49 +271,20 @@
        </font>
       </property>
       <property name="text">
-       <string>Delete Preset</string>
+       <string>Clear Filter</string>
       </property>
      </widget>
     </item>
-    <item row="2" column="6">
-     <widget class="QPushButton" name="importPs">
-      <property name="enabled">
-       <bool>true</bool>
-      </property>
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
+    <item row="0" column="0">
+     <widget class="QLabel" name="label_3">
       <property name="font">
        <font>
         <pointsize>11</pointsize>
+        <bold>true</bold>
        </font>
       </property>
       <property name="text">
-       <string>Import Presets</string>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="7">
-     <widget class="QPushButton" name="exportPs">
-      <property name="enabled">
-       <bool>true</bool>
-      </property>
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="font">
-       <font>
-        <pointsize>11</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>Export Presets</string>
+       <string>Preset Types</string>
       </property>
      </widget>
     </item>

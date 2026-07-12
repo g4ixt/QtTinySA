@@ -1,0 +1,8 @@
+name,preset,startF,stopF,value,colour
+GB3MHZ,beacons 2320,2320830000,0,True,cyan
+GB3ZME,beacons 2320,2320870000,0,True,cyan
+GB3ANT,beacons 2320,2320890000,0,True,cyan
+GB3SCS,beacons 2320,2320905000,0,True,cyan
+GB3BSS,beacons 2320,2320925000,0,True,cyan
+GB3LES,beacons 2320,2320955000,0,True,cyan
+GB3CSB,beacons 2320,2320985000,0,True,cyan

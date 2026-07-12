@@ -66,7 +66,7 @@ app = QApplication.instance()
 if not app:
     app = QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v2.0.rc0.5')
+app.setApplicationVersion(' v2.0.rc0.6')
 
 # pyqtgraph custom exporters
 WWBExporter.register()
@@ -127,8 +127,6 @@ class Analyser:
         self.phaseNoise = PhaseNoiseGraph(phasenoise.ui.plotWidget, np.ndarray, np.ndarray, 1)
         self.polar = PolarGraph(pattern.ui, 4, 40)
         self.timespectrum = SurfaceGraph(QtTSA.plot_3D, np.ndarray, np.ndarray)
-        # self.timespectrum.rotateX(QtTSA.x_rotation.value())
-        # self.timespectrum.rotateY(QtTSA.y_rotation.value())
       
         # instantiate each spectrum, which has three elements: 1 trace; 4 markers; 1 monitor
         self.s0 = SpectrumGraph(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot, 100)
@@ -165,12 +163,12 @@ class Analyser:
                   (2, 4): (self.s2, None),
                   (3, 4): (self.s3, None)}
         route = routes.get((dev_id, self.dev_count))  # route is the list of spectrum instances
-        try:
-            self.updateGUI(route, freq, levl, maxl, minl, buffer, ser_num, dev_id, timestamp, split, sweep_end)
-            if usbInstr.recorders[dev_id].recording and sweep_end:
-                usbInstr.recorders[dev_id].record(freq, levl, ser_num)       
-        except TypeError:
-            logging.info(f'failed to route data from {dev_id} of {self.dev_count} to spectrum trace')
+        # try:
+        self.updateGUI(route, freq, levl, maxl, minl, buffer, ser_num, dev_id, timestamp, split, sweep_end)
+        if usbInstr.recorders[dev_id].recording and sweep_end:
+            usbInstr.recorders[dev_id].record(freq, levl, ser_num)       
+        # except TypeError:
+        #     logging.info(f'failed to route data from {dev_id} of {self.dev_count} to spectrum trace')
             usbInstr.stop(restart=False)
 
     def setGUI(self):
@@ -392,7 +390,7 @@ class Analyser:
         ''''for mixers or LNBs external to TinySA.  Returns a tuple (startF, stopF)'''
         spanF = stopF - startF
         loF = bandstype.freq
-        logging.info(f'LO freq = {loF} startF = {startF} stopF = {stopF}')
+        logging.debug(f'LO freq = {loF} startF = {startF} stopF = {stopF}')
         if loF > startF:  # high side LO so IF is inverted compared to (usual) low side LO
             scanF = (loF - startF - spanF, loF - startF)
         else:
@@ -402,7 +400,7 @@ class Analyser:
             scanF = (88 * 1e6, 108 * 1e6)
             logging.info('LO frequency offset error, check settings')
             popUp(QtTSA, "LO frequency offset error, check settings", 'Ok', 'Critical')
-        logging.info(f'freqOffset(): scanF = {scanF}')
+        logging.debug(f'freqOffset(): scanF = {scanF}')
         return scanF
 
     def rbwMask(self, startF, stopF):
@@ -466,10 +464,8 @@ class Analyser:
     def updateGUI(self, route, freq, levl, maxl, minl, buffer, ser_num, dev_id, timestamp, split, sweep_end):
         ''''updates all the traces in the route in one call'''
         
-        #width = QtTSA.graphWidget.getPlotItem().viewGeometry().width()
-        #width_ratio = width / self.initial_width
-        frame_width = QtTSA.display_frame.width()
-        wf_height = QtTSA.plot_3D.height()
+        if sweep_end:  # if a way to detect window size changes is found this could be done more efficiently
+            set_wf_format()
 
         if bandstype.freq !=0 and bandstype.freq < QtTSA.start_freq.value() * 1e6:
             freq = freq + bandstype.freq
@@ -573,7 +569,7 @@ class Analyser:
                 # save sweep data to file if enabled and the waterfall data array is full
                 if spectrum.count == self.depth:
                     if settings.ui.saveSweep.isChecked():
-                        self.save_data(freq, self.wf_data, ser_num, 0, recording=False)
+                        self.save_data(freq, self.wf_data, ser_num, 0)
                     spectrum.count = 0  # resets the counter only for the traces being updated by this route
 
     def scan_button(self, action):
@@ -748,7 +744,7 @@ class Analyser:
                 usbInstr.recorders[i].save_recording(folder)
         QtTSA.record.setEnabled(True)
         
-    def start_playback(self, play):   
+    def start_playback(self, play):
         self.stop_recording()
         usbInstr.stop()
         if np.isnan(usbInstr.recorders[0].data_arr).all():
@@ -760,16 +756,20 @@ class Analyser:
         
         interval = settings.ui.intervalBox.value()
         slider = QtTSA.vortex.value()
+
+        if play and slider == 100:
+            # the end of time has been reached so reset the time vortex
+            slider = 0
+            with QSignalBlocker(QtTSA.vortex):
+                QtTSA.vortex.setValue(0)
         
         # set the graph frequency axis to the maximum range of the loaded recordings
         start = usbInstr.recorders[0].data_arr[0, 1]
         stop = usbInstr.recorders[0].data_arr[0, -1]
         self.dev_count = usbInstr.loaded_files
-        logging.info(f'dev count = {self.dev_count}')
         for i in range(usbInstr.loaded_files):
             start = int(min(start, usbInstr.recorders[i].data_arr[0, 1]))
             stop = int(max(stop, usbInstr.recorders[i].data_arr[0, -1]))
-            logging.info(f'player startF = {start} stopF = {stop}')
         self.setGraphFreq(start, stop)
 
         self.set_gui_colours()
@@ -856,7 +856,8 @@ class Analyser:
         QtTSA.vortex.hide()
 
     def time_path_indicator(self, position):
-        QtTSA.vortex.setValue(position)
+        with QSignalBlocker(QtTSA.vortex):
+            QtTSA.vortex.setValue(position)
         
 class Limit:
     def __init__(self, pen, x, y, movable):  # x = None, horizontal.  y = None, vertical

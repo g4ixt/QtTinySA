@@ -14,7 +14,7 @@ import time
 import queue
 import struct
 import numpy as np
-from PySide6.QtCore import QObject, QElapsedTimer, QTimer, Signal, Slot, QRunnable, QThreadPool
+from PySide6.QtCore import QObject, QElapsedTimer, QTimer, Signal, Slot, QRunnable, QThreadPool, QSignalBlocker
 from serial.tools import list_ports
 from datetime import datetime
 from platform import system
@@ -893,9 +893,12 @@ class Recorder(QObject):
         self.signals.save.connect(sigs["save"])
         self.signals.progress.connect(sigs["progress"])
    
-    def player(self, depth, dev_id, interval, slider, play_clicked, split):
+    def player(self, depth, dev_id, interval, slider_position, playing, split):
         '''runs in a thread, sending data to the router from a file loaded into self.data_arr'''
         self.threadRunning = True
+        updateTimer = QElapsedTimer()
+        
+        # set the data arrays and the scan parameters for this player instance
         scans = np.shape(self.data_arr)[0] - 1
         points = np.shape(self.data_arr)[1] - 1
         freq = self.data_arr[0, 1:]  # freqs are in row 0 from col 1 onwards
@@ -903,26 +906,28 @@ class Recorder(QObject):
         times = self.data_arr[1:, 0]  # time stamps are in col 0 from row 1 onwards
         maxl = np.full(points, -140, dtype=float)
         minl = np.full(points, 0, dtype=float)
-        updateTimer = QElapsedTimer()
         sweep_time = 1
+        buffer = np.full((depth, points), None, dtype=float)  # used for waterfall and averages 
+
         if scans > 1:
             sweep_time = float(times[1] - times[0])
-        start_row = int(scans * slider/100) + 1
-        row = start_row
-        if play_clicked:
+        slider_row = int(scans * slider_position/100) + 1
+        row = slider_row
+        if playing:
             final_row = scans
         else:
-        # the slider is controlling playback
+            # the slider is controlling playback, so only update a single row
             final_row = min(row + 1, scans)
-        buffer = np.full((depth, points), None, dtype=float)  # used for waterfall and averages 
-        if start_row >=2:
-            if start_row > depth:
-                slice_start = start_row - depth
+
+        # fill the buffer with data from its start up to the slider row
+        if slider_row >=2:
+            if slider_row > depth:
+                slice_start = slider_row - depth
             else:
                 slice_start = 1
-            buffer = self.data_arr[slice_start:start_row, 1:]
-            buffer = np.flip(buffer, axis=0)
+            buffer[0:slider_row - 1, :] = self.data_arr[slice_start:slider_row, 1:]
 
+        # start reading data from the recording file and send it to the router()
         updateTimer.start()
         while self.sweeping and row < final_row:
             if row > 1:
@@ -931,7 +936,7 @@ class Recorder(QObject):
             levl = self.data_arr[row, 1:]  # first column in the array is a timestamp
             np.fmax(levl, maxl, out=maxl)  # compare current level with max and min
             np.fmin(levl, minl, out=minl)  # and save them back on themselves
-            if play_clicked:
+            if playing:
                 buffer = np.roll(buffer, 1, axis=0)
                 buffer[0] = levl
                 pause = min(1, sweep_time / self.speed)  # clip playback sweep time to max 1 second
@@ -942,10 +947,10 @@ class Recorder(QObject):
             timeElapsed = updateTimer.nsecsElapsed() / 1e6  # how long the player has been running, mS
             row += 1
             if timeElapsed >= interval:
-            # send the measurement data to router() in the Analyser class
+            # send the measurement data only at the frequency set by interval
                 self.signals.result.emit(freq, levl, maxl, minl, buffer, self.id, self.sn, timestamp, split, True)
                 updateTimer.start()
-                if play_clicked:
+                if playing:
                     self.signals.progress.emit(100 * row/scans)
         self.sweeping = False
         self.threadRunning = False   
