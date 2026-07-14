@@ -163,12 +163,12 @@ class Analyser:
                   (2, 4): (self.s2, None),
                   (3, 4): (self.s3, None)}
         route = routes.get((dev_id, self.dev_count))  # route is the list of spectrum instances
-        # try:
-        self.updateGUI(route, freq, levl, maxl, minl, buffer, ser_num, dev_id, timestamp, split, sweep_end)
-        if usbInstr.recorders[dev_id].recording and sweep_end:
-            usbInstr.recorders[dev_id].record(freq, levl, ser_num)       
-        # except TypeError:
-        #     logging.info(f'failed to route data from {dev_id} of {self.dev_count} to spectrum trace')
+        try:
+            self.updateGUI(route, freq, levl, maxl, minl, buffer, ser_num, dev_id, timestamp, split, sweep_end)
+            if usbInstr.recorders[dev_id].recording and sweep_end:
+                usbInstr.recorders[dev_id].record(freq, levl, ser_num)       
+        except TypeError:
+            logging.info(f'failed to route data from {dev_id} of {self.dev_count} to spectrum trace')
             usbInstr.stop(restart=False)
 
     def setGUI(self):
@@ -495,7 +495,6 @@ class Analyser:
         except IndexError:
             return
         # update the waterfall data array
-        # wf_height = QtTSA.waterfall_size.value() * 5
         wf_auto = QtTSA.waterfall_auto.isChecked()
         buffer_cols = np.shape(buffer)[1]
         if split:
@@ -724,6 +723,11 @@ class Analyser:
                 continue
 
     def start_recording(self):
+        folder = settings.ui.save_folder.text()
+        if not os.path.exists(folder):
+            popUp(QtTSA, "A valid file location must be set in Settings > Preferences", 'Ok', 'Critical')
+            return
+            
         self.stop_playback()
         QtTSA.record.setEnabled(False)
         if not usbInstr.is_scanning:
@@ -743,6 +747,7 @@ class Analyser:
                 usbInstr.recorders[i].recording = False
                 usbInstr.recorders[i].save_recording(folder)
         QtTSA.record.setEnabled(True)
+
         
     def start_playback(self, play):
         self.stop_recording()
@@ -1479,6 +1484,12 @@ def set_wf_size():  # called when wf_size spinbox value changes
     
 def startPolarPlot():
     tinySA.polar.set_plot(pattern.ui)
+
+def call_settings():
+    folder = settings.ui.save_folder.text()
+    if not os.path.exists(folder):
+        x = 0
+    settings.ui.show()
 
 def connectActive():
     '''Connect signals from controls that send messages to tinySA or use trace data.  Called by setGUI().'''
