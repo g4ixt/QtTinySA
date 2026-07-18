@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1024</width>
+    <width>1000</width>
     <height>768</height>
    </rect>
   </property>
@@ -18,7 +18,7 @@
     <rect>
      <x>15</x>
      <y>11</y>
-     <width>1001</width>
+     <width>971</width>
      <height>741</height>
     </rect>
    </property>
@@ -466,7 +466,7 @@
        </font>
       </property>
       <property name="text">
-       <string>Enable Save to CSV file</string>
+       <string>Enable Save to CSV file (NB: if set, using the player will create files)</string>
       </property>
      </widget>
     </item>

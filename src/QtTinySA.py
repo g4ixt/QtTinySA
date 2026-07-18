@@ -66,7 +66,7 @@ app = QApplication.instance()
 if not app:
     app = QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v2.0.rc0.6')
+app.setApplicationVersion(' v2.0.rc0.7')
 
 # pyqtgraph custom exporters
 WWBExporter.register()
@@ -271,6 +271,11 @@ class Analyser:
         if usbInstr.devices is None:
             popUp(QtTSA, 'No spectrum analyser devices found', 'Ok', 'Critical')
             return
+        if settings.ui.saveSweep.isChecked() and not save_location_valid():
+            popUp(QtTSA, "The current save file location is not valid", 'Ok', 'Critical')
+            settings_clicked()
+            return
+        
         self.mkr_update_timer.stop()  # stop it because updateGUI does it when scanning
 
         for j in range(0, 4):
@@ -725,7 +730,8 @@ class Analyser:
     def start_recording(self):
         folder = settings.ui.save_folder.text()
         if not os.path.exists(folder):
-            popUp(QtTSA, "A valid file location must be set in Settings > Preferences", 'Ok', 'Critical')
+            popUp(QtTSA, "The current save file location is not valid", 'Ok', 'Critical')
+            settings_clicked()
             return
             
         self.stop_playback()
@@ -758,6 +764,10 @@ class Analyser:
         for i in range(4):
             if usbInstr.recorders[i].sweeping:
                 return
+        
+        if settings.ui.saveSweep.isChecked() and not save_location_valid():
+            popUp(QtTSA, "The current save file location is not valid", 'Ok', 'Critical')
+            return
         
         interval = settings.ui.intervalBox.value()
         slider = QtTSA.vortex.value()
@@ -857,7 +867,8 @@ class Analyser:
         for spectrum in self.spectra:
             spectrum.waterfall.clear()
         usbInstr.loaded_files = 0
-        QtTSA.vortex.setValue(0)
+        with QSignalBlocker(QtTSA.vortex):
+            QtTSA.vortex.setValue(0)
         QtTSA.vortex.hide()
 
     def time_path_indicator(self, position):
@@ -1168,25 +1179,6 @@ class ModelView():
 ###############################################################################
 # respond to GUI signals
 
-# def band_changed():
-#     index = QtTSA.band_box.currentIndex()
-#     startF = bandselect.tm.record(index).value('StartF')
-#     stopF = bandselect.tm.record(index).value('StopF')
-#     if stopF not in (0, '', startF):
-#         with QSignalBlocker(QtTSA.start_freq):
-#             QtTSA.start_freq.setValue(startF / 1e6)
-#         with QSignalBlocker(QtTSA.stop_freq):
-#             QtTSA.stop_freq.setValue(stopF / 1e6)
-#         tinySA.setStartFreq()
-#     else:          
-#         centreF = startF / 1e6
-#         with QSignalBlocker(QtTSA.centre_freq):
-#             QtTSA.centre_freq.setValue(centreF)
-#         with QSignalBlocker(QtTSA.span_freq):
-#             QtTSA.span_freq.setValue(int(centreF / 10))  # default span to a tenth of the centre freq
-#         tinySA.setCentreFreq()
-#     numbers.dwm.submit()
-
 def band_changed():
     index = QtTSA.band_box.currentIndex()
     startF = bandselect.tm.record(index).value('StartF')
@@ -1272,13 +1264,11 @@ def correction_filter():
 def set_folder(ui_name):
     folder = QFileDialog.getExistingDirectory()
     ui_name.save_folder.setText(folder)
+    save_location_valid()
   
 def save_sweep(folder, file_name, frequencies, readings, ser_num):
     array = np.insert(readings, 0, frequencies, axis=0)  # insert the measurement freqs at the top of the readings array
     dBm = np.transpose(np.round(array, decimals=2))  # transpose columns and rows
-    # folder = settings.ui.save_folder.text()
-    # fileName = str(timeStamp + '_RBW' + QtTSA.rbw_box.currentText() + '_' + ser_num + '.csv')
-    # file_name = os.path.join(folder, file_name)
     np.savetxt(file_name, dBm, delimiter=',', fmt='%.2f')
 
 def set_sd_file_save(single=True):
@@ -1485,11 +1475,18 @@ def set_wf_size():  # called when wf_size spinbox value changes
 def startPolarPlot():
     tinySA.polar.set_plot(pattern.ui)
 
-def call_settings():
-    folder = settings.ui.save_folder.text()
-    if not os.path.exists(folder):
-        x = 0
+def settings_clicked():
+    save_location_valid()
     settings.ui.show()
+    
+def save_location_valid():
+    folder = settings.ui.save_folder.text()
+    if os.path.exists(folder):
+        settings.ui.save_folder.setStyleSheet("")
+        return True
+    else:
+        settings.ui.save_folder.setStyleSheet(("background-color:red"))
+        return False
 
 def connectActive():
     '''Connect signals from controls that send messages to tinySA or use trace data.  Called by setGUI().'''
@@ -1584,7 +1581,7 @@ def connectPassive():
 
     QtTSA.filterBox.currentTextChanged.connect(lambda: bandselect.filterType(False, QtTSA.filterBox.currentText()))
     QtTSA.actionPresets.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
-    QtTSA.actionSettings.triggered.connect(settings.ui.show)
+    QtTSA.actionSettings.triggered.connect(settings_clicked)
     QtTSA.actionCorrection.triggered.connect(tinySA.correction_window)
 
     # Help
@@ -1606,7 +1603,6 @@ def connectPassive():
     # File menu
     QtTSA.actionBrowse.triggered.connect(tinySA.file_browser)
     filebrowse.ui.device.currentIndexChanged.connect(tinySA.list_files)
-    # folder = settings.ui.save_folder.text()
     QtTSA.actionRecordings.triggered.connect(tinySA.load_data)
 
     # polar pattern
@@ -1615,12 +1611,7 @@ def connectPassive():
     # correction
     offset.ui.export_button.clicked.connect(lambda: correction.exportData(''))
     offset.ui.import_button.clicked.connect(lambda: correction.importData(''))
-
-    # 3D
-    # QtTSA.zoom.valueChanged.connect(lambda: tinySA.timespectrum.zoom(QtTSA.zoom.value()))
-    # QtTSA.x_rotation.valueChanged.connect(lambda: tinySA.timespectrum.rotateX(QtTSA.x_rotation.value()))
-    # QtTSA.y_rotation.valueChanged.connect(lambda: tinySA.timespectrum.rotateY(QtTSA.y_rotation.value()))
-    
+  
     # settings
     settings.ui.set_folder.clicked.connect(lambda:set_folder(settings.ui))
 
