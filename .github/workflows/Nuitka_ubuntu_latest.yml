@@ -42,6 +42,5 @@ jobs:
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        # name: bin
         name: QtTinySA_ubuntu_latest
         path: ./src/build
