@@ -193,7 +193,8 @@ class USBdevice(QObject):
         recording = self.recorders[i]
         for j in range(i, 4):
             self.update_info.emit('', j, 0, '')
-        recording.data_arr = np.load(file)
+        input_data = np.load(file)
+        recording.data_arr = np.nan_to_num(input_data, nan=np.nan, posinf=np.nan, neginf=np.nan)  # eliminate infinity
         file_name = file.split('/')[-1]
         logging.info(f'imported {file_name} for playback')
         recording.id = i
@@ -411,9 +412,6 @@ class Tiny(QObject):
                     
                     buffer = np.roll(buffer, 1, axis=0)
                     buffer[0] = levl
-                    
-                    # buffer = np.roll(buffer, -1, axis=0)
-                    # buffer[-1] = levl
                     
                     if loop:
                         if self.usb.read(2) != b'}{':  # the end of scan marker character is '}{'

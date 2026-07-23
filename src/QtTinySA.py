@@ -66,7 +66,7 @@ app = QApplication.instance()
 if not app:
     app = QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v2.0.rc0.7')
+app.setApplicationVersion(' v2.0.rc0.8')
 
 # pyqtgraph custom exporters
 WWBExporter.register()
@@ -152,6 +152,7 @@ class Analyser:
            the spectrum trace(s) & recorder based on the device number and device count.
            tuple 1 = (device, number of devices) tuple 2 = trace(s) to update
            If only 1 SA it updates all 4 traces. If 2 SAs: first=1&2, second=3&4; etc'''
+
         routes = {(0, 1): (self.s0, self.s1, self.s2, self.s3),
                   (0, 2): (self.s0, self.s2),
                   (0, 3): (self.s0, None),
@@ -189,9 +190,9 @@ class Analyser:
         connectActive()
         QtTSA.waterfall_size.valueChanged.emit(QtTSA.waterfall_size.value()) # call the waterfall size setter
         
-        # temporary, add swap 2D/3D waterfall to settings
+        # temporary, until old waterfall code is removed
         QtTSA.waterfall.hide()
-        # temporary, add to settings
+        # temporary
         
         self.s0.enable(QtTSA.trace1.isChecked())
         self.s1.enable(QtTSA.trace2.isChecked())
@@ -483,10 +484,11 @@ class Analyser:
             levl = levl[::-1]
             maxl = maxl[::-1]
             minl = minl[::-1]
-            QtTSA.waterfall.invertX(True)
+            logging.info('invert freq axis')
+            # QtTSA.waterfall.invertX(True)
             self.timespectrum.surface.axisX().setReversed(True)
         else:
-            QtTSA.waterfall.invertX(False)
+            # QtTSA.waterfall.invertX(False)
             self.timespectrum.surface.axisX().setReversed(False)
 
         # check for zero span and change the spectrum graph x-axis if so
@@ -498,6 +500,7 @@ class Analyser:
             else:
                 QtTSA.graphWidget.setLabel('bottom', units='Hz')
         except IndexError:
+            logging.info('Info: updateGUI ignored an index error')
             return
         # update the waterfall data array
         wf_auto = QtTSA.waterfall_auto.isChecked()
@@ -512,7 +515,7 @@ class Analyser:
             self.wf_data[:, slice_start:slice_end] = buffer
         else:
             self.wf_data = buffer  
-        QtTSA.waterfall.setXRange(0, np.size(self.wf_data, axis=1))
+        # QtTSA.waterfall.setXRange(0, np.size(self.wf_data, axis=1))
 
         # update the average values (nan check to prevent "mean of empty slice" error)
         if ~np.isnan(buffer[0, :]).any():
@@ -1536,7 +1539,7 @@ def connectPassive():
 
     # Quit
     # QtTSA.actionQuit.triggered.connect(app.closeAllWindows)
-    QtTSA.actionQuit.triggered.connect(exit_handler)
+    QtTSA.actionQuit_2.triggered.connect(exit_handler)
 
     # # marker setting within span range
     QtTSA.mkr_start.clicked.connect(tinySA.markerToStart)

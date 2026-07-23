@@ -128,7 +128,7 @@ class SurfaceUpdater(QObject):
         self._dataProxy = QSurfaceDataProxy()
         self._dataSeries = QSurface3DSeries(self._dataProxy)
 
-    def updateTimeSpectrum(self, frequencies, readings):         
+    def updateTimeSpectrum(self, frequencies, readings):
         startF = frequencies[0]
         deltaF = (frequencies[1] - frequencies[0])
         self.setGradient()
