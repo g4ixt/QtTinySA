@@ -8,10 +8,9 @@
 # nuitka-project: --include-qt-plugins=sqldrivers,designer
 # nuitka-project: --include-data-file=QtTSAprefs.db=./
 # nuitka-project: --include-data-files=./modules/*baseline.txt=modules/
-# nuitka-project: --include-data-files=.=./=**/*.ui
+# nuitka-project: --include-data-files=./*.ui=/
 # nuitka-project: --nofollow-import-to=tkinter,pandas,setuptools,tk,wheel,zipp,pyyaml
 # nuitka-project: --nofollow-import-to=packaging,altgraph,mkl,fortran,matlab
-# nuitka-project: --mode=onefile
 # nuitka-project: --remove-output
 
 """TinySA GUI programme using Qt, PySide6 and PyQtGraph.
