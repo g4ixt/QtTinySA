@@ -8,7 +8,7 @@
 # nuitka-project: --include-qt-plugins=sqldrivers,designer
 # nuitka-project: --include-data-file=QtTSAprefs.db=./
 # nuitka-project: --include-data-files=./modules/*baseline.txt=modules/
-# nuitka-project: --include-data-files=*.ui=./
+# nuitka-project: --include-data-files=.=./=**/*.ui
 # nuitka-project: --nofollow-import-to=tkinter,pandas,setuptools,tk,wheel,zipp,pyyaml
 # nuitka-project: --nofollow-import-to=packaging,altgraph,mkl,fortran,matlab
 # nuitka-project: --mode=standalone
@@ -66,7 +66,7 @@ app = QApplication.instance()
 if not app:
     app = QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v2.0.rc0.8.1')
+app.setApplicationVersion(' v2.0.rc0.8.2')
 
 # pyqtgraph custom exporters
 WWBExporter.register()
