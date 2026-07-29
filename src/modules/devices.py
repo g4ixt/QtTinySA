@@ -226,9 +226,9 @@ class Worker(QRunnable):
     @Slot()
     def run(self):
         '''Initialise the runner'''
-        logging.info(f'{self.fn.__name__} thread running')
+        logging.debug(f'{self.fn.__name__} thread running')
         self.fn(*self.args)
-        logging.info(f'{self.fn.__name__} thread stopped')
+        logging.debug(f'{self.fn.__name__} thread stopped')
 
 
 class Tiny(QObject):

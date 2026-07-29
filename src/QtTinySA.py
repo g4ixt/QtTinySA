@@ -12,8 +12,8 @@
 # nuitka-project: --nofollow-import-to=tkinter,pandas,setuptools,tk,wheel,zipp,pyyaml
 # nuitka-project: --nofollow-import-to=packaging,altgraph,mkl,fortran,matlab
 # nuitka-project: --mode=standalone
+# nuitka-project: --remove-output
 
-# --include-data-files=*.ui=./
 """TinySA GUI programme using Qt, PySide6 and PyQtGraph.
 
 This code provides some of the TinySA Ultra on-screen commands and PC control.
@@ -66,7 +66,7 @@ app = QApplication.instance()
 if not app:
     app = QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v2.0.rc0.8.3')
+app.setApplicationVersion(' v2.0.rc0.8.4')
 
 # pyqtgraph custom exporters
 WWBExporter.register()
