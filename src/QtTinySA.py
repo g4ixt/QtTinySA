@@ -8,11 +8,12 @@
 # nuitka-project: --include-qt-plugins=sqldrivers,designer
 # nuitka-project: --include-data-file=QtTSAprefs.db=./
 # nuitka-project: --include-data-files=./modules/*baseline.txt=modules/
-# nuitka-project: --include-data-files=*.ui=./
+# nuitka-project: --include-data-files=./modules/*.ui=modules/
 # nuitka-project: --nofollow-import-to=tkinter,pandas,setuptools,tk,wheel,zipp,pyyaml
 # nuitka-project: --nofollow-import-to=packaging,altgraph,mkl,fortran,matlab
-# nuitka-project: --remove-output
+# nuitka-project: --mode=standalone
 
+# --include-data-files=*.ui=./
 """TinySA GUI programme using Qt, PySide6 and PyQtGraph.
 
 This code provides some of the TinySA Ultra on-screen commands and PC control.
@@ -65,7 +66,7 @@ app = QApplication.instance()
 if not app:
     app = QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v2.0.rc0.8.2')
+app.setApplicationVersion(' v2.0.rc0.8.3')
 
 # pyqtgraph custom exporters
 WWBExporter.register()
@@ -1630,14 +1631,14 @@ def connectPassive():
 # Instantiate classes
 
 loader = CustomLoader()
-QtTSA = loader.load("./spectrum.ui", None)
-presetFreqs = CustomDialogue('./bands.ui')
-settings = CustomDialogue('./settings.ui')
-filebrowse = CustomDialogue('./filebrowse.ui')
-phasenoise = CustomDialogue('./phasenoise.ui')
-fading = CustomDialogue('./fading.ui')
-pattern = CustomDialogue('./pattern.ui')
-offset = CustomDialogue('./offset.ui')
+QtTSA = loader.load(resource_path("spectrum.ui"), None)
+presetFreqs = CustomDialogue(resource_path('bands.ui'))
+settings = CustomDialogue(resource_path('settings.ui'))
+filebrowse = CustomDialogue(resource_path('filebrowse.ui'))
+phasenoise = CustomDialogue(resource_path('phasenoise.ui'))
+fading = CustomDialogue(resource_path('fading.ui'))
+pattern = CustomDialogue(resource_path('pattern.ui'))
+offset = CustomDialogue(resource_path('offset.ui'))
 
 # Markers
 multiplot = pyqtgraph.GraphicsLayout()  # for plotting marker signal level over time
