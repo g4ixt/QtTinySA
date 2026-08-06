@@ -178,13 +178,25 @@ class Analyser:
 
         # set various defaults
         setPreferences()
-        bandselect.filterType(False, QtTSA.filterBox.currentText())  # setting the filter overwrites the band
+        band = QtTSA.band_box.currentText()
+        bandselect.set_filter_to(False, QtTSA.filterBox.currentText())  # setting filter overwrites band
+        index = QtTSA.band_box.findText(band, QtCore.Qt.MatchExactly)
+        
         if settings.ui.bold_text.isChecked():
             app.setStyleSheet("QWidget { font-weight: bold; }")  # enhancement issue 118
 
         # connect GUI controls that would interfere with restoration of data at startup
         ## may need to modify for multi-devices ##
         connectActive()
+        
+        # restore previous exact frequencies or band default frequencies depending on set preferences
+        if settings.ui.restore_band.isChecked():
+            QtTSA.band_box.setCurrentIndex(-1)  # toggle otherwise index 0 doesn't update
+            QtTSA.band_box.setCurrentIndex(index)
+        else:
+            with QSignalBlocker(QtTSA.band_box):  # set the band in the combobox, but prevent freq update
+                QtTSA.band_box.setCurrentIndex(index)
+        
         QtTSA.waterfall_size.valueChanged.emit(QtTSA.waterfall_size.value()) # call the waterfall size setter
         
         self.s0.enable(QtTSA.trace1.isChecked())
@@ -196,7 +208,7 @@ class Analyser:
         for mkr_num in range(4):
             self.set_main_marker(mkr_num)
         self.marker_restore()
-        
+            
         # hide the playback time slider
         QtTSA.vortex.hide()
         
@@ -936,7 +948,7 @@ class ModelView():
         if record.value('ID') == bandstype.ID:
             popUp(presetFreqs, "Cannot delete a preset type that is selected on main screen", 'Ok', 'Critical')
             return
-        bands.filterType(True, record.value('preset'))
+        bands.set_filter_to(True, record.value('preset'))
         bands.deleteRow(False)
         if bands.tm.rowCount() == 0:
             # now no freq records with the preset type, so can delete & keep db referential integrity
@@ -947,7 +959,7 @@ class ModelView():
         logging.debug(f'row {self.currentRow} clicked')
         if table == presetFreqs.ui.typeTable:
             record = self.tm.record(self.currentRow)
-            bands.filterType(True, record.value('preset'))
+            bands.set_filter_to(True, record.value('preset'))
             bands.unlimited()
             presetFreqs.ui.psCount.setValue(bands.tm.rowCount())
 
@@ -962,9 +974,9 @@ class ModelView():
         self.tm.layoutChanged.emit()
         # self.dwm.submit()
 
-    def filterType(self, prefsDialog, boxText):
+    def set_filter_to(self, isPrefsDialog, boxText):
         sql = 'preset = "' + boxText + '"'
-        if prefsDialog:
+        if isPrefsDialog:
             self.tm.setFilter(sql)
         else:
             sql = 'visible = "1" AND preset = "' + boxText + '"'
@@ -1588,7 +1600,7 @@ def connectPassive():
     presetFreqs.ui.exportPs.pressed.connect(lambda: bands.exportData(''))
     presetFreqs.ui.importPs.pressed.connect(lambda: bands.importData(''))
 
-    QtTSA.filterBox.currentTextChanged.connect(lambda: bandselect.filterType(False, QtTSA.filterBox.currentText()))
+    QtTSA.filterBox.currentTextChanged.connect(lambda: bandselect.set_filter_to(False, QtTSA.filterBox.currentText()))
     QtTSA.actionPresets.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
     QtTSA.actionSettings.triggered.connect(settings_clicked)
     QtTSA.actionCorrection.triggered.connect(tinySA.correction_window)
@@ -1781,7 +1793,7 @@ tracecolours.tm.select()
 
 # settingstext = ModelView('settings', config, ())
 
-# Map data tables to presets/settings/GUI fields *lines need to be in this order and here or the mapping doesn't work*
+# Map data tables to presets/settings/GUI fields - must be here & in this order
 checkboxes = ModelView('checkboxes', config, ())
 checkboxes.createMapper()
 checkboxes.mapWidget('checkboxes')  # uses mapping table from database
@@ -1823,6 +1835,8 @@ offset.ui.correction_mode.setModel(correctiontext.tm)
 correctiontext.tm.select()
 
 # The models for saving number, marker and trace settings
+
+# Map data tables to presets/settings/GUI fields - must be here & in this order
 numbers = ModelView('numbers', config, ())
 numbers.createMapper()
 numbers.mapWidget('numbers')  # uses mapping table from database
