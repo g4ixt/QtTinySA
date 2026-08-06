@@ -66,7 +66,7 @@ app = QApplication.instance()
 if not app:
     app = QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v2.0.rc0.8.4')
+app.setApplicationVersion(' v2.0.rc1')
 
 # pyqtgraph custom exporters
 WWBExporter.register()
@@ -133,7 +133,6 @@ class Analyser:
         self.s1 = SpectrumGraph(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot, 300)
         self.s2 = SpectrumGraph(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot, 500)
         self.s3 = SpectrumGraph(QtTSA.graphWidget, QtTSA.waterfall, QtTSA.histogram, multiplot, 700)
-        
         self.spectra = (self.s0, self.s1, self.s2, self.s3)
 
     def setSignals(self):
@@ -182,17 +181,11 @@ class Analyser:
         bandselect.filterType(False, QtTSA.filterBox.currentText())  # setting the filter overwrites the band
         if settings.ui.bold_text.isChecked():
             app.setStyleSheet("QWidget { font-weight: bold; }")  # enhancement issue 118
-        # self.initial_width = QtTSA.graphWidget.getPlotItem().viewGeometry().width()  # used to set 3D wf zoom
-        self.initial_width = QtTSA.graphWidget.width()  # used to set 3D wf zoom
 
         # connect GUI controls that would interfere with restoration of data at startup
         ## may need to modify for multi-devices ##
         connectActive()
         QtTSA.waterfall_size.valueChanged.emit(QtTSA.waterfall_size.value()) # call the waterfall size setter
-        
-        # temporary, until old waterfall code is removed
-        QtTSA.waterfall.hide()
-        # temporary
         
         self.s0.enable(QtTSA.trace1.isChecked())
         self.s1.enable(QtTSA.trace2.isChecked())
@@ -237,6 +230,7 @@ class Analyser:
     def count_enabled(self):
         gui_ctrl = np.array((QtTSA.dev0.isChecked(), QtTSA.dev1.isChecked(),
                             QtTSA.dev2.isChecked(), QtTSA.dev3.isChecked()), dtype=bool)
+        
         # set the device enabled flags, which are used by 'renumber'
         for i, device in enumerate(usbInstr.devices):
             if device is not None:
@@ -307,6 +301,7 @@ class Analyser:
         self.split_scan(startF, stopF, self.points, split)
         self.set_gui_colours()
         self.set_arrays()
+        # self.timespectrum.set_wf_2D()
 
         # start device(s) scanning
         usbInstr.start(self.spectra, rbw, self.depth, maxF, interval, split, loop=True)
@@ -384,7 +379,6 @@ class Analyser:
         if (stopF - startF) != 0:
             lowF.line.setValue((startF + QtTSA.span_freq.value()/20))
             highF.line.setValue((stopF - QtTSA.span_freq.value()/20))
-            self.timespectrum.set_freq_range(startF, stopF)
 
     def setToMarker(self):
         mkr_freq = self.s0.trace.m0.line.value()
@@ -469,9 +463,6 @@ class Analyser:
 
     def updateGUI(self, route, freq, levl, maxl, minl, buffer, ser_num, dev_id, timestamp, split, sweep_end):
         ''''updates all the traces in the route in one call'''
-        
-        if sweep_end:  # if a way to detect window size changes is found this could be done more efficiently
-            set_wf_format()
 
         if bandstype.freq !=0 and bandstype.freq < QtTSA.start_freq.value() * 1e6:
             freq = freq + bandstype.freq
@@ -1414,13 +1405,15 @@ def exit_handler():
     '''Save gui field vals, marker freqs and checkbox states. Close usb ports, config database and windows'''
     usbCheck.stop()
     tinySA.mkr_update_timer.stop()
-    app.closeAllWindows()
+    if usbInstr.is_scanning:
+        usbInstr.stop(restart=False)
     if len(usbInstr.ports) != 0:
         tinySA.marker_save()
         usbInstr.closePort()
     checkboxes.dwm.submit()
     numbers.dwm.submit()
     disconnect(config)
+    app.closeAllWindows()
     logging.info('QtTinySA Closed')
 
 def popUp(window, message, button, icon):
@@ -1453,27 +1446,40 @@ def isMixerMode():
         QtTSA.start_freq.setMaximum(100000)
         QtTSA.centre_freq.setMaximum(100000)
         QtTSA.stop_freq.setMaximum(100000)
-  
+    
 def set_wf_format():  # called when wf_2D checkbox state changes
-    set_wf_size()
+    wf_size = QtTSA.waterfall_size.value()
+    if QtTSA.wf_2D.isChecked():
+        QtTSA.plot_3D.hide()
+        QtTSA.waterfall.show()
+        # set the display_frame stretch, which is 'units' of total vertical space rows can expand in
+        QtTSA.display_frame.layout().setRowStretch(0, 9 - wf_size)  # index 0 = row 0 = graphWidget
+        QtTSA.display_frame.layout().setRowStretch(1, 0)  # index 1 = row 1 = plot_3D
+        QtTSA.display_frame.layout().setRowStretch(2, wf_size)  # index 2 = row 2 = waterfall
+    else:
+        QtTSA.plot_3D.show()
+        QtTSA.waterfall.hide()
+        QtTSA.display_frame.layout().setRowStretch(0, 9 - wf_size)
+        QtTSA.display_frame.layout().setRowStretch(1, wf_size)
+        QtTSA.display_frame.layout().setRowStretch(2, 0)
 
-def set_wf_size():  # called when wf_size spinbox value changes
-    spinbox = QtTSA.waterfall_size.value()
-    frame_h = QtTSA.display_frame.height() - 50  # allow 55 for borders
-    frame_w = QtTSA.display_frame.width() - 20 # allow 16 for borders
-    wf_set_h = (spinbox / 10) * frame_h
-    if spinbox > 5:
+def set_wf_height():  # called when wf_size spinbox value changes
+    '''changing height sends the widget Resize signal; this is intercepted by the ResizeEventFilter
+       in the graphs.py module which then calls on_widget_resized() to set the 3D aspect ratio'''
+    wf_size = QtTSA.waterfall_size.value()
+    if wf_size == 9:
         QtTSA.graphWidget.hide()
-        QtTSA.plot_3D.setMaximumSize(QtCore.QSize(frame_w, frame_h))
-        QtTSA.wf_2D.setChecked(False)
-        QtTSA.wf_2D.setEnabled(False)
+        set_wf_format()
     else:
         QtTSA.graphWidget.show()
-        QtTSA.plot_3D.setMaximumSize(QtCore.QSize(frame_w, wf_set_h))
+        set_wf_format()
+    if wf_size == 0:
+        QtTSA.plot_3D.hide()
+        QtTSA.waterfall.hide()
+        QtTSA.wf_2D.setEnabled(False)
+    else:
+        set_wf_format()
         QtTSA.wf_2D.setEnabled(True)
-    
-    wf_is_2D = QtTSA.wf_2D.isChecked()
-    tinySA.timespectrum.set_format(wf_is_2D, spinbox, wf_set_h, frame_w)
     
 def startPolarPlot():
     tinySA.polar.set_plot(pattern.ui)
@@ -1592,7 +1598,7 @@ def connectPassive():
     QtTSA.actionAbout_Qt.triggered.connect(app.aboutQt)
 
     # Waterfall
-    QtTSA.waterfall_size.valueChanged.connect(set_wf_size)
+    QtTSA.waterfall_size.valueChanged.connect(set_wf_height)
     QtTSA.wf_2D.stateChanged.connect(set_wf_format)
 
     # Measurement menu
@@ -1632,6 +1638,7 @@ def connectPassive():
 
 loader = CustomLoader()
 QtTSA = loader.load(resource_path("spectrum.ui"), None)
+
 presetFreqs = CustomDialogue(resource_path('bands.ui'))
 settings = CustomDialogue(resource_path('settings.ui'))
 filebrowse = CustomDialogue(resource_path('filebrowse.ui'))
@@ -1671,9 +1678,11 @@ QtTSA.graphWidget.showGrid(x=True, y=True)
 QtTSA.graphWidget.setLabel('bottom', '', units='Hz')
 
 # # pyqtgraph settings for waterfall and histogram display
-QtTSA.waterfall.setDefaultPadding(padding=0.005)
+# QtTSA.waterfall.setDefaultPadding(padding=0.005)
+QtTSA.waterfall.setDefaultPadding(padding=0.016)
 QtTSA.waterfall.getPlotItem().hideAxis('bottom')
 QtTSA.waterfall.setLabel('left', '.', **{'color': '#FFF', 'font-size': '2pt'})
+# QtTSA.waterfall.getPlotItem().hideAxis('left')
 QtTSA.waterfall.invertY(True)
 
 QtTSA.histogram.setDefaultPadding(padding=0)
@@ -1694,7 +1703,7 @@ phasenoise.ui.plotWidget.setLabel('left', 'Phase Noise', units='dBc/Hz')
 logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 1337)  # third parameter is the database version
+config = connect("QtTSAprefs.db", "settings", 200)  # third parameter is the database version
 
 # field mapping of the checkboxes and numbers database tables, for storing startup configuration
 maps = ModelView('mapping', config, ())
@@ -1849,4 +1858,3 @@ try:
 finally:
     exit_handler()  # close cleanly
     app.quit()
-

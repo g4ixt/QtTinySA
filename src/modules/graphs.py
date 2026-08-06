@@ -12,10 +12,14 @@ Created on Wed Nov 26 15:42:02 2025
 import logging
 import numpy as np
 from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsLineItem, QGraphicsSimpleTextItem
-from PySide6.QtCore import QObject, Qt, QElapsedTimer
+from PySide6.QtCore import QObject, Qt, QElapsedTimer, QEvent
 from PySide6.QtGui import QLinearGradient, QBrush, QColor, QTransform
 from PySide6.QtGraphs import QSurface3DSeries, QSurfaceDataProxy, QGraphsTheme, QtGraphs3D
 from PySide6.QtGraphsWidgets import Q3DSurfaceWidgetItem
+# test
+from PySide6.QtQuickWidgets import QQuickWidget
+# test
+
 import pyqtgraph
 
 from modules.utility import Calc, resource_path
@@ -29,12 +33,27 @@ SHAPE_FACTOR = {0.2: 3.6, 1: -0.6, 3: -0.53, 10: 0, 30: 0, 100: 0, 300: 0, 600: 
 PN_AT_10MHZ = np.loadtxt(resource_path("10_baseline.txt"))
 PN_AT_1152MHZ = np.loadtxt(resource_path("1152_baseline.txt"))
 
+class ResizeEventFilter(QObject):
+    # Claude AI gave me this class as part of a larger discussion
+    def __init__(self, callback):
+        super().__init__()
+        self.callback = callback
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.Resize:
+            self.callback()
+        return False  # don't consume the event, let it propagate as normal
 
 class SurfaceGraph(QObject):
 
     def __init__(self, ui_widget, frequencies, readings):
         super().__init__()
         self.surface = Q3DSurfaceWidgetItem()
+        ui_widget.setResizeMode(QQuickWidget.ResizeMode.SizeRootObjectToView)
+        # ui_widget.setResizeMode(QQuickWidget.ResizeMode.SizeViewToRootObject)
+        self._resize_filter = ResizeEventFilter(self.on_widget_resized)
+        ui_widget.installEventFilter(self._resize_filter)  # must be before setWidget
+        
         self.surface.setWidget(ui_widget)
         self._dataProxy = QSurfaceDataProxy()
         self._dataSeries = QSurface3DSeries(self._dataProxy)
@@ -50,52 +69,49 @@ class SurfaceGraph(QObject):
         ax.setTitle(name)
         ax.setLabelsVisible(True)
         ax.setLabelSize(2)
-        ax.setSubSegmentCount(9)
-
-    def set_format(self, wf_2D, spinbox, set_h, set_w):
-        if set_h > 0:
-            self.surface.widget().show()
-        else:
-            self.surface.widget().hide()
-            return
-
-        if wf_2D:
-            self.surface.setCameraPreset(QtGraphs3D.CameraPreset.DirectlyAbove)
-            self.surface.axisZ().setReversed(True)  # so that 2D wf flows downwards
-            self.surface.activeTheme().setLabelsVisible(False)
-            self.surface.setCameraZoomLevel(95 * (set_w / set_h))
-            self.surface.setLightStrength(0.5)  # 0.7
-            self.surface.setAmbientLightStrength(0.7)  # 0.4
-            self.surface.setHorizontalAspectRatio(set_w / set_h)
-            self.wf_2D = True
-        else:
-            # self.surface.setCameraPreset(QtGraphs3D.CameraPreset.IsometricRight)
-            self.surface.setCameraPreset(QtGraphs3D.CameraPreset.FrontLow)
-            self.rotateY(15)
-            self.rotateX(30)
-            self.surface.axisZ().setReversed(False)  # so that 3D wf flows inwards
-            self.surface.activeTheme().setLabelsVisible(True)
-            self.surface.setCameraZoomLevel(100)
-            self.surface.setLightStrength(1)
-            self.surface.setAmbientLightStrength(0.5)
-            self.surface.setHorizontalAspectRatio(1)
+        ax.setSubSegmentCount(2)
 
     def set_display(self):
-        self.set_format(True, 3, 300, 600)
         self.surface.setMargin(0)
         self.surface.setShadowStrength(0)
-        self.surface.setOrthoProjection(True)
-        self.surface.activeTheme().setGridVisible(True)
-        self.surface.activeTheme().setPlotAreaBackgroundVisible(True)
         self.surface.activeTheme().setLabelsVisible(True)
-        self.surface.activeTheme().setLabelBackgroundVisible(False)
+        self.surface.activeTheme().setLabelBackgroundVisible(True)
         self.surface.activeTheme().setBackgroundColor(Qt.black)
-        
-    def rotateX(self, angle):
-        self.surface.setCameraXRotation(angle)
+        self.surface.activeTheme().setBorderWidth(0)
+        self.set_wf_3D()
 
-    def rotateY(self, angle):
-        self.surface.setCameraYRotation(angle)
+    def on_widget_resized(self):
+        plot_3D = self.surface.widget()  # return the widget reference of plot_3D from the surface
+        size = plot_3D.size()
+        if size.height() <= 0:
+            return
+        aspect = size.width() / size.height()
+        self.surface.setHorizontalAspectRatio(aspect)
+        
+    # def set_wf_2D(self):
+    #     self.wf_2D = True
+    #     self.surface.setOrthoProjection(True)
+    #     self.surface.setCameraPreset(QtGraphs3D.CameraPreset.DirectlyAbove)
+    #     self.surface.axisZ().setReversed(True)  # so that 2D wf flows downwards
+    #     self.surface.activeTheme().setLabelsVisible(False)
+    #     self.surface.setLightStrength(0.5)  # 0.7
+    #     self.surface.setAmbientLightStrength(0.7)  # 0.4
+    #     self.surface.activeTheme().setGridVisible(False)
+    #     self.surface.activeTheme().setPlotAreaBackgroundVisible(False)
+    #     self.surface.setCameraZoomLevel(427)
+
+    def set_wf_3D(self):
+        self.wf_2D = False
+        self.surface.setOrthoProjection(False)
+        self.surface.setCameraPreset(QtGraphs3D.CameraPreset.FrontLow)
+        self.surface.axisZ().setReversed(False)  # so that 3D wf flows inwards
+        self.surface.activeTheme().setLabelsVisible(True)
+        self.surface.setLightStrength(1)
+        self.surface.setAmbientLightStrength(0.5)
+        self.rotateY(15)
+        self.rotateX(30)
+        self.surface.activeTheme().setGridVisible(True)
+        self.surface.activeTheme().setPlotAreaBackgroundVisible(False)
 
     def set_dynamic_range(self, wf_levels):
         axis = self.surface.axisY()
@@ -107,18 +123,11 @@ class SurfaceGraph(QObject):
         except OverflowError:
             return
         
-    def set_freq_range(self, startF, stopF): 
-        span = stopF - startF
-        pad_r = round(((span)/400), 1)
-        pad_l = round(((span)/28), 1)
-        
-        temp_max = max(stopF, self.surface.axisX().max()) + pad_r
-        temp_min = min(startF, self.surface.axisX().min()) - pad_l
-        self.surface.axisX().setMax(temp_max)
-        self.surface.axisX().setMin(temp_min)
-        
-        self.surface.axisX().setMax(stopF + pad_r)
-        self.surface.axisX().setMin(startF - pad_l)
+    def rotateX(self, angle):
+        self.surface.setCameraXRotation(angle)
+
+    def rotateY(self, angle):
+        self.surface.setCameraYRotation(angle)
 
 
 class SurfaceUpdater(QObject):

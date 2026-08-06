@@ -14,7 +14,7 @@ import time
 import queue
 import struct
 import numpy as np
-from PySide6.QtCore import QObject, QElapsedTimer, QTimer, Signal, Slot, QRunnable, QThreadPool, QSignalBlocker
+from PySide6.QtCore import QObject, QElapsedTimer, QTimer, Signal, Slot, QRunnable, QThreadPool
 from serial.tools import list_ports
 from datetime import datetime
 from platform import system
@@ -447,11 +447,15 @@ class Tiny(QObject):
             self.serialWrite(command)
 
     def serialQuery(self, command):
-        self.usb.write(command.encode())
-        self.usb.read_until(command.encode() + b'\n')  # skip command echo
-        response = self.usb.read_until(b'ch> ')  # until prompt
-        logging.debug(f'serialQuery: response = {response}')
-        return response[:-6].decode()  # remove prompt
+        try:
+            self.usb.write(command.encode())
+            self.usb.read_until(command.encode() + b'\n')  # skip command echo
+            response = self.usb.read_until(b'ch> ')  # until prompt
+            logging.debug(f'serialQuery: response = {response}')
+            return response[:-6].decode()  # remove prompt
+        except UnicodeDecodeError:
+            logging.info('serialQuery: ignored UnicodeDecodeError')
+
 
     def serialWrite(self, command):
         logging.debug(f'serialWrite: command = {command}')
