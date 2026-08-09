@@ -1,6 +1,0 @@
-numpy
-Pillow
-platformdirs
-pyserial
-pyqtgraph
-pyside6==6.11.0

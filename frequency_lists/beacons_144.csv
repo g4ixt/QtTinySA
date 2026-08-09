@@ -1,0 +1,6 @@
+name,preset,startF,stopF,value,colour
+GB3ANG,beacons 144,144453000,0,False,cyan
+GB3SEV,beacons 144,144462000,0,False,cyan
+GB3MCB,beacons 144,144469000,0,False,cyan
+GB3NGI,beacons 144,144482000,0,False,cyan
+GB3WGI,beacons 144,144487000,0,False,cyan

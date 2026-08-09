@@ -36,12 +36,11 @@ jobs:
         nuitka-version: develop
         script-name: QtTinySA.py
         working-directory: ./src
-        mode: standalone
+        # mode: standalone
 
     # Uploads artifact
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        # name: bin
         name: QtTinySA_ubuntu_latest
         path: ./src/build

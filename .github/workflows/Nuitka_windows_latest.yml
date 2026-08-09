@@ -33,10 +33,10 @@ jobs:
     # Build python script into a single executable
     - uses: Nuitka/Nuitka-Action@main
       with:
-        nuitka-version: main
+        nuitka-version: develop
         script-name: QtTinySA.py
         working-directory: ./src
-        mode: standalone
+        # mode: standalone
 
     # Uploads artifact
     - name: Upload Artifact

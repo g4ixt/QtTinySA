@@ -1,0 +1,13 @@
+name,preset,startF,stopF,value,colour
+23cm beacons,beacons 1296,1296810863,1297037470,True,green
+GB3MHZ,beacons 1296,1296830000,0,True,cyan
+GB3BED,beacons 1296,1296840000,0,True,cyan
+GB3FRS,beacons 1296,1296850000,0,True,cyan
+GB3MCB,beacons 1296,1296860000,0,True,cyan
+GB3USK,beacons 1296,1296870000,0,True,cyan
+GB3DUN,beacons 1296,1296890000,0,True,yellowgreen
+GB3CFG,beacons 1296,1296905000,0,True,lemonchiffon
+GB3NGI,beacons 1296,1296905000,0,True,cyan
+GB3ANG,beacons 1296,1296965000,0,True,cyan
+GB3CSB,beacons 1296,1296985000,0,True,cyan
+GB3EDN,beacons 1296,1296990000,0,True,cyan
