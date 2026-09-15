@@ -246,8 +246,8 @@ class USBdevice(QObject):
         self.clear_all_gui_dev_info()
         if self.devices:
             for device in self.devices:
-                # not strictly needed to find the port number but it mimics the real decice code
-                self.set_gui_dev_info(device, port_num)
+                # not strictly needed to find the port number but it mimics the real device code
+                self.set_gui_dev_info(device, self.ports.index(port))
         if self.loaded_files < 4:
             self.loaded_files += 1
 
