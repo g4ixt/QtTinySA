@@ -65,7 +65,7 @@ class Calc():
             mini.append(np.argmin(nextMin))
         return (list(frequencies[maxi]), list(frequencies[mini]))
 
-class FakePortInfo:
+class FakePortInfo():
     """Mimics serial.tools.list_ports_common.ListPortInfo using values supplied.  This code is from Claude ai"""
 
     def __init__(self, device, name=None, description="n/a", hwid="n/a",
@@ -94,13 +94,6 @@ class FakePortInfo:
 
     def __getitem__(self, index):
         return (self.device, self.description, self.hwid)[index]
-
-# fake_ports = [
-#     FakePortInfo(device=row.device, description=row.description, hwid=row.hwid,
-#                  vid=row.vid, pid=row.pid, serial_number=row.serial_number)
-#     for row in my_data_rows
-# ]
-
 
 def resource_path(filename: str) -> str:
     """Get resources path in a safe way to work on terminal AND in macOS app bundles."""

@@ -66,7 +66,7 @@ app = QApplication.instance()
 if not app:
     app = QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v2.0.2')
+app.setApplicationVersion(' v2.1.x')
 
 # pyqtgraph custom exporters
 WWBExporter.register()
@@ -493,6 +493,7 @@ class Analyser:
         except IndexError:
             logging.info('Info: updateGUI ignored an index error')
             return
+
         # update the waterfall data array
         wf_auto = QtTSA.waterfall_auto.isChecked()
         buffer_cols = np.shape(buffer)[1]
@@ -802,7 +803,7 @@ class Analyser:
             if usbInstr.devices[i].enabled:
                 self.spectra[i].points = points[i]
                 usbInstr.devices[i].sweeping = True
-                player = Worker(usbInstr.devices[i].server, self.depth, i, interval, slider, play, split)
+                player = Worker(usbInstr.devices[i].server, self.depth, interval, slider, play, split)
                 threadpool.start(player)
 
     def stop_playback(self):
@@ -826,31 +827,6 @@ class Analyser:
         saver = Worker(save_sweep, folder, file_name, frequencies, data_arr, ser_num)
         threadpool.start(saver)  # workers are deleted when thread ends
     
-    # def load_data(self):
-    #     '''loads .npy files made by the recorder into data arrays for playback'''
-    #     dialog = QFileDialog()
-    #     folder = settings.ui.save_folder.text()
-    #     dialog.setDirectory(folder)
-    #     file_name = dialog.getOpenFileName(caption="Select file to load", filter="NumPy array (*.npy)")[0]
-    #     if file_name != '':
-    #         loader = Worker(usbInstr.read_file, file_name)
-
-    #     if usbInstr.loaded_files == 4:
-    #         message = ('Clear all 4 recordings loaded in memory and\rstart loading new ones in their place?')
-    #         load_new = popUp(offset, message, 'OkC', 'Question')
-    #         if load_new == QMessageBox.StandardButton.Ok:
-    #             for j in range(4):
-    #                 usbInstr.recorders[j].reset_arr()
-    #                 # self.set_device_info('', j, -1, '') 
-    #             usbInstr.loaded_files = 0
-    #             threadpool.start(loader)
-    #         else:
-    #             return
-
-    #     usbCheck.stop()  # stop probing the usb ports for analyser hardware
-    #     threadpool.start(loader)
-    #     QtTSA.vortex.show()
-    
     def load_data(self):
         '''loads .npy files made by the recorder into data arrays for playback'''
         dialog = QFileDialog()
@@ -864,20 +840,6 @@ class Analyser:
         usbCheck.stop()  # stop probing the usb ports for analyser hardware
         threadpool.start(loader)
         QtTSA.vortex.show()
-    
-    # def clear_data(self):
-    #     self.stop_playback()
-    #     self.stop_recording()
-    #     for i in range(usbInstr.loaded_files): 
-    #         usbInstr.recorders[i].reset_arr()
-    #         # self.set_device_info('', i, -1, '') # name, dev_id, sn, port)
-    #     for spectrum in self.spectra:
-    #         spectrum.waterfall.clear()
-    #     usbInstr.loaded_files = 0
-    #     with QSignalBlocker(QtTSA.vortex):
-    #         QtTSA.vortex.setValue(0)
-    #     QtTSA.vortex.hide()
-    #     usbCheck.start()  # start probing the usb ports for analyser hardware
 
     def clear_data(self):
         self.stop_playback()
