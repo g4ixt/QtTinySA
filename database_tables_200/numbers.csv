@@ -1,0 +1,2 @@
+ID,name,setting,minPoints,maxPoints,startF,stopF,threshold,saveFolder,band,filter,rbw,m1,m2,m3,m4,m1f,m2f,m3f,m4f,t1,t2,t3,t4,24,25,26,27,28,29,wf_size,32,33,34,35
+1,default,1,200,22000,29,32,-90,/home/ian/Documents/GitHub/QtTinySA/sweep_files,FM,broadcast,3,Normal,Off,Off,Off,32000000,87500000,2426000000,2438000000,Normal,Max,Normal,Min,3,3,12000,50,51,100,2,,,,

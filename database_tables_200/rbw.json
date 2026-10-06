@@ -1,0 +1,38 @@
+[
+    {
+        "ID": 1,
+        "bandwidth": 0.2
+    },
+    {
+        "ID": 2,
+        "bandwidth": 1
+    },
+    {
+        "ID": 3,
+        "bandwidth": 3
+    },
+    {
+        "ID": 4,
+        "bandwidth": 10
+    },
+    {
+        "ID": 5,
+        "bandwidth": 30
+    },
+    {
+        "ID": 6,
+        "bandwidth": 100
+    },
+    {
+        "ID": 7,
+        "bandwidth": 300
+    },
+    {
+        "ID": 8,
+        "bandwidth": 600
+    },
+    {
+        "ID": 9,
+        "bandwidth": 850
+    }
+]

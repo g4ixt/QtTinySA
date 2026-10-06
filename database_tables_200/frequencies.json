@@ -1,0 +1,1919 @@
+[
+    {
+        "ID": 6773,
+        "name": "24MHz",
+        "startF": 24890000,
+        "stopF": 24990000,
+        "svgcolour": 84,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6774,
+        "name": "10m",
+        "startF": 28000000,
+        "stopF": 29700000,
+        "svgcolour": 74,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6775,
+        "name": "GB3NWB",
+        "startF": 28247000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 18,
+        "visible": 1
+    },
+    {
+        "ID": 6776,
+        "name": "GB3AAX",
+        "startF": 28268000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 18,
+        "visible": 1
+    },
+    {
+        "ID": 6777,
+        "name": "GB3XMB",
+        "startF": 28287000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 18,
+        "visible": 1
+    },
+    {
+        "ID": 6778,
+        "name": "GB3BUX",
+        "startF": 50000000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 19,
+        "visible": 1
+    },
+    {
+        "ID": 6779,
+        "name": "6m",
+        "startF": 50000000,
+        "stopF": 52000000,
+        "svgcolour": 84,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6780,
+        "name": "GB3RMK",
+        "startF": 50002000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 19,
+        "visible": 1
+    },
+    {
+        "ID": 6781,
+        "name": "GB3NGI",
+        "startF": 50004000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 19,
+        "visible": 1
+    },
+    {
+        "ID": 6782,
+        "name": "GB3MCB",
+        "startF": 50005000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 19,
+        "visible": 1
+    },
+    {
+        "ID": 6783,
+        "name": "GB3BAA",
+        "startF": 50416000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 19,
+        "visible": 1
+    },
+    {
+        "ID": 6784,
+        "name": "GB3MCB",
+        "startF": 50443000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 19,
+        "visible": 1
+    },
+    {
+        "ID": 6785,
+        "name": "GB3RMK",
+        "startF": 50460000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 19,
+        "visible": 1
+    },
+    {
+        "ID": 6786,
+        "name": "GB3NGI",
+        "startF": 50462000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 19,
+        "visible": 1
+    },
+    {
+        "ID": 6787,
+        "name": "GB3LER",
+        "startF": 50464000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 19,
+        "visible": 1
+    },
+    {
+        "ID": 6788,
+        "name": "GB3BUX",
+        "startF": 70000000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 20,
+        "visible": 0
+    },
+    {
+        "ID": 6789,
+        "name": "4m",
+        "startF": 70000000,
+        "stopF": 70500000,
+        "svgcolour": 84,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6790,
+        "name": "GB3WSX",
+        "startF": 70007000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 20,
+        "visible": 0
+    },
+    {
+        "ID": 6791,
+        "name": "GB3BAA",
+        "startF": 70016000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 20,
+        "visible": 0
+    },
+    {
+        "ID": 6792,
+        "name": "GB3ANG",
+        "startF": 70020000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 20,
+        "visible": 0
+    },
+    {
+        "ID": 6793,
+        "name": "GB3MCB",
+        "startF": 70025000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 20,
+        "visible": 0
+    },
+    {
+        "ID": 6794,
+        "name": "GB3CFG",
+        "startF": 70027000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 20,
+        "visible": 0
+    },
+    {
+        "ID": 6795,
+        "name": "GB3MBD",
+        "startF": 70050000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 20,
+        "visible": 0
+    },
+    {
+        "ID": 6796,
+        "name": "FM",
+        "startF": 87500000,
+        "stopF": 108000000,
+        "svgcolour": 84,
+        "type": 7,
+        "visible": 1
+    },
+    {
+        "ID": 6797,
+        "name": "WV R2",
+        "startF": 89900000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6798,
+        "name": "R3 to 4",
+        "startF": 92100000,
+        "stopF": 94300000,
+        "svgcolour": 84,
+        "type": 7,
+        "visible": 1
+    },
+    {
+        "ID": 6799,
+        "name": "WV R3",
+        "startF": 92100000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6800,
+        "name": "WV R4",
+        "startF": 94300000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6801,
+        "name": "WV RCy",
+        "startF": 96800000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6802,
+        "name": "WV R1",
+        "startF": 99500000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6803,
+        "name": "WV CLA",
+        "startF": 101700000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6804,
+        "name": "WV R Wales",
+        "startF": 103900000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6805,
+        "name": "2m",
+        "startF": 144000000,
+        "stopF": 146000000,
+        "svgcolour": 84,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6806,
+        "name": "GB3ANG",
+        "startF": 144453000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 21,
+        "visible": 0
+    },
+    {
+        "ID": 6807,
+        "name": "GB3SEV",
+        "startF": 144462000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 21,
+        "visible": 0
+    },
+    {
+        "ID": 6808,
+        "name": "GB3MCB",
+        "startF": 144469000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 21,
+        "visible": 0
+    },
+    {
+        "ID": 6809,
+        "name": "GB3NGI",
+        "startF": 144482000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 21,
+        "visible": 0
+    },
+    {
+        "ID": 6810,
+        "name": "GB3WGI",
+        "startF": 144487000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 21,
+        "visible": 0
+    },
+    {
+        "ID": 6811,
+        "name": "DAB",
+        "startF": 175000000,
+        "stopF": 230000000,
+        "svgcolour": 84,
+        "type": 7,
+        "visible": 1
+    },
+    {
+        "ID": 6812,
+        "name": "5B",
+        "startF": 176640000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6813,
+        "name": "5C",
+        "startF": 178352000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6814,
+        "name": "5D",
+        "startF": 180064000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6815,
+        "name": "6A",
+        "startF": 181936000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6816,
+        "name": "6B",
+        "startF": 183648000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6817,
+        "name": "6C",
+        "startF": 185360000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6818,
+        "name": "6D",
+        "startF": 187072000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6819,
+        "name": "7A",
+        "startF": 188928000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6820,
+        "name": "7B",
+        "startF": 190640000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6821,
+        "name": "7C",
+        "startF": 192352000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6822,
+        "name": "7D",
+        "startF": 194064000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6823,
+        "name": "8A",
+        "startF": 195936000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6824,
+        "name": "8B",
+        "startF": 197648000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6825,
+        "name": "8C",
+        "startF": 199360000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6826,
+        "name": "8D",
+        "startF": 201072000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6827,
+        "name": "9A",
+        "startF": 202928000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6828,
+        "name": "9B",
+        "startF": 204640000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6829,
+        "name": "9C",
+        "startF": 206352000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6830,
+        "name": "9D",
+        "startF": 208064000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6831,
+        "name": "10A",
+        "startF": 209936000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6832,
+        "name": "10B",
+        "startF": 211648000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6833,
+        "name": "10C",
+        "startF": 213360000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6834,
+        "name": "10D",
+        "startF": 215072000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6835,
+        "name": "11A",
+        "startF": 216928000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6836,
+        "name": "11B",
+        "startF": 218640000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6837,
+        "name": "11C",
+        "startF": 220352000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6838,
+        "name": "11D",
+        "startF": 222064000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6839,
+        "name": "12B",
+        "startF": 225648000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6840,
+        "name": "12C",
+        "startF": 227360000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6841,
+        "name": "12D",
+        "startF": 229072000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6842,
+        "name": "13A",
+        "startF": 230784000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6843,
+        "name": "13B",
+        "startF": 232496000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6844,
+        "name": "13C",
+        "startF": 234208000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6845,
+        "name": "13D",
+        "startF": 235776000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6846,
+        "name": "70cm",
+        "startF": 430000000,
+        "stopF": 440000000,
+        "svgcolour": 84,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6847,
+        "name": "GB3UHF",
+        "startF": 432430000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 22,
+        "visible": 0
+    },
+    {
+        "ID": 6848,
+        "name": "GB3FNY",
+        "startF": 432445000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 22,
+        "visible": 0
+    },
+    {
+        "ID": 6849,
+        "name": "GB3ANG",
+        "startF": 432453000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 22,
+        "visible": 0
+    },
+    {
+        "ID": 6850,
+        "name": "GB3MCB",
+        "startF": 432470000,
+        "stopF": 0,
+        "svgcolour": 26,
+        "type": 22,
+        "visible": 0
+    },
+    {
+        "ID": 6851,
+        "name": "GB3NGI",
+        "startF": 432482000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 22,
+        "visible": 0
+    },
+    {
+        "ID": 6852,
+        "name": "GB3LEU",
+        "startF": 432490000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 22,
+        "visible": 0
+    },
+    {
+        "ID": 6853,
+        "name": "est2",
+        "startF": 470000000,
+        "stopF": 700000000,
+        "svgcolour": 84,
+        "type": 5,
+        "visible": 1
+    },
+    {
+        "ID": 6854,
+        "name": "Guest 32",
+        "startF": 470125000,
+        "stopF": 0,
+        "svgcolour": 121,
+        "type": 5,
+        "visible": 0
+    },
+    {
+        "ID": 6855,
+        "name": "Guest 33",
+        "startF": 470475000,
+        "stopF": 0,
+        "svgcolour": 121,
+        "type": 5,
+        "visible": 0
+    },
+    {
+        "ID": 6856,
+        "name": "Guest 34",
+        "startF": 470975000,
+        "stopF": 0,
+        "svgcolour": 121,
+        "type": 5,
+        "visible": 0
+    },
+    {
+        "ID": 6857,
+        "name": "23cm",
+        "startF": 1240000000,
+        "stopF": 1325000000,
+        "svgcolour": 84,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6858,
+        "name": "23cm SSB",
+        "startF": 1296000000,
+        "stopF": 1296500000,
+        "svgcolour": 84,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6859,
+        "name": "GB3MHZ",
+        "startF": 1296830000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 17,
+        "visible": 1
+    },
+    {
+        "ID": 6860,
+        "name": "GB3BED",
+        "startF": 1296840000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 17,
+        "visible": 1
+    },
+    {
+        "ID": 6861,
+        "name": "GB3FRS",
+        "startF": 1296850000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 17,
+        "visible": 1
+    },
+    {
+        "ID": 6862,
+        "name": "GB3MCB",
+        "startF": 1296860000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 17,
+        "visible": 1
+    },
+    {
+        "ID": 6863,
+        "name": "GB3USK",
+        "startF": 1296870000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 17,
+        "visible": 1
+    },
+    {
+        "ID": 6864,
+        "name": "GB3DUN",
+        "startF": 1296890000,
+        "stopF": 0,
+        "svgcolour": 148,
+        "type": 17,
+        "visible": 1
+    },
+    {
+        "ID": 6865,
+        "name": "GB3CFG",
+        "startF": 1296905000,
+        "stopF": 0,
+        "svgcolour": 68,
+        "type": 17,
+        "visible": 1
+    },
+    {
+        "ID": 6866,
+        "name": "GB3NGI",
+        "startF": 1296905000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 17,
+        "visible": 1
+    },
+    {
+        "ID": 6867,
+        "name": "GB3ANG",
+        "startF": 1296965000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 17,
+        "visible": 1
+    },
+    {
+        "ID": 6868,
+        "name": "GB3CSB",
+        "startF": 1296985000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 17,
+        "visible": 1
+    },
+    {
+        "ID": 6869,
+        "name": "GB3EDN",
+        "startF": 1296990000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 17,
+        "visible": 1
+    },
+    {
+        "ID": 6870,
+        "name": "13cm",
+        "startF": 2310000000,
+        "stopF": 2450000000,
+        "svgcolour": 84,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6871,
+        "name": "GB3MHZ",
+        "startF": 2320830000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 23,
+        "visible": 1
+    },
+    {
+        "ID": 6872,
+        "name": "GB3ZME",
+        "startF": 2320870000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 23,
+        "visible": 1
+    },
+    {
+        "ID": 6873,
+        "name": "GB3ANT",
+        "startF": 2320890000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 23,
+        "visible": 1
+    },
+    {
+        "ID": 6874,
+        "name": "GB3SCS",
+        "startF": 2320905000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 23,
+        "visible": 1
+    },
+    {
+        "ID": 6875,
+        "name": "GB3BSS",
+        "startF": 2320925000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 23,
+        "visible": 1
+    },
+    {
+        "ID": 6876,
+        "name": "GB3LES",
+        "startF": 2320955000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 23,
+        "visible": 1
+    },
+    {
+        "ID": 6877,
+        "name": "GB3CSB",
+        "startF": 2320985000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 23,
+        "visible": 1
+    },
+    {
+        "ID": 6878,
+        "name": "2G band",
+        "startF": 2390000000,
+        "stopF": 2450000000,
+        "svgcolour": 131,
+        "type": 16,
+        "visible": 1
+    },
+    {
+        "ID": 6879,
+        "name": "9cm",
+        "startF": 3300000000,
+        "stopF": 3500000000,
+        "svgcolour": 84,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6880,
+        "name": "GB3MHZ",
+        "startF": 3400830000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 24,
+        "visible": 0
+    },
+    {
+        "ID": 6881,
+        "name": "GB3OHM",
+        "startF": 3400900000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 24,
+        "visible": 0
+    },
+    {
+        "ID": 6882,
+        "name": "GB3SCF",
+        "startF": 3400905000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 24,
+        "visible": 0
+    },
+    {
+        "ID": 6883,
+        "name": "GB3ZME",
+        "startF": 3400910000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 24,
+        "visible": 0
+    },
+    {
+        "ID": 6884,
+        "name": "GB3LPC",
+        "startF": 3400935000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 24,
+        "visible": 0
+    },
+    {
+        "ID": 6885,
+        "name": "GB3LEF",
+        "startF": 3400955000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 24,
+        "visible": 0
+    },
+    {
+        "ID": 6886,
+        "name": "GB3CSB",
+        "startF": 3400985000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 24,
+        "visible": 0
+    },
+    {
+        "ID": 6887,
+        "name": "SatComm",
+        "startF": 3700000000,
+        "stopF": 4200000000,
+        "svgcolour": 46,
+        "type": 8,
+        "visible": 1
+    },
+    {
+        "ID": 6888,
+        "name": "6cm",
+        "startF": 5650000000,
+        "stopF": 5925000000,
+        "svgcolour": 84,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6889,
+        "name": "GB3MHZ",
+        "startF": 5760830000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 25,
+        "visible": 0
+    },
+    {
+        "ID": 6890,
+        "name": "GB3OHM",
+        "startF": 5760900000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 25,
+        "visible": 0
+    },
+    {
+        "ID": 6891,
+        "name": "GB3SCC",
+        "startF": 5760905000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 25,
+        "visible": 0
+    },
+    {
+        "ID": 6892,
+        "name": "GB3ZME",
+        "startF": 5760910000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 25,
+        "visible": 0
+    },
+    {
+        "ID": 6893,
+        "name": "GB3FNM",
+        "startF": 5760920000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 25,
+        "visible": 0
+    },
+    {
+        "ID": 6894,
+        "name": "GB3KEU",
+        "startF": 5760925000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 25,
+        "visible": 0
+    },
+    {
+        "ID": 6895,
+        "name": "GB3CSB",
+        "startF": 5760985000,
+        "stopF": 0,
+        "svgcolour": 21,
+        "type": 25,
+        "visible": 0
+    },
+    {
+        "ID": 6896,
+        "name": "Es'h-NB",
+        "startF": 10489500000,
+        "stopF": 10490000000,
+        "svgcolour": 84,
+        "type": 10,
+        "visible": 1
+    },
+    {
+        "ID": 6897,
+        "name": "NB low",
+        "startF": 10489500000,
+        "stopF": 0,
+        "svgcolour": 74,
+        "type": 11,
+        "visible": 1
+    },
+    {
+        "ID": 6898,
+        "name": "NB mid",
+        "startF": 10489750000,
+        "stopF": 0,
+        "svgcolour": 74,
+        "type": 11,
+        "visible": 1
+    },
+    {
+        "ID": 6899,
+        "name": "Es'h-WB",
+        "startF": 10491000000,
+        "stopF": 10499000000,
+        "svgcolour": 84,
+        "type": 9,
+        "visible": 1
+    },
+    {
+        "ID": 6900,
+        "name": "12A",
+        "startF": 223936000,
+        "stopF": 0,
+        "svgcolour": 10,
+        "type": 12,
+        "visible": 1
+    },
+    {
+        "ID": 6901,
+        "name": "GB3ME",
+        "startF": 433150000,
+        "stopF": "",
+        "svgcolour": 107,
+        "type": 4,
+        "visible": 1
+    },
+    {
+        "ID": 6902,
+        "name": "1296",
+        "startF": 1296000000,
+        "stopF": 0,
+        "svgcolour": 69,
+        "type": 14,
+        "visible": 1
+    },
+    {
+        "ID": 6903,
+        "name": "1246",
+        "startF": 1246000000,
+        "stopF": 0,
+        "svgcolour": 62,
+        "type": 14,
+        "visible": 1
+    },
+    {
+        "ID": 6904,
+        "name": "1152",
+        "startF": 1152000000,
+        "stopF": 0,
+        "svgcolour": 19,
+        "type": 14,
+        "visible": 1
+    },
+    {
+        "ID": 6905,
+        "name": "23cm beacons",
+        "startF": 1296810863,
+        "stopF": 1297037470,
+        "svgcolour": 56,
+        "type": 17,
+        "visible": 1
+    },
+    {
+        "ID": 6906,
+        "name": "23cm",
+        "startF": 1296000000,
+        "stopF": 1298000000,
+        "svgcolour": 59,
+        "type": 15,
+        "visible": 1
+    },
+    {
+        "ID": 6907,
+        "name": "5G band",
+        "startF": 5150000000,
+        "stopF": 5850000000,
+        "svgcolour": 131,
+        "type": 16,
+        "visible": 1
+    },
+    {
+        "ID": 6908,
+        "name": "WiFi 2G",
+        "startF": 2401000000,
+        "stopF": 2495000000,
+        "svgcolour": 84,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6909,
+        "name": "ch1",
+        "startF": 2412000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6910,
+        "name": "ch2",
+        "startF": 2417000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6911,
+        "name": "ch3",
+        "startF": 2422000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6912,
+        "name": "ch4",
+        "startF": 2427000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6913,
+        "name": "ch5",
+        "startF": 2432000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6914,
+        "name": "ch6",
+        "startF": 2437000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6915,
+        "name": "ch7",
+        "startF": 2442000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6916,
+        "name": "ch8",
+        "startF": 2447000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6917,
+        "name": "ch9",
+        "startF": 2452000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6918,
+        "name": "ch10",
+        "startF": 2457000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6919,
+        "name": "ch11",
+        "startF": 2462000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6920,
+        "name": "ch12",
+        "startF": 2467000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6921,
+        "name": "ch13",
+        "startF": 2472000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6922,
+        "name": "ch14",
+        "startF": 2484000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6923,
+        "name": "WiFi 5G",
+        "startF": 5150000000,
+        "stopF": 5510000000,
+        "svgcolour": 84,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6924,
+        "name": "WiFi 5G9",
+        "startF": 5855000000,
+        "stopF": 5990000000,
+        "svgcolour": 84,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6925,
+        "name": "ch32",
+        "startF": 5160000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6926,
+        "name": "ch36",
+        "startF": 5180000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6927,
+        "name": "ch40",
+        "startF": 5200000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6928,
+        "name": "ch44",
+        "startF": 5220000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6929,
+        "name": "ch48",
+        "startF": 5240000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6930,
+        "name": "ch52",
+        "startF": 5260000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6931,
+        "name": "ch56",
+        "startF": 5280000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6932,
+        "name": "ch60",
+        "startF": 5300000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6933,
+        "name": "ch64",
+        "startF": 5320000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6934,
+        "name": "ch68",
+        "startF": 5340000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6935,
+        "name": "ch72",
+        "startF": 5360000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6936,
+        "name": "ch76",
+        "startF": 5380000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6937,
+        "name": "ch80",
+        "startF": 5400000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6938,
+        "name": "ch84",
+        "startF": 5420000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6939,
+        "name": "ch88",
+        "startF": 5440000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6940,
+        "name": "ch92",
+        "startF": 5460000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6941,
+        "name": "ch96",
+        "startF": 5480000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6942,
+        "name": "ch100",
+        "startF": 5480000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6943,
+        "name": "ch172",
+        "startF": 5860000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6944,
+        "name": "ch174",
+        "startF": 5870000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6945,
+        "name": "ch176",
+        "startF": 5880000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6946,
+        "name": "ch178",
+        "startF": 5890000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6947,
+        "name": "ch180",
+        "startF": 5900000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6948,
+        "name": "ch182",
+        "startF": 5910000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6949,
+        "name": "ch184",
+        "startF": 5920000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6950,
+        "name": "ch186",
+        "startF": 5930000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6951,
+        "name": "ch188",
+        "startF": 5940000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6952,
+        "name": "ch190",
+        "startF": 5950000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6953,
+        "name": "ch192",
+        "startF": 5960000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6954,
+        "name": "ch194",
+        "startF": 5970000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6955,
+        "name": "ch196",
+        "startF": 5980000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6956,
+        "name": "ch121",
+        "startF": 6555000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6957,
+        "name": "ch125",
+        "startF": 6575000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6958,
+        "name": "ch129",
+        "startF": 6595000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6959,
+        "name": "ch133",
+        "startF": 6615000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6960,
+        "name": "ch137",
+        "startF": 6635000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6961,
+        "name": "ch141",
+        "startF": 6655000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6962,
+        "name": "ch145",
+        "startF": 6675000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6963,
+        "name": "ch149",
+        "startF": 6695000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6964,
+        "name": "ch153",
+        "startF": 6715000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6965,
+        "name": "ch157",
+        "startF": 6735000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6966,
+        "name": "ch161",
+        "startF": 6755000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6967,
+        "name": "ch165",
+        "startF": 6775000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6968,
+        "name": "ch169",
+        "startF": 6795000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6969,
+        "name": "ch173",
+        "startF": 6815000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6970,
+        "name": "ch177",
+        "startF": 6835000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6971,
+        "name": "ch181",
+        "startF": 6855000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6972,
+        "name": "ch185",
+        "startF": 6875000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6973,
+        "name": "ch189",
+        "startF": 6895000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6974,
+        "name": "ch193",
+        "startF": 6915000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6975,
+        "name": "ch197",
+        "startF": 6935000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6976,
+        "name": "ch201",
+        "startF": 6955000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6977,
+        "name": "ch205",
+        "startF": 6975000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6978,
+        "name": "ch209",
+        "startF": 6995000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6979,
+        "name": "ch213",
+        "startF": 7015000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6980,
+        "name": "ch217",
+        "startF": 7035000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6981,
+        "name": "ch221",
+        "startF": 7055000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6982,
+        "name": "ch225",
+        "startF": 7075000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6983,
+        "name": "ch229",
+        "startF": 7095000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6984,
+        "name": "ch233",
+        "startF": 7115000000,
+        "stopF": "",
+        "svgcolour": 15,
+        "type": 1,
+        "visible": 1
+    },
+    {
+        "ID": 6985,
+        "name": "WiFi 6G",
+        "startF": 6905000000,
+        "stopF": 7125000000,
+        "svgcolour": 84,
+        "type": 1,
+        "visible": 1
+    }
+]

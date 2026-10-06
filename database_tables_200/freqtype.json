@@ -1,0 +1,112 @@
+[
+    {
+        "ID": 1,
+        "LO": 0,
+        "preset": "amateur"
+    },
+    {
+        "ID": 3,
+        "LO": 0,
+        "preset": "other"
+    },
+    {
+        "ID": 4,
+        "LO": 0,
+        "preset": "repeater"
+    },
+    {
+        "ID": 5,
+        "LO": 0,
+        "preset": "RF mic"
+    },
+    {
+        "ID": 7,
+        "LO": 0,
+        "preset": "broadcast"
+    },
+    {
+        "ID": 8,
+        "LO": 5150000000,
+        "preset": "C band"
+    },
+    {
+        "ID": 9,
+        "LO": 5150000000,
+        "preset": "C beacon"
+    },
+    {
+        "ID": 10,
+        "LO": 9750000000,
+        "preset": "Ku band"
+    },
+    {
+        "ID": 11,
+        "LO": 9750000000,
+        "preset": "beacons ao100"
+    },
+    {
+        "ID": 12,
+        "LO": 0,
+        "preset": "fixed"
+    },
+    {
+        "ID": 14,
+        "LO": 0,
+        "preset": "local osc"
+    },
+    {
+        "ID": 15,
+        "LO": 1246000000,
+        "preset": "23cm/6m"
+    },
+    {
+        "ID": 16,
+        "LO": 0,
+        "preset": "WiFi"
+    },
+    {
+        "ID": 17,
+        "LO": 0,
+        "preset": "beacons 1296"
+    },
+    {
+        "ID": 18,
+        "LO": 0,
+        "preset": "beacons 28"
+    },
+    {
+        "ID": 19,
+        "LO": 0,
+        "preset": "beacons 50"
+    },
+    {
+        "ID": 20,
+        "LO": 0,
+        "preset": "beacons 70"
+    },
+    {
+        "ID": 21,
+        "LO": 0,
+        "preset": "beacons 144"
+    },
+    {
+        "ID": 22,
+        "LO": 0,
+        "preset": "beacons 432"
+    },
+    {
+        "ID": 23,
+        "LO": 0,
+        "preset": "beacons 2320"
+    },
+    {
+        "ID": 24,
+        "LO": 0,
+        "preset": "beacons 3400"
+    },
+    {
+        "ID": 25,
+        "LO": 0,
+        "preset": "beacons 5760"
+    }
+]

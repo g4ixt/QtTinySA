@@ -1,0 +1,46 @@
+[
+    {
+        "name": "boolean",
+        "seq": 2
+    },
+    {
+        "name": "rbw",
+        "seq": 9
+    },
+    {
+        "name": "trace",
+        "seq": 8
+    },
+    {
+        "name": "freqtype",
+        "seq": 25
+    },
+    {
+        "name": "SVGColour",
+        "seq": 148
+    },
+    {
+        "name": "settings",
+        "seq": 3
+    },
+    {
+        "name": "correction",
+        "seq": 3320
+    },
+    {
+        "name": "frequencies",
+        "seq": 6985
+    },
+    {
+        "name": "recording",
+        "seq": 7
+    },
+    {
+        "name": "checkboxes",
+        "seq": 1
+    },
+    {
+        "name": "numbers",
+        "seq": 1
+    }
+]

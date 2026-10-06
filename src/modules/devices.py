@@ -14,6 +14,7 @@ import time
 import queue
 import struct
 import numpy as np
+import usb.core
 from PySide6.QtCore import QObject, QElapsedTimer, QTimer, Signal, Slot, QRunnable, QThreadPool
 from serial.tools import list_ports
 from datetime import datetime
@@ -32,6 +33,14 @@ except ImportError:
 
 threadpool = QThreadPool()
 
+SERIAL_HW = {(0x0483, 0x5740): 'tinySA',
+             (0x04b4, 0x0008): 'Nano-VNA'}
+
+SOAPY_HW = {(0x0bda, 0x2838): 'RTL-SDR',
+            (0x1d50, 0x6108): 'LimeSDR-USB',
+            (0x0403, 0x601f): 'LimeSDR-Mini',
+            (0x1d50, 0x6089): 'HackRF-One'}
+
 class USBdevice(QObject):
     stopped = Signal(bool)
     update_info = Signal(int, str, str, bool)  # number, description, tooltip, state
@@ -46,7 +55,10 @@ class USBdevice(QObject):
         self.is_scanning = False
         self.loaded_files = 0
         self.num_enabled = 0
-        self.sdr = None
+        self.soapy_devs = []
+        self.blacklist = []
+        self.probe_ports = QTimer()
+        self.probe_ports.timeout.connect(self.probe)
 
     def setSignals(self):
         self.signals = WorkerSignals()
@@ -68,49 +80,66 @@ class USBdevice(QObject):
         self.rec_3 = Recorder(self.dev_sigs)
         self.recorders = (self.rec_0, self.rec_1, self.rec_2, self.rec_3)
 
-        # # create a SoapySDR receiver if soapy bindings are present and one doesn't exist already
-        # if SOAPY and self.sdr is None:  # and if "use soapy sdr device" is checked in settings > preferences
-        #     self.sdr = SoapySDRReceiver()
-
     def probe(self):
-        VID = (0x0483, 0x04b4)  # 1155 tinySA/NanoVNA, NanoVNA V2 +4
-        PID = (0x5740, 0x0008)  # 22336 tinySA/NanoVNA, NanoVNA V2 +4
-        
+        # detect usb-serial (tinySA) devices as they connect to the usb bus
         usbPorts = list_ports.comports()
-        # detect usb-serial port devices as they connect
         for port in usbPorts:
-            if port.vid in VID and port.pid in PID and port not in self.ports:
-                # make a list of devices that this app can use, as defined by the VID / PID of their usb connection
-                logging.info(f'Found {self.identify(port)} on {port.device}')
+            key = (port.vid, port.pid)
+            if key in SERIAL_HW and port not in self.ports:
+                # make a list of recognised devices
+                logging.info(f'Found serial device {key} {SERIAL_HW[key]} on {port.device}')
                 self.ports.append(port)
                 self.connect(port)
-            
+
         # detect and connect soapy devices
-        if SOAPY:  # and if "use soapy sdr devices" is checked in 'preferences'
-            devices = self.sdr.list_devices()
-            for dev in devices:
-                driver = dev.args.get("driver")
-                name = dev.args.get("name")
-                sn = dev.args.get("serial")
-                label = dev.args.get("label")
-                dev_id = driver + " " + sn
-                port = FakePortInfo(device=dev_id, name=name, description=label, serial_number=sn, product=name)
-                if driver in ["lime", "limesuiteng"]:
-                    self.ports.append(port)
-                    self.connect(port)
+        new_device = False
+        for device in usb.core.find(find_all=True):
+            vid = device.idVendor
+            pid = device.idProduct
+            if (vid, pid) in SOAPY_HW and (vid, pid) not in self.blacklist:
+                try:
+                    dsn = device.serial_number
+                    details = (SOAPY_HW[(vid, pid)], dsn)
+                    if details in self.soapy_devs:
+                        continue
+                    else:
+                        self.soapy_devs.append((SOAPY_HW[(vid, pid)], dsn))
+                        logging.info(f'usb.core found {SOAPY_HW[(vid, pid)]} serial number {dsn}')
+                        new_device = True
+                except ValueError:
+                    logging.info(f'{SOAPY_HW[(vid, pid)]} failed serial number query and was blacklisted')
+                    self.blacklist.append((vid, pid))
+                    continue
+        if new_device:
+            if SOAPY:  # and if "use soapy sdr devices" is checked in 'preferences'
+                devices = list_devices()
+                for device in devices:
+                    driver = device.args.get("driver", "unknown")
+                    name = device.args.get("name", driver)
+                    label = device.args.get("label", driver)
+                    sn = device.args.get("serial", "0")
+                    dev_id = name + "_" + sn
+                    port = FakePortInfo(device=dev_id, name=name, description=label, serial_number=sn, product=name)
+                    if port not in self.ports:
+                        logging.info(f'Soapy recognised {name} serial number {sn} with {driver} driver')
+                        # logging.info(f'Attempting to connect {name}')
+                        self.ports.append(port)
+                        self.connect(port)
+            else:
+                logging.info('Soapy module not installed or it is disabled in preferences')
 
         # detect usb-serial port devices that have been turned off or lost contact
-        for port in self.ports:
-            if port not in usbPorts:
-                self.disconnect(port.device)
-                self.ports.remove(port)
+        # for port in self.ports:
+        #     if port not in usbPorts:
+        #         self.disconnect(port.device)
+        #         self.ports.remove(port)
                 
-                # update the GUI info for all devices
-                self.clear_all_gui_dev_info()
-                if self.devices:
-                    for device in self.devices:
-                        port_num = self.port_to_num(device.usbPort)
-                        self.set_gui_dev_info(device, port_num)
+        #         # update the GUI info for all devices
+        #         self.clear_all_gui_dev_info()
+        #         if self.devices:
+        #             for device in self.devices:
+        #                 port_num = self.port_to_num(device.usbPort)
+        #                 self.set_gui_dev_info(device, port_num)
 
     def identify(self, port):
         # Windows returns no description information to pySerial list_ports.comports()
@@ -123,53 +152,47 @@ class USBdevice(QObject):
     def port_to_num(self, usbPort):
         # port number sets the order devices are used and the gui list order
         port_names = [port.device for port in self.ports]
+        logging.info(f'port names = {port_names}')
         port_num = port_names.index(usbPort)
         return port_num
 
-    def connect(self, port, cnx_type):    
+    def connect(self, port):    
         '''set up the specific device measurement function depending on the description from the usb port probe'''
         
         if len(self.devices) == 4:
             logging.info('connect: cannot connect more than 4 devices')
             return
 
-        if cnx_type == 'serial':
-            port_num = self.port_to_num(port.device)
-            description = self.identify(port)
-            
-            # instantiate an appropriate device class and append it to the self.devices list
-            if description == "tinySA":
-                sa = Tiny(port.device, description, self.dev_sigs, basic=True)
-            if description == "tinySA4":
-                sa = Tiny(port.device, description, self.dev_sigs, basic=False)
-            if description in ["NanoVnaPro Virtual ComPort", "CDC-ACM Demo"]:
-                sa = Nano(port.device, description, self.dev_sigs)
-            if description in ['LimeSDR-USB', 'LimeSDR Mini']:
-                    sa = Lime(port, description, self.dev_sigs)
-            
-            self.devices.append(sa)
-      
-            # wait for device power-up; test using its unique commands; store values in its class instance
-            time.sleep(0.1)
-            test = sa.test(port.device)
-            if test is True:
-                self.set_gui_dev_info(sa, port_num)
-            else:
-                logging.info(f'test of {port} failed')
-                self.disconnect(port, 'serial')
-                self.devices.remove(sa)
+        port_num = self.port_to_num(port.device)
+        description = self.identify(port)
+        
+        # instantiate an appropriate device class and append it to the self.devices list
+        if description == "tinySA":
+            sa = Tiny(port.device, description, self.dev_sigs, basic=True)
+        if description == "tinySA4":
+            sa = Tiny(port.device, description, self.dev_sigs, basic=False)
+        if description in ["NanoVnaPro Virtual ComPort", "CDC-ACM Demo"]:
+            sa = Nano(port.device, description, self.dev_sigs)
+        if description in ['LimeSDR-USB', 'LimeSDR Mini']:
+                sa = Lime(port.device, description, self.dev_sigs)
+                logging.info(f'connect: {sa}')
+        if description in ['hackrf']:
+                sa = HackRFOne(port.device, description, self.dev_sigs)
+                logging.info(f'connect: {sa}')
 
-        if cnx_type == 'soapy':
-            devices = self.sdr.list_devices()
-            for device in devices:
-                name = device.args.get("name")
-                sn = device.args.get("serial")
-                logging.info(f'probe: name = {name}')
-                if name == "LimeSDR-USB":
-                    sa = Lime(driver, name, sn, self.dev_sigs)
-                    self.devices.append(sa)
+        self.devices.append(sa)
+  
+        # wait for device power-up; test using its unique commands; store values in its class instance
+        time.sleep(0.1)
+        test = sa.test(port.device)
+        if test is True:
+            self.set_gui_dev_info(sa, port_num)
+        else:
+            logging.info(f'test of {port} failed')
+            self.disconnect(port, 'serial')
+            self.devices.remove(sa)
 
-    def disconnect(self, usbPort, cnx_type):
+    def disconnect(self, usbPort):
         for device in self.devices:
             if device.usbPort == usbPort:
                 logging.info(f'{device.name} {device.sn} has disconnected from {device.usbPort}')
@@ -190,7 +213,8 @@ class USBdevice(QObject):
         sn = str(device.sn)
         description = device.name[:8]
         port = device.usbPort
-        tooltip = device.name + '\n' + 's/n ' + sn + '\n' + port
+        # tooltip = device.name + '\n' + 's/n ' + sn + '\n' + port
+        tooltip = device.name + '\n' + 's/n ' + sn + '\n'
         self.update_info.emit(port_num, description, tooltip, state)
 
     def clear_gui_dev_info(self, port_num):
@@ -928,76 +952,212 @@ class Lime(QObject):
         self.usbPort = port  # a fake port for code compatibility
         self.enabled = True
         self.sweeping = False
-        self.name = name
-        self.sn = sn
+        self.threadRunning = False
+        self.name = None
+        self.sn = 0
+        self.fifoTimer = QTimer(self)  # not used, for compatibility
 
     def setSignals(self, sigs):
         self.signals = WorkerSignals()
         self.signals.save.connect(sigs["save"])
-        self.sdr.error.connect(sigs["error"])
-        self.sdr.status.connect(sigs["status"])
+        # self.sdr.error.connect(sigs["error"])
+        # self.sdr.status.connect(sigs["status"])
         self.signals.result.connect(sigs["result"])
         self.signals.error.connect(sigs["error"])
 
     def set_ctrls(self, rbw, attn, lna, spur):
-        self.sdr.set_device("lime", {"driver": "lime"}, port_in_use=self.usbPort)
+        self.sdr.set_device("limesuiteng", {"driver": "limesuiteng", "name": "LimeSDR-USB", "serial":"0009081C05C41930"}, port_in_use=self.usbPort)
         self.sdr.set_antenna("LNAW")  # move this to somewhere else
         if lna:
-            self.sdr.set_gain(30) # or set_gain(None) for AGC
+            self.sdr.set_rx_gain(20) # or set_gain(None) for AGC
         else:
-            self.sdr.set_gain(10)
+            self.sdr.set_rx_gain(0)
         self.sdr.set_kaiser_beta(10.5)  # move this to somewhere else
-        self.sdr.set_dc_offset_removal(True, mode="hardware")
+        self.sdr.set_dc_offset_removal(mode="both")
 
     def measurement(self, startF, stopF, points, rbw, depth, maxF, interval, split, loop):
+        self.threadRunning = True
         span = stopF - startF
-        self.sdr.set_center_frequency(startF + (span/2))
-        self.sdr.set_span(span)
-        self.sdr.setRBW(rbw * 1000)
-        points = calculate_fft_size()
+        # self.sdr.set_center_frequency(startF + (span/2))
+        # self.sdr.set_span(span)
+        # set sweep and mode.  output_mode can be "composite" or "segments"
+        mode = "segments"
+        self.sdr.set_sweep(startF, stopF, output_mode=mode)
+        self.sdr.set_rbw(rbw * 1000)
         
-        logging.info(f'Lime measurement: span ={span} rbw={rbw*1000} fft size = {points}')
+        # Soapy SDR fft size is calculated and optimised based on span, RBW and kaiser window beta
+        # In segmments mode the segments slightly overlap so the array size is bigger than for composite
+        if mode == "segments":
+            arr_size = self.sdr._fft_size
+        else:
+            arr_size = self.sdr.composite_size
         
-        maxl = np.full(points, -140, dtype=float)
-        minl = np.full(points, 0, dtype=float)
-        buffer = np.full((depth, points), np.nan, dtype=float)  # used for waterfall and calculating averages
+        logging.info(f'Lime measurement: sweep span {span} SDR span {self.sdr.segment_span_hz}')
+        logging.info(f'rbw {rbw*1000} arr size  {arr_size} fft size {self.sdr._fft_size}')
+        logging.info(f'segments {self.sdr.num_segments}')
+        
+        maxl = np.full(arr_size, -140, dtype=float)
+        minl = np.full(arr_size, 0, dtype=float)
+        buffer = np.full((depth, arr_size), np.nan, dtype=float)  # used for waterfall and calculating averages
         
         self.sdr.start()
         
         updateTimer = QElapsedTimer()
         updateTimer.start()
         while self.sweeping:
+            while self.sdr.data_queue.empty():
+                time.sleep(0.001)
             try:
-                # Attempt to get an item from SoapyReceiverProcess immediately without blocking
                 freqs, power, timestamp, port_in_use = self.sdr.data_queue.get_nowait()
             except queue.Empty:
-
                 logging.info('Lime measurement: queue is empty')
-
-                time.sleep(0.01)
-
-            np.fmax(power, maxl, out=maxl)  # compare current level with max and min
-            np.fmin(power, minl, out=minl)  # and save them back on themselves  
-            buffer = np.roll(buffer, 1, axis=0)
-            buffer[0] = power
+            
+            try:
+                np.fmax(power, maxl, out=maxl)  # compare current level with max and min
+                np.fmin(power, minl, out=minl)  # and save them back on themselves
+                buffer = np.roll(buffer, 1, axis=0)
+                buffer[0] = power
+            except ValueError:
+                logging.info(f'Lime measurement: skipped array size mismatch')
 
             timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
             if timeElapsed/1e6 > interval:  # GUI update interval mS
                 # send the measurement data to router() in the Analyser class
-                self.signals.result.emit(freqs, power, maxl, minl, buffer, self.usbPort, self.sn, timestamp, split, True)
+                # sn is a string for Lime but the 'result' signal expects int so send 100 for now
+                ser = 100
+                self.signals.result.emit(freqs, power, maxl, minl, buffer, self.usbPort, ser, timestamp, split, True)
                 updateTimer.start()
 
         self.sdr.stop()
         self.sdr.wait()
+        self.threadRunning = False
         
-        
-        
-    #                    rbw, depth, maxF, interval, split, loo)
-                    # device.sa = Worker(device.measurement, startF, stopF, points,
-                    #                    rbw, depth, maxF, interval, split, loop)
-
-    def test(self):
+    def test(self, port):
+        port_list = port.split('_')
+        self.name = port_list[0]
+        self.sn = port_list[1]
+        logging.info(f'name= {self.name} sn = {self.sn}')
         return True
+
+    @Slot()
+    def usbSend(self):
+        # for compatibility
+        return
+    
+    def close(self):
+        if self.sdr is not None:
+            self.sweeping = False   # tell measurement()'s loop to exit, if a scan is currently running
+            self.sdr.shutdown(timeout=5.0)
+            logging.debug(f'Close: Lime SDR {self.usbPort} stopped')
+            self.sdr = None
+
+class HackRFOne(QObject):
+    '''
+    • Frequency Control: setFrequency, getFrequency; range query (getFrequencyRange) for RF and baseband components.
+    • Sample Rates: setSampleRate, getSampleRate, and listing available rates (listSampleRates up to 20 MSps).
+    • Bandwidth Control: setBandwidth, getBandwidth, istBandwidths (supports manual or auto filter configurations).
+    • Gain Management: setGain, getGain, and controls for RF amplifier (AMP), LNA / IF gain, and VGA / baseband gain.
+    • Antenna Selection: setAntenna, getAntenna, and listAntennas (typically TX/RX).
+    • Streaming Operations: setupStream, closeStream, activateStream, deactivateStream,
+                            readStream (RX), writeStream (TX) supporting formats like CS8, CS16, CF32, and CF64.
+    • Device Settings / Bias-Tee Control: writeSetting and readSetting hooks for hardware configurations
+                                         like antenna power (bias_tee or RX/TX bias).'''
+    def __init__(self, port, description, sigs):
+        super().__init__()       
+        self.sdr = SoapyReceiverProcess()
+        self.setSignals(sigs)
+        self.usbPort = port  # a fake port for code compatibility
+        self.enabled = True
+        self.sweeping = False
+        self.threadRunning = False
+        self.name = None
+        self.sn = 0
+        self.fifoTimer = QTimer(self)  # not used, for compatibility
+
+    def setSignals(self, sigs):
+        self.signals = WorkerSignals()
+        self.signals.save.connect(sigs["save"])
+        # self.sdr.error.connect(sigs["error"])
+        # self.sdr.status.connect(sigs["status"])
+        self.signals.result.connect(sigs["result"])
+        self.signals.error.connect(sigs["error"])
+
+    def set_ctrls(self, rbw, attn, lna, spur):
+        self.sdr.set_device("hackrf", {"driver": "hackrf",
+                            "serial":"0000000000000000088869dc2541451b"},
+                            port_in_use=self.usbPort)
+        self.sdr.set_antenna("RX")  # move this to somewhere else
+        if lna:
+            self.sdr.set_gain(20) # or set_gain(None) for AGC
+        else:
+            self.sdr.set_gain(0)
+        self.sdr.set_kaiser_beta(10.5)  # move this to somewhere else
+        self.sdr.set_dc_offset_removal(mode="software")
+
+    def measurement(self, startF, stopF, points, rbw, depth, maxF, interval, split, loop):
+        self.threadRunning = True
+        span = stopF - startF
+        self.sdr.set_center_frequency(startF + (span/2))
+        self.sdr.set_span(span)
+        self.sdr.set_rbw(rbw * 1000)
+        fft_size = self.sdr._fft_size  # calc'd and optimised based on span, RBW and kaiser window beta
+        
+        logging.info(f'HackRF-One measurement: span ={span} rbw={rbw*1000} fft size = {fft_size}')
+        
+        maxl = np.full(fft_size, -140, dtype=float)
+        minl = np.full(fft_size, 0, dtype=float)
+        buffer = np.full((depth, fft_size), np.nan, dtype=float)  # used for waterfall and calculating averages
+        
+        self.sdr.start()
+        
+        updateTimer = QElapsedTimer()
+        updateTimer.start()
+        while self.sweeping:
+            while self.sdr.data_queue.empty():
+                time.sleep(0.001)
+            try:
+                freqs, power, timestamp, port_in_use = self.sdr.data_queue.get_nowait()
+            except queue.Empty:
+                logging.info('HackRF measurement: queue is empty')
+            
+            try:
+                np.fmax(power, maxl, out=maxl)  # compare current level with max and min
+                np.fmin(power, minl, out=minl)  # and save them back on themselves
+                buffer = np.roll(buffer, 1, axis=0)
+                buffer[0] = power
+            except ValueError:
+                logging.info(f'HackRF measurement: skipped array size mismatch')
+
+            timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
+            if timeElapsed/1e6 > interval:  # GUI update interval mS
+                # send the measurement data to router() in the Analyser class
+                # sn is a string for Lime but the 'result' signal expects int so send 100 for now
+                ser = 100
+                self.signals.result.emit(freqs, power, maxl, minl, buffer, self.usbPort, ser, timestamp, split, True)
+                updateTimer.start()
+
+        self.sdr.stop()
+        self.sdr.wait()
+        self.threadRunning = False
+        
+    def test(self, port):
+        port_list = port.split('_')
+        self.name = port_list[0]
+        self.sn = port_list[1]
+        logging.info(f'name= {self.name} sn = {self.sn}')
+        return True
+
+    @Slot()
+    def usbSend(self):
+        # for compatibility
+        return
+    
+    def close(self):
+        if self.sdr is not None:
+            self.sweeping = False   # tell measurement()'s loop to exit, if a scan is currently running
+            self.sdr.shutdown(timeout=5.0)
+            logging.debug(f'Close: Lime SDR {self.usbPort} stopped')
+            self.sdr = None
 
 
 class RTL(QObject):

@@ -1,0 +1,114 @@
+[
+    {
+        "type": "trace",
+        "value": "Normal"
+    },
+    {
+        "type": "trace",
+        "value": "Average"
+    },
+    {
+        "type": "trace",
+        "value": "Max"
+    },
+    {
+        "type": "trace",
+        "value": "Min"
+    },
+    {
+        "type": "marker",
+        "value": "Off"
+    },
+    {
+        "type": "marker",
+        "value": "Normal"
+    },
+    {
+        "type": "marker",
+        "value": "Max"
+    },
+    {
+        "type": "marker",
+        "value": "Min"
+    },
+    {
+        "type": "rbw",
+        "value": "0.2"
+    },
+    {
+        "type": "rbw",
+        "value": "1"
+    },
+    {
+        "type": "rbw",
+        "value": "3"
+    },
+    {
+        "type": "rbw",
+        "value": "10"
+    },
+    {
+        "type": "rbw",
+        "value": "30"
+    },
+    {
+        "type": "rbw",
+        "value": "100"
+    },
+    {
+        "type": "rbw",
+        "value": "300"
+    },
+    {
+        "type": "rbw",
+        "value": "600"
+    },
+    {
+        "type": "rbw",
+        "value": "850"
+    },
+    {
+        "type": "trace",
+        "value": "Freeze"
+    },
+    {
+        "type": "correction",
+        "value": "low"
+    },
+    {
+        "type": "correction",
+        "value": "direct"
+    },
+    {
+        "type": "correction",
+        "value": "ultra"
+    },
+    {
+        "type": "correction",
+        "value": "lna"
+    },
+    {
+        "type": "correction",
+        "value": "direct_lna"
+    },
+    {
+        "type": "correction",
+        "value": "ultra_lna"
+    },
+    {
+        "type": "correction",
+        "value": "out"
+    },
+    {
+        "type": "correction",
+        "value": "out_direct"
+    },
+    {
+        "type": "correction",
+        "value": "out_adf"
+    },
+    {
+        "type": "correction",
+        "value": "out_ultra"
+    }
+]

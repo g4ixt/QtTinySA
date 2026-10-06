@@ -137,12 +137,8 @@ def is_lime_driver(driver: str | None) -> bool:
 
 
 def kaiser_enbw_factor(beta: float, reference_size: int = 8192) -> float:
-    """
-    Equivalent noise bandwidth (ENBW), in bins, of a numpy Kaiser window with the given beta -- how much wider
-    a window's main lobe is than an ideal rectangular one of the same length, as a multiplying factor. Used by
-    calculate_fft_size() to compensate for that broadening, since the achievable RBW is wider than a raw
-    sample_rate/fft_size bin spacing would suggest once a window is applied.
-    """
+    """Equivalent noise bandwidth (in bins) of a numpy Kaiser window with the given beta. See soapy_receiver.py
+    for the full rationale -- this compensates calculate_fft_size() for windowing's main-lobe broadening."""
     w = np.kaiser(reference_size, beta)
     return float(reference_size * np.sum(w ** 2) / (np.sum(w) ** 2))
 
@@ -154,11 +150,8 @@ def calculate_fft_size(
     max_fft_size: int = MAX_FFT_SIZE,
     min_fft_size: int = MIN_FFT_SIZE,
 ) -> int:
-    """
-    Compute the power-of-two FFT size needed to achieve rbw_hz at sample_rate, accounting for the Kaiser
-    window's ENBW (see kaiser_enbw_factor()). Raises ValueError, naming the finest achievable RBW instead, if
-    the required FFT size would exceed max_fft_size.
-    """
+    """Compute the FFT size needed for rbw_hz at sample_rate; raises ValueError if unachievable within
+    max_fft_size. See soapy_receiver.py's calculate_fft_size() for full details -- identical logic."""
     if rbw_hz <= 0:
         raise ValueError("rbw_hz must be > 0")
     if sample_rate <= 0:
@@ -181,11 +174,7 @@ def calculate_fft_size(
 
 
 def make_window(size: int, beta: float) -> np.ndarray:
-    """
-    Build a coherent-gain-normalized numpy Kaiser window: the raw window divided by its own mean, so a
-    full-scale sinusoid reports the same peak power regardless of beta -- changing beta trades off main-lobe
-    width against sidelobe suppression without shifting the reported signal level.
-    """
+    """Coherent-gain-normalized numpy Kaiser window. See soapy_receiver.py -- identical logic."""
     win = np.kaiser(size, beta)
     coherent_gain = win.mean()
     if coherent_gain <= 0:
@@ -235,7 +224,7 @@ def compute_composite_size(fft_size: int, num_segments: int, crop_bins: int) -> 
 
 
 def compute_spectrum(iq: np.ndarray, window: np.ndarray) -> np.ndarray:
-    """Apply the (coherent-gain-normalized) window, FFT, and convert to dB: 20*log10(|FFT(iq*window)|/N)."""
+    """Windowed FFT power in dB. See soapy_receiver.py -- identical logic."""
     windowed = iq * window
     spectrum = np.fft.fftshift(np.fft.fft(windowed))
     n = len(spectrum)
@@ -776,16 +765,16 @@ class SoapyReceiverProcess:
     Parent-side handle for a SoapySDR acquisition worker running in its own OS process.
 
     Public API deliberately mirrors soapy_receiver.SoapySDRReceiver's setters (set_device, set_center_frequency,
-    set_span, set_sweep, set_rbw, set_rx_gain, set_antenna, set_bandwidth, set_dc_offset_removal,
-    set_iq_balance_mode, set_auto_calibrate, set_gfir_lpf_bandwidth, set_oversampling, set_kaiser_beta,
-    set_offset_tuning, set_amplitude_calibration, clear_amplitude_calibration, start, stop, wait), plus
-    set_tx_gain(), set_tx_antenna(), enable_tsg(), disable_tsg() -- new here, since the threading version let
-    LimeLoopbackCalibrator reach into receiver.device directly, which isn't possible across a process boundary.
+    set_span, set_rbw, set_rx_gain, set_antenna, set_bandwidth, set_dc_offset_removal, set_iq_balance_mode,
+    set_auto_calibrate, set_gfir_lpf_bandwidth, set_oversampling, set_kaiser_beta, set_offset_tuning,
+    set_amplitude_calibration, clear_amplitude_calibration, start, stop, wait), plus set_tx_antenna(),
+    enable_tsg(), disable_tsg() -- new here, since the threading version let LimeLoopbackCalibrator reach into
+    receiver.device directly, which isn't possible across a process boundary.
 
     There is no spectrum_ready signal. Read data_queue (normal operation) and calibration_queue (only populated
-    while a TSG tone is active -- see module docstring above) directly; QtTinySA is expected to drain data_queue
-    itself in its own dedicated thread. event_queue carries status and error messages as (kind, message) tuples,
-    kind being "status" or "error" -- there is only this one queue for both, not separate ones.
+    while a TSG tone is active -- see class docstring above) directly; QtTinySA is expected to drain data_queue
+    itself in its own dedicated thread. error_queue and status_queue carry the equivalents of soapy_receiver's
+    error/status signals as plain (message,) tuples.
 
     Typical usage:
 
@@ -793,14 +782,15 @@ class SoapyReceiverProcess:
         rx.set_device("lime", {"driver": "lime"}, port_in_use=port_info)
         rx.set_center_frequency(100e6)
         rx.set_rx_gain(30)
+        rx.set_tx_gain(20)  # fix this explicitly for TSG/loopback -- see set_tx_gain() docstring
         rx.set_span(2e6)
         rx.set_rbw(10e3)
         rx.start()
-        rx.set_tx_gain(20)  # TX-side settings only take effect once running -- see set_tx_gain()
         ...
         freqs, power, timestamp, port_in_use = rx.data_queue.get(timeout=1.0)
         ...
-        rx.shutdown()  # stops cleanly, or forcibly terminates a wedged worker -- see shutdown()
+        rx.stop()
+        rx.wait()
     """
 
     def __init__(self) -> None:
@@ -904,7 +894,7 @@ class SoapyReceiverProcess:
         sample rate is wider than the nominal per-segment slice, since each segment's own freqs array already
         shows where it sits, so no extra fields are needed to place it. If one segment's capture times out in a
         given cycle, the others are still emitted; composite mode instead drops that whole cycle's composite
-        rather than emit a short array (see _run_sweep_loop()).
+        rather than emit a short array -- see compute_composite_size()'s docstring.
 
         Composite mode: segments are cropped at internal boundaries before concatenating, so the composite's
         length is fixed and known ahead of time regardless of rounding; the outer edges of the first and last
@@ -1097,13 +1087,7 @@ class SoapyReceiverProcess:
         ]
 
     def set_amplitude_calibration(self, freqs_hz: np.ndarray, offsets_db: np.ndarray) -> None:
-        """
-        Install a per-frequency amplitude correction table: every emitted spectrum's power is corrected as
-        power - interp(freq, freqs_hz, offsets_db), linearly interpolated between points and holding the
-        nearest endpoint's value outside the calibrated range. Typically populated from
-        LimeLoopbackCalibrator.run_calibration_sweep()'s result. Safe to call while running -- sent to the
-        worker as a command, applied from the next capture onward.
-        """
+        """Safe to call while running. See soapy_receiver.py's version for the full rationale."""
         freqs_hz = np.asarray(freqs_hz, dtype=np.float64)
         offsets_db = np.asarray(offsets_db, dtype=np.float64)
         if freqs_hz.shape != offsets_db.shape or freqs_hz.ndim != 1:
@@ -1234,10 +1218,8 @@ class SoapyReceiverProcess:
     @property
     def fft_size(self) -> int:
         """
-        The currently computed FFT size, as last set by set_rbw() -- or the constructor's default if set_rbw()
-        hasn't been called yet. This is the length of each individual capture: every data_queue item outside of
-        sweep mode, and every segment in "segments" sweep mode -- but NOT a composite-mode sweep's output, which
-        is composite_size instead (see its docstring for why the two aren't simply related by num_segments).
+        The currently computed FFT size (and therefore the length of every freqs/power array the worker will
+        emit), as last set by set_rbw() -- or the constructor's default if set_rbw() hasn't been called yet.
         Purely a parent-side computed value; safe to read at any time, including before start() is ever called,
         since it never depends on the worker process being alive.
         """

@@ -1,0 +1,422 @@
+[
+    {
+        "ID": 3121,
+        "dB": "12.2",
+        "entry": 0,
+        "frequency": 10000,
+        "mode": "low"
+    },
+    {
+        "ID": 3122,
+        "dB": "7.6",
+        "entry": 1,
+        "frequency": 50000,
+        "mode": "low"
+    },
+    {
+        "ID": 3123,
+        "dB": "4.5",
+        "entry": 2,
+        "frequency": 200000,
+        "mode": "low"
+    },
+    {
+        "ID": 3124,
+        "dB": "2.2",
+        "entry": 3,
+        "frequency": 400000,
+        "mode": "low"
+    },
+    {
+        "ID": 3125,
+        "dB": "0.4",
+        "entry": 4,
+        "frequency": 900000,
+        "mode": "low"
+    },
+    {
+        "ID": 3126,
+        "dB": "-0.4",
+        "entry": 5,
+        "frequency": 20000000,
+        "mode": "low"
+    },
+    {
+        "ID": 3127,
+        "dB": "0.0",
+        "entry": 6,
+        "frequency": 30000000,
+        "mode": "low"
+    },
+    {
+        "ID": 3128,
+        "dB": "-0.8",
+        "entry": 7,
+        "frequency": 100000000,
+        "mode": "low"
+    },
+    {
+        "ID": 3129,
+        "dB": "-1.4",
+        "entry": 8,
+        "frequency": 160000000,
+        "mode": "low"
+    },
+    {
+        "ID": 3130,
+        "dB": "0.3",
+        "entry": 9,
+        "frequency": 230000000,
+        "mode": "low"
+    },
+    {
+        "ID": 3131,
+        "dB": "0.9",
+        "entry": 10,
+        "frequency": 290000000,
+        "mode": "low"
+    },
+    {
+        "ID": 3132,
+        "dB": "1.5",
+        "entry": 11,
+        "frequency": 400000000,
+        "mode": "low"
+    },
+    {
+        "ID": 3133,
+        "dB": "1.6",
+        "entry": 12,
+        "frequency": 520000000,
+        "mode": "low"
+    },
+    {
+        "ID": 3134,
+        "dB": "2.2",
+        "entry": 13,
+        "frequency": 600000000,
+        "mode": "low"
+    },
+    {
+        "ID": 3135,
+        "dB": "3.1",
+        "entry": 14,
+        "frequency": 660000000,
+        "mode": "low"
+    },
+    {
+        "ID": 3136,
+        "dB": "4.1",
+        "entry": 15,
+        "frequency": 740000000,
+        "mode": "low"
+    },
+    {
+        "ID": 3137,
+        "dB": "6.0",
+        "entry": 16,
+        "frequency": 790000000,
+        "mode": "low"
+    },
+    {
+        "ID": 3138,
+        "dB": "7.6",
+        "entry": 17,
+        "frequency": 810000000,
+        "mode": "low"
+    },
+    {
+        "ID": 3139,
+        "dB": "9.8",
+        "entry": 18,
+        "frequency": 820000000,
+        "mode": "low"
+    },
+    {
+        "ID": 3140,
+        "dB": "13.2",
+        "entry": 19,
+        "frequency": 830000000,
+        "mode": "low"
+    },
+    {
+        "ID": 3141,
+        "dB": "35.1",
+        "entry": 0,
+        "frequency": 140000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3142,
+        "dB": "34.2",
+        "entry": 1,
+        "frequency": 150000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3143,
+        "dB": "32.4",
+        "entry": 2,
+        "frequency": 160000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3144,
+        "dB": "30.0",
+        "entry": 3,
+        "frequency": 180000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3145,
+        "dB": "21.7",
+        "entry": 4,
+        "frequency": 280000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3146,
+        "dB": "20.4",
+        "entry": 5,
+        "frequency": 300000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3147,
+        "dB": "16.5",
+        "entry": 6,
+        "frequency": 380000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3148,
+        "dB": "15.9",
+        "entry": 7,
+        "frequency": 390000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3149,
+        "dB": "14.9",
+        "entry": 8,
+        "frequency": 410000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3150,
+        "dB": "14.3",
+        "entry": 9,
+        "frequency": 430000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3151,
+        "dB": "11.6",
+        "entry": 10,
+        "frequency": 490000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3152,
+        "dB": "10.7",
+        "entry": 11,
+        "frequency": 520000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3153,
+        "dB": "8.9",
+        "entry": 12,
+        "frequency": 560000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3154,
+        "dB": "1.3",
+        "entry": 13,
+        "frequency": 830000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3155,
+        "dB": "0.6",
+        "entry": 14,
+        "frequency": 840000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3156,
+        "dB": "1.5",
+        "entry": 15,
+        "frequency": 860000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3157,
+        "dB": "0.6",
+        "entry": 16,
+        "frequency": 870000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3158,
+        "dB": "2.2",
+        "entry": 17,
+        "frequency": 960000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3159,
+        "dB": "3.8",
+        "entry": 18,
+        "frequency": 1040000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3160,
+        "dB": "6.3",
+        "entry": 19,
+        "frequency": 1130000000,
+        "mode": "direct"
+    },
+    {
+        "ID": 3161,
+        "dB": "-3.5",
+        "entry": 0,
+        "frequency": 30000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3162,
+        "dB": "0.9",
+        "entry": 1,
+        "frequency": 700000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3163,
+        "dB": "2.6",
+        "entry": 2,
+        "frequency": 980000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3164,
+        "dB": "9.1",
+        "entry": 3,
+        "frequency": 1440000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3165,
+        "dB": "11.5",
+        "entry": 4,
+        "frequency": 1590000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3166,
+        "dB": "13.9",
+        "entry": 5,
+        "frequency": 1900000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3167,
+        "dB": "13.3",
+        "entry": 6,
+        "frequency": 2810000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3168,
+        "dB": "10.0",
+        "entry": 7,
+        "frequency": 3340000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3169,
+        "dB": "10.5",
+        "entry": 8,
+        "frequency": 3390000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3170,
+        "dB": "9.3",
+        "entry": 9,
+        "frequency": 3930000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3171,
+        "dB": "9.5",
+        "entry": 10,
+        "frequency": 4230000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3172,
+        "dB": "10.2",
+        "entry": 11,
+        "frequency": 4300000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3173,
+        "dB": "10.3",
+        "entry": 12,
+        "frequency": 4340000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3174,
+        "dB": "14.4",
+        "entry": 13,
+        "frequency": 4810000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3175,
+        "dB": "9.2",
+        "entry": 14,
+        "frequency": 5070000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3176,
+        "dB": "13.3",
+        "entry": 15,
+        "frequency": 5110000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3177,
+        "dB": "12.4",
+        "entry": 16,
+        "frequency": 5300000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3178,
+        "dB": "12.6",
+        "entry": 17,
+        "frequency": 5510000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3179,
+        "dB": "15.8",
+        "entry": 18,
+        "frequency": 5850000000,
+        "mode": "ultra"
+    },
+    {
+        "ID": 3180,
+        "dB": "15.9",
+        "entry": 19,
+        "frequency": 6000000000,
+        "mode": "ultra"
+    }
+]

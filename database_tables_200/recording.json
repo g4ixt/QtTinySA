@@ -1,0 +1,80 @@
+[
+    {
+        "ID": 2,
+        "RBW": null,
+        "device_name": null,
+        "device_sn": null,
+        "file_name": "2026-04-07-222512",
+        "folder": "/home/ian/Documents/GitHub/QtTinySA/sweep_files",
+        "points": null,
+        "startF": null,
+        "start_time": null,
+        "stopF": null,
+        "stop_time": null
+    },
+    {
+        "ID": 3,
+        "RBW": null,
+        "device_name": null,
+        "device_sn": null,
+        "file_name": "2026-04-07-222805",
+        "folder": "/home/ian/Documents/GitHub/QtTinySA/sweep_files",
+        "points": null,
+        "startF": null,
+        "start_time": null,
+        "stopF": null,
+        "stop_time": null
+    },
+    {
+        "ID": 4,
+        "RBW": null,
+        "device_name": null,
+        "device_sn": null,
+        "file_name": "2026-04-07-222859",
+        "folder": "/home/ian/Documents/GitHub/QtTinySA/sweep_files",
+        "points": null,
+        "startF": null,
+        "start_time": null,
+        "stopF": null,
+        "stop_time": null
+    },
+    {
+        "ID": 5,
+        "RBW": null,
+        "device_name": null,
+        "device_sn": null,
+        "file_name": "2026-04-07-223126",
+        "folder": "/home/ian/Documents/GitHub/QtTinySA/sweep_files",
+        "points": null,
+        "startF": null,
+        "start_time": null,
+        "stopF": null,
+        "stop_time": null
+    },
+    {
+        "ID": 6,
+        "RBW": null,
+        "device_name": null,
+        "device_sn": null,
+        "file_name": "2026-04-07-223305",
+        "folder": "/home/ian/Documents/GitHub/QtTinySA/sweep_files",
+        "points": null,
+        "startF": null,
+        "start_time": null,
+        "stopF": null,
+        "stop_time": null
+    },
+    {
+        "ID": 7,
+        "RBW": null,
+        "device_name": null,
+        "device_sn": null,
+        "file_name": "2026-04-07-223425",
+        "folder": "/home/ian/Documents/GitHub/QtTinySA/sweep_files",
+        "points": null,
+        "startF": null,
+        "start_time": null,
+        "stopF": null,
+        "stop_time": null
+    }
+]

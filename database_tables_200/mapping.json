@@ -1,0 +1,237 @@
+[
+    {
+        "column": "3",
+        "gui": "settings.rbw_x",
+        "model": "checkboxes"
+    },
+    {
+        "column": "4",
+        "gui": "settings.neg25Line",
+        "model": "checkboxes"
+    },
+    {
+        "column": "5",
+        "gui": "settings.zeroLine",
+        "model": "checkboxes"
+    },
+    {
+        "column": "6",
+        "gui": "settings.plus6Line",
+        "model": "checkboxes"
+    },
+    {
+        "column": "7",
+        "gui": "QtTSA.trace1",
+        "model": "checkboxes"
+    },
+    {
+        "column": "8",
+        "gui": "QtTSA.trace2",
+        "model": "checkboxes"
+    },
+    {
+        "column": "9",
+        "gui": "QtTSA.trace3",
+        "model": "checkboxes"
+    },
+    {
+        "column": "10",
+        "gui": "QtTSA.trace4",
+        "model": "checkboxes"
+    },
+    {
+        "column": "15",
+        "gui": "QtTSA.lna_box",
+        "model": "checkboxes"
+    },
+    {
+        "column": "16",
+        "gui": "QtTSA.points_auto",
+        "model": "checkboxes"
+    },
+    {
+        "column": "18",
+        "gui": "QtTSA.presetMarker",
+        "model": "checkboxes"
+    },
+    {
+        "column": "19",
+        "gui": "QtTSA.presetLabel",
+        "model": "checkboxes"
+    },
+    {
+        "column": "3",
+        "gui": "settings.minPoints",
+        "model": "numbers"
+    },
+    {
+        "column": "4",
+        "gui": "settings.maxPoints",
+        "model": "numbers"
+    },
+    {
+        "column": "5",
+        "gui": "QtTSA.start_freq",
+        "model": "numbers"
+    },
+    {
+        "column": "6",
+        "gui": "QtTSA.stop_freq",
+        "model": "numbers"
+    },
+    {
+        "column": "7",
+        "gui": "settings.peakThreshold",
+        "model": "numbers"
+    },
+    {
+        "column": "10",
+        "gui": "QtTSA.filterBox",
+        "model": "numbers"
+    },
+    {
+        "column": "9",
+        "gui": "QtTSA.band_box",
+        "model": "numbers"
+    },
+    {
+        "column": "11",
+        "gui": "QtTSA.rbw_box",
+        "model": "numbers"
+    },
+    {
+        "column": "12",
+        "gui": "QtTSA.m1_type",
+        "model": "numbers"
+    },
+    {
+        "column": "13",
+        "gui": "QtTSA.m2_type",
+        "model": "numbers"
+    },
+    {
+        "column": "14",
+        "gui": "QtTSA.m3_type",
+        "model": "numbers"
+    },
+    {
+        "column": "15",
+        "gui": "QtTSA.m4_type",
+        "model": "numbers"
+    },
+    {
+        "column": "20",
+        "gui": "QtTSA.t1_type",
+        "model": "numbers"
+    },
+    {
+        "column": "21",
+        "gui": "QtTSA.t2_type",
+        "model": "numbers"
+    },
+    {
+        "column": "22",
+        "gui": "QtTSA.t3_type",
+        "model": "numbers"
+    },
+    {
+        "column": "23",
+        "gui": "QtTSA.t4_type",
+        "model": "numbers"
+    },
+    {
+        "column": "20",
+        "gui": "QtTSA.spur_box",
+        "model": "checkboxes"
+    },
+    {
+        "column": "22",
+        "gui": "settings.syncTime",
+        "model": "checkboxes"
+    },
+    {
+        "column": "24",
+        "gui": "QtTSA.avgBox",
+        "model": "numbers"
+    },
+    {
+        "column": "25",
+        "gui": "QtTSA.sampleRepeat",
+        "model": "numbers"
+    },
+    {
+        "column": "26",
+        "gui": "settings.maxFreqBox",
+        "model": "numbers"
+    },
+    {
+        "column": "27",
+        "gui": "settings.intervalBox",
+        "model": "numbers"
+    },
+    {
+        "column": "21",
+        "gui": "QtTSA.rbw_auto",
+        "model": "checkboxes"
+    },
+    {
+        "column": "23",
+        "gui": "filebrowse.askForPath",
+        "model": "checkboxes"
+    },
+    {
+        "column": "28",
+        "gui": "QtTSA.points_box",
+        "model": "numbers"
+    },
+    {
+        "column": "29",
+        "gui": "fading.timePoints",
+        "model": "numbers"
+    },
+    {
+        "column": "25",
+        "gui": "QtTSA.waterfall_auto",
+        "model": "checkboxes"
+    },
+    {
+        "column": "26",
+        "gui": "settings.bold_text",
+        "model": "checkboxes"
+    },
+    {
+        "column": "17",
+        "gui": "QtTSA.split_scan",
+        "model": "checkboxes"
+    },
+    {
+        "column": "24",
+        "gui": "settings.saveSweep",
+        "model": "checkboxes"
+    },
+    {
+        "column": "8",
+        "gui": "settings.save_folder",
+        "model": "numbers"
+    },
+    {
+        "column": "27",
+        "gui": "settings.auto_run",
+        "model": "checkboxes"
+    },
+    {
+        "column": "14",
+        "gui": "QtTSA.wf_2D",
+        "model": "checkboxes"
+    },
+    {
+        "column": "30",
+        "gui": "QtTSA.waterfall_size",
+        "model": "numbers"
+    },
+    {
+        "column": "28",
+        "gui": "settings.restore_band",
+        "model": "checkboxes"
+    }
+]

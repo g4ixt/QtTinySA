@@ -1,0 +1,23 @@
+ID,preset,LO
+1,amateur,0
+3,other,0
+4,repeater,0
+5,RF mic,0
+7,broadcast,0
+8,C band,5150000000
+9,C beacon,5150000000
+10,Ku band,9750000000
+11,beacons ao100,9750000000
+12,fixed,0
+14,local osc,0
+15,23cm/6m,1246000000
+16,WiFi,0
+17,beacons 1296,0
+18,beacons 28,0
+19,beacons 50,0
+20,beacons 70,0
+21,beacons 144,0
+22,beacons 432,0
+23,beacons 2320,0
+24,beacons 3400,0
+25,beacons 5760,0

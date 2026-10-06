@@ -1,0 +1,22 @@
+[
+    {
+        "ID": 0,
+        "colourID": 53,
+        "name": "Trace 1 colour"
+    },
+    {
+        "ID": 1,
+        "colourID": 131,
+        "name": "Trace 2 colour"
+    },
+    {
+        "ID": 2,
+        "colourID": 118,
+        "name": "Trace 3 colour"
+    },
+    {
+        "ID": 3,
+        "colourID": 111,
+        "name": "Trace 4 colour"
+    }
+]

@@ -41,10 +41,11 @@ boundary, so it only ever exists inside soapy_receiver_mp.py's worker process. C
     - calibration_queue is a channel separate from data_queue specifically so this doesn't race QtTinySA's own
       dedicated thread draining data_queue for normal display -- see soapy_receiver_mp.py's module docstring.
 
-The resulting offsets are applied as a pure software correction, pushed into the worker process via
-SoapyReceiverProcess.set_amplitude_calibration() once the sweep finishes -- every subsequent item on data_queue
-is corrected automatically from then on, exactly as in the threading version. See lime_loopback.py's module
-docstring for the fuller rationale on why this is preferred over adjusting PGA gain per frequency.
+The resulting offsets are applied as a pure software correction rather than by adjusting PGA gain per
+frequency -- this keeps calibration independent of whatever gain the user/app chooses for sensitivity/dynamic-
+range reasons, and gives sub-dB correction resolution instead of the PGA's 1 dB steps. Pushed into the worker
+process via SoapyReceiverProcess.set_amplitude_calibration() once the sweep finishes -- every subsequent item
+on data_queue is corrected automatically from then on.
 
 Requires the receiver to already be constructed with a LimeSDR device selected (receiver.set_device(...)).
 """
@@ -56,7 +57,10 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from lime_tsg_mp import DEFAULT_TSG_LEVEL_DBFS, TSG_NCO_DIVISORS, LimeTestSignalGenerator
+try:
+    from .lime_tsg_mp import DEFAULT_TSG_LEVEL_DBFS, TSG_NCO_DIVISORS, LimeTestSignalGenerator
+except ImportError:  # used as a top-level module rather than as part of a package
+    from lime_tsg_mp import DEFAULT_TSG_LEVEL_DBFS, TSG_NCO_DIVISORS, LimeTestSignalGenerator
 
 logger = logging.getLogger(__name__)
 
