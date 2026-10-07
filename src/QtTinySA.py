@@ -64,7 +64,21 @@ basedir = os.path.dirname(__file__)
 # classes ##############################################################################
 
 class ApplicationController(QtCore.QObject):
-    """Owns the lifetime and coordination of the application."""
+    """Owns the lifetime and coordination of the application.
+
+        ApplicationController
+        │
+        ├── ui
+        ├── dialogs
+        ├── hardware
+        ├── models
+        │   └── correction
+        │
+        └── analyser
+            ├── correction_devices
+            ├── read_tables()
+            └── upload_correction()
+     """
 
     def __init__(self, app):
         super().__init__()
@@ -234,19 +248,36 @@ class ApplicationController(QtCore.QObject):
         self.dialogs.phasenoise.ui.plotWidget.setLabel('bottom', 'Offset Frequency', units='Hz')
         self.dialogs.phasenoise.ui.plotWidget.setLabel('left', 'Phase Noise', units='dBc/Hz')
         
-        # connect signals
+        # Band and frequency changes signals
         self.ui.filterBox.currentTextChanged.connect(self.set_band_filter)
         self.dialogs.preset_freqs.ui.deletePsType.clicked.connect(self.delete_preset_type)
         self.dialogs.preset_freqs.ui.freqTable.clicked.connect(self.preset_frequency_clicked)
         self.dialogs.preset_freqs.ui.typeTable.clicked.connect(self.preset_type_clicked)
         self.dialogs.preset_freqs.ui.clearFilter.clicked.connect(self.clear_preset_frequency_filter)
+        
+        # Correction table signals
+        self.dialogs.offset.ui.read_button.clicked.connect(self.analyser.correction.read_tables)
+        self.dialogs.offset.ui.upload_button.clicked.connect(self.analyser.correction.upload_correction)
+        
+        # Waterfall signals
+        self.ui.waterfall_size.valueChanged.connect(self.set_wf_height)
+        self.ui.wf_2D.stateChanged.connect(self.set_wf_format)
+
+        # menu actions
+        self.ui.actionPresets.triggered.connect(self.preferences_menu_clicked)
+        self.ui.actionSettings.triggered.connect(settings_clicked)
+        self.ui.actionAbout_Qt.triggered.connect(self.about)
+        self.ui.actionAbout_Qt.triggered.connect(self.app.aboutQt)
+
+        # fixed markers
+        self.ui.addFix.clicked.connect(self.add_fixed)
 
         # finally
         self.set_band_filter(self.ui.filterBox.currentText())
 
     def shutdown(self):
         '''Save gui field vals, marker freqs and checkbox states. Close usb ports, config database and windows'''
-        usbCheck.stop()
+        self.hardware.probe_ports.stop()
         self.analyser.mkr_update_timer.stop()
         if self.hardware.is_scanning:
             self.hardware.stop(restart=False)
@@ -323,7 +354,7 @@ class ApplicationController(QtCore.QObject):
                 break
     
         self.set_mixer_highlighting()  # do we need this here?
-        
+       
     def import_data(self, model):
         file_name = QFileDialog.getOpenFileName(caption="Open File", filter="Comma Separated Values (*.csv)")[0]
     
@@ -363,6 +394,68 @@ class ApplicationController(QtCore.QObject):
     
         message = ('Inserted ' + str(inserted) + ' rows, skipped ' + str(skipped) + ' duplicates')
         popUp(self.ui, message, 'Ok', 'Info')
+
+    def set_wf_format(self):  # called when wf_2D checkbox state changes
+        wf_size = self.ui.waterfall_size.value()
+        if self.ui.wf_2D.isChecked():
+            self.ui.plot_3D.hide()
+            self.ui.waterfall.show()
+            # set the display_frame stretch, which is 'units' of total vertical space rows can expand in
+            self.ui.display_frame.layout().setRowStretch(0, 9 - wf_size)  # index 0 = row 0 = graphWidget
+            self.ui.display_frame.layout().setRowStretch(1, 0)  # index 1 = row 1 = plot_3D
+            self.ui.display_frame.layout().setRowStretch(2, wf_size)  # index 2 = row 2 = waterfall
+        else:
+            self.ui.plot_3D.show()
+            self.ui.waterfall.hide()
+            self.ui.display_frame.layout().setRowStretch(0, 9 - wf_size)
+            self.ui.display_frame.layout().setRowStretch(1, wf_size)
+            self.ui.display_frame.layout().setRowStretch(2, 0)
+    
+    def set_wf_height(self):  # called when wf_size spinbox value changes
+        '''changing height sends the widget Resize signal; this is intercepted by the ResizeEventFilter
+           in the graphs.py module which then calls on_widget_resized() to set the 3D aspect ratio'''
+        wf_size = self.ui.waterfall_size.value()
+        if wf_size == 9:
+            self.ui.graphWidget.hide()
+            self.set_wf_format()
+        else:
+            self.ui.graphWidget.show()
+            self.set_wf_format()
+        if wf_size == 0:
+            self.ui.plot_3D.hide()
+            self.ui.waterfall.hide()
+            self.ui.wf_2D.setEnabled(False)
+        else:
+            self.set_wf_format()
+            self.ui.wf_2D.setEnabled(True)
+
+    def settings_clicked(self):
+        self.analyser.save_location_valid()
+        self.dialogs.settings.ui.show()
+
+    def preferences_menu_clicked(self):  # called by clicking on the setup > preferences menu
+        self.dialogs.presetFreqs.ui.show()
+        self.dialogs.presetFreqs.ui.psCount.setValue(bands.tm.rowCount())
+    
+    def about(self):
+        message = ('TinySA Ultra GUI programme using Qt6 PySide6\
+                   \nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
+                   .format(app.applicationVersion(), self.config.databaseName()))
+        popUp(self.ui, message, 'Ok', 'Info')
+
+    def addFixed():
+        title = "New fixed frequency Marker"
+        message = "Enter a name for the fixed Marker"
+        fixedMkr, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
+        controller.models.bands.insertData(name=fixedMkr, preset=12,
+                                           startF=f'{int(self.analyser.s0.trace.m0.line.value())}',
+                                           stopF=0, visible=1,
+                                           colour=self.models.colours.fetch_ID('colour', 'orange'))
+
+    def set_folder(ui_name):
+        folder = QFileDialog.getExistingDirectory()
+        ui_name.save_folder.setText(folder)
+        self.analyser.save_location_valid()
 
 class CustomTableModel(QSqlRelationalTableModel):
     def __init__(self, parent=None, db=None, ro_columns=tuple()):
@@ -545,8 +638,9 @@ class Models:
   
       
 class Analyser(QtCore.QObject):
-    '''sets up and controls the GUI, and starts and stops measurements'''
-
+    '''owns operations that perform measurements and gui graph updates
+       by coordination of hardware, dialogs and data models'''
+       
     def __init__(self, ui, hardware, dialogs, models, parent=None):
         super().__init__(parent)
         
@@ -566,7 +660,8 @@ class Analyser(QtCore.QObject):
         self.maxF = 12000
         self.memF = BytesIO()
         self.mkr_update_timer = QtCore.QTimer(self)
-        self.dev_ref = []
+        self.file_devices = []
+        self.correction_devices = []
         self.depth = 50
         self.points = 101
 
@@ -721,7 +816,7 @@ class Analyser(QtCore.QObject):
         if self.hardware.devices is None:
             popUp(QtTSA, 'No spectrum analyser devices found', 'Ok', 'Critical')
             return
-        if self.dialogs.settings.ui.saveSweep.isChecked() and not save_location_valid():
+        if self.dialogs.settings.ui.saveSweep.isChecked() and not self.save_location_valid():
             popUp(QtTSA, "The current save file location is not valid", 'Ok', 'Critical')
             settings_clicked()
             return
@@ -901,6 +996,14 @@ class Analyser(QtCore.QObject):
             self.points = self.ui.points_box.value()
             logging.debug(f'setPoints: points = {self.ui.points_box.value()}')
 
+    def points_changed():
+        if self.ui.points_auto.isChecked():
+            self.ui.points_box.setEnabled(False)
+            self.ui.rbw_box.setEnabled(True)
+        else:
+            self.points_box.setEnabled(True)
+        self.setting_change()
+
     def memChanged(self):
         self.depth = self.ui.memBox.value()
         if self.depth < self.ui.avgBox.value():
@@ -1028,29 +1131,37 @@ class Analyser(QtCore.QObject):
         self.ui.scan_button.setText(action)
         self.ui.scan_button.setEnabled(True)
 
-    def set_dev_combo(self, ui_name, dev_name):
-        ''''populates a combo box 'device' on 'ui_name' with a list of devices of type dev_name'''
+    def set_dev_combo(self, ui_name, dev_names):
+        '''Populate a device combo box with matching devices and return the matches.'''
         ui_name.device.clear()
-        self.dev_ref = []
+        devices = []
         if self.hardware.devices:
             for device in self.hardware.devices:
-                if device.name in dev_name:
+                if device.name in dev_names:
                     if device.sweeping:
-                        popUp(QtTSA, "Cannot browse whilst a scan is running", 'Ok', 'Info')
+                        popUp(self.ui, "Cannot browse whilst a scan is running", 'Ok', 'Info')
                     else:
                         with QSignalBlocker(ui_name.device):
                             ui_name.device.addItem(device.name + ' serial ' + str(device.sn))
-                            self.dev_ref.append(device)  # keep a reference to the device for file ops
-            device = self.dev_ref[ui_name.device.currentIndex()]
+                            devices.append(device)  # keep a reference to the device for file ops
+            # device = self.dev_ref[ui_name.device.currentIndex()]
+        return devices
+
+    # def file_browser(self):
+    #     if self.hardware.devices:
+    #         self.set_dev_combo(filebrowse.ui, ('tinySA ULTRA ZS405', 'tinySA ULTRA ZS406', 'tinySA ULTRA ZS407'))
+    #         filebrowse.ui.show()
+    #         self.list_files()
 
     def file_browser(self):
         if self.hardware.devices:
-            self.set_dev_combo(filebrowse.ui, ('tinySA ULTRA ZS405', 'tinySA ULTRA ZS406', 'tinySA ULTRA ZS407'))
-            filebrowse.ui.show()
+            match_vals = ('tinySA ULTRA ZS405', 'tinySA ULTRA ZS406', 'tinySA ULTRA ZS407')
+            self.file_devices = self.set_dev_combo(self.dialogs.file_browse.ui, match_vals)
+            self.dialogs.file_browse.ui.show()
             self.list_files()
 
     def list_files(self):
-        device = self.dev_ref[filebrowse.ui.device.currentIndex()]
+        device = self.file.devices[self.dialogs.file_browse.ui.device.currentIndex()]
         SD = device.listSD()
         self.dialogs.file_browse.ui.listWidget.clear()
         ls = []
@@ -1061,7 +1172,7 @@ class Analyser(QtCore.QObject):
         self.dialogs.file_browse.ui.listWidget.insertItems(0, ls)
 
     def show_file(self):
-        device = self.dev_ref[filebrowse.ui.device.currentIndex()]
+        device = self.file_devices[self.dialogs.file_browse.ui.device.currentIndex()]
         self.memF.seek(0, 0)  # set the memory buffer pointer to the start
         self.memF.truncate()  # clear down the memory buffer to the pointer
         self.dialogs.file_browse.ui.picture.clear()
@@ -1073,8 +1184,14 @@ class Analyser(QtCore.QObject):
             pixmap.loadFromData(self.memF.getvalue())
             self.dialogs.file_browse.ui.picture.setPixmap(pixmap)
 
+    # def correction_window(self):
+    #     self.set_dev_combo(offset.ui, ('tinySA ULTRA ZS405', 'tinySA ULTRA ZS406', 'tinySA ULTRA ZS407'))
+    #     self.dialogs.offset.ui.progress.setValue(0)
+    #     self.dialogs.offset.ui.show()
+
     def correction_window(self):
-        self.set_dev_combo(offset.ui, ('tinySA ULTRA ZS405', 'tinySA ULTRA ZS406', 'tinySA ULTRA ZS407'))
+        match_vals = ('tinySA ULTRA ZS405', 'tinySA ULTRA ZS406', 'tinySA ULTRA ZS407')
+        self.correction_devices = self.set_dev_combo(self.dialogs.offset.ui, match_vals)
         self.dialogs.offset.ui.progress.setValue(0)
         self.dialogs.offset.ui.show()
 
@@ -1112,7 +1229,7 @@ class Analyser(QtCore.QObject):
         fields = {0: 'm1f', 1:'m2f', 2: 'm3f', 3: 'm4f'}
         for spectrum in self.spectra:
             for i in range(4):
-                freq = numbers.tm.record(0).value(fields.get(i))
+                freq = self.models.numbers.tm.record(0).value(fields.get(i))
                 spectrum.mkr_list[i].to_freq(freq)
 
     def marker_save(self):
@@ -1218,7 +1335,7 @@ class Analyser(QtCore.QObject):
         if self.hardware.is_scanning:
             return
         
-        if self.dialogs.settings.ui.saveSweep.isChecked() and not save_location_valid():
+        if self.dialogs.settings.ui.saveSweep.isChecked() and not self.save_location_valid():
             popUp(QtTSA, "The current save file location is not valid", 'Ok', 'Critical')
             return
         
@@ -1297,7 +1414,7 @@ class Analyser(QtCore.QObject):
             loader = Worker(self.hardware.load_player, file_name)
         else:
             return
-        usbCheck.stop()  # stop probing the usb ports for analyser hardware
+        self.hardware.probe_ports.stop()  # stop probing the usb ports for analyser hardware
         threadpool.start(loader)
         self.ui.vortex.show()
 
@@ -1309,11 +1426,108 @@ class Analyser(QtCore.QObject):
         with QSignalBlocker(self.ui.vortex):
             self.ui.vortex.setValue(0)
         self.ui.vortex.hide()
-        usbCheck.start()  # start probing the usb ports for analyser hardware
+        self.hardware.probe_ports.start()  # start probing the usb ports for analyser hardware
+
+    def set_sd_file_save(self, single=True):
+        device = self.file_devices[self.dialogs.file_browse.ui.device.currentIndex()]
+        folder = QFileDialog.getExistingDirectory(caption="Select folder to save SD card files")
+        if single:
+            file_name = self.dialogs.file_browse.ui.listWidget.currentItem().text()  # the file selected in the list widget
+        else:
+            file_name = None
+        saver = Worker(sd_file_save, device, file_name, folder, single)
+        threadpool.start(saver)  # workers deleted when thread ends
+
+    def read_tables(self):
+        ''''read the correction tables from the tinySA and display in a table widget'''
+        device = self.correction_devices[self.dialogs.offset.ui.device.currentIndex()]
+
+        if device.sweeping:
+            popUp(offset, "Cannot read from tinySA whilst a scan is running", 'Ok', 'Info')
+            return
+
+        self.models.correction.unlimited()
+        write_config = QMessageBox.StandardButton.Ok
+
+        if self.models.correcton.tm.rowCount() > 0 and self.dialogs.offset.ui.save_box.isChecked():
+            message = ('OK to over-write config database table with\rcorrection data from tinySA?')
+            write_config = popUp(offset, message, 'OkC', 'Question')
+            if write_config == QMessageBox.StandardButton.Ok:
+                self.models.correction.deleteRow(single=False)
+                
+        self.dialogs.offset.ui.tsa_table.clear()
+        self.dialogs.offset.ui.tsa_table.setRowCount(200)
+        self.dialogs.offset.ui.tsa_table.setColumnCount(4)
+        self.dialogs.offset.ui.tsa_table.setHorizontalHeaderLabels(['mode', 'entry', 'frequency', 'dB'])
+        self.dialogs.offset.ui.tsa_table.show()
+        self.dialogs.offset.ui.tsa_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+
+        k = 0
+        for i in range(self.models.correctiontext.tm.rowCount()):
+            # step through each correction mode, fetch its table from the tinySA
+            command = 'correction ' + self.models.correctiontext.tm.record(i).value('value') + '\r'
+            data = device.serialQuery(command)
+            mode_table = data.splitlines()[1:]  # make a list of the rows, discard the mode header
+            mode_rows = [row.split(' ')[1:] for row in mode_table]  # split each row into a list, discard first col
+            for j in range(20):
+                # step through each row of the current mode and write the fields to the tablewidget 'tsa_table'
+                mode = str(mode_rows[j][0])
+                entry = str(mode_rows[j][1])
+                frequency = str(mode_rows[j][2])
+                dB = str(mode_rows[j][3])
+                self.dialogs.offset.ui.tsa_table.setItem(k+j, 0, QTableWidgetItem(mode))
+                self.dialogs.offset.ui.tsa_table.setItem(k+j, 1, QTableWidgetItem(entry))
+                self.dialogs.offset.ui.tsa_table.setItem(k+j, 2, QTableWidgetItem(frequency))
+                self.dialogs.offset.ui.tsa_table.setItem(k+j, 3, QTableWidgetItem(dB))
+
+                if self.dialogs.offset.ui.save_box.isChecked() and write_config == QMessageBox.StandardButton.Ok:
+                    self.models.correction.insertData(mode=mode, entry=entry, frequency=frequency, dB=dB)
+            k += 20
+
+    def upload_correction(self):
+        ''''upload the correction table(s) from the config database to the tinySA'''
+        device = self.correction_devices[self.dialogs.offset.ui.device.currentIndex()]
+        if device.sweeping:
+            popUp(offset, "Cannot read from tinySA whilst a scan is running", 'Ok', 'Info')
+            return
+
+        self.models.unlimited()
+        self.dialogs.offset.ui.progress.setValue(0)
+
+        update_failed = False
+        for i in range(self.models.correction.tm.rowCount()):
+            record = self.models.correction.tm.record(i)
+            mode = str(record.value('mode')) + ' '
+            entry = str(record.value('entry')) + ' '
+            frequency = str(record.value('frequency')) + ' '
+            dB = str(record.value('dB'))
+            command = 'correction ' + mode + entry + frequency + dB + '\r'
+            response = device.serialQuery(command)
+            logging.debug(f'upload_correction(): {response}')
+            if response != 'updated ' + entry + 'to ' + frequency + dB:
+                # the error trapping on the tinySA is not comprehensive so this may not work for all scenarios
+                update_failed = True
+                logging.info(f'Update failure: {command}')
+            else:
+                self.dialogs.offset.ui.progress.setValue(100 * int(i / (self.models.correction.tm.rowCount() - 1)))
+        if update_failed:
+            popUp(offset, "One or more of the updates failed.", 'Ok', 'Critical')
 
     def time_path_indicator(self, position):
         with QSignalBlocker(self.ui.vortex):
             self.ui.vortex.setValue(position)
+
+    def start_polar_plot():
+        self.polar.set_plot(pattern.ui)
+
+    def save_location_valid(self):
+        folder = self.dialogs.settings.ui.save_folder.text()
+        if os.path.exists(folder):
+            self.dialogs.settings.ui.save_folder.setStyleSheet("")
+            return True
+        else:
+            self.dialogs.settings.ui.save_folder.setStyleSheet(("background-color:red"))
+            return False
 
     def connect_active(self):
         '''Connect signals from controls that send messages to tinySA or use trace data.  Called by setGUI().'''
@@ -1335,24 +1549,24 @@ class Analyser(QtCore.QObject):
     
         self.ui.rbw_auto.clicked.connect(self.rbwChanged)
         self.ui.rbw_box.currentIndexChanged.connect(self.rbwChanged)
-        self.ui.points_auto.stateChanged.connect(pointsChanged)
-        self.ui.points_box.editingFinished.connect(pointsChanged)
+        self.ui.points_auto.stateChanged.connect(self.points_changed)
+        self.ui.points_box.editingFinished.connect(self.points_changed)
     
         # self.ui.sampleRepeat.valueChanged.connect(self.sampleRep)
     
         # filebrowse
-        self.dialogs.file_browse.ui.download.clicked.connect(lambda: set_sd_file_save(True))
-        self.dialogs.file_browse.ui.saveAll.clicked.connect(lambda: set_sd_file_save(False))
+        self.dialogs.file_browse.ui.download.clicked.connect(lambda: self.set_sd_file_save(True))
+        self.dialogs.file_browse.ui.saveAll.clicked.connect(lambda: self.set_sd_file_save(False))
         self.dialogs.file_browse.ui.listWidget.itemClicked.connect(self.show_file)
     
         # Sweep time
         # self.ui.sweepTime.valueChanged.connect(lambda: self.sweepTime(self.ui.sweepTime.value()))
     
         # level calibration
-        self.dialogs.offset.ui.correction_mode.currentTextChanged.connect(correction_filter)
-        self.dialogs.offset.ui.filter_box.stateChanged.connect(correction_filter)
-        self.dialogs.offset.ui.read_button.clicked.connect(correction.read_tables)
-        self.dialogs.offset.ui.upload_button.clicked.connect(correction.upload_correction)
+        self.dialogs.offset.ui.correction_mode.currentTextChanged.connect(self.correction_filter)
+        self.dialogs.offset.ui.filter_box.stateChanged.connect(self.correction_filter)
+        # self.dialogs.offset.ui.read_button.clicked.connect(correction.read_tables)
+        # self.dialogs.offset.ui.upload_button.clicked.connect(correction.upload_correction)
     
     def connect_passive(self):
         '''Connect signals from GUI controls that don't cause messages to go to the tinySA'''
@@ -1384,7 +1598,6 @@ class Analyser(QtCore.QObject):
         # # frequency band and fixed markers
         self.ui.presetMarker.clicked.connect(self.set_preset_marker)
         self.ui.presetLabel.clicked.connect(self.set_preset_marker)
-        self.ui.addFix.clicked.connect(addFixed)
         self.ui.filterBox.currentTextChanged.connect(self.set_preset_marker)
     
         # trace checkboxes
@@ -1420,17 +1633,17 @@ class Analyser(QtCore.QObject):
         # self.ui.filterBox.currentTextChanged.connect(
         #     lambda: self.models.bandselect.set_filter_to(False, self.ui.filterBox.currentText()))
         
-        self.ui.actionPresets.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
-        self.ui.actionSettings.triggered.connect(settings_clicked)
+        # self.ui.actionPresets.triggered.connect(dialogPrefs)  # open preferences dialogue when its menu is clicked
+        # self.ui.actionSettings.triggered.connect(settings_clicked)
         self.ui.actionCorrection.triggered.connect(self.correction_window)
     
         # Help
-        self.ui.actionAbout_Qt.triggered.connect(about)
+        # self.ui.actionAbout_Qt.triggered.connect(about)
         # self.ui.actionAbout_Qt.triggered.connect(app.aboutQt)
     
-        # Waterfall
-        self.ui.waterfall_size.valueChanged.connect(set_wf_height)
-        self.ui.wf_2D.stateChanged.connect(set_wf_format)
+        # # Waterfall
+        # self.ui.waterfall_size.valueChanged.connect(set_wf_height)
+        # self.ui.wf_2D.stateChanged.connect(set_wf_format)
     
         # Measurement menu
         self.ui.actionPhNoise.triggered.connect(self.dialogs.phasenoise.ui.show)
@@ -1446,11 +1659,11 @@ class Analyser(QtCore.QObject):
         self.ui.actionRecordings.triggered.connect(self.load_data)
     
         # polar pattern
-        self.dialogs.pattern.ui.measure.clicked.connect(startPolarPlot)
+        self.dialogs.pattern.ui.measure.clicked.connect(self.start_polar_plot)
     
         # correction
-        self.dialogs.offset.ui.export_button.clicked.connect(lambda: correction.exportData(''))
-        self.dialogs.offset.ui.import_button.clicked.connect(lambda: correction.importData(''))
+        self.dialogs.offset.ui.export_button.clicked.connect(lambda: self.models.correction.exportData(''))
+        self.dialogs.offset.ui.import_button.clicked.connect(lambda: self.models.correction.importData(''))
       
         # settings
         self.dialogs.settings.ui.set_folder.clicked.connect(lambda:set_folder(self.dialogs.settings.ui))
@@ -1465,10 +1678,10 @@ class Analyser(QtCore.QObject):
         self.ui.vortex.valueChanged.connect(lambda:self.start_playback(False))
         
         # device enable
-        self.ui.dev0.stateChanged.connect(lambda: usbInstr.toggle_dev_state(0, self.ui.dev0.isChecked()))
-        self.ui.dev1.stateChanged.connect(lambda: usbInstr.toggle_dev_state(1, self.ui.dev1.isChecked()))
-        self.ui.dev2.stateChanged.connect(lambda: usbInstr.toggle_dev_state(2, self.ui.dev2.isChecked()))
-        self.ui.dev3.stateChanged.connect(lambda: usbInstr.toggle_dev_state(3, self.ui.dev3.isChecked()))
+        self.ui.dev0.stateChanged.connect(lambda: self.hardware.toggle_dev_state(0, self.ui.dev0.isChecked()))
+        self.ui.dev1.stateChanged.connect(lambda: self.hardware.toggle_dev_state(1, self.ui.dev1.isChecked()))
+        self.ui.dev2.stateChanged.connect(lambda: self.hardware.toggle_dev_state(2, self.ui.dev2.isChecked()))
+        self.ui.dev3.stateChanged.connect(lambda: self.hardware.toggle_dev_state(3, self.ui.dev3.isChecked()))
 
     def band_changed(self):
         index = self.ui.band_box.currentIndex()
@@ -1526,6 +1739,12 @@ class Analyser(QtCore.QObject):
         if self.ui.presetMarker.isChecked():
             self.set_preset_marker()
 
+    def correction_filter():
+        if self.dialogs.offset.ui.filter_box.isChecked():
+            sql = 'mode = "' + self.dialogs.offset.ui.correction_mode.currentText() + '"'
+            self.models.correction.tm.setFilter(sql)
+        else:
+            self.models.correction.tm.setFilter('')
 
 class LimitLines:
     def __init__(self, graph, threshold, start_freq, stop_freq, span_freq):
@@ -1571,7 +1790,7 @@ class Limit:
 
 
 class ModelView():
-    '''set up and process data models bound to the GUI widgets'''
+    '''owns generic database/table operations'''
     def __init__(self, table_name, db_name, ro_columns):
         self.currentRow = 0
         self.ID = 0
@@ -1814,74 +2033,74 @@ class ModelView():
         self.tm.select()
         self.tm.layoutChanged.emit()
 
-    def read_tables(self):
-        ''''read the correction tables from the tinySA and display in a table widget'''
-        device = tinySA.dev_ref[offset.ui.device.currentIndex()]
-        if device.sweeping:
-            popUp(offset, "Cannot read from tinySA whilst a scan is running", 'Ok', 'Info')
-            return
-        self.unlimited()
-        write_config = QMessageBox.StandardButton.Ok
-        if self.tm.rowCount() > 0 and offset.ui.save_box.isChecked():
-            message = ('OK to over-write config database table with\rcorrection data from tinySA?')
-            write_config = popUp(offset, message, 'OkC', 'Question')
-            if write_config == QMessageBox.StandardButton.Ok:
-                correction.deleteRow(single=False)
-        offset.ui.tsa_table.clear()
-        offset.ui.tsa_table.setRowCount(200)
-        offset.ui.tsa_table.setColumnCount(4)
-        offset.ui.tsa_table.setHorizontalHeaderLabels(['mode', 'entry', 'frequency', 'dB'])
-        offset.ui.tsa_table.show()
-        offset.ui.tsa_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+    # def read_tables(self):
+    #     ''''read the correction tables from the tinySA and display in a table widget'''
+    #     device = self.correction_devices[self.dialogs.offset.ui.device.currentIndex()]
+    #     if device.sweeping:
+    #         popUp(offset, "Cannot read from tinySA whilst a scan is running", 'Ok', 'Info')
+    #         return
+    #     self.unlimited()
+    #     write_config = QMessageBox.StandardButton.Ok
+    #     if self.tm.rowCount() > 0 and offset.ui.save_box.isChecked():
+    #         message = ('OK to over-write config database table with\rcorrection data from tinySA?')
+    #         write_config = popUp(offset, message, 'OkC', 'Question')
+    #         if write_config == QMessageBox.StandardButton.Ok:
+    #             correction.deleteRow(single=False)
+    #     offset.ui.tsa_table.clear()
+    #     offset.ui.tsa_table.setRowCount(200)
+    #     offset.ui.tsa_table.setColumnCount(4)
+    #     offset.ui.tsa_table.setHorizontalHeaderLabels(['mode', 'entry', 'frequency', 'dB'])
+    #     offset.ui.tsa_table.show()
+    #     offset.ui.tsa_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
 
-        k = 0
-        for i in range(correctiontext.tm.rowCount()):
-            # step through each correction mode, fetch its table from the tinySA
-            command = 'correction ' + correctiontext.tm.record(i).value('value') + '\r'
-            data = device.serialQuery(command)
-            mode_table = data.splitlines()[1:]  # make a list of the rows, discard the mode header
-            mode_rows = [row.split(' ')[1:] for row in mode_table]  # split each row into a list, discard first col
-            for j in range(20):
-                # step through each row of the current mode and write the fields to the tablewidget 'tsa_table'
-                mode = str(mode_rows[j][0])
-                entry = str(mode_rows[j][1])
-                frequency = str(mode_rows[j][2])
-                dB = str(mode_rows[j][3])
-                offset.ui.tsa_table.setItem(k+j, 0, QTableWidgetItem(mode))
-                offset.ui.tsa_table.setItem(k+j, 1, QTableWidgetItem(entry))
-                offset.ui.tsa_table.setItem(k+j, 2, QTableWidgetItem(frequency))
-                offset.ui.tsa_table.setItem(k+j, 3, QTableWidgetItem(dB))
+    #     k = 0
+    #     for i in range(correctiontext.tm.rowCount()):
+    #         # step through each correction mode, fetch its table from the tinySA
+    #         command = 'correction ' + correctiontext.tm.record(i).value('value') + '\r'
+    #         data = device.serialQuery(command)
+    #         mode_table = data.splitlines()[1:]  # make a list of the rows, discard the mode header
+    #         mode_rows = [row.split(' ')[1:] for row in mode_table]  # split each row into a list, discard first col
+    #         for j in range(20):
+    #             # step through each row of the current mode and write the fields to the tablewidget 'tsa_table'
+    #             mode = str(mode_rows[j][0])
+    #             entry = str(mode_rows[j][1])
+    #             frequency = str(mode_rows[j][2])
+    #             dB = str(mode_rows[j][3])
+    #             offset.ui.tsa_table.setItem(k+j, 0, QTableWidgetItem(mode))
+    #             offset.ui.tsa_table.setItem(k+j, 1, QTableWidgetItem(entry))
+    #             offset.ui.tsa_table.setItem(k+j, 2, QTableWidgetItem(frequency))
+    #             offset.ui.tsa_table.setItem(k+j, 3, QTableWidgetItem(dB))
 
-                if offset.ui.save_box.isChecked() and write_config == QMessageBox.StandardButton.Ok:
-                    self.insertData(mode=mode, entry=entry, frequency=frequency, dB=dB)
-            k += 20
+    #             if offset.ui.save_box.isChecked() and write_config == QMessageBox.StandardButton.Ok:
+    #                 self.insertData(mode=mode, entry=entry, frequency=frequency, dB=dB)
+    #         k += 20
 
-    def upload_correction(self):
-        ''''upload the correction table(s) from the config database to the tinySA'''
-        device = tinySA.dev_ref[offset.ui.device.currentIndex()]
-        if device.sweeping:
-            popUp(offset, "Cannot read from tinySA whilst a scan is running", 'Ok', 'Info')
-            return
-        self.unlimited()
-        offset.ui.progress.setValue(0)
-        update_failed = False
-        for i in range(self.tm.rowCount()):
-            record = self.tm.record(i)
-            mode = str(record.value('mode')) + ' '
-            entry = str(record.value('entry')) + ' '
-            frequency = str(record.value('frequency')) + ' '
-            dB = str(record.value('dB'))
-            command = 'correction ' + mode + entry + frequency + dB + '\r'
-            response = device.serialQuery(command)
-            logging.debug(f'upload_correction(): {response}')
-            if response != 'updated ' + entry + 'to ' + frequency + dB:
-                # the error trapping on the tinySA is not comprehensive so this may not work for all scenarios
-                update_failed = True
-                logging.info(f'Update failure: {command}')
-            else:
-                offset.ui.progress.setValue(100 * int(i / (self.tm.rowCount() - 1)))
-        if update_failed:
-            popUp(offset, "One or more of the updates failed.", 'Ok', 'Critical')
+    # def upload_correction(self):
+    #     ''''upload the correction table(s) from the config database to the tinySA'''
+    #     device = self.correction_devices[self.dialogs.offset.ui.device.currentIndex()]
+    #     if device.sweeping:
+    #         popUp(offset, "Cannot read from tinySA whilst a scan is running", 'Ok', 'Info')
+    #         return
+    #     self.unlimited()
+    #     offset.ui.progress.setValue(0)
+    #     update_failed = False
+    #     for i in range(self.tm.rowCount()):
+    #         record = self.tm.record(i)
+    #         mode = str(record.value('mode')) + ' '
+    #         entry = str(record.value('entry')) + ' '
+    #         frequency = str(record.value('frequency')) + ' '
+    #         dB = str(record.value('dB'))
+    #         command = 'correction ' + mode + entry + frequency + dB + '\r'
+    #         response = device.serialQuery(command)
+    #         logging.debug(f'upload_correction(): {response}')
+    #         if response != 'updated ' + entry + 'to ' + frequency + dB:
+    #             # the error trapping on the tinySA is not comprehensive so this may not work for all scenarios
+    #             update_failed = True
+    #             logging.info(f'Update failure: {command}')
+    #         else:
+    #             offset.ui.progress.setValue(100 * int(i / (self.tm.rowCount() - 1)))
+    #     if update_failed:
+    #         popUp(offset, "One or more of the updates failed.", 'Ok', 'Critical')
  
 ###############################################################################
 # respond to GUI signals
@@ -1912,21 +2131,21 @@ class ModelView():
 #         tinySA.setCentreFreq()
 #     numbers.dwm.submit()
 
-def addFixed():
-    title = "New fixed frequency Marker"
-    message = "Enter a name for the fixed Marker"
-    fixedMkr, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-    controller.models.bands.insertData(name=fixedMkr, preset=12, startF=f'{int(tinySA.s0.trace.m0.line.value())}',
-                     stopF=0, visible=1, colour=colours.fetch_ID('colour', 'orange'))  # preset type 12 = fixed Marker
+# def addFixed():
+#     title = "New fixed frequency Marker"
+#     message = "Enter a name for the fixed Marker"
+#     fixedMkr, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
+#     controller.models.bands.insertData(name=fixedMkr, preset=12, startF=f'{int(tinySA.s0.trace.m0.line.value())}',
+#                      stopF=0, visible=1, colour=colours.fetch_ID('colour', 'orange'))  # preset type 12 = fixed Marker
 
 
-def pointsChanged():
-    if QtTSA.points_auto.isChecked():
-        QtTSA.points_box.setEnabled(False)
-        QtTSA.rbw_box.setEnabled(True)
-    else:
-        QtTSA.points_box.setEnabled(True)
-    tinySA.setting_change()
+# def pointsChanged():
+#     if QtTSA.points_auto.isChecked():
+#         QtTSA.points_box.setEnabled(False)
+#         QtTSA.rbw_box.setEnabled(True)
+#     else:
+#         QtTSA.points_box.setEnabled(True)
+#     tinySA.setting_change()
 
 
 # def setPreferences():  # called at startup and when the preferences window is closed
@@ -1941,52 +2160,52 @@ def pointsChanged():
 #         tinySA.set_preset_marker()
 
 
-def dialogPrefs():  # called by clicking on the setup > preferences menu
-    presetFreqs.ui.show()
-    presetFreqs.ui.psCount.setValue(bands.tm.rowCount())
+# def dialogPrefs():  # called by clicking on the setup > preferences menu
+#     presetFreqs.ui.show()
+#     presetFreqs.ui.psCount.setValue(bands.tm.rowCount())
 
 
-def about():
-    message = ('TinySA Ultra GUI programme using Qt6 PySide6\
-               \nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
-               .format(app.applicationVersion(), config.databaseName()))
-    popUp(QtTSA, message, 'Ok', 'Info')
+# def about():
+#     message = ('TinySA Ultra GUI programme using Qt6 PySide6\
+#                \nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
+#                .format(app.applicationVersion(), config.databaseName()))
+#     popUp(QtTSA, message, 'Ok', 'Info')
 
 
 def clickEvent():
     logging.info('clickEvent')
 
 
-def correction_filter():
-    if offset.ui.filter_box.isChecked():
-        sql = 'mode = "' + offset.ui.correction_mode.currentText() + '"'
-        correction.tm.setFilter(sql)
-    else:
-        correction.tm.setFilter('')
+# def correction_filter():
+#     if offset.ui.filter_box.isChecked():
+#         sql = 'mode = "' + offset.ui.correction_mode.currentText() + '"'
+#         correction.tm.setFilter(sql)
+#     else:
+#         correction.tm.setFilter('')
 
 
 ##############################################################################
 # other methods
 
-def set_folder(ui_name):
-    folder = QFileDialog.getExistingDirectory()
-    ui_name.save_folder.setText(folder)
-    save_location_valid()
+# def set_folder(ui_name):
+#     folder = QFileDialog.getExistingDirectory()
+#     ui_name.save_folder.setText(folder)
+#     save_location_valid()
   
 def save_sweep(folder, file_name, frequencies, readings, ser_num):
     array = np.insert(readings, 0, frequencies, axis=0)  # insert the measurement freqs at the top of the readings array
     dBm = np.transpose(np.round(array, decimals=2))  # transpose columns and rows
     np.savetxt(file_name, dBm, delimiter=',', fmt='%.2f')
 
-def set_sd_file_save(single=True):
-    device = tinySA.dev_ref[filebrowse.ui.device.currentIndex()]
-    folder = QFileDialog.getExistingDirectory(caption="Select folder to save SD card files")
-    if single:
-        file_name = filebrowse.ui.listWidget.currentItem().text()  # the file selected in the list widget
-    else:
-        file_name = None
-    saver = Worker(sd_file_save, device, file_name, folder, single)
-    threadpool.start(saver)  # workers deleted when thread ends
+# def set_sd_file_save(single=True):
+#     device = tinySA.dev_ref[filebrowse.ui.device.currentIndex()]
+#     folder = QFileDialog.getExistingDirectory(caption="Select folder to save SD card files")
+#     if single:
+#         file_name = filebrowse.ui.listWidget.currentItem().text()  # the file selected in the list widget
+#     else:
+#         file_name = None
+#     saver = Worker(sd_file_save, device, file_name, folder, single)
+#     threadpool.start(saver)  # workers deleted when thread ends
     
 def sd_file_save(device, file_name, folder, single):
     signals = WorkerSignals()
@@ -2157,55 +2376,55 @@ def popUp(window, message, button, icon):
 #         QtTSA.centre_freq.setMaximum(100000)
 #         QtTSA.stop_freq.setMaximum(100000)
     
-def set_wf_format():  # called when wf_2D checkbox state changes
-    wf_size = QtTSA.waterfall_size.value()
-    if QtTSA.wf_2D.isChecked():
-        QtTSA.plot_3D.hide()
-        QtTSA.waterfall.show()
-        # set the display_frame stretch, which is 'units' of total vertical space rows can expand in
-        QtTSA.display_frame.layout().setRowStretch(0, 9 - wf_size)  # index 0 = row 0 = graphWidget
-        QtTSA.display_frame.layout().setRowStretch(1, 0)  # index 1 = row 1 = plot_3D
-        QtTSA.display_frame.layout().setRowStretch(2, wf_size)  # index 2 = row 2 = waterfall
-    else:
-        QtTSA.plot_3D.show()
-        QtTSA.waterfall.hide()
-        QtTSA.display_frame.layout().setRowStretch(0, 9 - wf_size)
-        QtTSA.display_frame.layout().setRowStretch(1, wf_size)
-        QtTSA.display_frame.layout().setRowStretch(2, 0)
+# def set_wf_format():  # called when wf_2D checkbox state changes
+#     wf_size = QtTSA.waterfall_size.value()
+#     if QtTSA.wf_2D.isChecked():
+#         QtTSA.plot_3D.hide()
+#         QtTSA.waterfall.show()
+#         # set the display_frame stretch, which is 'units' of total vertical space rows can expand in
+#         QtTSA.display_frame.layout().setRowStretch(0, 9 - wf_size)  # index 0 = row 0 = graphWidget
+#         QtTSA.display_frame.layout().setRowStretch(1, 0)  # index 1 = row 1 = plot_3D
+#         QtTSA.display_frame.layout().setRowStretch(2, wf_size)  # index 2 = row 2 = waterfall
+#     else:
+#         QtTSA.plot_3D.show()
+#         QtTSA.waterfall.hide()
+#         QtTSA.display_frame.layout().setRowStretch(0, 9 - wf_size)
+#         QtTSA.display_frame.layout().setRowStretch(1, wf_size)
+#         QtTSA.display_frame.layout().setRowStretch(2, 0)
 
-def set_wf_height():  # called when wf_size spinbox value changes
-    '''changing height sends the widget Resize signal; this is intercepted by the ResizeEventFilter
-       in the graphs.py module which then calls on_widget_resized() to set the 3D aspect ratio'''
-    wf_size = QtTSA.waterfall_size.value()
-    if wf_size == 9:
-        QtTSA.graphWidget.hide()
-        set_wf_format()
-    else:
-        QtTSA.graphWidget.show()
-        set_wf_format()
-    if wf_size == 0:
-        QtTSA.plot_3D.hide()
-        QtTSA.waterfall.hide()
-        QtTSA.wf_2D.setEnabled(False)
-    else:
-        set_wf_format()
-        QtTSA.wf_2D.setEnabled(True)
+# def set_wf_height():  # called when wf_size spinbox value changes
+#     '''changing height sends the widget Resize signal; this is intercepted by the ResizeEventFilter
+#        in the graphs.py module which then calls on_widget_resized() to set the 3D aspect ratio'''
+#     wf_size = QtTSA.waterfall_size.value()
+#     if wf_size == 9:
+#         QtTSA.graphWidget.hide()
+#         set_wf_format()
+#     else:
+#         QtTSA.graphWidget.show()
+#         set_wf_format()
+#     if wf_size == 0:
+#         QtTSA.plot_3D.hide()
+#         QtTSA.waterfall.hide()
+#         QtTSA.wf_2D.setEnabled(False)
+#     else:
+#         set_wf_format()
+#         QtTSA.wf_2D.setEnabled(True)
     
-def startPolarPlot():
-    tinySA.polar.set_plot(pattern.ui)
+# def startPolarPlot():
+#     tinySA.polar.set_plot(pattern.ui)
 
-def settings_clicked():
-    save_location_valid()
-    settings.ui.show()
+# def settings_clicked():
+#     save_location_valid()
+#     settings.ui.show()
     
-def save_location_valid():
-    folder = settings.ui.save_folder.text()
-    if os.path.exists(folder):
-        settings.ui.save_folder.setStyleSheet("")
-        return True
-    else:
-        settings.ui.save_folder.setStyleSheet(("background-color:red"))
-        return False
+# def save_location_valid():
+#     folder = settings.ui.save_folder.text()
+#     if os.path.exists(folder):
+#         settings.ui.save_folder.setStyleSheet("")
+#         return True
+#     else:
+#         settings.ui.save_folder.setStyleSheet(("background-color:red"))
+#         return False
 
     # All names assigned below were originally module-level globals that dozens of other
     # functions/classes throughout this file (and devices.py) reference directly. Declaring

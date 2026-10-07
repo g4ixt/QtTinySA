@@ -179,6 +179,9 @@ class USBdevice(QObject):
         if description in ['hackrf']:
                 sa = HackRFOne(port.device, description, self.dev_sigs)
                 logging.info(f'connect: {sa}')
+        if description in ['RTL-SDR']:
+                sa = RTL(port.device, description, self.dev_sigs)
+                logging.info(f'connect: {sa}')
 
         self.devices.append(sa)
   
