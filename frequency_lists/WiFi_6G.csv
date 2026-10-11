@@ -1,0 +1,21 @@
+name,preset,startF,stopF,value,colour
+ch121,WiFi 6G,6555000000,,True,chartreuse
+ch125,WiFi 6G,6575000000,,True,chartreuse
+ch129,WiFi 6G,6595000000,,True,chartreuse
+ch133,WiFi 6G,6615000000,,True,chartreuse
+ch137,WiFi 6G,6635000000,,True,chartreuse
+ch141,WiFi 6G,6655000000,,True,chartreuse
+ch145,WiFi 6G,6675000000,,True,chartreuse
+ch149,WiFi 6G,6695000000,,True,chartreuse
+ch153,WiFi 6G,6715000000,,True,chartreuse
+ch157,WiFi 6G,6735000000,,True,chartreuse
+ch161,WiFi 6G,6755000000,,True,chartreuse
+ch165,WiFi 6G,6775000000,,True,chartreuse
+ch169,WiFi 6G,6795000000,,True,chartreuse
+ch173,WiFi 6G,6815000000,,True,chartreuse
+ch177,WiFi 6G,6835000000,,True,chartreuse
+ch181,WiFi 6G,6855000000,,True,chartreuse
+ch185,WiFi 6G,6875000000,,True,chartreuse
+ch189,WiFi 6G,6895000000,,True,chartreuse
+WiFi 6G,WiFi 6G,6905000000,7125000000,True,lime
+ch233,WiFi 6G,7115000000,,True,chartreuse

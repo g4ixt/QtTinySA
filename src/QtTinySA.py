@@ -66,7 +66,7 @@ app = QApplication.instance()
 if not app:
     app = QApplication([])
 app.setApplicationName('QtTinySA')
-app.setApplicationVersion(' v2.0.1')
+app.setApplicationVersion(' v2.0.2')
 
 # pyqtgraph custom exporters
 WWBExporter.register()
@@ -995,18 +995,11 @@ class ModelView():
                     break
 
     def readCSV(self, fileName):
-        # Build a set of existing (startF, preset) pairs to prevent duplicates
-        existing = set()
-        for i in range(self.tm.rowCount()):
-            rec = self.tm.record(i)
-            existing.add((str(rec.value('name')), str(rec.value('startF'))))
-
+        row_count = 0
+        inserted = 0
         with open(fileName, "r") as fileInput:
             reader = csv.DictReader(fileInput)
-            inserted = 0
-            skipped = 0
             for row in reader:
-                logging.debug(f'readCSV(): row = {row}')
                 record = self.tm.record()
                 for key, value in row.items():
                     if key == 'preset':
@@ -1022,29 +1015,17 @@ class ModelView():
                         record.setValue(str(key), value)
                 if record.value('value') not in (0, 1): # because it's not present in RF mic CSV files
                     record.setValue('value', 1)
-                if record.value('preset') == '': # preset missing so use current preferences filterbox text
-                    record.setValue('preset', bandstype.fetch_ID('preset', presetFreqs.ui.filterBox.currentText()))
-
-                # Duplicate check: skip if this startF + preset already exists
-                key_tuple = (str(record.value('name')), str(record.value('startF')))
-            
-                if key_tuple in existing:
-                    logging.info(f'readCSV(): skipping duplicate entry name={record.value("name")}')
-                    skipped += 1
-                    continue
-
-                existing.add(key_tuple)
-                self.tm.insertRecord(-1, record)
-                inserted += 1
+  
+                write_rec = self.tm.insertRecord(-1, record)
+                if write_rec:
+                    inserted += 1
+                else:
+                    logging.info(f'failed to insert record {row_count} into database')
+                row_count += 1
 
             self.tm.select()
             self.tm.layoutChanged.emit()
-            if skipped:
-                logging.info(f'readCSV(): inserted {inserted} rows, skipped {skipped} duplicates')
-
-        message = 'Inserted ' + str(inserted) + ' rows, skipped ' + str(skipped) + ' duplicates'
-        popUp(QtTSA, message, 'Ok', 'Info')
-        # self.dwm.submit()
+            logging.info(f'readCSV(): inserted {inserted} rows, {row_count - inserted} failed')
 
     def fetch_ID(self, field, lookup_value):
         ''''find the relation table ID from an aliased field name'''
@@ -1053,7 +1034,7 @@ class ModelView():
             if record == lookup_value:
                 ID = self.tm.record(i).value('ID')
                 return ID
-        return 1
+        return None
 
     def writeCSV(self, fileName):
         header = []
@@ -1349,13 +1330,18 @@ def connect(dbFile, con, target):
         db.open()
         logging.debug(f'{dbFile} open: {db.isOpen()}  Connection = "{db.connectionName()}"')
         logging.debug(f'tables available = {db.tables()}')
+        query = QSqlQuery(db)
+        if query.exec("PRAGMA foreign_keys = ON;"):
+            logging.debug('database foreign keys enforced')
+        else:
+            logging.debug(f'Failed to enable foreign key enforcement: {query.lastError().text()}')
+        query.clear()
         checkVersion(db, target, dbFile)  # check that the actual database version matches the target version
     else:
         logging.info('Database file {dbPath}{dbFile} is missing')
         popUp(QtTSA, 'Database file is missing', 'Ok', 'Critical')
         return
     return db
-
 
 def disconnect(db):
     db.close()
@@ -1716,7 +1702,7 @@ phasenoise.ui.plotWidget.setLabel('left', 'Phase Noise', units='dBc/Hz')
 logging.info(f'{app.applicationName()}{app.applicationVersion()}')
 
 # Database and models for configuration settings
-config = connect("QtTSAprefs.db", "settings", 200)  # third parameter is the database version
+config = connect("QtTSAprefs.db", "settings", 202)  # third parameter is the database version
 
 # field mapping of the checkboxes and numbers database tables, for storing startup configuration
 maps = ModelView('mapping', config, ())

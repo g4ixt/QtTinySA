@@ -72,7 +72,7 @@ class WWBExporter(CSVExporter):
             if len(columns) == 0:
                 raise QtTinySAExportException(
                     'No column data to export / empty graph!')
-            if len(columns) <= self.params['trace'] * 2:
+            if len(columns) < self.params['trace'] * 2:  # bugfix #147 was <=
                 raise QtTinySAExportException(
                     "Missing column data for selected trace - can't export!")
             # select x and y based on choosen trace
