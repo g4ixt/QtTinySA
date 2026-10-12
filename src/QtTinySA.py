@@ -98,6 +98,7 @@ class ApplicationController(QtCore.QObject):
         self._set_controls()
         self._create_analyser()
         self._set_timers()
+        self._setup_gui()
 
     @property
     def app_name(self):
@@ -130,7 +131,6 @@ class ApplicationController(QtCore.QObject):
         # do we need table.select() here?
         
         # connect the preset types window table widget to the data model
-        logging.info(f'_setup_ps_freq_table: bandstype = {self.models.bandstype}')
         self.dialogs.preset_freqs.ui.typeTable.setModel(self.models.bandstype.tm)
         
         # connect the preset frequencies window table widget to the data model
@@ -193,6 +193,10 @@ class ApplicationController(QtCore.QObject):
         self.map_table_to_widgets(self.models.checkboxes,'checkboxes')
         self.map_table_to_widgets(self.models.numbers, 'numbers')
         
+        # Populate the mapped widgets only after all mappings exist.
+        self.models.checkboxes.dwm.setCurrentIndex(0)
+        self.models.numbers.dwm.setCurrentIndex(0)
+        
     def _set_database(self):
         # Database and models for configuration settings
         self.config = connect("QtTSAprefs.db", "settings", self._DB_VERSION, self.app_name, self.ui)
@@ -205,22 +209,29 @@ class ApplicationController(QtCore.QObject):
             self.auto_run_timer.start(4000)
 
     def map_table_to_widgets(self, model, model_name):
-        ''''map widget fields to the appropriate database table fields, using the mapping table'''
+        """Uses the database 'mapping' table, which contains GUI field names and the column 
+            number of the table ('numbers' or 'checkboxes') their state/value is stored in."""
         mapping = self.models.mapping
         
-        # filter the mapping table to show just values for this modelName
-        mapping.tm.setFilter('model = "' + model_name + '"')
+        # filter the mapping definition table to show just values for this model_name
+        mapping.tm.setFilter(f'model = "{model_name}"')
+    
+        # setFilter() must be followed by select() to apply the filter.
+        if not mapping.tm.select():
+            logging.error(f'Failed to select mappings for {model_name}: 'f'{mapping.tm.lastError().text()}')
+            return
+    
         namespace = {'ui': self.ui, 'dialogs': self.dialogs}
-
+    
         for index in range(mapping.tm.rowCount()):
-            # the mapping table 'gui' column determines which ui field is mapped, as '...ui.field'
-            gui = mapping.tm.record(index).value('gui')
-            column = mapping.tm.record(index).value('column')
+            record = mapping.tm.record(index)
+            gui = record.value('gui')
+            column = record.value('column')
             widget = eval(gui, {}, namespace)
             model.dwm.addMapping(widget, int(column))
 
-    def setup_gui(self):
-        '''Configure the various GUIs'''  # what calls it?
+    def _setup_gui(self):
+        '''Configure the various GUIs'''
 
         # pyqtgraph settings for spectrum display
         self.ui.graphWidget.setYRange(-112, -20)
@@ -256,8 +267,8 @@ class ApplicationController(QtCore.QObject):
         self.dialogs.preset_freqs.ui.clearFilter.clicked.connect(self.clear_preset_frequency_filter)
         
         # Correction table signals
-        self.dialogs.offset.ui.read_button.clicked.connect(self.analyser.correction.read_tables)
-        self.dialogs.offset.ui.upload_button.clicked.connect(self.analyser.correction.upload_correction)
+        self.dialogs.offset.ui.read_button.clicked.connect(self.analyser.read_tables)
+        self.dialogs.offset.ui.upload_button.clicked.connect(self.analyser.upload_correction)
         
         # Waterfall signals
         self.ui.waterfall_size.valueChanged.connect(self.set_wf_height)
@@ -265,12 +276,19 @@ class ApplicationController(QtCore.QObject):
 
         # menu actions
         self.ui.actionPresets.triggered.connect(self.preferences_menu_clicked)
-        self.ui.actionSettings.triggered.connect(settings_clicked)
+        self.ui.actionSettings.triggered.connect(self.settings_clicked)
         self.ui.actionAbout_Qt.triggered.connect(self.about)
         self.ui.actionAbout_Qt.triggered.connect(self.app.aboutQt)
 
         # fixed markers
         self.ui.addFix.clicked.connect(self.add_fixed)
+
+        # settings
+        self.dialogs.settings.ui.set_folder.clicked.connect(self.set_folder)
+        
+        # SD card saving
+        self.dialogs.file_browse.ui.download.clicked.connect(lambda: self.set_sd_file_save(True))
+        self.dialogs.file_browse.ui.saveAll.clicked.connect(lambda: self.set_sd_file_save(False))
 
         # finally
         self.set_band_filter(self.ui.filterBox.currentText())
@@ -322,7 +340,7 @@ class ApplicationController(QtCore.QObject):
         table = self.dialogs.preset_freqs.ui.typeTable
         bandstype.set_current_row(table.currentIndex().row())
         record = bandstype.tm.record(bandstype.currentRow)
-        bands.set_filter_to(True, record.value('preset'))
+        bands.set_filter('preset = "' + record.value('preset') + '"')
         bands.unlimited()
         self.dialogs.preset_freqs.ui.psCount.setValue(bands.tm.rowCount())
         
@@ -353,7 +371,7 @@ class ApplicationController(QtCore.QObject):
                 bandstype.freq = record.value('LO')
                 break
     
-        self.set_mixer_highlighting()  # do we need this here?
+        self.analyser.set_mixer_highlighting()  # do we need this here?
        
     def import_data(self, model):
         file_name = QFileDialog.getOpenFileName(caption="Open File", filter="Comma Separated Values (*.csv)")[0]
@@ -384,17 +402,16 @@ class ApplicationController(QtCore.QObject):
                         record.setValue(str(key), value)
                 if record.value('value') not in (0, 1):
                     record.setValue('value', 1)
-                if record.value('preset') == '':
-                    preset = self.dialogs.preset_freqs.ui.filterBox.currentText()
-                    record.setValue('preset', self.models.bandstype.fetch_ID('preset', preset))
     
                 records.append(record)
     
-        inserted, skipped = model.import_records(records)
-    
-        message = ('Inserted ' + str(inserted) + ' rows, skipped ' + str(skipped) + ' duplicates')
-        popUp(self.ui, message, 'Ok', 'Info')
+        inserted, failed = model.import_records(records)
 
+        if inserted != 0:
+            logging.info(f'imported {inserted} frequency presets')
+        if failed != 0:
+            logging.info(f'import failed for {failed} duplicates or unknown type')
+    
     def set_wf_format(self):  # called when wf_2D checkbox state changes
         wf_size = self.ui.waterfall_size.value()
         if self.ui.wf_2D.isChecked():
@@ -430,32 +447,72 @@ class ApplicationController(QtCore.QObject):
             self.ui.wf_2D.setEnabled(True)
 
     def settings_clicked(self):
+        logging.info('settings clicked')
         self.analyser.save_location_valid()
         self.dialogs.settings.ui.show()
 
     def preferences_menu_clicked(self):  # called by clicking on the setup > preferences menu
-        self.dialogs.presetFreqs.ui.show()
-        self.dialogs.presetFreqs.ui.psCount.setValue(bands.tm.rowCount())
+        self.dialogs.preset_freqs.ui.show()
+        self.dialogs.preset_freqs.ui.psCount.setValue(self.models.bands.tm.rowCount())
     
     def about(self):
         message = ('TinySA Ultra GUI programme using Qt6 PySide6\
                    \nAuthor: Ian Jefferson G4IXT\n\nVersion: {} \nConfig: {}'
-                   .format(app.applicationVersion(), self.config.databaseName()))
+                   .format(self.app.applicationVersion(), self.config.databaseName()))
         popUp(self.ui, message, 'Ok', 'Info')
 
-    def addFixed():
+    def add_fixed(self):
         title = "New fixed frequency Marker"
         message = "Enter a name for the fixed Marker"
         fixedMkr, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        controller.models.bands.insertData(name=fixedMkr, preset=12,
+        self.models.bands.insertData(name=fixedMkr, preset=12,
                                            startF=f'{int(self.analyser.s0.trace.m0.line.value())}',
                                            stopF=0, visible=1,
                                            colour=self.models.colours.fetch_ID('colour', 'orange'))
 
-    def set_folder(ui_name):
-        folder = QFileDialog.getExistingDirectory()
-        ui_name.save_folder.setText(folder)
+    def set_folder(self):
+        # folder = QFileDialog.getExistingDirectory()
+        # self.dialogs.settings.ui.save_folder.setText(folder)
+        folder = QFileDialog.getExistingDirectory(self.dialogs.settings.ui, "Select save folder",
+                                                  self.dialogs.settings.ui.save_folder.text())
+        if not folder:
+            return
+
+        self.dialogs.settings.ui.save_folder.setText(folder)
         self.analyser.save_location_valid()
+        self.models.numbers.dwm.submit()
+
+    def set_sd_file_save(self, single=True):
+        device = self.file_devices[self.dialogs.file_browse.ui.device.currentIndex()]
+        folder = QFileDialog.getExistingDirectory(caption="Select folder to save SD card files")
+        if single:
+            file_name = self.dialogs.file_browse.ui.listWidget.currentItem().text()  # the file selected in the list widget
+        else:
+            file_name = None
+        saver = Worker(self.sd_file_save, device, file_name, folder, single)
+        threadpool.start(saver)  # workers deleted when thread ends
+
+    def sd_file_save(self, device, file_name, folder, single):
+        signals = WorkerSignals()
+        signals.progress.connect(self.sd_save_progress)
+        signals.progress.emit(0)
+        SD = device.listSD()
+        for i in range(len(SD.splitlines())):
+            if not single:
+                file_name = SD.splitlines()[i].split(" ")[0]
+            if file_name != '.Trash-1000':
+                with open(os.path.join(folder, file_name), "wb") as file:
+                    data = device.readSD(file_name)
+                    file.write(data)
+                signals.progress.emit(int(100 * (i+1)/len(SD.splitlines())))
+                if single:
+                    signals.progress.emit(100)
+                    break
+        signals.progress.emit(100)
+
+    def sd_save_progress(self, progress):
+        self.dialogs.file_browse.ui.saveProgress.setValue(progress)
+
 
 class CustomTableModel(QSqlRelationalTableModel):
     def __init__(self, parent=None, db=None, ro_columns=tuple()):
@@ -532,7 +589,7 @@ class Models:
         return mapping
 
     def _set_bands(self):
-        # the preset frequencies relational table in the presetFreqs window
+        # the preset frequencies relational table in the preset_freqs window
         bands = ModelView('frequencies', self.config, ())
         bands = ModelView('frequencies', self.config, ())
         bands.tm.setSort(3, QtCore.Qt.SortOrder.AscendingOrder)
@@ -547,7 +604,6 @@ class Models:
     def _set_bandstype(self):
         # the preset Types table in the preset frequencies window
         bandstype = ModelView('freqtype', self.config, ())
-        logging.info(f'Models: bandstype = {bandstype}')
         bandstype.tm.select()
         return bandstype
         
@@ -597,15 +653,25 @@ class Models:
         checkboxes = ModelView('checkboxes', self.config, ())
         checkboxes.createMapper()
         checkboxes.tm.select()
-        checkboxes.dwm.setCurrentIndex(0)  # 0 = (last used) default settings
+        # checkboxes.dwm.setCurrentIndex(0)  # 0 = (last used) default settings
         return checkboxes
         
+    def _create_combo_box(self, combo_type):
+        combo = ModelView('combo', self.config, ())
+        combo.tm.setFilter(f'type = "{combo_type}"')
+        combo.tm.select()
+        return combo
+
     def _set_rbwtext(self):
         rbwtext = ModelView('combo', self.config, ())
+        rbwtext.tm.setFilter('type = "rbw"')
+        rbwtext.tm.select()
         return rbwtext
         
     def _set_correctiontext(self):
         correctiontext = ModelView('combo', self.config, ())
+        correctiontext.tm.setFilter('type = "correction"')
+        correctiontext.tm.select()
         return correctiontext
         
     def _set_numbers(self):
@@ -613,7 +679,7 @@ class Models:
         numbers = ModelView('numbers', self.config, ())
         numbers.createMapper()
         numbers.tm.select()
-        numbers.dwm.setCurrentIndex(0)
+        # numbers.dwm.setCurrentIndex(0)
         return numbers
     
     def _set_tracetext(self):
@@ -630,11 +696,6 @@ class Models:
         markertext.tm.select()
         return markertext
         
-    def _create_combo_box(self, combo_type):
-        combo = ModelView('combo', self.config, ())
-        combo.tm.setFilter(f'type = "{combo_type}"')
-        combo.tm.select()
-        return combo
   
       
 class Analyser(QtCore.QObject):
@@ -813,12 +874,13 @@ class Analyser(QtCore.QObject):
             self.hardware.stop(restart=False)
             return
         self.stop_playback()
+        
         if self.hardware.devices is None:
-            popUp(QtTSA, 'No spectrum analyser devices found', 'Ok', 'Critical')
+            popUp(self.ui, 'No spectrum analyser devices found', 'Ok', 'Critical')
             return
+        
         if self.dialogs.settings.ui.saveSweep.isChecked() and not self.save_location_valid():
-            popUp(QtTSA, "The current save file location is not valid", 'Ok', 'Critical')
-            settings_clicked()
+            popUp(self.ui, "The save file location in 'settings > preferences' is not valid", 'Ok', 'Critical')
             return
         
         self.mkr_update_timer.stop()  # stop it because updateGUI does it when scanning
@@ -837,7 +899,7 @@ class Analyser(QtCore.QObject):
         spur = self.spur()
         self.setGraphFreq(startF, stopF)
         if self.hardware.num_enabled == 0:
-            popUp(QtTSA, 'No devices enabled', 'Ok', 'Critical')
+            popUp(self.ui, 'No devices enabled', 'Ok', 'Critical')
             return
         self.hardware.controls(rbw, attn, lna, spur)
 
@@ -946,7 +1008,7 @@ class Analyser(QtCore.QObject):
             self.sweeping = False
             scanF = (88 * 1e6, 108 * 1e6)
             logging.info('LO frequency offset error, check settings')
-            popUp(QtTSA, "LO frequency offset error, check settings", 'Ok', 'Critical')
+            popUp(self.ui, "LO frequency offset error, check settings", 'Ok', 'Critical')
         logging.debug(f'freqOffset(): scanF = {scanF}')
         return scanF
 
@@ -1019,13 +1081,14 @@ class Analyser(QtCore.QObject):
     def updateGUI(self, route, freq, levl, maxl, minl, buffer, ser_num, dev_id, timestamp, split, sweep_end):
         ''''updates all the traces in the route in one call'''
 
-        if self.models.bandstype.freq !=0 and bandstype.freq < self.ui.start_freq.value() * 1e6:
-            freq = freq + self.models.bandstype.freq
-        elif self.models.bandstype.freq !=0 and self.models.bandstype.freq > self.ui.start_freq.value() * 1e6:
-            freq = self.models.bandstype.freq - freq
+        lo_freq = self.models.bandstype.freq
+        if lo_freq !=0 and lo_freq < self.ui.start_freq.value() * 1e6:
+            freq = freq + lo_freq
+        elif lo_freq !=0 and lo_freq > self.ui.start_freq.value() * 1e6:
+            freq = lo_freq - freq
         
         # reverse the arrays if in LNB/Mixer mode when LO is above measured freq
-        if self.models.bandstype.freq > self.ui.start_freq.value() * 1e6:
+        if lo_freq > self.ui.start_freq.value() * 1e6:
             freq = freq[::-1]
             levl = levl[::-1]
             maxl = maxl[::-1]
@@ -1124,7 +1187,7 @@ class Analyser(QtCore.QObject):
                 # save sweep data to file if enabled and the waterfall data array is full
                 if spectrum.count == self.depth:
                     if self.dialogs.settings.ui.saveSweep.isChecked():
-                        self.save_data(freq, self.wf_data, ser_num, 0)
+                        self.save_data(freq, self.wf_data, ser_num)
                     spectrum.count = 0  # resets the counter only for the traces being updated by this route
 
     def scan_button(self, action):
@@ -1139,7 +1202,7 @@ class Analyser(QtCore.QObject):
             for device in self.hardware.devices:
                 if device.name in dev_names:
                     if device.sweeping:
-                        popUp(self.ui, "Cannot browse whilst a scan is running", 'Ok', 'Info')
+                        popUp(self.ui, "Cannot read from {device.name} whilst a scan is running", 'Ok', 'Info')
                     else:
                         with QSignalBlocker(ui_name.device):
                             ui_name.device.addItem(device.name + ' serial ' + str(device.sn))
@@ -1157,11 +1220,16 @@ class Analyser(QtCore.QObject):
         if self.hardware.devices:
             match_vals = ('tinySA ULTRA ZS405', 'tinySA ULTRA ZS406', 'tinySA ULTRA ZS407')
             self.file_devices = self.set_dev_combo(self.dialogs.file_browse.ui, match_vals)
-            self.dialogs.file_browse.ui.show()
-            self.list_files()
+            if self.file_devices:
+                self.dialogs.file_browse.ui.show()
+                self.list_files()
+            else:
+                popUp(self.ui, "No browsable devices connected", 'Ok', 'Info')
+        else:
+            popUp(self.ui, "No browsable devices connected", 'Ok', 'Info')
 
     def list_files(self):
-        device = self.file.devices[self.dialogs.file_browse.ui.device.currentIndex()]
+        device = self.file_devices[self.dialogs.file_browse.ui.device.currentIndex()]
         SD = device.listSD()
         self.dialogs.file_browse.ui.listWidget.clear()
         ls = []
@@ -1234,13 +1302,13 @@ class Analyser(QtCore.QObject):
 
     def marker_save(self):
         # to save the marker frequencies on exit.  Only saves the spectrum 0 marker freqs at present.
-        record = numbers.tm.record(0)
+        record = self.models.numbers.tm.record(0)
         fields = {0: 'm1f', 1:'m2f', 2: 'm3f', 3: 'm4f'}
         for i in range(4):
             freq = self.spectra[0].mkr_list[i].line.value()
             logging.debug(f'marker_save: freq = {freq}')
             record.setValue(fields.get(i), float(freq))
-        numbers.tm.setRecord(0, record)
+        self.models.numbers.tm.setRecord(0, record)
 
     def centreTone(self):  # for phase noise graph
         centreF = self.s0.trace.m0.line.value() * 1e-6
@@ -1298,8 +1366,7 @@ class Analyser(QtCore.QObject):
     def start_recording(self):
         folder = self.dialogs.settings.ui.save_folder.text()
         if not os.path.exists(folder):
-            popUp(QtTSA, "The current save file location is not valid", 'Ok', 'Critical')
-            settings_clicked()
+            popUp(self.ui, "The save file location in 'settings > preferences' is not valid", 'Ok', 'Critical')
             return
             
         self.stop_playback()
@@ -1330,13 +1397,13 @@ class Analyser(QtCore.QObject):
         self.hardware.stop()
         # if np.isnan(self.hardware.recorders[0].data_arr).all():
         if np.isnan(self.hardware.devices[0].data_arr).all():
-            popUp(QtTSA, "No recorded spectrum data is loaded", 'Ok', 'Critical')
+            popUp(self.ui, "No recorded spectrum data is loaded", 'Ok', 'Critical')
             return
         if self.hardware.is_scanning:
             return
         
         if self.dialogs.settings.ui.saveSweep.isChecked() and not self.save_location_valid():
-            popUp(QtTSA, "The current save file location is not valid", 'Ok', 'Critical')
+            popUp(self.ui, "The current save file location is not valid", 'Ok', 'Critical')
             return
         
         interval = self.dialogs.settings.ui.intervalBox.value()
@@ -1395,13 +1462,13 @@ class Analyser(QtCore.QObject):
         for i in range(self.hardware.loaded_files):
             self.hardware.recorders[i].speed = speed
     
-    def save_data(self, frequencies, data_arr, ser_num, dev_num):
+    def save_data(self, frequencies, data_arr, ser_num):
         sn_txt = str(ser_num)
         timeStamp = time.strftime('%Y-%m-%d-%H%M%S')
         folder = self.dialogs.settings.ui.save_folder.text()
         file_name = str(timeStamp + '_RBW' + self.ui.rbw_box.currentText() + '_' + sn_txt + '.CSV')
         file_name = os.path.join(folder, file_name)
-        saver = Worker(save_sweep, folder, file_name, frequencies, data_arr, ser_num)
+        saver = Worker(save_sweep, file_name, frequencies, data_arr)
         threadpool.start(saver)  # workers are deleted when thread ends
     
     def load_data(self):
@@ -1428,16 +1495,6 @@ class Analyser(QtCore.QObject):
         self.ui.vortex.hide()
         self.hardware.probe_ports.start()  # start probing the usb ports for analyser hardware
 
-    def set_sd_file_save(self, single=True):
-        device = self.file_devices[self.dialogs.file_browse.ui.device.currentIndex()]
-        folder = QFileDialog.getExistingDirectory(caption="Select folder to save SD card files")
-        if single:
-            file_name = self.dialogs.file_browse.ui.listWidget.currentItem().text()  # the file selected in the list widget
-        else:
-            file_name = None
-        saver = Worker(sd_file_save, device, file_name, folder, single)
-        threadpool.start(saver)  # workers deleted when thread ends
-
     def read_tables(self):
         ''''read the correction tables from the tinySA and display in a table widget'''
         device = self.correction_devices[self.dialogs.offset.ui.device.currentIndex()]
@@ -1449,7 +1506,7 @@ class Analyser(QtCore.QObject):
         self.models.correction.unlimited()
         write_config = QMessageBox.StandardButton.Ok
 
-        if self.models.correcton.tm.rowCount() > 0 and self.dialogs.offset.ui.save_box.isChecked():
+        if self.models.correction.tm.rowCount() > 0 and self.dialogs.offset.ui.save_box.isChecked():
             message = ('OK to over-write config database table with\rcorrection data from tinySA?')
             write_config = popUp(offset, message, 'OkC', 'Question')
             if write_config == QMessageBox.StandardButton.Ok:
@@ -1555,8 +1612,6 @@ class Analyser(QtCore.QObject):
         # self.ui.sampleRepeat.valueChanged.connect(self.sampleRep)
     
         # filebrowse
-        self.dialogs.file_browse.ui.download.clicked.connect(lambda: self.set_sd_file_save(True))
-        self.dialogs.file_browse.ui.saveAll.clicked.connect(lambda: self.set_sd_file_save(False))
         self.dialogs.file_browse.ui.listWidget.itemClicked.connect(self.show_file)
     
         # Sweep time
@@ -1665,8 +1720,8 @@ class Analyser(QtCore.QObject):
         self.dialogs.offset.ui.export_button.clicked.connect(lambda: self.models.correction.exportData(''))
         self.dialogs.offset.ui.import_button.clicked.connect(lambda: self.models.correction.importData(''))
       
-        # settings
-        self.dialogs.settings.ui.set_folder.clicked.connect(lambda:set_folder(self.dialogs.settings.ui))
+        # # settings
+        # self.dialogs.settings.ui.set_folder.clicked.connect(lambda:set_folder(self.dialogs.settings.ui))
     
         # recording and playback
         self.ui.record.clicked.connect(self.start_recording)
@@ -1739,7 +1794,7 @@ class Analyser(QtCore.QObject):
         if self.ui.presetMarker.isChecked():
             self.set_preset_marker()
 
-    def correction_filter():
+    def correction_filter(self):
         if self.dialogs.offset.ui.filter_box.isChecked():
             sql = 'mode = "' + self.dialogs.offset.ui.correction_mode.currentText() + '"'
             self.models.correction.tm.setFilter(sql)
@@ -1803,10 +1858,7 @@ class ModelView():
     
     def set_current_row(self, row):
         self.currentRow = row
-        logging.info(f'set_current_row: row {self.currentRow} clicked')
-        
-        self.tm = CustomTableModel(db=db_name, ro_columns=limit_edit)
-        self.tm.setTable(table_name)
+        logging.debug(f'set_current_row: row {self.currentRow} clicked')
 
     def set_filter(self, sql):
         self.tm.setFilter(sql)
@@ -1945,24 +1997,16 @@ class ModelView():
     #     # self.dwm.submit()
     
     def import_records(self, records):
-        existing = set()
-        for i in range(self.tm.rowCount()):
-            rec = self.tm.record(i)
-            existing.add((str(rec.value('name')), str(rec.value('startF'))))
         inserted = 0
-        skipped = 0
+        failed = 0
         for record in records:
-            key_tuple = (str(record.value('name')), str(record.value('startF'))        )
-            if key_tuple in existing:
-                logging.info(f'import_records(): skipping duplicate entry name={record.value("name")}')
-                skipped += 1
-                continue
-            existing.add(key_tuple)
-            self.tm.insertRecord(-1, record)
-            inserted += 1
+            write_rec = self.tm.insertRecord(-1, record)
+            if write_rec:
+                inserted += 1
         self.tm.select()
         self.tm.layoutChanged.emit()
-        return inserted, skipped
+        failed = len(records) - inserted
+        return inserted, failed
 
     def fetch_ID(self, field, lookup_value):
         ''''find the relation table ID from an aliased field name'''
@@ -2192,9 +2236,13 @@ def clickEvent():
 #     ui_name.save_folder.setText(folder)
 #     save_location_valid()
   
-def save_sweep(folder, file_name, frequencies, readings, ser_num):
-    array = np.insert(readings, 0, frequencies, axis=0)  # insert the measurement freqs at the top of the readings array
-    dBm = np.transpose(np.round(array, decimals=2))  # transpose columns and rows
+def save_sweep(file_name, frequencies, readings):
+    # insert the measurement freqs at the top of the readings array
+    array = np.insert(readings, 0, frequencies, axis=0)
+    
+    # transpose columns and rows
+    dBm = np.transpose(np.round(array, decimals=2))
+    
     np.savetxt(file_name, dBm, delimiter=',', fmt='%.2f')
 
 # def set_sd_file_save(single=True):
@@ -2207,26 +2255,26 @@ def save_sweep(folder, file_name, frequencies, readings, ser_num):
 #     saver = Worker(sd_file_save, device, file_name, folder, single)
 #     threadpool.start(saver)  # workers deleted when thread ends
     
-def sd_file_save(device, file_name, folder, single):
-    signals = WorkerSignals()
-    signals.progress.connect(sd_save_progress)
-    signals.progress.emit(0)
-    SD = device.listSD()
-    for i in range(len(SD.splitlines())):
-        if not single:
-            file_name = SD.splitlines()[i].split(" ")[0]
-        if file_name != '.Trash-1000':
-            with open(os.path.join(folder, file_name), "wb") as file:
-                data = device.readSD(file_name)
-                file.write(data)
-            signals.progress.emit(int(100 * (i+1)/len(SD.splitlines())))
-            if single:
-                signals.progress.emit(100)
-                break
-    signals.progress.emit(100)
+# def sd_file_save(device, file_name, folder, single):
+#     signals = WorkerSignals()
+#     signals.progress.connect(sd_save_progress)
+#     signals.progress.emit(0)
+#     SD = device.listSD()
+#     for i in range(len(SD.splitlines())):
+#         if not single:
+#             file_name = SD.splitlines()[i].split(" ")[0]
+#         if file_name != '.Trash-1000':
+#             with open(os.path.join(folder, file_name), "wb") as file:
+#                 data = device.readSD(file_name)
+#                 file.write(data)
+#             signals.progress.emit(int(100 * (i+1)/len(SD.splitlines())))
+#             if single:
+#                 signals.progress.emit(100)
+#                 break
+#     signals.progress.emit(100)
 
-def sd_save_progress(progress):
-    filebrowse.ui.saveProgress.setValue(progress)
+# def sd_save_progress(progress):
+#     filebrowse.ui.saveProgress.setValue(progress)
 
 def locate_db(dbName, app_name):
     # 1. check if a personal database file exists already
@@ -2259,7 +2307,7 @@ def locate_db(dbName, app_name):
             shutil.copy(os.path.join(directory, dbName), personalDir)
             logging.info(f'{dbName} copied from {directory} to {personalDir}')
             return personalDir
-    raise FileNotFoundError("Unable to find the database {self.dbName}")
+    raise FileNotFoundError("Unable to find the database {dbName}")
 
 
 def connect(dbFile, con, target, app_name, parent_window):
@@ -2270,10 +2318,16 @@ def connect(dbFile, con, target, app_name, parent_window):
         db.open()
         logging.debug(f'{dbFile} open: {db.isOpen()}  Connection = "{db.connectionName()}"')
         logging.debug(f'tables available = {db.tables()}')
+        query = QSqlQuery(db)
+        if query.exec("PRAGMA foreign_keys = ON;"):
+            logging.debug('database foreign keys enforced')
+        else:
+            logging.debug(f'Failed to enable foreign key enforcement: {query.lastError().text()}')
+        query.clear()
         checkVersion(db, target, dbFile, app_name, parent_window)  # check the actual database version = target version
     else:
-        logging.info('Database file {dbPath}{dbFile} is missing')
-        popUp(QtTSA, 'Database file is missing', 'Ok', 'Critical')
+        logging.info('Database file {os.path.join(dbPath, dbFile)} is missing')
+        popUp(parent_window, 'Database file is missing', 'Ok', 'Critical')
         return
     return db
 
@@ -2305,10 +2359,11 @@ def checkVersion(db, target, dbFile, app_name, parent_window):
             disconnect(db)
             os.rename(db.databaseName(), db.databaseName() + '.' + str(existing))
 
-            locate_db(dbFile)  # this ought to return the same path as when it was run earlier in connect()
+            locate_db(dbFile, app_name)  # this ought to return the same path as when it was run earlier in connect()
             db.open()  # the database connection has not changed, only the file, so can re-open it with the new file
             found = fetchVersion(db)
             logging.info(f'Found new database version {found}')
+            
             if found != target:
                 message = "Found new database version " + str(found) + "\nbut expected version " + str(target)
                 restore = popUp(QtTSA, message, 'Ok', 'Info')
@@ -2347,7 +2402,7 @@ def fetchVersion(db):
 
 def popUp(window, message, button, icon):
     if window is None:
-        window = QtTSA
+        window = QApplication.activeWindow()
     icons = {'Warn': QMessageBox.Icon.Warning, 'Info': QMessageBox.Icon.Information,
              'Critical': QMessageBox.Icon.Critical, 'Question': QMessageBox.Icon.Question}
     buttons = {'Ok': QMessageBox.StandardButton.Ok, 'Cancel': QMessageBox.StandardButton.Cancel,
@@ -2514,7 +2569,7 @@ def main():
 
     ###############################################################################
     # set up the application
-    logging.info(f'{app.applicationName()}{app.applicationVersion()}')
+    logging.info(f'{app.applicationName()} {app.applicationVersion()}')
 
     # # Database and models for configuration settings
     # config = connect("QtTSAprefs.db", "settings", 210, app.applicationName(), QtTSA)  # third parameter = db version
