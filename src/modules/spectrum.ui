@@ -1419,6 +1419,9 @@ and Colours</string>
          <property name="frame">
           <bool>true</bool>
          </property>
+         <property name="keyboardTracking">
+          <bool>false</bool>
+         </property>
          <property name="correctionMode">
           <enum>QAbstractSpinBox::CorrectionMode::CorrectToNearestValue</enum>
          </property>
@@ -1476,6 +1479,9 @@ and Colours</string>
          <property name="buttonSymbols">
           <enum>QAbstractSpinBox::ButtonSymbols::PlusMinus</enum>
          </property>
+         <property name="keyboardTracking">
+          <bool>false</bool>
+         </property>
          <property name="correctionMode">
           <enum>QAbstractSpinBox::CorrectionMode::CorrectToNearestValue</enum>
          </property>
@@ -1526,6 +1532,9 @@ and Colours</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
+         </property>
+         <property name="keyboardTracking">
+          <bool>false</bool>
          </property>
          <property name="correctionMode">
           <enum>QAbstractSpinBox::CorrectionMode::CorrectToNearestValue</enum>
@@ -1855,6 +1864,9 @@ and Colours</string>
          </property>
          <property name="buttonSymbols">
           <enum>QAbstractSpinBox::ButtonSymbols::PlusMinus</enum>
+         </property>
+         <property name="keyboardTracking">
+          <bool>false</bool>
          </property>
          <property name="correctionMode">
           <enum>QAbstractSpinBox::CorrectionMode::CorrectToNearestValue</enum>
