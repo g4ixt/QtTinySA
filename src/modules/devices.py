@@ -152,7 +152,7 @@ class USBdevice(QObject):
     def port_to_num(self, usbPort):
         # port number sets the order devices are used and the gui list order
         port_names = [port.device for port in self.ports]
-        logging.info(f'port names = {port_names}')
+        logging.debug(f'port names = {port_names}')
         port_num = port_names.index(usbPort)
         return port_num
 
