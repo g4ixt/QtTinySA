@@ -87,19 +87,46 @@ logger = logging.getLogger(__name__)
 
 
 # ----------------------------------------------------------------------------------------------------------------
-# Preset sample rates, FFT/window sizing, and other constants -- identical to soapy_receiver.py, duplicated here
-# rather than imported since this is meant to be a standalone module.
+# Preset sample rates, FFT/window sizing, and other constants.
 # ----------------------------------------------------------------------------------------------------------------
-BASE_CLOCK_HZ = 30_720_000.0  # 30.72 MHz
-DEFAULT_SAMPLE_RATE_DIVISORS: tuple[int, ...] = (1, 2, 4, 8, 16, 32, 64, 128)
-DEFAULT_PRESET_SAMPLE_RATES: tuple[float, ...] = tuple(
-    BASE_CLOCK_HZ / d for d in DEFAULT_SAMPLE_RATE_DIVISORS
+# DEFAULT_PRESET_SAMPLE_RATES is a generic, device-agnostic STARTING POINT, used for every pre-start()
+# computation (set_span/set_sweep/set_rbw, and therefore fft_size/composite_size/segment_span_hz) before any
+# device has actually been opened. It is NOT guaranteed to match what any specific device can really do --
+# earlier versions of this module derived it from a 30.72 MHz base clock tied to LimeSDR/LTE conventions, which
+# RTL-SDR (max ~3.2 MSps, with an unstable gap below ~900 kSps) and HackRF (2-20 MSps spec'd range) mostly can't
+# achieve at all. These values instead span a broad range that's at least plausible across common SoapySDR
+# devices (not perfectly ideal for any one of them), deliberately overlapping HackRF's and RTL-SDR's practical
+# ranges as well as sitting well within LimeSDR's.
+#
+# The actual, authoritative sample rate range is queried from the device itself -- inside the worker process,
+# as part of _open_device(), via SoapySDR's getSampleRateRange() (superseding the deprecated listSampleRates()).
+# This is deliberately NOT done from the parent process: that would mean a second, short-lived connection to the
+# same hardware before the worker opens its own -- exactly the kind of USB resource-contention risk a great deal
+# of hands-on debugging on this project went into eliminating. The trade-off is timing: if the device's real
+# range differs from this generic fallback, the correction only happens once the worker actually opens the
+# device (reported via event_queue -- see _open_device()), which is necessarily after start(), not available
+# synchronously beforehand the way set_rbw()'s auto-couple messages are. LimeSDR's own driver has a further
+# documented quirk where getSampleRateRange() doesn't report anything useful until the clock rate is already
+# configured -- handled by querying after setSampleRate() has been attempted at least once, not before.
+DEFAULT_PRESET_SAMPLE_RATES: tuple[float, ...] = (
+    20_000_000.0, 10_000_000.0, 5_000_000.0, 2_500_000.0, 2_048_000.0, 1_024_000.0, 500_000.0, 250_000.0,
 )
 
-MAX_FFT_SIZE = 65536
+# Ceiling on the FFT size calculate_fft_size() will compute. 65536 was measured at ~4 ms per FFT on an ordinary
+# CPU -- needlessly conservative for "powerful hardware" means today, and it caps achievable RBW to a few
+# hundred Hz even at LimeSDR's full 61.44 MSps rate. 1,048,576 (2^20) was measured at ~52 ms per FFT -- still a
+# small fraction of a second, and this runs in its own OS process rather than competing with a GUI thread.
+# Override via set_max_fft_size() if your hardware needs a tighter or looser budget.
+MAX_FFT_SIZE = 1_048_576
 MIN_FFT_SIZE = 256
 
 DEFAULT_KAISER_BETA = 10.5
+
+# Default span/RBW coupling ratio for auto-couple mode (span = rbw_hz * ratio), matching the industry-standard
+# default used across spectrum analyzer manufacturers (confirmed against Rohde & Schwarz's real-time spectrum
+# documentation, which refers to "span/RBW couplings" as a named feature, and against published default ratios
+# of 100:1 elsewhere in the industry). See SoapyReceiverProcess.set_auto_couple().
+DEFAULT_SPAN_RBW_RATIO = 100.0
 
 LIME_VALID_OVERSAMPLING_RATIOS: tuple[int, ...] = (0, 1, 2, 4, 8, 16, 32)
 LIME_CALIBRATE_BANDWIDTH_RANGE_HZ: tuple[float, float] = (2.5e6, 1.2e8)
@@ -207,6 +234,52 @@ def choose_sample_rate_for_span(span_hz: float, preset_sample_rates) -> float:
             f"({presets[-1]:.0f} Hz); this receiver cannot capture a wider span."
         )
     return chosen
+
+
+def choose_sweep_segmentation(total_span_hz: float, preset_sample_rates) -> tuple[int, float, float]:
+    """
+    Pick the number of equal-width segments for total_span_hz, comparing exactly two candidates rather than
+    searching the whole space: the baseline (fewest segments that fit, using the largest preset able to cover
+    one segment) and one preset tier finer than whatever the baseline actually resolved to. Whichever leaves a
+    smaller discrepancy between the requested span and the actual total captured (num_segments * sample_rate)
+    is used.
+
+    This intentionally does not search further than one tier down. An earlier version minimized captured
+    bandwidth with no limit on segment count, which technically fits tighter but drives segment counts into the
+    tens or hundreds for some spans (e.g. 73 segments for a 70 MHz span) purely by using ever-finer presets --
+    ignoring that each extra segment costs a real retune-and-settle on actual hardware. Comparing only "the
+    baseline" against "one step finer" bounds the segment-count increase to roughly 2x in the worst case, while
+    still catching the common case where the baseline fits particularly poorly (e.g. 70 MHz: baseline is 3
+    segments at 30.72 MHz each, 92.16 MHz captured, 32% overshoot; one step finer is 5 segments at 15.36 MHz
+    each, 76.8 MHz captured, 10% overshoot -- clearly worth the two extra segments).
+
+    Returns (num_segments, segment_span_nominal_hz, sample_rate_hz).
+    """
+    presets = sorted(preset_sample_rates)
+    max_preset = presets[-1]
+
+    baseline_n = max(1, math.ceil(total_span_hz / max_preset))
+    baseline_nominal = total_span_hz / baseline_n
+    baseline_actual = choose_sample_rate_for_span(baseline_nominal, presets)
+    baseline_captured = baseline_n * baseline_actual
+    baseline_discrepancy = baseline_captured - total_span_hz
+
+    best = (baseline_n, baseline_nominal, baseline_actual, baseline_discrepancy)
+
+    baseline_index = presets.index(baseline_actual)
+    if baseline_index > 0:
+        finer_preset = presets[baseline_index - 1]
+        finer_n = max(1, math.ceil(total_span_hz / finer_preset))
+        finer_nominal = total_span_hz / finer_n
+        finer_actual = choose_sample_rate_for_span(finer_nominal, presets)
+        finer_captured = finer_n * finer_actual
+        finer_discrepancy = finer_captured - total_span_hz
+
+        if finer_discrepancy < baseline_discrepancy - 1e-6:  # meaningfully better, not just float noise
+            best = (finer_n, finer_nominal, finer_actual, finer_discrepancy)
+
+    num_segments, segment_span_nominal, sample_rate, _ = best
+    return num_segments, segment_span_nominal, sample_rate
 
 
 def compute_segment_crop_bins(fft_size: int, sample_rate: float, segment_span_nominal_hz: float) -> int:
@@ -776,7 +849,7 @@ class SoapyReceiverProcess:
     Parent-side handle for a SoapySDR acquisition worker running in its own OS process.
 
     Public API deliberately mirrors soapy_receiver.SoapySDRReceiver's setters (set_device, set_center_frequency,
-    set_span, set_sweep, set_rbw, set_rx_gain, set_antenna, set_bandwidth, set_dc_offset_removal,
+    set_span, set_sweep, set_rbw, set_auto_couple, set_rx_gain, set_antenna, set_bandwidth, set_dc_offset_removal,
     set_iq_balance_mode, set_auto_calibrate, set_gfir_lpf_bandwidth, set_oversampling, set_kaiser_beta,
     set_offset_tuning, set_amplitude_calibration, clear_amplitude_calibration, start, stop, wait), plus
     set_tx_gain(), set_tx_antenna(), enable_tsg(), disable_tsg() -- new here, since the threading version let
@@ -829,6 +902,8 @@ class SoapyReceiverProcess:
         self._num_segments: int = 1
         self._segment_span_nominal_hz: float | None = None
         self._sweep_output_mode: str = "segments"
+        self._auto_couple_enabled: bool = False
+        self._auto_couple_ratio: float = DEFAULT_SPAN_RBW_RATIO
         self._bandwidth: float | None = None
         self._rx_gain: float | None = None
         self._rx_agc: bool = False
@@ -885,12 +960,14 @@ class SoapyReceiverProcess:
         self._sample_rate = choose_sample_rate_for_span(span_hz, self._preset_sample_rates)
         self._span = span_hz
         self._sweep_active = False
+        self._auto_couple_enabled = False  # setting span manually takes back control from auto-couple
 
     def set_sweep(self, start_hz: float, stop_hz: float, output_mode: str = "segments") -> None:
         """
         Configure a multi-segment sweep from start_hz to stop_hz, for spans wider than any single preset sample
-        rate can capture in one block. Splits the requested range into the smallest number of equal-width
-        segments whose width fits within the largest available preset sample rate, retunes between them, and
+        rate can capture in one block. Compares the fewest-segments baseline against one preset tier finer and
+        keeps whichever leaves a smaller gap between the requested span and the actual captured bandwidth (see
+        choose_sweep_segmentation()), retunes between segments, and
         either emits each segment separately (output_mode="segments", the default -- closer to how a normal
         swept-tuned spectrum analyzer behaves) or stitches them into one fixed-length composite spectrum per
         full sweep cycle (output_mode="composite").
@@ -921,10 +998,9 @@ class SoapyReceiverProcess:
             raise ValueError("output_mode must be 'segments' or 'composite'")
 
         total_span = stop_hz - start_hz
-        max_preset = max(self._preset_sample_rates)
-        num_segments = max(1, math.ceil(total_span / max_preset))
-        segment_span_nominal = total_span / num_segments
-        sample_rate = choose_sample_rate_for_span(segment_span_nominal, self._preset_sample_rates)
+        num_segments, segment_span_nominal, sample_rate = choose_sweep_segmentation(
+            total_span, self._preset_sample_rates
+        )
 
         self._sweep_active = True
         self._sweep_start_hz = start_hz
@@ -935,22 +1011,94 @@ class SoapyReceiverProcess:
         self._span = sample_rate
         self._sample_rate = sample_rate
 
-    def set_rbw(self, rbw_hz: float) -> None:
+    def set_rbw(self, rbw_hz: float) -> str | None:
+        """
+        Set the resolution bandwidth. Returns None if the span is unchanged by this call, or a short message
+        string whenever auto-couple mode (see set_auto_couple()) changes the span as a result -- check the
+        return value (or re-read segment_span_hz) any time auto-couple might be active, since the actual
+        captured span can change on every call while it's on, not just the first time. No effect on sweep mode
+        (see set_sweep()) -- auto-couple is a single-capture-only feature.
+
+        If auto-couple is off and the requested RBW doesn't fit the current span, rather than raising, this
+        turns auto-couple on (at the default ratio) and widens the span enough to accommodate it instead,
+        returning an explanatory message -- see set_auto_couple()'s docstring for the reasoning.
+        """
         self._check_idle("RBW")
-        fft_size = calculate_fft_size(rbw_hz, self._sample_rate, self._kaiser_beta)
+        if rbw_hz <= 0:
+            raise ValueError("rbw_hz must be > 0")
+
+        if self._auto_couple_enabled and not self._sweep_active:
+            old_span = self._sample_rate
+            self._apply_auto_couple(rbw_hz)
+            fft_size = calculate_fft_size(rbw_hz, self._sample_rate, self._kaiser_beta)
+            self._rbw = float(rbw_hz)
+            self._fft_size = fft_size
+            if self._sample_rate != old_span:
+                return f"Span auto-coupled to {self._sample_rate:.0f} Hz"
+            return None
+
+        try:
+            fft_size = calculate_fft_size(rbw_hz, self._sample_rate, self._kaiser_beta)
+        except ValueError:
+            if self._sweep_active:
+                raise  # auto-couple doesn't apply during a sweep; surface the original error as before
+            self._auto_couple_enabled = True
+            self._apply_auto_couple(rbw_hz)
+            fft_size = calculate_fft_size(rbw_hz, self._sample_rate, self._kaiser_beta)
+            self._rbw = float(rbw_hz)
+            self._fft_size = fft_size
+            return (
+                f"RBW set too low for span; span/RBW auto-coupling enabled "
+                f"(span now {self._sample_rate:.0f} Hz)"
+            )
+
         self._rbw = float(rbw_hz)
         self._fft_size = fft_size
+        return None
+
+    def _apply_auto_couple(self, rbw_hz: float) -> None:
+        """Set span/sample_rate from rbw_hz * the auto-couple ratio, clamped to the available presets."""
+        presets = sorted(self._preset_sample_rates)
+        ideal_span = min(rbw_hz * self._auto_couple_ratio, presets[-1])
+        self._sample_rate = choose_sample_rate_for_span(ideal_span, presets)
+        self._span = self._sample_rate
+
+    def set_auto_couple(self, enabled: bool, ratio: float = DEFAULT_SPAN_RBW_RATIO) -> None:
+        """
+        Enable/disable span/RBW auto-coupling for single-capture mode, mirroring how a real spectrum analyzer
+        couples span and RBW by a ratio (default 100:1, matching the industry-standard convention -- see
+        DEFAULT_SPAN_RBW_RATIO). While enabled, every set_rbw() call recalculates the span as
+        rbw_hz * ratio (clamped to the largest available preset) rather than using whatever set_span() last
+        specified -- span becomes a function of RBW, not an independently-set value, for as long as this stays
+        enabled. Calling set_span() directly turns this back off, handing manual control of span back to you.
+
+        Has no effect while a sweep is configured (see set_sweep()) -- deliberately out of scope, since what
+        "auto-couple the span" would even mean across multiple segments isn't well-defined.
+
+        ratio must be > 0. There's no enforced upper/lower bound beyond that, but an extreme ratio can still
+        leave an RBW unachievable even after coupling (e.g. if it implies an ideal span narrower than the
+        smallest preset by so much that the resulting fft_size exceeds MAX_FFT_SIZE) -- set_rbw() still raises
+        in that residual case rather than silently producing something wrong.
+        """
+        self._check_idle("auto-couple")
+        if ratio <= 0:
+            raise ValueError("ratio must be > 0")
+        self._auto_couple_enabled = enabled
+        self._auto_couple_ratio = float(ratio)
 
     def set_preset_sample_rates(self, rates: list[float]) -> None:
         self._check_idle("preset sample rates")
         self._preset_sample_rates = sorted(rates)
 
-    def set_kaiser_beta(self, beta: float) -> None:
+    def set_kaiser_beta(self, beta: float) -> str | None:
+        """Set the Kaiser window beta and recompute the FFT size for the current RBW. Returns whatever
+        set_rbw() returns (see its docstring) -- None normally, or a message if this change pushed auto-couple
+        into adjusting the span."""
         self._check_idle("Kaiser beta")
         old_beta = self._kaiser_beta
         self._kaiser_beta = float(beta)
         try:
-            self.set_rbw(self._rbw)
+            return self.set_rbw(self._rbw)
         except ValueError:
             self._kaiser_beta = old_beta
             raise
@@ -1039,7 +1187,12 @@ class SoapyReceiverProcess:
 
     @property
     def segment_span_hz(self) -> float:
-        """The actual per-capture bandwidth: one segment's width in sweep mode, or the single span otherwise."""
+        """
+        The actual per-capture bandwidth: one segment's width in sweep mode, or the single span otherwise.
+        This is also the property to re-read after set_rbw() when auto-couple mode (see set_auto_couple()) is
+        enabled, to get the current actual span -- set_rbw()'s return value already tells you when it changed,
+        but this always reflects the current value regardless, including on calls where nothing changed.
+        """
         return self._sample_rate
 
     @property

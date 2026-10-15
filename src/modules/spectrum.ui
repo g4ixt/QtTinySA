@@ -245,6 +245,9 @@
          <property name="readOnly">
           <bool>false</bool>
          </property>
+         <property name="keyboardTracking">
+          <bool>false</bool>
+         </property>
          <property name="suffix">
           <string>dB</string>
          </property>
@@ -482,6 +485,9 @@
          <property name="toolTip">
           <string>Set the number of frequency Points to measure</string>
          </property>
+         <property name="keyboardTracking">
+          <bool>false</bool>
+         </property>
          <property name="suffix">
           <string/>
          </property>
@@ -559,6 +565,9 @@
          </property>
          <property name="alignment">
           <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
+         </property>
+         <property name="keyboardTracking">
+          <bool>false</bool>
          </property>
          <property name="suffix">
           <string/>
@@ -745,6 +754,9 @@
          </property>
          <property name="toolTip">
           <string>Waterfall/3D Time axis depth</string>
+         </property>
+         <property name="keyboardTracking">
+          <bool>false</bool>
          </property>
          <property name="suffix">
           <string/>
@@ -1055,6 +1067,9 @@
          <property name="toolTip">
           <string>Trace averaging</string>
          </property>
+         <property name="keyboardTracking">
+          <bool>false</bool>
+         </property>
          <property name="prefix">
           <string>Average </string>
          </property>
@@ -1320,6 +1335,9 @@ and Colours</string>
            <pointsize>11</pointsize>
           </font>
          </property>
+         <property name="keyboardTracking">
+          <bool>false</bool>
+         </property>
          <property name="suffix">
           <string>%</string>
          </property>
@@ -1423,7 +1441,7 @@ and Colours</string>
           <enum>QAbstractSpinBox::CorrectionMode::CorrectToNearestValue</enum>
          </property>
          <property name="keyboardTracking">
-          <bool>true</bool>
+          <bool>false</bool>
          </property>
          <property name="prefix">
           <string/>
@@ -1482,6 +1500,9 @@ and Colours</string>
          <property name="correctionMode">
           <enum>QAbstractSpinBox::CorrectionMode::CorrectToNearestValue</enum>
          </property>
+         <property name="keyboardTracking">
+          <bool>false</bool>
+         </property>
          <property name="prefix">
           <string/>
          </property>
@@ -1532,6 +1553,9 @@ and Colours</string>
          </property>
          <property name="correctionMode">
           <enum>QAbstractSpinBox::CorrectionMode::CorrectToNearestValue</enum>
+         </property>
+         <property name="keyboardTracking">
+          <bool>false</bool>
          </property>
          <property name="prefix">
           <string/>
@@ -1861,6 +1885,9 @@ and Colours</string>
          </property>
          <property name="correctionMode">
           <enum>QAbstractSpinBox::CorrectionMode::CorrectToNearestValue</enum>
+         </property>
+         <property name="keyboardTracking">
+          <bool>false</bool>
          </property>
          <property name="prefix">
           <string/>

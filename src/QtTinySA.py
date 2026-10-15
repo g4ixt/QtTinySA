@@ -207,6 +207,10 @@ class ApplicationController(QtCore.QObject):
         if self.dialogs.settings.ui.auto_run.isChecked():
             self.auto_run_timer.start(4000)
 
+    def _set_scan_button(self, action):
+        self.ui.scan_button.setText(action)
+        self.ui.scan_button.setEnabled(True)
+
     def map_table_to_widgets(self, model, model_name):
         """Uses the database 'mapping' table, which contains GUI field names and the column 
             number of the table ('numbers' or 'checkboxes') their state/value is stored in."""
@@ -251,12 +255,15 @@ class ApplicationController(QtCore.QObject):
         self.ui.histogram.getPlotItem().hideAxis('bottom')
         self.ui.histogram.getPlotItem().hideAxis('left')
 
-        # widget settings for Phase Noise
+        # Phase Noise widget
         self.dialogs.phasenoise.ui.plotWidget.setYRange(-120, -40)
         self.dialogs.phasenoise.ui.plotWidget.plotItem.showGrid(x=True, y=True, alpha=0.5)
         self.dialogs.phasenoise.ui.plotWidget.plotItem.setLogMode(x=True)
         self.dialogs.phasenoise.ui.plotWidget.setLabel('bottom', 'Offset Frequency', units='Hz')
         self.dialogs.phasenoise.ui.plotWidget.setLabel('left', 'Phase Noise', units='dBc/Hz')
+        
+        # Pattern widget
+        self.dialogs.pattern.ui.measure.clicked.connect(self.analyser.start_polar_plot)
         
         # Band and frequency changes signals
         self.ui.filterBox.currentTextChanged.connect(self.set_band_filter)
@@ -272,6 +279,10 @@ class ApplicationController(QtCore.QObject):
         # Waterfall signals
         self.ui.waterfall_size.valueChanged.connect(self.set_wf_height)
         self.ui.wf_2D.stateChanged.connect(self.set_wf_format)
+
+        # hardware signals
+        self.hardware.signals.progress.connect(self.time_path_indicator)
+        self.hardware.update_info.connect(self.set_device_info)
 
         # menu actions
         self.ui.actionPresets.triggered.connect(self.preferences_menu_clicked)
@@ -383,30 +394,43 @@ class ApplicationController(QtCore.QObject):
             self.import_preset(model, file_name)
 
     def import_preset(self, model, file_name):
-        records = []
+        records_to_import = []
         with open(file_name, "r") as file_input:
             reader = csv.DictReader(file_input)
             for row in reader:
-                logging.debug(f'import_csv(): row = {row}')
+                valid_row = True
+
+                # create a blank record matching the model table
                 record = model.tm.record()
-                for key, value in row.items():
-                    if key == 'preset':
-                        value = self.data.bandstype.fetch_ID('preset', value)
-                    if key == 'colour':
-                        value = self.data.colours.fetch_ID('colour', value)
-                    if key == 'value':
-                        value = int(eval(value))
+
+                #  step through and process the fields in this row.  Db defaults 'visible' to True if missing.
+                for key, value in row.items(): 
+                    if key in ('preset', 'colour', 'value'):  # 'value' -> 'visible' True/False
+                        value = model.relation_id(key, value)
+                        if value is None:
+                            # the relation lookup failed so the whole row must be discarded
+                            valid_row = False
+                            logging.warning(f'interpretation of {key} failed for line {reader.line_num}')
+                            break
+
+                    # substitute 'frequency' in the header for our 'startF'
                     if key == 'Frequency':
                         key = 'startF'
-                        value = str(float(value) / 1e3)
+                        try:
+                            value = str(float(value) / 1e3)
+                        except ValueError:
+                            valid_row = False
+                            logging.warning(f'invalid frequency for line {reader.line_num}')
+                            break
+
+                    # An ID column value must be discarded because it's the primary key here
                     if key != 'ID':
                         record.setValue(str(key), value)
-                if record.value('value') not in (0, 1):
-                    record.setValue('value', 1)
+
+                if valid_row:
+                    records_to_import.append(record)
     
-                records.append(record)
-    
-        inserted, failed = model.import_records(records)
+        inserted, failed = model.import_records(records_to_import)
 
         if inserted != 0:
             logging.info(f'imported {inserted} frequency presets')
@@ -450,7 +474,7 @@ class ApplicationController(QtCore.QObject):
 
     def settings_clicked(self):
         logging.info('settings clicked')
-        self.analyser.save_location_valid()
+        self.save_location_valid()
         self.dialogs.settings.ui.show()
 
     def preferences_menu_clicked(self):
@@ -466,11 +490,16 @@ class ApplicationController(QtCore.QObject):
     def add_fixed(self):
         title = "New fixed frequency Marker"
         message = "Enter a name for the fixed Marker"
-        fixedMkr, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
-        self.data.bands.insertData(name=fixedMkr, preset=12,
-                                           startF=f'{int(self.analyser.s0.trace.m0.line.value())}',
-                                           stopF=0, visible=1,
-                                           colour=self.data.colours.fetch_ID('colour', 'orange'))
+        fixed_mkr, ok = QInputDialog.getText(None, title, message, QLineEdit.Normal, "")
+        if not ok or not fixed_mkr:
+            return
+        
+        mkr_colour = self.data.bands.relation_id('colour', 'orange')
+        mkr_freq = int(self.analyser.s0.trace.m0.line.value())
+        ps_type = bands.relation_id('preset', 'fixed')
+        
+        self.data.bands.insertData(name=fixed_mkr, preset=ps_type, startF=f'{mkr_freq}',
+                                   stopF=0, visible=1, colour=mkr_colour)
 
     def set_folder(self):
         folder = QFileDialog.getExistingDirectory(self.dialogs.settings.ui, "Select save folder",
@@ -479,8 +508,29 @@ class ApplicationController(QtCore.QObject):
             return
 
         self.dialogs.settings.ui.save_folder.setText(folder)
-        self.analyser.save_location_valid()
+        self.save_location_valid()
         self.data.numbers.dwm.submit()
+
+    @Slot()
+    def set_device_info(self, port_num, description, tooltip, state):
+        gui_ctrl = {0: self.ui.dev0, 1: self.ui.dev1, 2: self.ui.dev2, 3: self.ui.dev3}
+        gui_ctrl.get(port_num).setText(description)
+        gui_ctrl.get(port_num).setToolTip(tooltip)
+        gui_ctrl.get(port_num).setChecked(state)
+
+    def set_box_colour(self, pen, box):
+        boxes = [self.ui.trace1, self.ui.trace2, self.ui.trace3, self.ui.trace4]
+        tint = str("background-color: '" + pen + "';")
+        boxes[box].setStyleSheet(tint)
+
+    def save_location_valid(self):
+        folder = self.dialogs.settings.ui.save_folder.text()
+        if os.path.exists(folder):
+            self.dialogs.settings.ui.save_folder.setStyleSheet("")
+            return True
+        else:
+            self.dialogs.settings.ui.save_folder.setStyleSheet(("background-color:red"))
+            return False
 
     def set_sd_file_save(self, single=True):
         device = self.file_devices[self.dialogs.file_browse.ui.device.currentIndex()]
@@ -512,6 +562,10 @@ class ApplicationController(QtCore.QObject):
 
     def sd_save_progress(self, progress):
         self.dialogs.file_browse.ui.saveProgress.setValue(progress)
+
+    def time_path_indicator(self, position):
+        with QSignalBlocker(self.ui.vortex):
+            self.ui.vortex.setValue(position)
 
 
 class CustomTableModel(QSqlRelationalTableModel):
@@ -739,9 +793,7 @@ class Analyser(QtCore.QObject):
         self.hardware.signals.result.connect(self.router)
         self.hardware.signals.save.connect(self.save_data)
         self.hardware.signals.error.connect(popUp)
-        self.hardware.signals.progress.connect(self.time_path_indicator)
         self.hardware.stopped.connect(self.allStopped)
-        self.hardware.update_info.connect(self.set_device_info)
         self.mkr_update_timer.timeout.connect(self.updateMarker)
 
     @Slot()
@@ -823,22 +875,10 @@ class Analyser(QtCore.QObject):
         # hide the playback time slider
         self.ui.vortex.hide()
 
-    @Slot()
-    def set_device_info(self, port_num, description, tooltip, state):
-        gui_ctrl = {0: self.ui.dev0, 1: self.ui.dev1, 2: self.ui.dev2, 3: self.ui.dev3}
-        gui_ctrl.get(port_num).setText(description)
-        gui_ctrl.get(port_num).setToolTip(tooltip)
-        gui_ctrl.get(port_num).setChecked(state)
-
     def setting_change(self):
         if self.hardware.is_scanning:
             self.hardware.stop(True)
         self.stop_recording()
-
-    def set_box_colour(self, pen, box):
-        boxes = [self.ui.trace1, self.ui.trace2, self.ui.trace3, self.ui.trace4]
-        tint = str("background-color: '" + pen + "';")
-        boxes[box].setStyleSheet(tint)
             
     def split_scan(self, startF, stopF, points, split):
         '''splits the spectrum start/stop variables across multiple devices'''
@@ -871,7 +911,7 @@ class Analyser(QtCore.QObject):
             popUp(self.ui, 'No spectrum analyser devices found', 'Ok', 'Critical')
             return
         
-        if self.dialogs.settings.ui.saveSweep.isChecked() and not self.save_location_valid():
+        if self.dialogs.settings.ui.saveSweep.isChecked() and not self.parent().save_location_valid():
             popUp(self.ui, "The save file location in 'settings > preferences' is not valid", 'Ok', 'Critical')
             return
         
@@ -905,7 +945,7 @@ class Analyser(QtCore.QObject):
 
         # start device(s) scanning
         self.hardware.start(self.spectra, rbw, self.depth, maxF, interval, split, loop=True)
-        self.scan_button('Stop Scan')
+        self.parent()._set_scan_button('Stop Scan')
 
     def set_gui_colours(self):
         # set each spectrum (trace & marker) and box colours
@@ -913,7 +953,7 @@ class Analyser(QtCore.QObject):
             spectrum.count = 0
             pen = self.data.tracecolours.tm.record(indx).value('colour')
             spectrum.set_colour(pen)
-            self.set_box_colour(pen, indx)
+            self.parent().set_box_colour(pen, indx)
 
     def set_arrays(self):
         # set the data arrays for the monitor and waterfall
@@ -1055,7 +1095,7 @@ class Analyser(QtCore.QObject):
             self.ui.points_box.setEnabled(False)
             self.ui.rbw_box.setEnabled(True)
         else:
-            self.points_box.setEnabled(True)
+            self.ui.points_box.setEnabled(True)
         self.setting_change()
 
     def memChanged(self):
@@ -1065,7 +1105,7 @@ class Analyser(QtCore.QObject):
 
     @Slot()
     def allStopped(self, restart):
-        self.scan_button('Start scan')
+        self.parent()._set_scan_button('Start scan')
         self.mkr_update_timer.start(100)
         if restart:
             self.scan()
@@ -1138,13 +1178,15 @@ class Analyser(QtCore.QObject):
                 gui_boxes = {0: self.ui.t1_type, 1: self.ui.t2_type, 2: self.ui.t3_type, 3: self.ui.t4_type}
                 trace_type = gui_boxes.get(self.spectra.index(spectrum)).currentText()
                 data = {'Normal': levl, 'Average': avg, 'Max': maxl, 'Min': minl, 'Freeze': levl}
+
                 if trace_type != 'Freeze':
                     spectrum.updateTrace(freq, data.get(trace_type))
                 logging.debug(f'updating {self.spectra.index(spectrum)}')
+
                 if timestamp != 0:
                     spectrum.timestamp.setText(time.ctime(timestamp))
                 else:
-                    spectrum.timestamp.setText('')
+                    spectrum.timestamp.setText('Device ' + str(dev_id + 1))
     
                 # update the markers
                 maskFreq = self.rbwMask(freq[0], freq[-1])
@@ -1180,10 +1222,6 @@ class Analyser(QtCore.QObject):
                         self.save_data(freq, self.wf_data, ser_num)
                     spectrum.count = 0  # resets the counter only for the traces being updated by this route
 
-    def scan_button(self, action):
-        self.ui.scan_button.setText(action)
-        self.ui.scan_button.setEnabled(True)
-
     def set_dev_combo(self, ui_name, dev_names):
         '''Populate a device combo box with matching devices and return the matches.'''
         ui_name.device.clear()
@@ -1192,7 +1230,7 @@ class Analyser(QtCore.QObject):
             for device in self.hardware.devices:
                 if device.name in dev_names:
                     if device.sweeping:
-                        popUp(self.ui, "Cannot read from {device.name} whilst a scan is running", 'Ok', 'Info')
+                        popUp(self.ui, f"Cannot read from {device.name} whilst a scan is running", 'Ok', 'Info')
                     else:
                         with QSignalBlocker(ui_name.device):
                             ui_name.device.addItem(device.name + ' serial ' + str(device.sn))
@@ -1369,7 +1407,6 @@ class Analyser(QtCore.QObject):
                 self.hardware.recorders[i].recording = False
                 self.hardware.recorders[i].save_recording(folder)
         self.ui.record.setEnabled(True)
-
         
     def start_playback(self, play):
         self.stop_recording()
@@ -1380,7 +1417,7 @@ class Analyser(QtCore.QObject):
         if self.hardware.is_scanning:
             return
         
-        if self.dialogs.settings.ui.saveSweep.isChecked() and not self.save_location_valid():
+        if self.dialogs.settings.ui.saveSweep.isChecked() and not self.parent().save_location_valid():
             popUp(self.ui, "The current save file location is not valid", 'Ok', 'Critical')
             return
         
@@ -1548,21 +1585,8 @@ class Analyser(QtCore.QObject):
         if update_failed:
             popUp(self.dialogs.offset.ui, "One or more of the updates failed.", 'Ok', 'Critical')
 
-    def time_path_indicator(self, position):
-        with QSignalBlocker(self.ui.vortex):
-            self.ui.vortex.setValue(position)
-
     def start_polar_plot(self):
         self.polar.set_plot(self.dialogs.pattern.ui)
-
-    def save_location_valid(self):
-        folder = self.dialogs.settings.ui.save_folder.text()
-        if os.path.exists(folder):
-            self.dialogs.settings.ui.save_folder.setStyleSheet("")
-            return True
-        else:
-            self.dialogs.settings.ui.save_folder.setStyleSheet(("background-color:red"))
-            return False
 
     def connect_active(self):
         '''Connect signals from controls that send messages to tinySA or use trace data.  Called by setGUI().'''
@@ -1648,7 +1672,7 @@ class Analyser(QtCore.QObject):
             lambda: self.data.bands.exportData(''))
         
         self.dialogs.preset_freqs.ui.importPs.pressed.connect(
-            lambda: self.import_data(self.data.bands))
+            lambda: self.parent().import_data(self.data.bands))
     
         self.ui.actionCorrection.triggered.connect(self.correction_window)
     
@@ -1664,9 +1688,6 @@ class Analyser(QtCore.QObject):
         self.ui.actionBrowse.triggered.connect(self.file_browser)
         self.dialogs.file_browse.ui.device.currentIndexChanged.connect(self.list_files)
         self.ui.actionRecordings.triggered.connect(self.load_data)
-    
-        # polar pattern
-        self.dialogs.pattern.ui.measure.clicked.connect(self.start_polar_plot)
     
         # correction
         self.dialogs.offset.ui.export_button.clicked.connect(lambda: self.data.correction.exportData(''))
@@ -1841,7 +1862,7 @@ class ModelView():
             logging.debug(f'deleteRow: current row = {self.currentRow}')
             self.tm.removeRow(self.currentRow)
         else:
-            for i in range(0, self.tm.rowCount()):
+            for i in reversed(range(0, self.tm.rowCount())):  # Reversing avoids a shifting-index problem
                 self.tm.removeRow(i)
         self.tm.select()
         self.tm.layoutChanged.emit()
@@ -1868,14 +1889,26 @@ class ModelView():
         failed = len(records) - inserted
         return inserted, failed
 
-    def fetch_ID(self, field, lookup_value):
-        ''''find the relation table ID from an aliased field name'''
-        for i in range(0, self.tm.rowCount()):
-            record = self.tm.record(i).value(field)
-            if record == lookup_value:
-                ID = self.tm.record(i).value('ID')
-                return ID
-        return 1
+    def relation_id(self, field, display_value):
+        """Resolve a relation's display value to its key using QSqlRelationalTableModel inbuilt functions."""
+        column = self.tm.fieldIndex(field)
+        relation = self.tm.relation(column)
+        relation_model = self.tm.relationModel(column)
+    
+        if relation_model is None:
+            logging.warning(f"No relation configured for field '{field}'")
+            return None
+    
+        related_value = relation_model.fieldIndex(relation.displayColumn())
+        related_key = relation_model.fieldIndex(relation.indexColumn())
+    
+        for row in range(relation_model.rowCount()):
+            record = relation_model.record(row)
+            if record.value(related_value) == display_value:
+                return record.value(related_key)
+    
+        logging.warning(f"Unknown value '{related_value}' for relation field '{field}'")
+        return None
 
     def writeCSV(self, fileName):
         header = []

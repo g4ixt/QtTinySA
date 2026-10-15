@@ -1,0 +1,17 @@
+name,preset,startF,stopF,value,colour
+WiFi 2G,WiFi 2G,2401000000,2495000000,True,lime
+ch1,WiFi 2G,2412000000,,True,chartreuse
+ch2,WiFi 2G,2417000000,,True,chartreuse
+ch3,WiFi 2G,2422000000,,True,chartreuse
+ch4,WiFi 2G,2427000000,,True,chartreuse
+ch5,WiFi 2G,2432000000,,True,chartreuse
+ch6,WiFi 2G,2437000000,,True,chartreuse
+ch7,WiFi 2G,2442000000,,True,chartreuse
+ch8,WiFi 2G,2447000000,,True,chartreuse
+ch9,WiFi 2G,2452000000,,True,chartreuse
+ch10,WiFi 2G,2457000000,,True,chartreuse
+ch11,WiFi 2G,2462000000,,True,chartreuse
+ch12,WiFi 2G,2467000000,,True,chartreuse
+ch13,WiFi 2G,2472000000,,True,chartreuse
+ch14,WiFi 2G,2484000000,,True,chartreuse
+5G band,WiFi 2G,5150000000,5850000000,True,skyblue
