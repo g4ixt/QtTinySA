@@ -33,6 +33,7 @@ from PySide6.QtUiTools import QUiLoader
 from PySide6.QtCore import QFile, Slot, QSignalBlocker
 from PySide6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QApplication
 from PySide6.QtWidgets import QTableWidgetItem, QInputDialog, QLineEdit
+from PySide6.QtWidgets import QWidget, QSpinBox, QDoubleSpinBox, QComboBox, QCheckBox, QRadioButton
 from PySide6.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
 from PySide6.QtGui import QPixmap, QIcon
 
@@ -85,7 +86,7 @@ class ApplicationController(QtCore.QObject):
         super().__init__()
 
         self.app = app
-        self._DB_VERSION = 210
+        self._DB_VERSION = 211
 
         self._create_ui()
         self._create_dialogs()
@@ -195,10 +196,28 @@ class ApplicationController(QtCore.QObject):
         # Populate the mapped widgets only after all mappings exist.
         self.data.checkboxes.dwm.setCurrentIndex(0)
         self.data.numbers.dwm.setCurrentIndex(0)
-        
+    
     def _set_database(self):
-        # Database and models for configuration settings
-        self.config = connect("QtTSAprefs.db", "settings", self._DB_VERSION, self.app_name, self.ui)
+        self.database = Database(db_file="QtTSAprefs.db", connection_name="settings",
+                                 target_version=self._DB_VERSION, app_name=self.app_name,
+                                 parent_window=self.ui)
+        
+        self.config = self.database.open_db()
+        
+        if self.database.upgraded:
+            backup_path = os.path.join(platformdirs.user_config_dir(appname=self.app_name, appauthor=False),
+                                                           f"frequencies_{self._DB_VERSION}.csv")
+
+            answer = popUp(self.ui, "Restore your previous preset frequencies to the new database?", "OkC", "Question")
+
+            if answer == QMessageBox.StandardButton.Ok:
+                impex = Data._create_bands_model(self.config)
+                try:
+                    impex.deleteRow(False)
+                    inserted, failed = self.import_preset(impex, backup_path)
+                    logging.info(f"Preset restore complete: {inserted} inserted, {failed} failed.")
+                finally:
+                    del impex
 
     def _set_timers(self):
         self.hardware.probe_ports.start(500)
@@ -289,6 +308,7 @@ class ApplicationController(QtCore.QObject):
         self.ui.actionSettings.triggered.connect(self.settings_clicked)
         self.ui.actionAbout_QtTinySA.triggered.connect(self.about)
         self.ui.actionAbout_Qt.triggered.connect(self.app.aboutQt)
+        self.ui.actionSoapySDR.triggered.connect(self.soapySDR_menu_clicked)
 
         # fixed markers
         self.ui.addFix.clicked.connect(self.add_fixed)
@@ -316,7 +336,8 @@ class ApplicationController(QtCore.QObject):
             self.hardware.closePort()
         self.data.checkboxes.dwm.submit()
         self.data.numbers.dwm.submit()
-        disconnect(self.config)
+        # disconnect(self.config)
+        self.database.close()
         self.app.closeAllWindows()
         logging.info('QtTinySA Closed')
 
@@ -395,6 +416,7 @@ class ApplicationController(QtCore.QObject):
 
     def import_preset(self, model, file_name):
         records_to_import = []
+        skipped = 0
         with open(file_name, "r") as file_input:
             reader = csv.DictReader(file_input)
             for row in reader:
@@ -405,12 +427,14 @@ class ApplicationController(QtCore.QObject):
 
                 #  step through and process the fields in this row.  Db defaults 'visible' to True if missing.
                 for key, value in row.items(): 
-                    if key in ('preset', 'colour', 'value'):  # 'value' -> 'visible' True/False
+                    # if key in ('preset', 'colour', 'value'):  # 'value' -> 'visible' True/False
+                    if key in ('preset', 'colour', 'visible', 'value'):
                         value = model.relation_id(key, value)
                         if value is None:
                             # the relation lookup failed so the whole row must be discarded
                             valid_row = False
-                            logging.warning(f'interpretation of {key} failed for line {reader.line_num}')
+                            skipped += 1
+                            logging.warning(f'{key} at line {reader.line_num} was skipped')
                             break
 
                     # substitute 'frequency' in the header for our 'startF'
@@ -436,6 +460,8 @@ class ApplicationController(QtCore.QObject):
             logging.info(f'imported {inserted} frequency presets')
         if failed != 0:
             logging.info(f'import failed for {failed} duplicates or unknown type')
+        
+        return inserted, failed + skipped
     
     def set_wf_format(self):  # called when wf_2D checkbox state changes
         wf_size = self.ui.waterfall_size.value()
@@ -480,6 +506,9 @@ class ApplicationController(QtCore.QObject):
     def preferences_menu_clicked(self):
         self.dialogs.preset_freqs.ui.show()
         self.dialogs.preset_freqs.ui.psCount.setValue(self.data.bands.tm.rowCount())
+        
+    def soapySDR_menu_clicked(self):
+        self.dialogs.sdr_settings.ui.show()
     
     def about(self):
         message = ('TinySA Ultra GUI programme using Qt6 PySide6\
@@ -567,6 +596,27 @@ class ApplicationController(QtCore.QObject):
         with QSignalBlocker(self.ui.vortex):
             self.ui.vortex.setValue(position)
 
+    def ui_fields_to_dict(self):
+        """Loops through fields in sdr_settings widget and extracts their current values to a dictionary,
+        so that the dictionary can be passed to the hardware when it's started by analyser."""
+        form_data = {}
+
+        # Loop through all widgets inside this parent container
+        for widget in self.dialogs.sdr_settings.ui.findChildren(QWidget):
+            key = widget.objectName()
+            # Read value based on the specific type of widget
+            if isinstance(widget, QSpinBox):
+                form_data[key] = widget.value()      
+            elif isinstance(widget, QDoubleSpinBox):
+                form_data[key] = widget.value()  
+            elif isinstance(widget, QComboBox):
+                form_data[key] = widget.currentText()  # or widget.currentIndex()          
+            elif isinstance(widget, QCheckBox):
+                form_data[key] = widget.isChecked()
+            elif isinstance(widget, QRadioButton):
+                form_data[key] = widget.isChecked()
+        return form_data
+
 
 class CustomTableModel(QSqlRelationalTableModel):
     def __init__(self, parent=None, db=None, ro_columns=tuple()):
@@ -610,6 +660,188 @@ class Dialogs:
         self.preset_freqs = CustomDialogue(resource_path("bands.ui"))
         self.file_browse = CustomDialogue(resource_path("filebrowse.ui"))
         self.offset = CustomDialogue(resource_path("offset.ui"))
+        self.sdr_settings = CustomDialogue(resource_path("sdr.ui"))
+
+
+class Database:
+    """Locate, open, validate and close the application's SQLite database."""
+
+    def __init__(self, db_file, connection_name, target_version,
+                 app_name, parent_window):
+        self.db_file = db_file
+        self.connection_name = connection_name
+        self.target_version = target_version
+        self.app_name = app_name
+        self.parent_window = parent_window
+        self.db = None
+        self.upgraded = False
+
+    def locate_db(self):
+        personal_dir = platformdirs.user_config_dir(appname=self.app_name, appauthor=False)
+        os.makedirs(personal_dir, exist_ok=True)
+        personal_path = os.path.join(personal_dir, self.db_file)
+
+        if os.path.isfile(personal_path):
+            logging.info(f"Database {self.db_file} found at {personal_dir}")
+            return personal_path
+
+        global_dir = platformdirs.site_config_dir(appname=self.app_name, appauthor=False)
+        global_path = os.path.join(global_dir, self.db_file)
+
+        if os.path.isfile(global_path):
+            shutil.copy2(global_path, personal_path)
+            logging.info(f"Database copied from {global_path} to {personal_path}")
+            return personal_path
+
+        bundled_path = resource_path(self.db_file)
+        if os.path.isfile(bundled_path):
+            shutil.copy2(bundled_path, personal_path)
+            logging.info(f"Database copied from {bundled_path} to {personal_path}")
+            return personal_path
+
+        directories = {os.path.dirname(os.path.abspath(__file__)), os.getcwd()}
+        for directory in directories:
+            source = os.path.join(directory, self.db_file)
+            if os.path.isfile(source):
+                shutil.copy2(source, personal_path)
+                logging.info(f"Database copied from {source} to {personal_path}")
+                return personal_path
+
+        raise FileNotFoundError(f"Unable to find the database {self.db_file}")
+
+    def open_db(self):
+        db_path = self.locate_db()
+        self.db = QSqlDatabase.addDatabase("QSQLITE", self.connection_name)
+        self.db.setDatabaseName(db_path)
+
+        if not self.db.open():
+            error = self.db.lastError().text()
+            logging.error(f"Cannot open database {db_path}: {error}")
+            self.db = None
+            QSqlDatabase.removeDatabase(self.connection_name)
+            raise RuntimeError(f"Cannot open database: {error}")
+
+        logging.debug(f"{self.db_file} open: {self.db.isOpen()} Connection = {self.db.connectionName()}")
+
+        query = QSqlQuery(self.db)
+        if query.exec("PRAGMA foreign_keys = ON;"):
+            logging.debug("Database foreign keys enforced")
+        else:
+            logging.warning("Failed to enable foreign key enforcement: {query.lastError().text()}")
+        query.clear()
+
+        self.upgraded = self.check_version()
+        return self.db
+
+    def close(self):
+        if self.db is None:
+            return
+
+        connection_name = self.db.connectionName()
+        self.db.close()
+        logging.debug(f"Database {self.db.databaseName()} open: {self.db.isOpen()}")
+
+        # Qt requires all models and queries using this connection to have
+        # released it before removeDatabase() is called.
+        self.db = None
+        QSqlDatabase.removeDatabase(connection_name)
+
+    def fetch_version(self):
+        query = QSqlQuery(self.db)
+        if not query.exec("PRAGMA user_version;") or not query.next():
+            logging.error(f"Cannot read database version: {query.lastError().text()}")
+            query.finish()
+            return None
+
+        version = query.value(0)
+        query.finish()
+        return version
+
+
+    def _release_connection(self):
+        """Close and remove the connection before replacing its database file."""
+        if self.db is None:
+            return
+
+        connection_name = self.db.connectionName()
+        database_path = self.db.databaseName()
+
+        self.db.close()
+        self.db = None
+        QSqlDatabase.removeDatabase(connection_name)
+
+        logging.debug(f"Released database connection {connection_name}: {database_path}")
+
+    # updated method
+    def check_version(self):
+        existing = self.fetch_version()
+        logging.info(f"Database version is {existing}, expected {self.target_version}")
+
+        if existing == self.target_version:
+            return False
+
+        message = (f"This version of QtTinySA needs database version {self.target_version}.\n\n"
+                   f"Database {self.db.databaseName()}\nversion {existing} may not be compatible.\n\n"
+                   f"Clicking OK will replace it with version {self.target_version} and reset some settings.")
+        
+        answer = popUp(self.parent_window, message, "OkC", "Question")
+        if answer != QMessageBox.StandardButton.Ok:
+            logging.warning("Database upgrade declined; keeping existing database.")
+            return
+
+        old_path = self.db.databaseName()
+        backup_path = os.path.join(platformdirs.user_config_dir(appname=self.app_name, appauthor=False),
+                                   f"frequencies_{self.target_version}.csv")
+
+        # Export all preset frequencies before replacing the database.
+        impex = Data._create_bands_model(self.db)
+        if not impex.tm.select():
+            error = impex.tm.lastError().text()
+            del impex
+            raise RuntimeError(f"Cannot read preset frequencies: {error}")
+
+        impex.unlimited()
+        impex.exportData(backup_path)
+        del impex
+
+        # Release the old connection before renaming its database file.
+        self._release_connection()
+
+        archived_path = f"{old_path}.{existing}"
+        try:
+            os.replace(old_path, archived_path)
+        except OSError:
+            logging.exception("Could not archive the old database.")
+            raise
+
+        # locate_db() finds the 'bundled' database and copies it into the personal configuration directory.
+        new_path = self.locate_db()
+        self.db = QSqlDatabase.addDatabase("QSQLITE", self.connection_name)
+        self.db.setDatabaseName(new_path)
+
+        if not self.db.open():
+            error = self.db.lastError().text()
+            logging.error(f"Cannot open replacement database: {error}")
+            self.db = None
+            QSqlDatabase.removeDatabase(self.connection_name)
+            raise RuntimeError(f"Cannot open replacement database: {error}")
+
+        query = QSqlQuery(self.db)
+        if not query.exec("PRAGMA foreign_keys = ON;"):
+            logging.warning(f"Failed to enable foreign key enforcement: {query.lastError().text()}")
+        query.finish()
+
+        new_version = self.fetch_version()
+        if new_version != self.target_version:
+            message = (f"The replacement database has version {new_version}, "
+                       f"but version {self.target_version} is required.")
+            logging.error(message)
+            popUp(self.parent_window, message, "Ok", "Critical")
+            raise RuntimeError(message)
+
+        logging.info(f"Old Database replaced with version {new_version}: {new_path}")
+        
+        return True
 
 
 class Data:
@@ -642,18 +874,22 @@ class Data:
         mapping = ModelView('mapping', self.config, ())
         mapping.tm.select()
         return mapping
-
-    def _set_bands(self):
-        # the preset frequencies relational table in the preset_freqs window
-        bands = ModelView('frequencies', self.config, ())
+    
+    @staticmethod
+    def _create_bands_model(config):
+        """Create the relational frequencies model used by the preset frequencies window."""
+        bands = ModelView('frequencies', config, ())
         bands.tm.setSort(3, QtCore.Qt.SortOrder.AscendingOrder)
         bands.tm.setHeaderData(5, QtCore.Qt.Orientation.Horizontal, "visible")
         bands.tm.setEditStrategy(QSqlRelationalTableModel.EditStrategy.OnRowChange)
-        bands.tm.setRelation(2, QSqlRelation("freqtype", "ID", "preset"))  # set "type" column to a freq type combo box
-        bands.tm.setRelation(5, QSqlRelation("boolean", "ID", "value"))  # set "view" column to a True/False combo box
-        bands.tm.setRelation(6, QSqlRelation("SVGColour", "ID","colour"))  # set "marker" column to a colours combo box
+        bands.tm.setRelation(2, QSqlRelation("freqtype", "ID", "preset"))
+        bands.tm.setRelation(5, QSqlRelation("boolean", "ID", "value"))
+        bands.tm.setRelation(6, QSqlRelation("SVGColour", "ID", "colour"))
         bands.tm.select()
         return bands
+
+    def _set_bands(self):
+        return self._create_bands_model(self.config)
     
     def _set_bandstype(self):
         # the preset Types table in the preset frequencies window
@@ -933,7 +1169,9 @@ class Analyser(QtCore.QObject):
         if self.hardware.num_enabled == 0:
             popUp(self.ui, 'No devices enabled', 'Ok', 'Critical')
             return
-        self.hardware.controls(rbw, attn, lna, spur)
+        
+        sdr_settings = self.parent().ui_fields_to_dict()
+        self.hardware.controls(rbw, attn, lna, spur, sdr_settings)
 
         # For LNB / transverter mode, modify startF and stopF to suit LO freq
         if self.data.bandstype.freq != 0:
@@ -944,7 +1182,7 @@ class Analyser(QtCore.QObject):
         self.set_arrays()
 
         # start device(s) scanning
-        self.hardware.start(self.spectra, rbw, self.depth, maxF, interval, split, loop=True)
+        self.hardware.start(self.spectra, rbw, self.depth, maxF, interval, split, sdr_settings, loop=True)
         self.parent()._set_scan_button('Stop Scan')
 
     def set_gui_colours(self):
@@ -1907,7 +2145,7 @@ class ModelView():
             if record.value(related_value) == display_value:
                 return record.value(related_key)
     
-        logging.warning(f"Unknown value '{related_value}' for relation field '{field}'")
+        logging.warning(f"Unknown '{field}' value of '{related_value}'")
         return None
 
     def writeCSV(self, fileName):
@@ -1960,107 +2198,6 @@ def save_sweep(file_name, frequencies, readings):
     
     np.savetxt(file_name, dBm, delimiter=',', fmt='%.2f')
 
-def locate_db(dbName, app_name):
-    # 1. check if a personal database file exists already
-    # personalDir = platformdirs.user_config_dir(appname=app.applicationName(), appauthor=False)
-    personalDir = platformdirs.user_config_dir(appname=app_name, appauthor=False)
-    if not os.path.exists(personalDir):
-        os.mkdir(personalDir)
-    if os.path.isfile(os.path.join(personalDir, dbName)):
-        logging.info(f'Database {dbName} found at {personalDir}')
-        return personalDir
-
-    # 2. if not, then check if a global database file exists
-    globalDir = platformdirs.site_config_dir(appname=app_name, appauthor=False)
-    if os.path.isfile(os.path.join(globalDir, dbName)):
-        shutil.copy(os.path.join(globalDir, dbName), personalDir)
-        logging.info(f'Database {dbName} copied from {globalDir} to {personalDir}')
-        return personalDir
-
-    # 3. if not, check if database file exists in the app directory
-    file_path = resource_path(dbName)
-    if os.path.isfile(file_path):
-        shutil.copy(file_path, personalDir)
-        logging.info(f'{dbName} copied from {file_path} to {personalDir}')
-        return personalDir
-
-    # 4. If not, then look in current working folder & where the python file is stored/linked from
-    workingDirs = [os.path.dirname(__file__), os.path.dirname(os.path.realpath(__file__)), os.getcwd()]
-    for directory in workingDirs:
-        if os.path.isfile(os.path.join(directory, dbName)):
-            shutil.copy(os.path.join(directory, dbName), personalDir)
-            logging.info(f'{dbName} copied from {directory} to {personalDir}')
-            return personalDir
-    raise FileNotFoundError("Unable to find the database {dbName}")
-
-
-def connect(dbFile, con, target, app_name, parent_window):
-    db = QSqlDatabase.addDatabase('QSQLITE', connectionName=con)
-    dbPath = locate_db(dbFile, app_name)
-    if QtCore.QFile.exists(os.path.join(dbPath, dbFile)):
-        db.setDatabaseName(os.path.join(dbPath, dbFile))
-        db.open()
-        logging.debug(f'{dbFile} open: {db.isOpen()}  Connection = "{db.connectionName()}"')
-        logging.debug(f'tables available = {db.tables()}')
-        query = QSqlQuery(db)
-        if query.exec("PRAGMA foreign_keys = ON;"):
-            logging.debug('database foreign keys enforced')
-        else:
-            logging.debug(f'Failed to enable foreign key enforcement: {query.lastError().text()}')
-        query.clear()
-        checkVersion(db, target, dbFile, app_name, parent_window)  # check the actual database version = target version
-    else:
-        logging.info('Database file {os.path.join(dbPath, dbFile)} is missing')
-        popUp(parent_window, 'Database file is missing', 'Ok', 'Critical')
-        return
-    return db
-
-
-def disconnect(db):
-    db.close()
-    logging.debug(f'Database {db.databaseName()} open: {db.isOpen()}')
-    QSqlDatabase.removeDatabase(db.databaseName())
-
-
-def checkVersion(db, target, dbFile, app_name, parent_window):
-    existing = fetchVersion(db)
-    logging.info(f'Database version is {existing}, expected {target}')
-    if existing != target:
-        message = "This version of QtTinySA needs database version " + str(target) + ".\n\n" + \
-                "Database " + db.databaseName() + "\nversion " + str(existing) + \
-                " may not be compatible.\n" + \
-                "\nClicking OK will replace it with version " + str(target) + \
-                " and will reset some settings.ui."
-        replace = popUp(parent_window, message, 'OkC', 'Question')
-        if replace == QMessageBox.StandardButton.Ok:
-            impex = ModelView('frequencies', db, ())
-            impex.tm.select()
-            impex.unlimited()
-            personalDir = platformdirs.user_config_dir(appname=app_name, appauthor=False)
-            fileName = personalDir + "/frequencies_" + str(target) + ".csv"
-            impex.exportData(fileName)
-            logging.info(f'Renaming file {db.databaseName()} to {db.databaseName()}.{str(existing)}')
-            disconnect(db)
-            os.rename(db.databaseName(), db.databaseName() + '.' + str(existing))
-
-            locate_db(dbFile, app_name)  # this ought to return the same path as when it was run earlier in connect()
-            db.open()  # the database connection has not changed, only the file, so can re-open it with the new file
-            found = fetchVersion(db)
-            logging.info(f'Found new database version {found}')
-            
-            if found != target:
-                message = "Found new database version " + str(found) + "\nbut expected version " + str(target)
-                restore = popUp(parent_window, message, 'Ok', 'Info')
-            message = "Restore your previous preset frequencies to the new database?"
-            restore = popUp(parent_window, message, 'OkC', 'Question')
-            if restore == QMessageBox.StandardButton.Ok:
-                impex.tm.select()
-                impex.unlimited()
-                impex.deleteRow(False)
-                logging.info(f'Deleting records from frequencies table of database version {found}')
-                impex.tm.submit()
-                impex.importData(fileName)
-
 
 def fetchVersion(db):
     query = QSqlQuery(db)
@@ -2089,7 +2226,7 @@ def main():
     if not app:
         app = QApplication([])
     app.setApplicationName('QtTinySA')
-    app.setApplicationVersion(' v2.1.x')
+    app.setApplicationVersion(' v2.1.y')
     logging.info(f'{app.applicationName()} {app.applicationVersion()}')
 
     # pyqtgraph custom exporters

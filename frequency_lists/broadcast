@@ -1,0 +1,4 @@
+name,preset,startF,stopF,value,colour
+FM,broadcast,87500000,108000000,True,lime
+R3 to 4,broadcast,92100000,94300000,True,lime
+DAB,broadcast,175000000,230000000,True,lime

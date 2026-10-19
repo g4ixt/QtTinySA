@@ -180,7 +180,8 @@ class USBdevice(QObject):
 
         port_num = self.port_to_num(port.device)
         description = self.identify(port)
-        
+        sa = None
+
         # instantiate an appropriate device class and append it to the self.devices list
         if description == "tinySA":
             sa = Tiny(port.device, description, self.dev_sigs, basic=True)
@@ -198,17 +199,20 @@ class USBdevice(QObject):
                 sa = RTL(port.device, description, self.dev_sigs)
                 logging.info(f'connect: {sa}')
 
-        self.devices.append(sa)
-  
-        # wait for device power-up; test using its unique commands; store values in its class instance
-        time.sleep(0.1)
-        test = sa.test(port.device)
-        if test is True:
-            self.set_gui_dev_info(sa, port_num)
+        if sa is not None:
+            self.devices.append(sa)
+            # wait for device power-up; test using its unique commands; store values in its class instance
+            time.sleep(0.1)
+            test = sa.test(port.device)
+            if test is True:
+                self.set_gui_dev_info(sa, port_num)
+            else:
+                logging.info(f'test of {port} failed')
+                self.disconnect(port)
+                self.devices.remove(sa)
         else:
-            logging.info(f'test of {port} failed')
-            self.disconnect(port)
-            self.devices.remove(sa)
+            # take this inadequate step and fix it properly later
+            logging.warning(f'device {description} is not supported')
 
     def disconnect(self, usbPort):
         for device in self.devices:
@@ -265,7 +269,7 @@ class USBdevice(QObject):
         file = self.recorders[i].file
         # self.update_info.emit(name, i, sn, file)
 
-    def start(self, spectra, rbw, depth, maxF, interval, split, loop):
+    def start(self, spectra, rbw, depth, maxF, interval, split, sdr_settings, loop):
         if self.devices:
             # self.devices contains the device class instances but not necessarily in port order
             for device in self.devices:
@@ -277,15 +281,15 @@ class USBdevice(QObject):
                     points = spectra[indx].points
                     logging.debug(f'usbInstr.start: startF={startF} stopF={stopF} pts={points}')
                     device.sa = Worker(device.measurement, startF, stopF, points,
-                                       rbw, depth, maxF, interval, split, loop)
+                                       rbw, depth, maxF, interval, split, sdr_settings, loop)
                     device.fifoTimer.stop()
                     device.sweeping = True
                     threadpool.start(device.sa)
                     self.is_scanning = True
 
-    def controls(self, rbw, attn, lna, spur):
+    def controls(self, rbw, attn, lna, spur, sdr_settings):
         for device in self.devices:
-            device.set_ctrls(rbw, attn, lna, spur)  # device specific
+            device.set_ctrls(rbw, attn, lna, spur, sdr_settings)  # device specific
 
     def stop(self, restart=False):
         if not self.devices:
@@ -433,7 +437,7 @@ class Tiny(QObject):
                 self.enabled = False
                 return False
 
-    def set_ctrls(self, rbw, attn, lna, spur):
+    def set_ctrls(self, rbw, attn, lna, spur, sdr_settings):
         self.clearBuffer()
         self.attenuator(attn)
         self.lna(lna)
@@ -466,7 +470,8 @@ class Tiny(QObject):
         logging.debug(f'sweepTimeout = {timeout:.2f} s')
         return timeout
 
-    def measurement(self, startF, stopF, points, rbw, depth, maxF, interval, split, loop=True):  # run in separate thread
+    def measurement(self, startF, stopF, points, rbw, depth, maxF, interval, split, sdr_settings, loop=True):
+        # runs in separate thread
         if self.basic:
             rbw = np.clip(rbw, 3, 600)
             maxF = min(960000000, maxF)
@@ -823,7 +828,7 @@ class Nano(QObject):
                 self.enabled = False
                 return False
 
-    def measurement(self, startF, stopF, points, rbw, depth, maxF, interval, split, loop=True):  # run in separate thread
+    def measurement(self, startF, stopF, points, rbw, depth, maxF, interval, split, sdr_settings, loop=True):  # run in separate thread
         # Nano points range capability is 11 to 301 so chop into subsets
         for i in range(11, 301, 1):
             rem = points - (i * int(points / i))
@@ -912,7 +917,7 @@ class Nano(QObject):
             self.usb.reset_input_buffer()
         self.threadRunning = False
 
-    def set_ctrls(self, rbw, attn, lna, spur):
+    def set_ctrls(self, rbw, attn, lna, spur, sdr_settings):
         self.clearBuffer()
 
     def version(self):
@@ -983,34 +988,46 @@ class Lime(QObject):
         self.signals.result.connect(sigs["result"])
         self.signals.error.connect(sigs["error"])
 
-    def set_ctrls(self, rbw, attn, lna, spur):
+    def set_ctrls(self, rbw, attn, lna, spur, sdr_settings):
         self.sdr.set_device("limesuiteng", {"driver": "limesuiteng", "name": "LimeSDR-USB", "serial":"0009081C05C41930"}, port_in_use=self.usbPort)
-        self.sdr.set_antenna("LNAW")  # move this to somewhere else
-        if lna:
-            self.sdr.set_rx_gain(20) # or set_gain(None) for AGC
-        else:
-            self.sdr.set_rx_gain(0)
-        self.sdr.set_kaiser_beta(10.5)  # move this to somewhere else
-        self.sdr.set_dc_offset_removal(mode="both")
-        self.sdr.set_iq_balance_mode(True)
+        
+        # set common controls
+        self.sdr.set_kaiser_beta(sdr_settings.get("kaiser"))
+        self.sdr.set_auto_couple(sdr_settings.get("couple_box"))        
+
+        # set hardware-specific controls
+        self.sdr.set_iq_balance_mode(sdr_settings.get("iq_box"))
+        self.sdr.set_antenna(sdr_settings.get("lime_rx_ant"))
+        self.sdr.set_rx_gain(sdr_settings.get("lime_rx_gain"))
+
+        if sdr_settings.get("btn_hardware"):
+            self.sdr.set_dc_offset_removal(mode="hardware")
+        elif sdr_settings.get("btn_both"):
+            self.sdr.set_dc_offset_removal(mode="both")
+        elif sdr_settings.get("btn_software"):
+            self.sdr.set_dc_offset_removal(mode="software")
         
         # self.sdr.set_oversampling(8) # this has to be set after set sample rate because lime re-initialises then
         # so need to check with Claude about this because sample rate is set in the process?
 
-    def measurement(self, startF, stopF, points, rbw, depth, maxF, interval, split, loop):
+    def measurement(self, startF, stopF, points, rbw, depth, maxF, interval, split, sdr_settings, loop):
         self.threadRunning = True
         span = stopF - startF
         # self.sdr.set_center_frequency(startF + (span/2))
         # self.sdr.set_span(span)
         # set sweep and mode.  output_mode can be "composite" or "segments"
-        mode = "segments"
+        if sdr_settings.get("mode_s"):
+            mode = "segments"
+        else:
+            mode = "composite"
         self.sdr.set_sweep(startF, stopF, output_mode=mode)
         # self.sdr.set_span(span)
-        self.sdr.set_auto_couple(True)
         self.sdr.set_rbw(rbw * 1000)
         
         # Soapy SDR fft size is calculated and optimised based on span, RBW and kaiser window beta
         # In segmments mode the segments slightly overlap so the array size is bigger than for composite
+        
+        # we need to fetch these values from the hardware via soapy
         if mode == "segments":
             arr_size = self.sdr._fft_size
         else:
@@ -1106,7 +1123,7 @@ class HackRFOne(QObject):
         self.signals.result.connect(sigs["result"])
         self.signals.error.connect(sigs["error"])
 
-    def set_ctrls(self, rbw, attn, lna, spur):
+    def set_ctrls(self, rbw, attn, lna, spur, sdr_settings):
         self.sdr.set_device("hackrf", {"driver": "hackrf",
                             "serial":"0000000000000000088869dc2541451b"},
                             port_in_use=self.usbPort)
@@ -1118,7 +1135,7 @@ class HackRFOne(QObject):
         self.sdr.set_kaiser_beta(10.5)  # move this to somewhere else
         self.sdr.set_dc_offset_removal(mode="software")
 
-    def measurement(self, startF, stopF, points, rbw, depth, maxF, interval, split, loop):
+    def measurement(self, startF, stopF, points, rbw, depth, maxF, interval, split, sdr_settings, loop):
         self.threadRunning = True
         span = stopF - startF
         self.sdr.set_center_frequency(startF + (span/2))
@@ -1206,7 +1223,7 @@ class RTL(QObject):
         self.signals.result.connect(sigs["result"])
         self.signals.error.connect(sigs["error"])
 
-    def set_ctrls(self, rbw, attn, lna, spur):
+    def set_ctrls(self, rbw, attn, lna, spur, sdr_settings):
         self.sdr.set_device("RTL-SDR", {"driver": "rtlsdr"}, port_in_use=self.usbPort)
         if lna:
             self.sdr.set_rx_gain(20) # or set_gain(None) for AGC
@@ -1215,7 +1232,7 @@ class RTL(QObject):
         self.sdr.set_kaiser_beta(10.5)  # move this to somewhere else
         self.sdr.set_dc_offset_removal(mode="software")
 
-    def measurement(self, startF, stopF, points, rbw, depth, maxF, interval, split, loop):
+    def measurement(self, startF, stopF, points, rbw, depth, maxF, interval, split, sdr_settings, loop):
         self.threadRunning = True
         span = stopF - startF
         # self.sdr.set_center_frequency(startF + (span/2))

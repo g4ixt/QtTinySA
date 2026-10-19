@@ -2337,6 +2337,7 @@ and Colours</string>
     <addaction name="actionSettings"/>
     <addaction name="actionPresets"/>
     <addaction name="actionCorrection"/>
+    <addaction name="actionSoapySDR"/>
    </widget>
    <widget class="QMenu" name="menuMeasurements">
     <property name="title">
@@ -2461,6 +2462,11 @@ and Colours</string>
   <action name="actionQuit_2">
    <property name="text">
     <string>Quit</string>
+   </property>
+  </action>
+  <action name="actionSoapySDR">
+   <property name="text">
+    <string>SoapySDR</string>
    </property>
   </action>
  </widget>
