@@ -78,7 +78,7 @@
        </font>
       </property>
       <property name="text">
-       <string>Set text Bold (re-start needed)</string>
+       <string>Set text Bold</string>
       </property>
      </widget>
     </item>

@@ -110,7 +110,7 @@ class ApplicationController(QtCore.QObject):
         loader = CustomLoader()
         self.ui = loader.load(
             resource_path("spectrum.ui"), None)
-        self.ui.actionQuit_2.triggered.connect(self.shutdown)
+        self.ui.actionQuit_2.triggered.connect(self.app.instance().quit)
 
     def _create_dialogs(self):
         self.dialogs = Dialogs()
@@ -190,12 +190,16 @@ class ApplicationController(QtCore.QObject):
         self.ui.spur_box.addItems(['off', 'on', 'auto'])
         self.ui.spur_box.setCurrentIndex(2)
         
-        self.map_table_to_widgets(self.data.checkboxes,'checkboxes')
-        self.map_table_to_widgets(self.data.numbers, 'numbers')
-        
         # Populate the mapped widgets only after all mappings exist.
-        self.data.checkboxes.dwm.setCurrentIndex(0)
-        self.data.numbers.dwm.setCurrentIndex(0)
+        # field values are in column (index) 2; future provision for 3 more settings
+        self.map_row_to_widget(self.data.mapped_number)
+        self.data.mapped_number.dwm.setCurrentIndex(2)
+        
+        self.map_row_to_widget(self.data.mapped_checkbox)
+        self.data.mapped_checkbox.dwm.setCurrentIndex(2)
+        
+        self.map_row_to_widget(self.data.mapped_text)
+        self.data.mapped_text.dwm.setCurrentIndex(2)
     
     def _set_database(self):
         self.database = Database(db_file="QtTSAprefs.db", connection_name="settings",
@@ -230,27 +234,49 @@ class ApplicationController(QtCore.QObject):
         self.ui.scan_button.setText(action)
         self.ui.scan_button.setEnabled(True)
 
-    def map_table_to_widgets(self, model, model_name):
-        """Uses the database 'mapping' table, which contains GUI field names and the column 
-            number of the table ('numbers' or 'checkboxes') their state/value is stored in."""
-        mapping = self.data.mapping
+    # def map_table_to_widgets(self, model, model_name):
+    #     """Uses the database 'mapping' table, which contains GUI field names and the column 
+    #         number of the table ('numbers' or 'checkboxes') their state/value is stored in."""
+    #     mapping = self.data.mapping
         
-        # filter the mapping definition table to show just values for this model_name
-        mapping.tm.setFilter(f'model = "{model_name}"')
+    #     # filter the mapping definition table to show just values for this model_name
+    #     mapping.tm.setFilter(f'model = "{model_name}"')
     
-        # setFilter() must be followed by select() to apply the filter.
-        if not mapping.tm.select():
-            logging.error(f'Failed to select mappings for {model_name}: 'f'{mapping.tm.lastError().text()}')
+    #     # setFilter() must be followed by select() to apply the filter.
+    #     if not mapping.tm.select():
+    #         logging.error(f'Failed to select mappings for {model_name}: 'f'{mapping.tm.lastError().text()}')
+    #         return
+    
+    #     namespace = {'ui': self.ui, 'dialogs': self.dialogs}
+    
+    #     for index in range(mapping.tm.rowCount()):
+    #         record = mapping.tm.record(index)
+    #         gui = record.value('gui')
+    #         column = record.value('column')
+    #         widget = eval(gui, {}, namespace)
+    #         model.dwm.addMapping(widget, int(column))
+
+    def map_row_to_widget(self, model):
+        """The data model table contains GUI field names in rows with the current value
+           in the column set here using setCurrentIndex.  The gui field names are only used here."""
+    
+        if not model.tm.select():
+            logging.error(f'Failed to set mappings: 'f'{model.tm.lastError().text()}')
             return
     
-        namespace = {'ui': self.ui, 'dialogs': self.dialogs}
+        model.dwm.setOrientation(QtCore.Qt.Vertical)
     
-        for index in range(mapping.tm.rowCount()):
-            record = mapping.tm.record(index)
+        namespace = {'ui': self.ui, 'dialogs': self.dialogs}
+        for index in range(model.tm.rowCount()):
+            record = model.tm.record(index)
             gui = record.value('gui')
-            column = record.value('column')
             widget = eval(gui, {}, namespace)
-            model.dwm.addMapping(widget, int(column))
+            model.dwm.addMapping(widget, index)
+
+    def update_mapped_widgets(self):
+        self.data.mapped_number.dwm.submit()
+        self.data.mapped_checkbox.dwm.submit()
+        self.data.mapped_text.dwm.submit()
 
     def _setup_gui(self):
         '''Configure the various GUIs'''
@@ -274,14 +300,14 @@ class ApplicationController(QtCore.QObject):
         self.ui.histogram.getPlotItem().hideAxis('bottom')
         self.ui.histogram.getPlotItem().hideAxis('left')
 
-        # Phase Noise widget
+        # Phase Noise widget settings
         self.dialogs.phasenoise.ui.plotWidget.setYRange(-120, -40)
         self.dialogs.phasenoise.ui.plotWidget.plotItem.showGrid(x=True, y=True, alpha=0.5)
         self.dialogs.phasenoise.ui.plotWidget.plotItem.setLogMode(x=True)
         self.dialogs.phasenoise.ui.plotWidget.setLabel('bottom', 'Offset Frequency', units='Hz')
         self.dialogs.phasenoise.ui.plotWidget.setLabel('left', 'Phase Noise', units='dBc/Hz')
         
-        # Pattern widget
+        # Pattern widget connections
         self.dialogs.pattern.ui.measure.clicked.connect(self.analyser.start_polar_plot)
         
         # Band and frequency changes signals
@@ -294,6 +320,7 @@ class ApplicationController(QtCore.QObject):
         # Correction table signals
         self.dialogs.offset.ui.read_button.clicked.connect(self.analyser.read_tables)
         self.dialogs.offset.ui.upload_button.clicked.connect(self.analyser.upload_correction)
+        self.dialogs.offset.ui.import_button.clicked.connect(lambda: self.import_data(self.data.correction))
         
         # Waterfall signals
         self.ui.waterfall_size.valueChanged.connect(self.set_wf_height)
@@ -315,8 +342,7 @@ class ApplicationController(QtCore.QObject):
 
         # settings
         self.dialogs.settings.ui.set_folder.clicked.connect(self.set_folder)
-        if self.dialogs.settings.ui.bold_text.isChecked():
-            self.app.setStyleSheet("QWidget { font-weight: bold; }")  # enhancement issue 118
+        self.dialogs.settings.ui.finished.connect(self._set_preferences)  # updates db for mapped widgets
         
         # SD card saving
         self.dialogs.file_browse.ui.download.clicked.connect(lambda: self.set_sd_file_save(True))
@@ -324,19 +350,22 @@ class ApplicationController(QtCore.QObject):
 
         # finally
         self.set_band_filter(self.ui.filterBox.currentText())
+        self._set_preferences()
 
     def shutdown(self):
         '''Save gui field vals, marker freqs and checkbox states. Close usb ports, config database and windows'''
         self.hardware.probe_ports.stop()
         self.analyser.mkr_update_timer.stop()
+
+        self.analyser.save_markers()
+
         if self.hardware.is_scanning:
             self.hardware.stop(restart=False)
         if len(self.hardware.ports) != 0:
-            self.analyser.marker_save()
             self.hardware.closePort()
-        self.data.checkboxes.dwm.submit()
-        self.data.numbers.dwm.submit()
-        # disconnect(self.config)
+
+        self.update_mapped_widgets()
+        
         self.database.close()
         self.app.closeAllWindows()
         logging.info('QtTinySA Closed')
@@ -499,13 +528,28 @@ class ApplicationController(QtCore.QObject):
             self.ui.wf_2D.setEnabled(True)
 
     def settings_clicked(self):
-        logging.info('settings clicked')
         self.save_location_valid()
         self.dialogs.settings.ui.show()
 
     def preferences_menu_clicked(self):
         self.dialogs.preset_freqs.ui.show()
         self.dialogs.preset_freqs.ui.psCount.setValue(self.data.bands.tm.rowCount())
+        
+    def _set_preferences(self):  # called at startup and when the preferences window is closed
+        self.update_mapped_widgets()
+        self.data.bands.tm.submitAll()
+        self.analyser.limits.threshold.line.setValue(self.dialogs.settings.ui.peakThreshold.value())
+        self.analyser.limits.best.visible(self.dialogs.settings.ui.neg25Line.isChecked())
+        self.analyser.limits.maximum.visible(self.dialogs.settings.ui.zeroLine.isChecked())
+        self.analyser.limits.damage.visible(self.dialogs.settings.ui.plus6Line.isChecked())
+
+        # if self.ui.presetMarker.isChecked():
+        #     self.set_preset_marker()
+            
+        if self.dialogs.settings.ui.bold_text.isChecked():
+            self.app.setStyleSheet("QWidget { font-weight: bold; }")  # enhancement issue 118
+        else:
+            self.app.setStyleSheet("")
         
     def soapySDR_menu_clicked(self):
         self.dialogs.sdr_settings.ui.show()
@@ -538,7 +582,7 @@ class ApplicationController(QtCore.QObject):
 
         self.dialogs.settings.ui.save_folder.setText(folder)
         self.save_location_valid()
-        self.data.numbers.dwm.submit()
+        self.update_mapped_widgets()
 
     @Slot()
     def set_device_info(self, port_num, description, tooltip, state):
@@ -850,7 +894,7 @@ class Data:
     def __init__(self, config):
         self.config = config
 
-        self.mapping = self._set_mapping()
+        # self.mapping = self._set_mapping()
         self.bands = self._set_bands()
         self.bandstype = self._set_bandstype()
         self.rbw = self._create_combo_box("rbw")
@@ -864,16 +908,20 @@ class Data:
         self.presetmarker = self._set_presetmarker()
         self.bandselect = self._set_bandselect()
         self.tracecolours = self._set_tracecolours()
-        self.checkboxes = self._set_checkboxes()
+        # self.checkboxes = self._set_checkboxes()
         self.rbwtext = self._set_rbwtext()
         self.correctiontext = self._set_correctiontext()
-        self.numbers = self._set_numbers()
+        # self.numbers = self._set_numbers()
+        self.marker_freqs = self._set_marker_freqs()
+        self.mapped_number = self._set_mapped_num()
+        self.mapped_checkbox = self._set_mapped_box()
+        self.mapped_text = self._set_mapped_text()
     
-    def _set_mapping(self):
-        '''field mapping of the checkboxes and numbers database tables, for storing startup configuration'''
-        mapping = ModelView('mapping', self.config, ())
-        mapping.tm.select()
-        return mapping
+    # def _set_mapping(self):
+    #     '''field mapping of the checkboxes and numbers database tables, for storing startup configuration'''
+    #     mapping = ModelView('mapping', self.config, ())
+    #     mapping.tm.select()
+    #     return mapping
     
     @staticmethod
     def _create_bands_model(config):
@@ -936,12 +984,12 @@ class Data:
         tracecolours.tm.select()
         return tracecolours
         
-    def _set_checkboxes(self):
-        # Map data tables to presets/settings/GUI fields - must be here & in this order
-        checkboxes = ModelView('checkboxes', self.config, ())
-        checkboxes.createMapper()
-        checkboxes.tm.select()
-        return checkboxes
+    # def _set_checkboxes(self):
+    #     # Map data tables to presets/settings/GUI fields - must be here & in this order
+    #     checkboxes = ModelView('checkboxes', self.config, ())
+    #     checkboxes.createMapper()
+    #     checkboxes.tm.select()
+    #     return checkboxes
         
     def _create_combo_box(self, combo_type):
         combo = ModelView('combo', self.config, ())
@@ -961,12 +1009,41 @@ class Data:
         correctiontext.tm.select()
         return correctiontext
         
-    def _set_numbers(self):
+    # def _set_numbers(self):
+    #     # Map data tables to presets/settings/GUI fields - must be here & in this order
+    #     numbers = ModelView('numbers', self.config, ())
+    #     numbers.createMapper()
+    #     numbers.tm.select()
+    #     return numbers
+    
+    def _set_marker_freqs(self):
         # Map data tables to presets/settings/GUI fields - must be here & in this order
-        numbers = ModelView('numbers', self.config, ())
-        numbers.createMapper()
-        numbers.tm.select()
-        return numbers
+        mkr_f = ModelView('marker_freqs', self.config, ())
+        mkr_f.createMapper()
+        mkr_f.tm.select()
+        mkr_f.tm.setEditStrategy(QSqlRelationalTableModel.EditStrategy.OnManualSubmit)
+        return mkr_f
+    
+    def _set_mapped_num(self):
+        # Map data tables to presets/settings/GUI fields - must be here & in this order
+        num = ModelView('mapped_number', self.config, ())
+        num.createMapper()
+        num.tm.select()
+        return num
+    
+    def _set_mapped_box(self):
+        # Map data tables to presets/settings/GUI fields - must be here & in this order
+        box = ModelView('mapped_checkbox', self.config, ())
+        box.createMapper()
+        box.tm.select()
+        return box
+    
+    def _set_mapped_text(self):
+        # Map data tables to presets/settings/GUI fields - must be here & in this order
+        txt = ModelView('mapped_text', self.config, ())
+        txt.createMapper()
+        txt.tm.select()
+        return txt
     
     def _set_tracetext(self):
         # # the trace comboboxes
@@ -1077,7 +1154,6 @@ class Analyser(QtCore.QObject):
         self.setStartFreq()
 
         # set various defaults
-        self.set_preferences()
         band = self.ui.band_box.currentText()
         # self.data.bandselect.set_filter_to(False, self.ui.filterBox.currentText())  # setting filter overwrites band
 
@@ -1106,12 +1182,14 @@ class Analyser(QtCore.QObject):
         # set the marker types and restore the frequencies from the config database
         for mkr_num in range(4):
             self.set_main_marker(mkr_num)
-        self.marker_restore()
+        # self.marker_restore()
+        self.restore_markers()
             
         # hide the playback time slider
         self.ui.vortex.hide()
 
     def setting_change(self):
+        self.parent().update_mapped_widgets()
         if self.hardware.is_scanning:
             self.hardware.stop(True)
         self.stop_recording()
@@ -1548,22 +1626,22 @@ class Analyser(QtCore.QObject):
             for index, mkr in enumerate(spectrum.mkr_list):
                 mkr.spread(startF, stopF, index + 1)
 
-    def marker_restore(self):
-        fields = {0: 'm1f', 1:'m2f', 2: 'm3f', 3: 'm4f'}
-        for spectrum in self.spectra:
-            for i in range(4):
-                freq = self.data.numbers.tm.record(0).value(fields.get(i))
-                spectrum.mkr_list[i].to_freq(freq)
+    def restore_markers(self):   
+        for row, spectrum in enumerate(self.spectra):
+            for col in range(1, 5):
+                indx = self.data.marker_freqs.tm.index(row, col)
+                freq = self.data.marker_freqs.tm.data(indx, QtCore.Qt.ItemDataRole.DisplayRole)
+                if freq != '':
+                    spectrum.mkr_list[col - 1].to_freq(float(freq))
 
-    def marker_save(self):
-        # to save the marker frequencies on exit.  Only saves the spectrum 0 marker freqs at present.
-        record = self.data.numbers.tm.record(0)
-        fields = {0: 'm1f', 1:'m2f', 2: 'm3f', 3: 'm4f'}
-        for i in range(4):
-            freq = self.spectra[0].mkr_list[i].line.value()
-            logging.debug(f'marker_save: freq = {freq}')
-            record.setValue(fields.get(i), float(freq))
-        self.data.numbers.tm.setRecord(0, record)
+    def save_markers(self):   
+        for row, spectrum in enumerate(self.spectra):
+            record = self.data.marker_freqs.tm.record(row)
+            for col in range(1, 5):
+                freq = int(spectrum.mkr_list[col - 1].line.value())
+                record.setValue(col, freq)
+            self.data.marker_freqs.tm.setRecord(row, record)
+        self.data.marker_freqs.tm.submitAll()
 
     def centreTone(self):  # for phase noise graph
         centreF = self.s0.trace.m0.line.value() * 1e-6
@@ -1905,7 +1983,6 @@ class Analyser(QtCore.QObject):
             lambda: self.data.bands.deleteRow(False))
         
         self.dialogs.preset_freqs.ui.addPsType.clicked.connect(self.data.bandstype.addRow)
-        self.dialogs.preset_freqs.ui.finished.connect(self.set_preferences)  # update db checkboxes table on window close
         self.dialogs.preset_freqs.ui.exportPs.pressed.connect(
             lambda: self.data.bands.exportData(''))
         
@@ -1929,7 +2006,7 @@ class Analyser(QtCore.QObject):
     
         # correction
         self.dialogs.offset.ui.export_button.clicked.connect(lambda: self.data.correction.exportData(''))
-        self.dialogs.offset.ui.import_button.clicked.connect(lambda: self.data.correction.importData(''))
+        # self.dialogs.offset.ui.import_button.clicked.connect(lambda: self.data.correction.import_data(''))
        
         # recording and playback
         self.ui.record.clicked.connect(self.start_recording)
@@ -1970,7 +2047,8 @@ class Analyser(QtCore.QObject):
             with QSignalBlocker(self.ui.span_freq):
                 self.ui.span_freq.setValue(span)
             self.setCentreFreq()
-        self.data.numbers.dwm.submit()
+        # self.data.numbers.dwm.submit()
+        self.setting_change()
         self.set_mixer_highlighting()
     
     def set_mixer_highlighting(self):
@@ -1990,17 +2068,6 @@ class Analyser(QtCore.QObject):
             self.ui.start_freq.setMaximum(100000)
             self.ui.centre_freq.setMaximum(100000)
             self.ui.stop_freq.setMaximum(100000)
-
-    def set_preferences(self):  # called at startup and when the preferences window is closed
-        self.data.checkboxes.dwm.submit()
-        self.data.bands.tm.submitAll()
-        self.limits.threshold.line.setValue(self.dialogs.settings.ui.peakThreshold.value())
-        self.limits.best.visible(self.dialogs.settings.ui.neg25Line.isChecked())
-        self.limits.maximum.visible(self.dialogs.settings.ui.zeroLine.isChecked())
-        self.limits.damage.visible(self.dialogs.settings.ui.plus6Line.isChecked())
-
-        if self.ui.presetMarker.isChecked():
-            self.set_preset_marker()
 
     def correction_filter(self):
         if self.dialogs.offset.ui.filter_box.isChecked():
@@ -2092,8 +2159,8 @@ class ModelView():
             self.tm.insertRow(self.currentRow)
         self.tm.layoutChanged.emit()  # don't invoke select() because row not yet populated or saved
 
-    def saveChanges(self):
-        self.dwm.submit()
+    # def saveChanges(self):
+    #     self.dwm.submit()
 
     def deleteRow(self, single=True):  # deletes rows in the table widget
         if single:
