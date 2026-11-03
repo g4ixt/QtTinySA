@@ -55,15 +55,15 @@ class USBdevice(QObject):
         self.recorders = (self.rec_0, self.rec_1, self.rec_2, self.rec_3)
 
     def probe(self):
-        VID = (0x0483, 0x1d50, 0x04b4)  # 1155 tinySA/NanoVNA, limeSDR, NanoVNA V2 +4
-        PID = (0x5740, 0x6108, 0x0008)  # 22336 tinySA/NanoVNA, limeSDR, NanoVNA V2 +4
+        VID = (0x0483, 0x1d50, 0x04b4, 0x1781)  # 1155 tinySA/NanoVNA, limeSDR, NanoVNA V2 +4
+        PID = (0x5740, 0x6108, 0x0008, 0x0a44)  # 22336 tinySA/NanoVNA, limeSDR, NanoVNA V2 +4
         usbPorts = list_ports.comports()
         # detect devices as they connect
         for port in usbPorts:
             if port.vid in VID and port.pid in PID and port not in self.ports:
                 self.ports.append(port)
                 self.run_connect = True
-                logging.debug(f'found {self.identify(port)} on {port.device}')
+                logging.info(f'found {self.identify(port)} on {port.device}')
 
         # detect devices that have been turned off or lost contact
         for port in self.ports:
