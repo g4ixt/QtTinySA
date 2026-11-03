@@ -16,10 +16,10 @@
   <widget class="QFrame" name="frame">
    <property name="geometry">
     <rect>
-     <x>320</x>
-     <y>180</y>
-     <width>311</width>
-     <height>391</height>
+     <x>260</x>
+     <y>240</y>
+     <width>245</width>
+     <height>291</height>
     </rect>
    </property>
    <property name="font">
@@ -37,39 +37,55 @@
     <number>2</number>
    </property>
    <layout class="QGridLayout" name="gridLayout_2">
-    <item row="7" column="1">
-     <widget class="QSpinBox" name="hack_rf_gain">
+    <item row="5" column="1">
+     <widget class="QSpinBox" name="hack_if_gain">
       <property name="font">
        <font>
         <pointsize>12</pointsize>
        </font>
       </property>
+      <property name="suffix">
+       <string>dB</string>
+      </property>
       <property name="maximum">
-       <number>14</number>
+       <number>40</number>
+      </property>
+      <property name="singleStep">
+       <number>8</number>
       </property>
       <property name="value">
-       <number>5</number>
+       <number>20</number>
       </property>
      </widget>
     </item>
-    <item row="6" column="1">
-     <widget class="QCheckBox" name="checkBox">
+    <item row="3" column="0">
+     <widget class="QLabel" name="label_19">
+      <property name="text">
+       <string>Max Rate</string>
+      </property>
+     </widget>
+    </item>
+    <item row="8" column="0">
+     <widget class="QCheckBox" name="hack_amp">
       <property name="font">
        <font>
         <pointsize>12</pointsize>
        </font>
       </property>
       <property name="text">
-       <string>on</string>
+       <string>RF amp on</string>
       </property>
      </widget>
     </item>
-    <item row="5" column="1">
+    <item row="7" column="1">
      <widget class="QDoubleSpinBox" name="hack_filter">
       <property name="font">
        <font>
         <pointsize>12</pointsize>
        </font>
+      </property>
+      <property name="suffix">
+       <string>MHz</string>
       </property>
       <property name="minimum">
        <double>1.750000000000000</double>
@@ -79,144 +95,6 @@
       </property>
       <property name="value">
        <double>28.000000000000000</double>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="1">
-     <widget class="QRadioButton" name="hack_rx">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>Rx</string>
-      </property>
-      <property name="checked">
-       <bool>true</bool>
-      </property>
-      <attribute name="buttonGroup">
-       <string notr="true">hack_ant</string>
-      </attribute>
-     </widget>
-    </item>
-    <item row="4" column="1">
-     <widget class="QSpinBox" name="spinBox_2">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="maximum">
-       <number>62</number>
-      </property>
-      <property name="value">
-       <number>20</number>
-      </property>
-     </widget>
-    </item>
-    <item row="7" column="0">
-     <widget class="QLabel" name="label_20">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>RF amplifier Gain</string>
-      </property>
-     </widget>
-    </item>
-    <item row="6" column="0">
-     <widget class="QLabel" name="label_17">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>RF amplifier</string>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="0">
-     <widget class="QLabel" name="label_12">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>Set Antenna</string>
-      </property>
-     </widget>
-    </item>
-    <item row="4" column="0">
-     <widget class="QLabel" name="label_15">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>VGA (Baseband) Gain</string>
-      </property>
-     </widget>
-    </item>
-    <item row="5" column="0">
-     <widget class="QLabel" name="label_16">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>Analogue Filter BW</string>
-      </property>
-     </widget>
-    </item>
-    <item row="8" column="0">
-     <spacer name="verticalSpacer_4">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="orientation">
-       <enum>Qt::Orientation::Vertical</enum>
-      </property>
-      <property name="sizeHint" stdset="0">
-       <size>
-        <width>20</width>
-        <height>40</height>
-       </size>
-      </property>
-     </spacer>
-    </item>
-    <item row="3" column="1">
-     <widget class="QSpinBox" name="spinBox">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="maximum">
-       <number>40</number>
-      </property>
-      <property name="value">
-       <number>20</number>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="0">
-     <widget class="QLabel" name="label_14">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>LNA (IF) Gain</string>
       </property>
      </widget>
     </item>
@@ -233,20 +111,136 @@
       </property>
      </widget>
     </item>
-    <item row="2" column="1">
-     <widget class="QRadioButton" name="hack_tx">
+    <item row="6" column="0">
+     <widget class="QLabel" name="label_15">
       <property name="font">
        <font>
         <pointsize>12</pointsize>
        </font>
       </property>
       <property name="text">
-       <string>Tx</string>
+       <string>BB VGA Gain</string>
       </property>
-      <attribute name="buttonGroup">
-       <string notr="true">hack_ant</string>
-      </attribute>
      </widget>
+    </item>
+    <item row="5" column="0">
+     <widget class="QLabel" name="label_14">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>IF LNA Gain</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="1">
+     <widget class="QDoubleSpinBox" name="hack_max_rate">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="suffix">
+       <string>MHz</string>
+      </property>
+      <property name="minimum">
+       <double>8.000000000000000</double>
+      </property>
+      <property name="maximum">
+       <double>20.000000000000000</double>
+      </property>
+      <property name="value">
+       <double>20.000000000000000</double>
+      </property>
+     </widget>
+    </item>
+    <item row="8" column="1">
+     <widget class="QSpinBox" name="hack_rf_gain">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="suffix">
+       <string>dB</string>
+      </property>
+      <property name="prefix">
+       <string/>
+      </property>
+      <property name="maximum">
+       <number>14</number>
+      </property>
+      <property name="value">
+       <number>5</number>
+      </property>
+     </widget>
+    </item>
+    <item row="7" column="0">
+     <widget class="QLabel" name="label_16">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>Filter BW</string>
+      </property>
+     </widget>
+    </item>
+    <item row="9" column="1">
+     <widget class="QCheckBox" name="hack_rx">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>RX</string>
+      </property>
+      <property name="checked">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+    <item row="9" column="0">
+     <widget class="QLabel" name="label_9">
+      <property name="text">
+       <string>RX/TX Mode</string>
+      </property>
+     </widget>
+    </item>
+    <item row="6" column="1">
+     <widget class="QSpinBox" name="hack_bb_gain">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="suffix">
+       <string>dB</string>
+      </property>
+      <property name="maximum">
+       <number>62</number>
+      </property>
+      <property name="value">
+       <number>50</number>
+      </property>
+     </widget>
+    </item>
+    <item row="10" column="1">
+     <spacer name="verticalSpacer_3">
+      <property name="orientation">
+       <enum>Qt::Orientation::Vertical</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>20</width>
+        <height>40</height>
+       </size>
+      </property>
+     </spacer>
     </item>
    </layout>
   </widget>
@@ -254,9 +248,9 @@
    <property name="geometry">
     <rect>
      <x>10</x>
-     <y>180</y>
-     <width>301</width>
-     <height>391</height>
+     <y>240</y>
+     <width>245</width>
+     <height>511</height>
     </rect>
    </property>
    <property name="font">
@@ -274,103 +268,20 @@
     <number>2</number>
    </property>
    <layout class="QGridLayout" name="gridLayout_3">
-    <item row="11" column="1">
-     <spacer name="verticalSpacer">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
+    <item row="8" column="1">
+     <widget class="QSpinBox" name="lime_tia_gain">
+      <property name="toolTip">
+       <string>TIA gain of 0dB is a good default</string>
       </property>
-      <property name="orientation">
-       <enum>Qt::Orientation::Vertical</enum>
+      <property name="suffix">
+       <string>dB</string>
       </property>
-      <property name="sizeType">
-       <enum>QSizePolicy::Policy::Fixed</enum>
-      </property>
-      <property name="sizeHint" stdset="0">
-       <size>
-        <width>0</width>
-        <height>40</height>
-       </size>
-      </property>
-     </spacer>
-    </item>
-    <item row="2" column="1">
-     <widget class="QLabel" name="label_4">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>DC Offset removal</string>
+      <property name="maximum">
+       <number>12</number>
       </property>
      </widget>
     </item>
-    <item row="10" column="2">
-     <widget class="QSpinBox" name="lime_ovr">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-     </widget>
-    </item>
-    <item row="6" column="2">
-     <widget class="QComboBox" name="lime_rx_ant">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-     </widget>
-    </item>
-    <item row="6" column="1">
-     <widget class="QLabel" name="label_5">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>RX Antenna</string>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="2">
-     <widget class="QRadioButton" name="btn_both">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>Both</string>
-      </property>
-      <property name="checked">
-       <bool>true</bool>
-      </property>
-      <attribute name="buttonGroup">
-       <string notr="true">LimeDCO</string>
-      </attribute>
-     </widget>
-    </item>
-    <item row="4" column="2">
-     <widget class="QRadioButton" name="btn_software">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>Software</string>
-      </property>
-      <attribute name="buttonGroup">
-       <string notr="true">LimeDCO</string>
-      </attribute>
-     </widget>
-    </item>
-    <item row="0" column="1">
+    <item row="0" column="0">
      <widget class="QLabel" name="label_3">
       <property name="font">
        <font>
@@ -383,7 +294,66 @@
       </property>
      </widget>
     </item>
-    <item row="9" column="1">
+    <item row="9" column="0">
+     <widget class="QLabel" name="label_25">
+      <property name="text">
+       <string>PGA Gain</string>
+      </property>
+     </widget>
+    </item>
+    <item row="11" column="1">
+     <widget class="QSpinBox" name="lime_tx_gain">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="suffix">
+       <string>dB</string>
+      </property>
+      <property name="value">
+       <number>20</number>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="1">
+     <widget class="QComboBox" name="lime_dc"/>
+    </item>
+    <item row="5" column="0">
+     <widget class="QLabel" name="label_4">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>DC removal</string>
+      </property>
+     </widget>
+    </item>
+    <item row="14" column="1">
+     <spacer name="verticalSpacer">
+      <property name="orientation">
+       <enum>Qt::Orientation::Vertical</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>20</width>
+        <height>40</height>
+       </size>
+      </property>
+     </spacer>
+    </item>
+    <item row="10" column="1">
+     <widget class="QComboBox" name="lime_tx_ant">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+     </widget>
+    </item>
+    <item row="11" column="0">
      <widget class="QLabel" name="label_8">
       <property name="font">
        <font>
@@ -395,28 +365,19 @@
       </property>
      </widget>
     </item>
-    <item row="8" column="2">
-     <widget class="QComboBox" name="lime_tx_ant">
+    <item row="7" column="0">
+     <widget class="QLabel" name="label_7">
       <property name="font">
        <font>
         <pointsize>12</pointsize>
        </font>
       </property>
-     </widget>
-    </item>
-    <item row="9" column="2">
-     <widget class="QSpinBox" name="lime_tx_gain">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="value">
-       <number>20</number>
+      <property name="text">
+       <string>LNA Gain</string>
       </property>
      </widget>
     </item>
-    <item row="8" column="1">
+    <item row="10" column="0">
      <widget class="QLabel" name="label_6">
       <property name="font">
        <font>
@@ -428,84 +389,150 @@
       </property>
      </widget>
     </item>
-    <item row="7" column="1">
-     <widget class="QLabel" name="label_7">
+    <item row="6" column="0">
+     <widget class="QLabel" name="label_5">
       <property name="font">
        <font>
         <pointsize>12</pointsize>
        </font>
       </property>
       <property name="text">
-       <string>Rx Gain</string>
+       <string>RX Antenna</string>
       </property>
      </widget>
     </item>
-    <item row="7" column="2">
-     <widget class="QSpinBox" name="lime_rx_gain">
+    <item row="3" column="1">
+     <widget class="QDoubleSpinBox" name="lime_max_rate">
       <property name="font">
        <font>
         <pointsize>12</pointsize>
        </font>
+      </property>
+      <property name="suffix">
+       <string>MHz</string>
+      </property>
+      <property name="minimum">
+       <double>5.000000000000000</double>
       </property>
       <property name="maximum">
-       <number>70</number>
+       <double>61.439999999999998</double>
       </property>
       <property name="value">
-       <number>30</number>
+       <double>61.439999999999998</double>
       </property>
      </widget>
     </item>
-    <item row="10" column="1">
-     <widget class="QLabel" name="label_9">
+    <item row="9" column="1">
+     <widget class="QSpinBox" name="lime_pga_gain">
+      <property name="toolTip">
+       <string>PGA gain of 6dB is a good default</string>
+      </property>
+      <property name="suffix">
+       <string>dB</string>
+      </property>
+      <property name="minimum">
+       <number>-12</number>
+      </property>
+      <property name="maximum">
+       <number>19</number>
+      </property>
+      <property name="value">
+       <number>6</number>
+      </property>
+     </widget>
+    </item>
+    <item row="13" column="1">
+     <widget class="QCheckBox" name="lime_iq_balance">
       <property name="font">
        <font>
         <pointsize>12</pointsize>
        </font>
       </property>
       <property name="text">
-       <string>Oversampling</string>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="2">
-     <widget class="QRadioButton" name="btn_hardware">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>Hardware</string>
-      </property>
-      <attribute name="buttonGroup">
-       <string notr="true">LimeDCO</string>
-      </attribute>
-     </widget>
-    </item>
-    <item row="1" column="1">
-     <widget class="QLabel" name="label_18">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>IQ Balance</string>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="2">
-     <widget class="QCheckBox" name="iq_box">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>on</string>
+       <string>On</string>
       </property>
       <property name="checked">
        <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+    <item row="8" column="0">
+     <widget class="QLabel" name="label_24">
+      <property name="text">
+       <string>TIA Gain</string>
+      </property>
+     </widget>
+    </item>
+    <item row="6" column="1">
+     <widget class="QComboBox" name="lime_rx_ant">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+     </widget>
+    </item>
+    <item row="12" column="1">
+     <widget class="QSpinBox" name="lime_gfir_bw">
+      <property name="suffix">
+       <string>%</string>
+      </property>
+      <property name="prefix">
+       <string>BW </string>
+      </property>
+      <property name="minimum">
+       <number>20</number>
+      </property>
+      <property name="maximum">
+       <number>90</number>
+      </property>
+      <property name="value">
+       <number>80</number>
+      </property>
+     </widget>
+    </item>
+    <item row="7" column="1">
+     <widget class="QSpinBox" name="lime_lna_gain">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="toolTip">
+       <string>LNA gain of 20dB is a good default</string>
+      </property>
+      <property name="suffix">
+       <string>dB</string>
+      </property>
+      <property name="maximum">
+       <number>30</number>
+      </property>
+      <property name="value">
+       <number>20</number>
+      </property>
+     </widget>
+    </item>
+    <item row="12" column="0">
+     <widget class="QCheckBox" name="lime_gfir_enable">
+      <property name="layoutDirection">
+       <enum>Qt::LayoutDirection::LeftToRight</enum>
+      </property>
+      <property name="text">
+       <string>GFIR on</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="0">
+     <widget class="QLabel" name="label_17">
+      <property name="text">
+       <string>Max Rate</string>
+      </property>
+     </widget>
+    </item>
+    <item row="13" column="0">
+     <widget class="QLabel" name="label_20">
+      <property name="text">
+       <string>IQ Balance</string>
       </property>
      </widget>
     </item>
@@ -514,10 +541,10 @@
   <widget class="QFrame" name="frame_3">
    <property name="geometry">
     <rect>
-     <x>10</x>
-     <y>580</y>
-     <width>301</width>
-     <height>131</height>
+     <x>260</x>
+     <y>540</y>
+     <width>245</width>
+     <height>211</height>
     </rect>
    </property>
    <property name="font">
@@ -535,57 +562,10 @@
     <number>2</number>
    </property>
    <layout class="QGridLayout" name="gridLayout_4">
-    <item row="2" column="0">
-     <widget class="QLabel" name="label_13">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
+    <item row="10" column="1">
+     <widget class="QCheckBox" name="rtl_bias">
       <property name="text">
-       <string>Rx Gain</string>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="0">
-     <widget class="QLabel" name="label_19">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>AGC</string>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="1">
-     <widget class="QCheckBox" name="rtl_agc_box">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="text">
-       <string>on</string>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="1">
-     <widget class="QDoubleSpinBox" name="rtl_gain">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="decimals">
-       <number>1</number>
-      </property>
-      <property name="maximum">
-       <double>49.600000000000001</double>
-      </property>
-      <property name="value">
-       <double>20.000000000000000</double>
+       <string>On</string>
       </property>
      </widget>
     </item>
@@ -602,13 +582,98 @@
       </property>
      </widget>
     </item>
-    <item row="3" column="0">
-     <spacer name="verticalSpacer_5">
+    <item row="10" column="0">
+     <widget class="QLabel" name="label_40">
+      <property name="text">
+       <string>Bias Tee 4.5V</string>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="0">
+     <widget class="QLabel" name="label_38">
+      <property name="text">
+       <string>Max Rate</string>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="1">
+     <widget class="QDoubleSpinBox" name="rtl_max_rate">
       <property name="font">
        <font>
         <pointsize>12</pointsize>
        </font>
       </property>
+      <property name="suffix">
+       <string>MHz</string>
+      </property>
+      <property name="decimals">
+       <number>3</number>
+      </property>
+      <property name="minimum">
+       <double>1.024000000000000</double>
+      </property>
+      <property name="maximum">
+       <double>2.560000000000000</double>
+      </property>
+      <property name="value">
+       <double>2.400000000000000</double>
+      </property>
+     </widget>
+    </item>
+    <item row="9" column="0">
+     <widget class="QLabel" name="label_39">
+      <property name="text">
+       <string>AGC</string>
+      </property>
+     </widget>
+    </item>
+    <item row="9" column="1">
+     <widget class="QCheckBox" name="rtl_agc_box">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>On</string>
+      </property>
+     </widget>
+    </item>
+    <item row="7" column="0">
+     <widget class="QLabel" name="label_13">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>Rx Gain</string>
+      </property>
+     </widget>
+    </item>
+    <item row="7" column="1">
+     <widget class="QDoubleSpinBox" name="rtl_gain">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="suffix">
+       <string>dB</string>
+      </property>
+      <property name="decimals">
+       <number>1</number>
+      </property>
+      <property name="maximum">
+       <double>49.600000000000001</double>
+      </property>
+      <property name="value">
+       <double>30.000000000000000</double>
+      </property>
+     </widget>
+    </item>
+    <item row="11" column="1">
+     <spacer name="verticalSpacer_2">
       <property name="orientation">
        <enum>Qt::Orientation::Vertical</enum>
       </property>
@@ -627,8 +692,8 @@
     <rect>
      <x>10</x>
      <y>10</y>
-     <width>621</width>
-     <height>161</height>
+     <width>994</width>
+     <height>221</height>
     </rect>
    </property>
    <property name="font">
@@ -646,55 +711,31 @@
     <number>2</number>
    </property>
    <layout class="QGridLayout" name="gridLayout_5">
-    <item row="0" column="4" rowspan="5">
-     <widget class="QTextEdit" name="textEdit">
-      <property name="enabled">
-       <bool>true</bool>
-      </property>
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
-      <property name="html">
-       <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-hr { height: 1px; border-width: 0; }
-li.unchecked::marker { content: &quot;\2610&quot;; }
-li.checked::marker { content: &quot;\2612&quot;; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Noto Sans'; font-size:12pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;table border=&quot;0&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px;&quot; cellspacing=&quot;2&quot; cellpadding=&quot;0&quot;&gt;&lt;thead&gt;
-&lt;tr&gt;
-&lt;td bgcolor=&quot;transparent&quot; style=&quot; vertical-align:bottom; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#000000; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
-&lt;p align=&quot;center&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; font-weight:700; color:#222832; background-color:transparent;&quot;&gt;Kaiser beta&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;
-&lt;td bgcolor=&quot;transparent&quot; style=&quot; vertical-align:bottom; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-left:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#e5e7ea; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
-&lt;p align=&quot;center&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; font-weight:700; color:#222832; background-color:transparent;&quot;&gt;Window shape&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/thead&gt;
-&lt;tr&gt;
-&lt;td bgcolor=&quot;transparent&quot; style=&quot; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#000000; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; color:#222832; background-color:transparent;&quot;&gt;0&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;
-&lt;td bgcolor=&quot;transparent&quot; style=&quot; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-left:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#e5e7ea; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; color:#222832; background-color:transparent;&quot;&gt;Rectangular&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td bgcolor=&quot;transparent&quot; style=&quot; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#000000; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; color:#222832; background-color:transparent;&quot;&gt;5&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;
-&lt;td bgcolor=&quot;transparent&quot; style=&quot; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-left:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#e5e7ea; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; color:#222832; background-color:transparent;&quot;&gt;Similar to a Hamming&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td bgcolor=&quot;transparent&quot; style=&quot; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#000000; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; color:#222832; background-color:transparent;&quot;&gt;6&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;
-&lt;td bgcolor=&quot;transparent&quot; style=&quot; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-left:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#e5e7ea; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; color:#222832; background-color:transparent;&quot;&gt;Similar to a Hanning&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td bgcolor=&quot;transparent&quot; style=&quot; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#000000; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; color:#222832; background-color:transparent;&quot;&gt;8.6&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;
-&lt;td bgcolor=&quot;transparent&quot; style=&quot; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-left:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#e5e7ea; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; color:#222832; background-color:transparent;&quot;&gt;Similar to a Blackman&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/body&gt;&lt;/html&gt;</string>
+    <item row="6" column="2">
+     <widget class="QLabel" name="sdr_fft_decimal">
+      <property name="text">
+       <string>FFT size</string>
       </property>
      </widget>
     </item>
-    <item row="2" column="3">
-     <spacer name="horizontalSpacer_2">
+    <item row="6" column="1">
+     <widget class="QSpinBox" name="sdr_fft">
+      <property name="prefix">
+       <string>2 ** </string>
+      </property>
+      <property name="minimum">
+       <number>8</number>
+      </property>
+      <property name="maximum">
+       <number>20</number>
+      </property>
+      <property name="value">
+       <number>16</number>
+      </property>
+     </widget>
+    </item>
+    <item row="0" column="2">
+     <spacer name="horizontalSpacer">
       <property name="orientation">
        <enum>Qt::Orientation::Horizontal</enum>
       </property>
@@ -706,26 +747,60 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
      </spacer>
     </item>
-    <item row="2" column="1">
-     <widget class="QRadioButton" name="mode_s">
+    <item row="5" column="0">
+     <widget class="QLabel" name="label_couple">
       <property name="font">
        <font>
         <pointsize>12</pointsize>
        </font>
       </property>
       <property name="text">
-       <string>Segments</string>
+       <string>Span linked with RBW</string>
+      </property>
+     </widget>
+    </item>
+    <item row="0" column="0" colspan="2">
+     <widget class="QLabel" name="label_2">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="text">
+       <string>Common Settings for all SDR types</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="0">
+     <widget class="QLabel" name="label">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>Kaiser Window Beta</string>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="1">
+     <widget class="QCheckBox" name="sdr_link_span_rbw">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>True</string>
       </property>
       <property name="checked">
        <bool>true</bool>
       </property>
-      <attribute name="buttonGroup">
-       <string notr="true">scan_mode</string>
-      </attribute>
      </widget>
     </item>
-    <item row="1" column="1">
-     <widget class="QDoubleSpinBox" name="kaiser">
+    <item row="2" column="1">
+     <widget class="QDoubleSpinBox" name="sdr_kaiser">
       <property name="font">
        <font>
         <pointsize>12</pointsize>
@@ -740,46 +815,20 @@ li.checked::marker { content: &quot;\2612&quot;; }
      </widget>
     </item>
     <item row="1" column="0">
-     <widget class="QLabel" name="label">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
+     <widget class="QLabel" name="label_22">
       <property name="text">
-       <string>Kaiser Window Beta</string>
+       <string>Enable SDR devices</string>
       </property>
      </widget>
     </item>
-    <item row="4" column="1">
-     <widget class="QCheckBox" name="couple_box">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-       </font>
-      </property>
+    <item row="6" column="0">
+     <widget class="QLabel" name="label_28">
       <property name="text">
-       <string>True</string>
-      </property>
-      <property name="checked">
-       <bool>true</bool>
+       <string>Maximum FFT size</string>
       </property>
      </widget>
     </item>
-    <item row="0" column="0">
-     <widget class="QLabel" name="label_2">
-      <property name="font">
-       <font>
-        <pointsize>12</pointsize>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="text">
-       <string>Settings for all SDR</string>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="0">
+    <item row="3" column="0">
      <widget class="QLabel" name="label_21">
       <property name="font">
        <font>
@@ -787,17 +836,222 @@ li.checked::marker { content: &quot;\2612&quot;; }
        </font>
       </property>
       <property name="text">
-       <string>Scan Mode</string>
+       <string>Composite Scan</string>
       </property>
      </widget>
     </item>
-    <item row="5" column="0">
-     <spacer name="verticalSpacer_6">
+    <item row="1" column="1">
+     <widget class="QCheckBox" name="sdr_enable">
+      <property name="text">
+       <string/>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="1">
+     <widget class="QCheckBox" name="sdr_composite_mode">
       <property name="font">
        <font>
         <pointsize>12</pointsize>
        </font>
       </property>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="checked">
+       <bool>false</bool>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="2">
+     <widget class="QLabel" name="sdr_kaiser_suppression">
+      <property name="text">
+       <string>sidelobe</string>
+      </property>
+     </widget>
+    </item>
+    <item row="0" column="3">
+     <spacer name="horizontalSpacer_2">
+      <property name="orientation">
+       <enum>Qt::Orientation::Horizontal</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>40</width>
+        <height>20</height>
+       </size>
+      </property>
+     </spacer>
+    </item>
+    <item row="0" column="4" rowspan="5">
+     <widget class="QTextEdit" name="textEdit">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="autoFillBackground">
+       <bool>true</bool>
+      </property>
+      <property name="lineWrapMode">
+       <enum>QTextEdit::LineWrapMode::WidgetWidth</enum>
+      </property>
+      <property name="readOnly">
+       <bool>true</bool>
+      </property>
+      <property name="html">
+       <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Noto Sans'; font-size:12pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;table border=&quot;0&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px;&quot; cellspacing=&quot;2&quot; cellpadding=&quot;0&quot;&gt;&lt;thead&gt;
+&lt;tr&gt;
+&lt;td bgcolor=&quot;transparent&quot; style=&quot; vertical-align:bottom; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#000000; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
+&lt;p align=&quot;center&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:8pt; font-weight:700; font-style:italic; color:#222832; background-color:transparent;&quot;&gt;Kaiser beta&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;
+&lt;td bgcolor=&quot;transparent&quot; style=&quot; vertical-align:bottom; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-left:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#e5e7ea; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
+&lt;p align=&quot;center&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:8pt; font-weight:700; font-style:italic; color:#222832; background-color:transparent;&quot;&gt;Window shape&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/thead&gt;
+&lt;tr&gt;
+&lt;td bgcolor=&quot;transparent&quot; style=&quot; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#000000; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
+&lt;p align=&quot;center&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; font-style:italic; color:#222832; background-color:transparent;&quot;&gt;0&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;
+&lt;td bgcolor=&quot;transparent&quot; style=&quot; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-left:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#e5e7ea; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
+&lt;p align=&quot;center&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; font-style:italic; color:#222832; background-color:transparent;&quot;&gt;Rectangular&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td bgcolor=&quot;transparent&quot; style=&quot; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#000000; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
+&lt;p align=&quot;center&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; font-style:italic; color:#222832; background-color:transparent;&quot;&gt;5&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;
+&lt;td bgcolor=&quot;transparent&quot; style=&quot; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-left:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#e5e7ea; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
+&lt;p align=&quot;center&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; font-style:italic; color:#222832; background-color:transparent;&quot;&gt;Similar to a Hamming&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td bgcolor=&quot;transparent&quot; style=&quot; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#000000; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
+&lt;p align=&quot;center&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; font-style:italic; color:#222832; background-color:transparent;&quot;&gt;6&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;
+&lt;td bgcolor=&quot;transparent&quot; style=&quot; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-left:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#e5e7ea; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
+&lt;p align=&quot;center&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; font-style:italic; color:#222832; background-color:transparent;&quot;&gt;Similar to a Hanning&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td bgcolor=&quot;transparent&quot; style=&quot; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#000000; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
+&lt;p align=&quot;center&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; font-style:italic; color:#222832; background-color:transparent;&quot;&gt;8.6&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;
+&lt;td bgcolor=&quot;transparent&quot; style=&quot; padding-left:0; padding-right:0; padding-top:0; padding-bottom:0; border-bottom:1px; border-left:1px; border-top-color:#000000; border-right-color:#000000; border-bottom-color:#000000; border-left-color:#e5e7ea; border-top-style:solid; border-right-style:solid; border-bottom-style:solid; border-left-style:solid;&quot;&gt;
+&lt;p align=&quot;center&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; background-color:transparent;&quot;&gt;&lt;span style=&quot; font-size:10pt; font-style:italic; color:#222832; background-color:transparent;&quot;&gt;Similar to a Blackman&lt;/span&gt;&lt;/p&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      </property>
+      <property name="acceptRichText">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QFrame" name="frame_5">
+   <property name="geometry">
+    <rect>
+     <x>510</x>
+     <y>240</y>
+     <width>245</width>
+     <height>511</height>
+    </rect>
+   </property>
+   <property name="frameShape">
+    <enum>QFrame::Shape::Box</enum>
+   </property>
+   <property name="frameShadow">
+    <enum>QFrame::Shadow::Raised</enum>
+   </property>
+   <property name="lineWidth">
+    <number>2</number>
+   </property>
+   <layout class="QGridLayout" name="gridLayout">
+    <item row="14" column="1">
+     <widget class="QCheckBox" name="sdrp_dab_notch">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>On</string>
+      </property>
+     </widget>
+    </item>
+    <item row="13" column="1">
+     <widget class="QCheckBox" name="sdrp_fm_notch">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>On</string>
+      </property>
+     </widget>
+    </item>
+    <item row="0" column="0" colspan="2">
+     <widget class="QLabel" name="label_29">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="text">
+       <string>SDRPlay RSPdx</string>
+      </property>
+     </widget>
+    </item>
+    <item row="15" column="1">
+     <widget class="QCheckBox" name="sdrp_iq_balance">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>On</string>
+      </property>
+      <property name="checked">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+    <item row="10" column="1">
+     <widget class="QSpinBox" name="sdrp_rf_gain">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="suffix">
+       <string>dB</string>
+      </property>
+      <property name="maximum">
+       <number>27</number>
+      </property>
+     </widget>
+    </item>
+    <item row="12" column="1">
+     <widget class="QComboBox" name="sdrp_fir_bw">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="0">
+     <widget class="QLabel" name="label_34">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>Max Rate</string>
+      </property>
+     </widget>
+    </item>
+    <item row="18" column="1">
+     <spacer name="verticalSpacer_4">
       <property name="orientation">
        <enum>Qt::Orientation::Vertical</enum>
       </property>
@@ -809,41 +1063,229 @@ li.checked::marker { content: &quot;\2612&quot;; }
       </property>
      </spacer>
     </item>
-    <item row="4" column="0">
-     <widget class="QLabel" name="label_22">
+    <item row="13" column="0">
+     <widget class="QLabel" name="label_23">
       <property name="font">
        <font>
         <pointsize>12</pointsize>
        </font>
       </property>
       <property name="text">
-       <string>Span linked with RBW</string>
+       <string>FM/AM Notch</string>
       </property>
      </widget>
     </item>
-    <item row="3" column="1">
-     <widget class="QRadioButton" name="mode_c">
+    <item row="16" column="0">
+     <widget class="QLabel" name="label_42">
       <property name="font">
        <font>
         <pointsize>12</pointsize>
        </font>
       </property>
       <property name="text">
-       <string>Composite</string>
+       <string>AGC</string>
       </property>
-      <attribute name="buttonGroup">
-       <string notr="true">scan_mode</string>
-      </attribute>
+     </widget>
+    </item>
+    <item row="17" column="1">
+     <widget class="QCheckBox" name="sdrp_bias">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>On</string>
+      </property>
+     </widget>
+    </item>
+    <item row="7" column="0">
+     <widget class="QLabel" name="label_31">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>DC Removal</string>
+      </property>
+     </widget>
+    </item>
+    <item row="5" column="1">
+     <widget class="QDoubleSpinBox" name="sdrp_max_rate">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="suffix">
+       <string>MHz</string>
+      </property>
+      <property name="minimum">
+       <double>2.000000000000000</double>
+      </property>
+      <property name="maximum">
+       <double>10.000000000000000</double>
+      </property>
+      <property name="value">
+       <double>10.000000000000000</double>
+      </property>
+     </widget>
+    </item>
+    <item row="14" column="0">
+     <widget class="QLabel" name="label_27">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>DAB Notch</string>
+      </property>
+     </widget>
+    </item>
+    <item row="17" column="0">
+     <widget class="QLabel" name="label_41">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>Bias Tee 4.7V</string>
+      </property>
+     </widget>
+    </item>
+    <item row="8" column="1">
+     <widget class="QComboBox" name="sdrp_rx_ant">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+     </widget>
+    </item>
+    <item row="10" column="0">
+     <widget class="QLabel" name="label_26">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>RF attenuate</string>
+      </property>
+     </widget>
+    </item>
+    <item row="9" column="0">
+     <widget class="QLabel" name="label_32">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>IF attenuate</string>
+      </property>
+     </widget>
+    </item>
+    <item row="15" column="0">
+     <widget class="QLabel" name="label_30">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>IQ Balance</string>
+      </property>
+     </widget>
+    </item>
+    <item row="9" column="1">
+     <widget class="QSpinBox" name="sdrp_if_gain">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="suffix">
+       <string>dB</string>
+      </property>
+      <property name="minimum">
+       <number>20</number>
+      </property>
+      <property name="maximum">
+       <number>59</number>
+      </property>
+     </widget>
+    </item>
+    <item row="16" column="1">
+     <widget class="QCheckBox" name="sdrp_agc">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>On</string>
+      </property>
+     </widget>
+    </item>
+    <item row="8" column="0">
+     <widget class="QLabel" name="label_36">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>RX Antenna</string>
+      </property>
+     </widget>
+    </item>
+    <item row="12" column="0">
+     <widget class="QLabel" name="label_33">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>FIR BW MHz</string>
+      </property>
+     </widget>
+    </item>
+    <item row="7" column="1">
+     <widget class="QComboBox" name="sdrp_dc">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
      </widget>
     </item>
    </layout>
   </widget>
+  <widget class="QFrame" name="frame_6">
+   <property name="geometry">
+    <rect>
+     <x>760</x>
+     <y>240</y>
+     <width>245</width>
+     <height>511</height>
+    </rect>
+   </property>
+   <property name="frameShape">
+    <enum>QFrame::Shape::Box</enum>
+   </property>
+   <property name="frameShadow">
+    <enum>QFrame::Shadow::Raised</enum>
+   </property>
+   <property name="lineWidth">
+    <number>2</number>
+   </property>
+  </widget>
  </widget>
  <resources/>
  <connections/>
- <buttongroups>
-  <buttongroup name="LimeDCO"/>
-  <buttongroup name="hack_ant"/>
-  <buttongroup name="scan_mode"/>
- </buttongroups>
 </ui>

@@ -122,6 +122,8 @@ MIN_FFT_SIZE = 256
 
 DEFAULT_KAISER_BETA = 10.5
 
+_UNSET = object()  # sentinel: distinguishes "no cache entry" from a cached None (= retries all failed)
+
 # Default span/RBW coupling ratio for auto-couple mode (span = rbw_hz * ratio), matching the industry-standard
 # default used across spectrum analyzer manufacturers (confirmed against Rohde & Schwarz's real-time spectrum
 # documentation, which refers to "span/RBW couplings" as a named feature, and against published default ratios
@@ -330,6 +332,46 @@ def list_devices() -> list[SoapyDeviceInfo]:
     return results
 
 
+def query_sample_rate_range(
+    driver: str, device_args: dict[str, str] | None = None, direction: int = SOAPY_SDR_RX, channel: int = 0
+) -> list[tuple[float, float, float]]:
+    """
+    Open a short-lived connection purely to ask a device what sample rates it actually supports (via
+    getSampleRateRange(), superseding the deprecated listSampleRates()), then release it immediately. Returns a
+    list of (minimum_hz, maximum_hz, step_hz) tuples -- step_hz of 0.0 means continuously variable within that
+    range; a device can report more than one disjoint range (RTL-SDR's R820T-based units, for example,
+    typically report two: roughly 225-300 kHz and 900 kHz-3.2 MSps, with an unstable gap in between that isn't
+    included in either).
+
+    SAFETY: this opens its own SoapySDR.Device connection. Only call this standalone -- e.g. once at
+    application startup, to help populate a UI or pick a sensible preset list -- never while a
+    SoapyReceiverProcess for the same device is also open or about to open, since the two connections can
+    contend for the same USB/hardware resource. This module's own pre-start() computations deliberately do NOT
+    call this, for exactly that reason -- see DEFAULT_PRESET_SAMPLE_RATES's module comment and
+    _ReceiverWorker._reconcile_actual_sample_rate(), which handles per-device correctness a different, safer way
+    (reading back the actual applied rate from inside the one real worker connection, after it opens).
+
+    Known driver quirk: LimeSDR's getSampleRateRange() has historically not reported anything useful until the
+    device's clock rate is already configured, which a fresh, unconfigured connection like this one won't have
+    done -- expect an empty or unhelpful result for Lime devices specifically; this is most useful for devices
+    like RTL-SDR and HackRF whose range doesn't depend on prior configuration.
+
+    Returns an empty list if the query fails for any reason (device not found, driver doesn't implement it,
+    etc.) rather than raising, since this is meant as an optional, best-effort capability check.
+    """
+    args = device_args or {"driver": driver}
+    device = None
+    try:
+        device = SoapySDR.Device(args)
+        ranges = device.getSampleRateRange(direction, channel)
+        return [(r.minimum(), r.maximum(), r.step()) for r in ranges]
+    except Exception:
+        logger.exception("Failed to query sample rate range for driver=%s", driver)
+        return []
+    finally:
+        del device  # no explicit close() in the SoapySDR Python API; dropping the reference releases it
+
+
 def _import_tsg_class():
     """
     Import LimeTestSignalGenerator whether this module is used as part of a package (e.g. QtTinySA's modules/
@@ -374,6 +416,10 @@ class _ReceiverWorker:
         self._device: "SoapySDR.Device | None" = None
         self._rx_stream = None
         self._tsg_active = False  # while True, spectra go to calibration_queue instead of data_queue
+        self._last_good_center: float | None = None  # last single-capture center that actually locked
+        # requested center -> frequency actually achieved (None = every retry failed); see _apply_frequency()
+        self._retune_cache: dict[float, float | None] = {}
+        self._retune_skip_counts: dict[float, int] = {}
 
     # -- device lifecycle -------------------------------------------------------------------------------------
     def _is_lime(self) -> bool:
@@ -459,7 +505,59 @@ class _ReceiverWorker:
             self._device.setSampleRate(SOAPY_SDR_RX, 0, self._s["sample_rate"])
         except Exception:
             logger.exception("Failed to set sample rate")
-        self._apply_frequency()
+        self._reconcile_actual_sample_rate()
+        if self._apply_frequency() is None and not self._s.get("sweep_active"):
+            # No previously-locked frequency to fall back on, so streaming would produce data whose frequency is
+            # unknown -- worse than no data. (Sweep mode retunes every segment itself, so this initial tune is
+            # irrelevant there and a failure of it is deliberately not fatal.)
+            raise RuntimeError(
+                f"Device opened but could not be tuned to {self._s['center_freq']:.0f} Hz or anywhere nearby; "
+                f"not starting the stream. Try a slightly different center frequency."
+            )
+
+    def _reconcile_actual_sample_rate(self) -> None:
+        """
+        Read back the sample rate the device actually applied (via getSampleRate()) and correct our own state
+        to match if it differs from what was requested -- drivers commonly clamp/round silently rather than
+        raise, so this is the authoritative source of truth for "what rate is this device really running at",
+        not the generic preset fallback computed parent-side before the device was ever open (see
+        DEFAULT_PRESET_SAMPLE_RATES's module comment). If the requested rate wasn't achievable and the actual
+        rate makes the current RBW infeasible too, the FFT size is clamped to max_fft_size (a degraded-but-
+        working fallback) rather than aborting the whole device open over an RBW mismatch -- reported either
+        way via event_queue.
+        """
+        if self._device is None:
+            return
+        requested_rate = self._s["sample_rate"]
+        try:
+            actual_rate = self._device.getSampleRate(SOAPY_SDR_RX, 0)
+        except Exception:
+            logger.exception("Failed to read back actual sample rate; trusting the requested value")
+            return
+
+        if not actual_rate or abs(actual_rate - requested_rate) <= max(1.0, requested_rate * 1e-6):
+            return  # close enough to the request to not be worth reporting
+
+        self._s["sample_rate"] = actual_rate
+        try:
+            fft_size = calculate_fft_size(
+                self._s["rbw"], actual_rate, self._s["kaiser_beta"], max_fft_size=self._s["max_fft_size"]
+            )
+            self._s["fft_size"] = fft_size
+            self._event_queue.put((
+                "status",
+                f"Device reported actual sample rate {actual_rate:.0f} Hz (requested {requested_rate:.0f} Hz); "
+                f"FFT size adjusted to {fft_size} for the current RBW",
+            ))
+        except ValueError:
+            fft_size = self._s["max_fft_size"]
+            self._s["fft_size"] = fft_size
+            self._event_queue.put((
+                "error",
+                f"Device reported actual sample rate {actual_rate:.0f} Hz (requested {requested_rate:.0f} Hz); "
+                f"the current RBW is no longer achievable at this rate. Using the maximum FFT size "
+                f"({fft_size}) instead -- call set_rbw() again with a coarser value once notified.",
+            ))
 
     def _supports_offset_tuning_arg(self) -> bool:
         if self._device is None:
@@ -477,30 +575,130 @@ class _ReceiverWorker:
         except Exception:
             return False
 
-    def _apply_frequency(self, center_freq: float | None = None) -> None:
+    # Escalating ladder of offsets tried when a retune fails -- see _apply_frequency()'s docstring. Each step is
+    # tried both above and below the requested frequency before moving to the next, larger step.
+    _FREQUENCY_RETRY_OFFSETS_HZ: tuple[float, ...] = (1e3, 10e3, 100e3, 1e6)
+
+    # A frequency that exhausted the whole ladder is not retried on every request -- each failed attempt makes
+    # the chip run its VCO calibration search, which is slow, so retrying a hopeless frequency every sweep
+    # cycle would drag down the whole sweep. It is re-attempted only on every Nth request, in case conditions
+    # (temperature, board state) have changed.
+    _FAILED_FREQUENCY_RETRY_EVERY = 50
+
+    def _apply_frequency(self, center_freq: float | None = None) -> float | None:
         """
-        Apply a center frequency. With no argument, uses self._s["center_freq"] (the single-capture/live-retune
-        path). Called with an explicit value per segment during a sweep (see _run_sweep_loop()), in which case
-        RF/NCO offset tuning is skipped entirely -- unsupported in combination with sweeping for now, since each
-        segment has its own LO position and the interaction needs more thought than a quick bolt-on deserves.
+        Apply a center frequency, retrying at nearby offsets if the device's LO synthesizer fails to lock at
+        the exact requested value, and returning whatever frequency actually ended up tuned (which the caller
+        MUST use for its own frequency axis -- see _run_single_loop()/_run_sweep_loop()) rather than assuming
+        the request was honored exactly.
+
+        With no argument, uses self._s["center_freq"] (the single-capture/live-retune path) and also writes the
+        actual achieved value back into it, so later reads of that key (e.g. at the top of _run_single_loop())
+        see ground truth. Called with an explicit value per segment during a sweep (see _run_sweep_loop()), in
+        which case self._s["center_freq"] is left untouched (unused in sweep mode) and RF/NCO offset tuning is
+        skipped entirely -- unsupported in combination with sweeping for now, since each segment has its own LO
+        position and the interaction needs more thought than a quick bolt-on deserves.
+
+        Why retrying matters: the LMS7002M's RX LO synthesizer can intermittently fail to lock ("cannot deliver
+        frequency") at specific frequencies -- a long-documented hardware/firmware quirk (MyriadRF discourse has
+        many "SetFrequencySXR(...) - cannot deliver frequency" threads spanning years, e.g. 100.1 MHz failing
+        while 100.0/100.2 MHz both work). The community's own low-level fixes (VCO bias current, LDO voltage
+        register tweaks) aren't exposed through SoapySDR at all; the workaround that consistently appears across
+        those reports is simply retuning a small amount, which is what this does automatically. Returns None if
+        every attempt fails, in which case the device's actual tuned state is unknown/unchanged -- callers
+        should treat that the same as any other failed capture (skip this cycle/segment).
         """
         if self._device is None:
-            return
+            return None
         if center_freq is None:
             center_freq = self._s["center_freq"]
-        offset_hz = 0.0 if self._s.get("sweep_active") else self._s["tuning_offset_hz"]
-        try:
-            if offset_hz and self._supports_offset_tuning_arg():
-                self._device.setFrequency(SOAPY_SDR_RX, 0, center_freq, {"OFFSET": str(offset_hz)})
-            elif offset_hz and self._supports_offset_tuning_components():
-                self._device.setFrequency(SOAPY_SDR_RX, 0, "RF", center_freq + offset_hz)
-                self._device.setFrequency(SOAPY_SDR_RX, 0, "BB", -offset_hz)
+        sweep_active = bool(self._s.get("sweep_active"))
+        offset_hz = 0.0 if sweep_active else self._s["tuning_offset_hz"]
+
+        def _tune(freq: float) -> bool:
+            try:
+                if offset_hz and self._supports_offset_tuning_arg():
+                    self._device.setFrequency(SOAPY_SDR_RX, 0, freq, {"OFFSET": str(offset_hz)})
+                elif offset_hz and self._supports_offset_tuning_components():
+                    self._device.setFrequency(SOAPY_SDR_RX, 0, "RF", freq + offset_hz)
+                    self._device.setFrequency(SOAPY_SDR_RX, 0, "BB", -offset_hz)
+                else:
+                    if offset_hz:
+                        logger.info("Offset tuning requested but unsupported by this device; ignoring")
+                    self._device.setFrequency(SOAPY_SDR_RX, 0, freq)
+                return True
+            except Exception:
+                return False
+
+        previous = self._retune_cache.get(center_freq, _UNSET)
+        actual: float | None = None
+        run_ladder = True
+
+        if previous is None:
+            # Known unlockable: skip the hardware entirely most of the time (see _FAILED_FREQUENCY_RETRY_EVERY).
+            skips = self._retune_skip_counts.get(center_freq, 0) + 1
+            self._retune_skip_counts[center_freq] = skips
+            if skips % self._FAILED_FREQUENCY_RETRY_EVERY != 0:
+                return self._tuning_failed(center_freq, sweep_active, report=False)
+        elif previous is not _UNSET:
+            # Known to need an offset: go straight to the frequency that worked last time.
+            if _tune(previous):
+                actual, run_ladder = previous, False
             else:
-                if offset_hz:
-                    logger.info("Offset tuning requested but unsupported by this device; ignoring")
-                self._device.setFrequency(SOAPY_SDR_RX, 0, center_freq)
-        except Exception:
-            logger.exception("Failed to set frequency")
+                del self._retune_cache[center_freq]  # that no longer works; start over as if never seen
+                previous = _UNSET
+
+        if run_ladder:
+            actual = center_freq if _tune(center_freq) else None
+            if actual is None:
+                for step in self._FREQUENCY_RETRY_OFFSETS_HZ:
+                    for trial in (center_freq + step, center_freq - step):
+                        if trial > 0 and _tune(trial):
+                            actual = trial
+                            break
+                    if actual is not None:
+                        break
+
+        if actual is None:
+            self._retune_cache[center_freq] = None
+            # Report only the first time; later periodic re-attempts that fail again stay silent.
+            return self._tuning_failed(center_freq, sweep_active, report=previous is _UNSET)
+
+        if actual == center_freq:
+            if previous is None:
+                self._event_queue.put(("status", f"Tuning at {center_freq:.0f} Hz has recovered"))
+            self._retune_cache.pop(center_freq, None)
+            self._retune_skip_counts.pop(center_freq, None)
+        else:
+            if previous != actual:  # new outcome for this frequency (first time, or it moved) -- report once
+                logger.warning(
+                    "LO failed to lock at %.0f Hz (known LMS7002M PLL tuning limitation); retuned to %.0f Hz "
+                    "instead", center_freq, actual,
+                )
+                self._event_queue.put((
+                    "status",
+                    f"Could not tune to {center_freq:.0f} Hz (LO PLL lock failure); tuned to {actual:.0f} Hz "
+                    f"instead",
+                ))
+            self._retune_cache[center_freq] = actual
+            self._retune_skip_counts.pop(center_freq, None)
+
+        if not sweep_active:
+            self._s["center_freq"] = actual
+            self._last_good_center = actual
+        return actual
+
+    def _tuning_failed(self, center_freq: float, sweep_active: bool, report: bool) -> None:
+        """Common exit for a retune that produced no lock. Reports (once -- see _apply_frequency()) and, in
+        single-capture mode, reverts the frequency axis to the last frequency that actually locked."""
+        if report:
+            logger.error("Failed to set frequency near %.0f Hz after retries", center_freq)
+            self._event_queue.put(("error", f"Failed to tune to {center_freq:.0f} Hz (or any nearby frequency)"))
+        if not sweep_active and self._last_good_center is not None:
+            # Keep the frequency axis truthful: the hardware is presumably still where it last locked, so label
+            # data with that, not the frequency that was requested but never reached.
+            self._s["center_freq"] = self._last_good_center
+        return None
 
     def _apply_rx_gain(self) -> None:
         if self._device is None:
@@ -571,7 +769,12 @@ class _ReceiverWorker:
         if self._device is None or not self._is_lime() or bw is None:
             return
         try:
-            self._device.writeSetting(SOAPY_SDR_RX, 0, "ENABLE_GFIR_LPF", str(bw))
+            if bw == 0:
+                # Confirmed against real LimeSDR hardware: disabling requires the distinct DISABLE_GFIR_LPF
+                # key, not ENABLE_GFIR_LPF with a zero bandwidth -- the latter does not actually disable it.
+                self._device.writeSetting(SOAPY_SDR_RX, 0, "DISABLE_GFIR_LPF", str(bw))
+            else:
+                self._device.writeSetting(SOAPY_SDR_RX, 0, "ENABLE_GFIR_LPF", str(bw))
         except Exception:
             logger.exception("Failed to set LimeSDR GFIR LPF bandwidth")
 
@@ -769,6 +972,14 @@ class _ReceiverWorker:
         segment. Segment layout (centers, per-segment frequency axes, crop amount for composite mode) is fixed
         for the lifetime of a configured sweep -- live retuning isn't supported while sweeping, so none of this
         needs to be recomputed mid-loop the way the single-capture path's freqs axis does.
+
+        The one exception: if the LO can't lock at a segment's planned center and _apply_frequency() retunes
+        nearby instead, that segment's bins are labeled with the frequency actually tuned (so its axis stays
+        truthful) and a status message is queued. In composite mode the array length is still exactly
+        composite_size (the crop is a fixed bin count), but seam tiling is no longer guaranteed perfect at that
+        segment's edges: if the retune offset exceeds the overlap margin there, the stitched frequency axis can
+        show a small gap or a tiny backward step at that seam. Accepted deliberately -- discarding the whole
+        cycle instead would mean a persistently unlockable frequency never produces any composite output.
         """
         start_hz = self._s["sweep_start_hz"]
         num_segments = self._s["num_segments"]
@@ -797,13 +1008,23 @@ class _ReceiverWorker:
                     cycle_ok = False
                     continue
 
-                self._apply_frequency(center_freq)
+                actual_center = self._apply_frequency(center_freq)
+                if actual_center is None:
+                    cycle_ok = False  # tuning failed even after retries -- treat like any other failed capture
+                    continue
                 power = self._capture_block(fft_size, window, read_buf)
                 if power is None:
                     cycle_ok = False
                     continue
 
-                freqs = segment_freqs[i]
+                if actual_center == center_freq:
+                    freqs = segment_freqs[i]
+                else:
+                    # The LO couldn't lock at the planned center and retuned nearby (see _apply_frequency()):
+                    # label this segment's bins with the frequency actually tuned, not the one planned.
+                    freqs = (
+                        np.fft.fftshift(np.fft.fftfreq(fft_size, d=1.0 / sample_rate)) + actual_center
+                    ).astype(np.float64)
                 cal_freqs = self._s.get("cal_freqs_hz")
                 cal_offsets = self._s.get("cal_offsets_db")
                 if cal_freqs is not None and cal_offsets is not None:
@@ -851,7 +1072,8 @@ class SoapyReceiverProcess:
     Public API deliberately mirrors soapy_receiver.SoapySDRReceiver's setters (set_device, set_center_frequency,
     set_span, set_sweep, set_rbw, set_auto_couple, set_rx_gain, set_antenna, set_bandwidth, set_dc_offset_removal,
     set_iq_balance_mode, set_auto_calibrate, set_gfir_lpf_bandwidth, set_oversampling, set_kaiser_beta,
-    set_offset_tuning, set_amplitude_calibration, clear_amplitude_calibration, start, stop, wait), plus
+    set_max_fft_size, set_offset_tuning, set_amplitude_calibration, clear_amplitude_calibration, start, stop,
+    wait), plus query_sample_rate_range() (a standalone capability-query utility, see its own docstring), plus
     set_tx_gain(), set_tx_antenna(), enable_tsg(), disable_tsg() -- new here, since the threading version let
     LimeLoopbackCalibrator reach into receiver.device directly, which isn't possible across a process boundary.
 
@@ -916,8 +1138,11 @@ class SoapyReceiverProcess:
         self._oversampling: int = 0
         self._tuning_offset_hz: float = 0.0
         self._kaiser_beta: float = DEFAULT_KAISER_BETA
+        self._max_fft_size: int = MAX_FFT_SIZE
         self._rbw: float = 10_000.0
-        self._fft_size: int = calculate_fft_size(self._rbw, self._sample_rate, self._kaiser_beta)
+        self._fft_size: int = calculate_fft_size(
+            self._rbw, self._sample_rate, self._kaiser_beta, max_fft_size=self._max_fft_size
+        )
         self._cal_freqs_hz: np.ndarray | None = None
         self._cal_offsets_db: np.ndarray | None = None
 
@@ -925,6 +1150,14 @@ class SoapyReceiverProcess:
     @staticmethod
     def list_devices() -> list[SoapyDeviceInfo]:
         return list_devices()
+
+    @staticmethod
+    def query_sample_rate_range(
+        driver: str, device_args: dict[str, str] | None = None, direction: int = SOAPY_SDR_RX, channel: int = 0
+    ) -> list[tuple[float, float, float]]:
+        """See the module-level query_sample_rate_range() -- same function, same safety caveats about when
+        it's safe to call relative to a SoapyReceiverProcess for the same device."""
+        return query_sample_rate_range(driver, device_args, direction, channel)
 
     def _is_lime_driver(self) -> bool:
         return is_lime_driver(self._driver)
@@ -1030,7 +1263,7 @@ class SoapyReceiverProcess:
         if self._auto_couple_enabled and not self._sweep_active:
             old_span = self._sample_rate
             self._apply_auto_couple(rbw_hz)
-            fft_size = calculate_fft_size(rbw_hz, self._sample_rate, self._kaiser_beta)
+            fft_size = calculate_fft_size(rbw_hz, self._sample_rate, self._kaiser_beta, max_fft_size=self._max_fft_size)
             self._rbw = float(rbw_hz)
             self._fft_size = fft_size
             if self._sample_rate != old_span:
@@ -1038,13 +1271,13 @@ class SoapyReceiverProcess:
             return None
 
         try:
-            fft_size = calculate_fft_size(rbw_hz, self._sample_rate, self._kaiser_beta)
+            fft_size = calculate_fft_size(rbw_hz, self._sample_rate, self._kaiser_beta, max_fft_size=self._max_fft_size)
         except ValueError:
             if self._sweep_active:
                 raise  # auto-couple doesn't apply during a sweep; surface the original error as before
             self._auto_couple_enabled = True
             self._apply_auto_couple(rbw_hz)
-            fft_size = calculate_fft_size(rbw_hz, self._sample_rate, self._kaiser_beta)
+            fft_size = calculate_fft_size(rbw_hz, self._sample_rate, self._kaiser_beta, max_fft_size=self._max_fft_size)
             self._rbw = float(rbw_hz)
             self._fft_size = fft_size
             return (
@@ -1101,6 +1334,25 @@ class SoapyReceiverProcess:
             return self.set_rbw(self._rbw)
         except ValueError:
             self._kaiser_beta = old_beta
+            raise
+
+    def set_max_fft_size(self, max_fft_size: int) -> str | None:
+        """
+        Override the ceiling calculate_fft_size() enforces (MAX_FFT_SIZE, 1,048,576 by default -- see its
+        module-level comment for the measured timing this default is based on). Raise it on capable hardware
+        for finer achievable RBW at wide spans; lower it if FFT compute time needs to stay tighter than the
+        default budget allows. Recomputes fft_size for the current RBW, same as set_kaiser_beta() -- returns
+        whatever set_rbw() returns (None normally, or a message if this pushed auto-couple into action).
+        """
+        self._check_idle("max FFT size")
+        if max_fft_size < MIN_FFT_SIZE:
+            raise ValueError(f"max_fft_size must be >= MIN_FFT_SIZE ({MIN_FFT_SIZE}), got {max_fft_size}")
+        old_max = self._max_fft_size
+        self._max_fft_size = int(max_fft_size)
+        try:
+            return self.set_rbw(self._rbw)
+        except ValueError:
+            self._max_fft_size = old_max
             raise
 
     def set_rx_gain(self, gain_db: float | None) -> None:
@@ -1323,6 +1575,8 @@ class SoapyReceiverProcess:
             "oversampling": self._oversampling,
             "tuning_offset_hz": self._tuning_offset_hz,
             "kaiser_beta": self._kaiser_beta,
+            "rbw": self._rbw,
+            "max_fft_size": self._max_fft_size,
             "cal_freqs_hz": self._cal_freqs_hz,
             "cal_offsets_db": self._cal_offsets_db,
         }

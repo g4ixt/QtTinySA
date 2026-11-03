@@ -65,6 +65,112 @@ class Calc():
             mini.append(np.argmin(nextMin))
         return (list(frequencies[maxi]), list(frequencies[mini]))
 
+    @staticmethod
+    def kaiser_attenuation(beta):
+        """
+        Calculate the side-lobe suppression (attenuation in dB) from the Kaiser beta parameter.
+        """
+        if beta <= 0.0:
+            return 21.0  # Base case for a rectangular-like window
+            
+        # Boundary check: At beta = 0.5842*(29)**0.4 + 0.07886*(29) ≈ 2.7845,
+        # the formula switches over to the linear >50 dB equation.
+        beta_switch = 0.5842 * (29)**0.4 + 0.07886 * (29)
+        
+        if beta > beta_switch:
+            # Case 1: Attenuation > 50 dB (Linear relationship)
+            # beta = 0.1102 * (A - 8.7)
+            A = (beta / 0.1102) + 8.7
+            return A
+        else:
+            # Case 2: 21 <= Attenuation <= 50 dB
+            # beta = 0.5842 * (A - 21)**0.4 + 0.07886 * (A - 21)
+            # Let x = (A - 21)**0.2. Then: 0.07886*x^5 + 0.5842*x^2 - beta = 0
+            coefficients = [0.07886, 0.0, 0.0, 0.5842, 0.0, -beta]
+            roots = np.roots(coefficients)
+            
+            # We only care about the real, positive root
+            real_root = roots[np.isreal(roots) & (roots > 0)].real
+            
+            if len(real_root) > 0:
+                x_val = real_root[0]
+                A = (x_val ** 5) + 21.0
+                return A
+            else:
+                return 21.0
+
+    @staticmethod
+    def cubic_spline_interp(x_data, y_data, x_new):
+        """
+        Interpolates 1D data using a Natural Cubic Spline algorithm powered strictly by NumPy.
+        
+        :param x_data: Array of measured calibration frequencies (must be strictly increasing).
+        :param y_data: Array of measured path deltas (dB).
+        :param x_new:  The target frequency or array of frequencies to calculate corrections for.
+        :return:       Interpolated dB correction factor(s).
+        """
+        x = np.asarray(x_data, dtype=float)
+        y = np.asarray(y_data, dtype=float)
+        x_new = np.asarray(x_new, dtype=float)
+        
+        n = len(x)
+        h = np.diff(x)
+        
+        # 1. Setup the tridiagonal system matrix components for natural boundary conditions
+        A = np.zeros((n, n))
+        B = np.zeros(n)
+        
+        A[0, 0] = 1.0
+        A[n-1, n-1] = 1.0
+        
+        for i in range(1, n - 1):
+            A[i, i - 1] = h[i - 1]
+            A[i, i] = 2.0 * (h[i - 1] + h[i])
+            A[i, i + 1] = h[i]
+            B[i] = 3.0 * ((y[i + 1] - y[i]) / h[i] - (y[i] - y[i - 1]) / h[i - 1])
+            
+        # 2. Solve for the second derivatives (curvatures) at each node point
+        c = np.linalg.solve(A, B)
+        
+        # 3. Derive the remaining spline coefficients (a, b, d) for each interval
+        a = y[:-1]
+        b = (y[1:] - y[:-1]) / h - h * (2.0 * c[:-1] + c[1:]) / 3.0
+        d = (c[1:] - c[:-1]) / (3.0 * h)
+        c_intervals = c[:-1]
+        
+        # 4. Vectorized interpolation evaluation loop
+        # Vectorized search to find which interval bin each 'x_new' value belongs to
+        indices = np.searchsorted(x, x_new) - 1
+        indices = np.clip(indices, 0, n - 2) # Handle edge out-of-bounds inputs safely
+        
+        # Evaluate the piecewise polynomial: S_i(x) = a + b(x-x_i) + c(x-x_i)^2 + d(x-x_i)^3
+        dx = x_new - x[indices]
+        y_new = a[indices] + b[indices] * dx + c_intervals[indices] * (dx ** 2) + d[indices] * (dx ** 3)
+        
+        return y_new
+    
+    
+    # ==========================================
+    # Verification & Accuracy Evaluation Sandbox
+    # ==========================================
+    if __name__ == "__main__":
+        # Measured calibration data points across an RF boundary (e.g., HF/VHF transition)
+        cal_freqs = [0.5e6, 1.0e6, 5.0e6, 10.0e6, 20.0e6, 30.0e6, 50.0e6, 75.0e6, 100.0e6]
+        cal_deltas = [18.5,  14.2,  8.1,   5.4,   3.2,   2.1,   1.5,   1.2,   1.0] # Smoothly curving dB drop
+        
+        # Target custom runtime channel frequency to evaluate
+        target_freq = 15.5e6 
+        
+        # Calculate corrections using Cubic Spline vs standard Linear Interpolation
+        spline_correction = numpy_cubic_spline_interp(cal_freqs, cal_deltas, target_freq)
+        linear_correction = np.interp(target_freq, cal_freqs, cal_deltas)
+        
+        print(f"Target Operating Frequency: {target_freq / 1e6:.3f} MHz")
+        print(f"NumPy Piecewise Linear Correction:  {linear_correction:.4f} dB")
+        print(f"NumPy Natural Cubic Spline Correction: {spline_correction:.4f} dB")
+        print(f"Calculated Curve Deviation Delta:      {abs(spline_correction - linear_correction):.4f} dB")
+
+
 class FakePortInfo():
     """Mimics serial.tools.list_ports_common.ListPortInfo using values supplied.  This code is from Claude ai"""
 

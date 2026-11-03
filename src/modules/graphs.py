@@ -324,7 +324,7 @@ class SpectrumGraph(QObject):
 
     def __init__(self, s_widget, w_widget, h_widget, m_widget, h_pos):
         super().__init__()
-        self.create(s_widget, w_widget, h_widget, m_widget, h_pos)
+        self._create(s_widget, w_widget, h_widget, m_widget, h_pos)
         self.count = 0  # the number of completed scans
         self.monitor_data = np.ndarray(2)
         self.monitor_idx = 0
@@ -333,14 +333,14 @@ class SpectrumGraph(QObject):
         self.points = 101
         self.ps_markers = []
 
-    def create(self, s_widget, w_widget, h_widget, m_widget, h_pos):
+    def _create(self, s_widget, w_widget, h_widget, m_widget, h_pos):
         # create the main spectrum screen trace
         s_widget.addLegend(offset=(30, 400))
         self.trace = s_widget.plot([], [], width=1, padding=0)
         self.trace.is_visible = True
-        self.timestamp = pyqtgraph.TextItem(border=None, anchor=(0, 0))
-        self.timestamp.setParentItem(s_widget.plotItem)
-        self.timestamp.setPos(h_pos, 0)
+        self.identifier = pyqtgraph.TextItem(border=None, anchor=(0, 0))
+        self.identifier.setParentItem(s_widget.plotItem)
+        self.identifier.setPos(h_pos, 0)
 
         # create four markers, all bound to this trace
         self.trace.m0 = Marker(s_widget, self, 'm1', 20, h_pos)
@@ -370,13 +370,17 @@ class SpectrumGraph(QObject):
         if show:
             self.trace.show()
             self.trace.is_visible = True
-            self.timestamp.show()
+            self.identifier.show()
+            for mkr in self.mkr_list:
+                if mkr.enabled:
+                    mkr.line.show()
         else:
             self.trace.hide()
             self.trace.is_visible = False
-            self.timestamp.hide()
+            self.identifier.hide()
             for mkr in self.mkr_list:
-                mkr.line.hide()
+                if mkr.enabled:
+                    mkr.line.hide()
 
     def updateTrace(self, frequencies, levels):
         self.trace.setData(frequencies, levels)
@@ -385,7 +389,7 @@ class SpectrumGraph(QObject):
         # set the trace and marker colours the same
         self.pen = pen
         self.trace.setPen(pen)
-        self.timestamp.setColor(pen)
+        self.identifier.setColor(pen)
         for mkr in self.mkr_list:
             mkr.line.setPen(pen, style=Qt.DashLine)
             mkr.delta.setPen(pen, style=Qt.DotLine)
@@ -458,6 +462,7 @@ class Marker:
         self.create_lines(ui_widget, name, v_pos, h_pos)
         self.setSignals()
         self.spectrum = trace
+        self.enabled = False
 
     def create_lines(self, ui_widget, name, v_pos, h_pos):
         self.line = ui_widget.addLine(88, 90, movable=True, name=name,
@@ -529,8 +534,11 @@ class Marker:
             self.delta.hide()
             self.delta.setValue(0)
             self.deltaF = 0
+            self.enabled = False
         else:
-            self.line.show()
+            self.enabled = True
+            if self.spectrum.trace.is_visible:
+                self.line.show()
 
     def set_delta(self):  # delta marker locking to reference marker
         self.delta.setValue(self.line.value() + self.deltaF)
@@ -541,44 +549,52 @@ class Marker:
         if arr[0] is None:
             return
 
+        # check for zero span and exit if so
         frequencies = arr[0]
         levels = arr[1]
         if frequencies[0] == frequencies[-1]:  # markers are not relevant in zero span
             return
 
-        if self.mkr_type == 'Off' or not trace_on:
+        # show or hide markers according to the marker type and if the trace is on
+        if self.mkr_type == 'Off':
             self.line.hide()
             self.delta.hide()
             self.markerBox.setVisible(False)
+            self.enabled = False
             return
         else:
-            self.line.show()
-            self.markerBox.setVisible(True)
+            if trace_on:
+                self.line.show()
+                self.markerBox.setVisible(True)
+                self.enabled = True
 
+        # if the marker type is max or min, find the trace max and min and set the marker frequency to them
         if self.mkr_type in ('Max', 'Min'):
             maxmin = Calc.maxMin(frequencies, levels, limits)
             # maxmin is a tuple of lists where [0, x] are indices in the frequency array of the max
             # and [1, x] are min.  maskFreq represents an exclusion zone around the mkr, based on rbw
+
             if self.mkr_type == 'Max':
                 self.line.setValue(maxmin[0][self.level - 1])
                 if self.delta.value() != 0:
                     self.delta.setValue(maxmin[0][self.level - 1] + self.deltaF)  # needs to be index delta not F
+
             if self.mkr_type == 'Min':
                 self.line.setValue(maxmin[1][self.level - 1])
                 if self.delta.value() != 0:
                     self.delta.setValue(maxmin[1][self.level - 1] + self.deltaF)  # needs to be index delta not F
 
-        # find closest value in freq array
+        # find the closest discrete value in the freq array and jump onto it
         lineIndex = np.argmin(np.abs(frequencies - (self.line.value())))
         self.line.setValue(frequencies[lineIndex])
         self.dBm = levels[lineIndex]
 
-        # set decimal places and units
+        # set units and decimals, then update the marker line text with its current freq and amplitude values
         decimal = Calc.precision(frequencies, frequencies[0])
         unit, multiple = Calc.unit(frequencies[0])
-
         self.markerBox.setText(f'{self.line.name()} {self.line.value()/multiple:.{decimal}f}{unit} {self.dBm:.1f}dBm')
 
+        # set the delta marker if it's enabled
         if self.deltaF != 0:
             d_indx = np.argmin(np.abs(frequencies - (self.delta.value())))  # closest value in freq array
             if self.deltaRelative:

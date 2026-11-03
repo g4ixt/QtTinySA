@@ -20,7 +20,10 @@ This code provides some of the TinySA Ultra on-screen commands and PC control.
 Development is now on Kubuntu 26.04LTS with Python 3.14 and PySide6 using Spyder.
 TinySA, TinySA Ultra and the tinysa icon are trademarks of Erik Kaashoek and are used with permission.
 TinySA commands are based on Erik's Python examples: http://athome.kaashoek.com/tinySA/python/
-Serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset: https://github.com/Ho-Ro"""
+Serial communication commands are based on Martin's Python NanoVNA/TinySA Toolset: https://github.com/Ho-Ro
+
+From version 2.1.x Support for some SDR devices has been added, using the SoapySDR library.
+SoapySDR is licensed for use under the Boost Software Licence http://www.boost.org/LICENSE_1_0.txt"""
 
 import os
 import time
@@ -33,7 +36,7 @@ from PySide6.QtUiTools import QUiLoader
 from PySide6.QtCore import QFile, Slot, QSignalBlocker
 from PySide6.QtWidgets import QMessageBox, QDataWidgetMapper, QFileDialog, QApplication
 from PySide6.QtWidgets import QTableWidgetItem, QInputDialog, QLineEdit
-from PySide6.QtWidgets import QWidget, QSpinBox, QDoubleSpinBox, QComboBox, QCheckBox, QRadioButton
+from PySide6.QtWidgets import QWidget, QSpinBox, QDoubleSpinBox, QComboBox, QCheckBox, QRadioButton, QSlider
 from PySide6.QtSql import QSqlDatabase, QSqlRelation, QSqlRelationalTableModel, QSqlRelationalDelegate, QSqlQuery
 from PySide6.QtGui import QPixmap, QIcon
 
@@ -48,7 +51,7 @@ from io import BytesIO
 from modules.exporters import WWBExporter, WSMExporter
 from modules.graphs import SurfaceGraph, PhaseNoiseGraph, SpectrumGraph, PolarGraph
 from modules.devices import USBdevice, Worker, WorkerSignals
-from modules.utility import resource_path
+from modules.utility import resource_path, Calc
 
 # Defaults to non local configuration/data dirs - needed for packaging
 if system() == "Linux":
@@ -58,7 +61,6 @@ if system() == "Linux":
 # force Qt to use OpenGL rather than DirectX for Windows OS
 # QtCore.QCoreApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_UseDesktopOpenGL)
 
-logging.basicConfig(format="%(message)s", level=logging.INFO)
 threadpool = QtCore.QThreadPool()
 basedir = os.path.dirname(__file__)
 
@@ -116,7 +118,10 @@ class ApplicationController(QtCore.QObject):
         self.dialogs = Dialogs()
 
     def _create_device(self):
-        self.hardware = USBdevice()
+        # inject the sdr_enable checkbox reference to USBDevice, not its value.  So it can query its value.
+        sdr_enable = self.dialogs.sdr_settings.ui.sdr_enable
+        
+        self.hardware = USBdevice(sdr_enable)
 
     def _create_analyser(self):
         self.analyser = Analyser(ui=self.ui, hardware=self.hardware, dialogs=self.dialogs, data=self.data, parent=self)
@@ -190,6 +195,14 @@ class ApplicationController(QtCore.QObject):
         self.ui.spur_box.addItems(['off', 'on', 'auto'])
         self.ui.spur_box.setCurrentIndex(2)
         
+        # populate the SDR combo boxes
+        self.dialogs.sdr_settings.ui.lime_rx_ant.addItems((['LNAL', 'LNAH', 'LNAW', 'LB1', 'LB2', 'None']))
+        self.dialogs.sdr_settings.ui.lime_tx_ant.addItems((['Band1', 'Band2', 'None']))
+        self.dialogs.sdr_settings.ui.lime_dc.addItems((['Both', 'Hardware', 'Software']))
+        self.dialogs.sdr_settings.ui.sdrp_dc.addItems((['Both', 'Hardware', 'Software']))
+        self.dialogs.sdr_settings.ui.sdrp_rx_ant.addItems((['A', 'B', 'C']))
+        self.dialogs.sdr_settings.ui.sdrp_fir_bw.addItems((['0.2', '0.3', '0.6', '1.536', '5', '6', '7', '8']))                                           
+        
         # Populate the mapped widgets only after all mappings exist.
         # field values are in column (index) 2; future provision for 3 more settings
         self.map_row_to_widget(self.data.mapped_number)
@@ -200,6 +213,9 @@ class ApplicationController(QtCore.QObject):
         
         self.map_row_to_widget(self.data.mapped_text)
         self.data.mapped_text.dwm.setCurrentIndex(2)
+        
+        # sdr-specific
+        # self._inhibit_rbw_auto()
     
     def _set_database(self):
         self.database = Database(db_file="QtTSAprefs.db", connection_name="settings",
@@ -234,27 +250,12 @@ class ApplicationController(QtCore.QObject):
         self.ui.scan_button.setText(action)
         self.ui.scan_button.setEnabled(True)
 
-    # def map_table_to_widgets(self, model, model_name):
-    #     """Uses the database 'mapping' table, which contains GUI field names and the column 
-    #         number of the table ('numbers' or 'checkboxes') their state/value is stored in."""
-    #     mapping = self.data.mapping
-        
-    #     # filter the mapping definition table to show just values for this model_name
-    #     mapping.tm.setFilter(f'model = "{model_name}"')
-    
-    #     # setFilter() must be followed by select() to apply the filter.
-    #     if not mapping.tm.select():
-    #         logging.error(f'Failed to select mappings for {model_name}: 'f'{mapping.tm.lastError().text()}')
-    #         return
-    
-    #     namespace = {'ui': self.ui, 'dialogs': self.dialogs}
-    
-    #     for index in range(mapping.tm.rowCount()):
-    #         record = mapping.tm.record(index)
-    #         gui = record.value('gui')
-    #         column = record.value('column')
-    #         widget = eval(gui, {}, namespace)
-    #         model.dwm.addMapping(widget, int(column))
+    # def _inhibit_rbw_auto(self):
+    #     if self.dialogs.sdr_settings.ui.sdr_enable.isChecked(): # sdr don't have auto rbw
+    #         self.ui.rbw_auto.setChecked(False)
+    #         self.ui.rbw_auto.setEnabled(False)
+    #     else:
+    #         self.ui.rbw_auto.setEnabled(True)
 
     def map_row_to_widget(self, model):
         """The data model table contains GUI field names in rows with the current value
@@ -343,6 +344,10 @@ class ApplicationController(QtCore.QObject):
         # settings
         self.dialogs.settings.ui.set_folder.clicked.connect(self.set_folder)
         self.dialogs.settings.ui.finished.connect(self._set_preferences)  # updates db for mapped widgets
+        self.dialogs.sdr_settings.ui.sdr_kaiser.valueChanged.connect(self.kaiser_value_changed)
+        self.kaiser_value_changed(self.dialogs.sdr_settings.ui.sdr_kaiser.value())
+        self.dialogs.sdr_settings.ui.sdr_fft.valueChanged.connect(self.fft_value_changed)
+        self.fft_value_changed(self.dialogs.sdr_settings.ui.sdr_fft.value())
         
         # SD card saving
         self.dialogs.file_browse.ui.download.clicked.connect(lambda: self.set_sd_file_save(True))
@@ -373,6 +378,14 @@ class ApplicationController(QtCore.QObject):
     def _run_on_start(self):
         self.auto_run_timer.stop()
         self.ui.scan_button.clicked.emit()
+        
+    def kaiser_value_changed(self, beta):
+        suppression = int(Calc.kaiser_attenuation(beta))
+        self.dialogs.sdr_settings.ui.sdr_kaiser_suppression.setText(" " + str(suppression) + "dB sidelobe suppression")
+
+    def fft_value_changed(self, fft_size):
+        fft_dec = 2 ** fft_size
+        self.dialogs.sdr_settings.ui.sdr_fft_decimal.setText(" " + str(fft_dec))
 
     def delete_preset_type(self):
         bandstype = self.data.bandstype
@@ -659,6 +672,8 @@ class ApplicationController(QtCore.QObject):
                 form_data[key] = widget.isChecked()
             elif isinstance(widget, QRadioButton):
                 form_data[key] = widget.isChecked()
+            if isinstance(widget, QSlider):
+                form_data[key] = widget.value()
         return form_data
 
 
@@ -1110,7 +1125,7 @@ class Analyser(QtCore.QObject):
         self.mkr_update_timer.timeout.connect(self.updateMarker)
 
     @Slot()
-    def router(self, freq, levl, maxl, minl, buffer, port_in_use, ser_num, timestamp, split, sweep_end):
+    def router(self, freq, levl, maxl, minl, buffer, port_in_use, ser_num, identifier, split, sweep_end):
         '''Called by a signal from the measurement threads to route updates to
            the spectrum trace(s) & recorder based on the port and device count.
            tuple 1 = (device, number of devices) tuple 2 = trace(s) to update
@@ -1144,9 +1159,9 @@ class Analyser(QtCore.QObject):
             logging.info(f'failed to route data from {indx} of {count} on {port_in_use} to spectrum trace')
             self.hardware.stop(restart=False)
         else:
-            self.updateGUI(route, freq, levl, maxl, minl, buffer, ser_num, indx, timestamp, split, sweep_end)
+            self.updateGUI(route, freq, levl, maxl, minl, buffer, ser_num, indx, identifier, split, sweep_end)
             if self.hardware.recorders[indx].recording and sweep_end:
-                self.hardware.recorders[indx].record(freq, levl, ser_num)       
+                self.hardware.recorders[indx].record(freq, levl, ser_num)
 
     def setGUI(self):
         # connect GUI controls that don't interfere with restoration of data at startup
@@ -1155,13 +1170,11 @@ class Analyser(QtCore.QObject):
 
         # set various defaults
         band = self.ui.band_box.currentText()
-        # self.data.bandselect.set_filter_to(False, self.ui.filterBox.currentText())  # setting filter overwrites band
 
         self.set_mixer_highlighting()
         index = self.ui.band_box.findText(band, QtCore.Qt.MatchExactly)
 
         # connect GUI controls that would interfere with restoration of data at startup
-        ## may need to modify for multi-devices ##
         self.connect_active()
         
         # restore previous exact frequencies or band default frequencies depending on set preferences
@@ -1182,16 +1195,17 @@ class Analyser(QtCore.QObject):
         # set the marker types and restore the frequencies from the config database
         for mkr_num in range(4):
             self.set_main_marker(mkr_num)
-        # self.marker_restore()
         self.restore_markers()
             
         # hide the playback time slider
         self.ui.vortex.hide()
 
     def setting_change(self):
+        # update the database field values
         self.parent().update_mapped_widgets()
+        
         if self.hardware.is_scanning:
-            self.hardware.stop(True)
+            self.hardware.stop(True)  # 'True' instructs the stop function to invoke 'analyser.scan()' again
         self.stop_recording()
             
     def split_scan(self, startF, stopF, points, split):
@@ -1240,6 +1254,7 @@ class Analyser(QtCore.QObject):
         maxF = self.dialogs.settings.ui.maxFreqBox.value() * 1e6
         interval = self.dialogs.settings.ui.intervalBox.value()
         rbw = self.setRBW()
+        rbw_auto = self.ui.rbw_auto.isChecked()
         attn = self.attn()
         lna = self.lna()
         spur = self.spur()
@@ -1249,7 +1264,7 @@ class Analyser(QtCore.QObject):
             return
         
         sdr_settings = self.parent().ui_fields_to_dict()
-        self.hardware.controls(rbw, attn, lna, spur, sdr_settings)
+        self.hardware.controls(rbw, rbw_auto, attn, lna, spur, sdr_settings)
 
         # For LNB / transverter mode, modify startF and stopF to suit LO freq
         if self.data.bandstype.freq != 0:
@@ -1260,7 +1275,7 @@ class Analyser(QtCore.QObject):
         self.set_arrays()
 
         # start device(s) scanning
-        self.hardware.start(self.spectra, rbw, self.depth, maxF, interval, split, sdr_settings, loop=True)
+        self.hardware.start(self.spectra, rbw, rbw_auto, self.depth, maxF, interval, split, sdr_settings, loop=True)
         self.parent()._set_scan_button('Stop Scan')
 
     def set_gui_colours(self):
@@ -1379,20 +1394,24 @@ class Analyser(QtCore.QObject):
 
     def rbwChanged(self):
         if self.ui.rbw_auto.isChecked():  # can't calculate Points because we don't know what the RBW will be
-            self.ui.rbw_box.setEnabled(False)
+            # self.ui.rbw_box.setEnabled(False)
             self.ui.points_auto.setChecked(False)
             self.ui.points_auto.setEnabled(False)
         else:
-            self.ui.rbw_box.setEnabled(True)
+            # self.ui.rbw_box.setEnabled(True)
             self.ui.points_auto.setEnabled(True)
         self.setting_change()
         self.setRBW()
 
+    # def setRBW(self):
+    #     if self.ui.rbw_auto.isChecked():
+    #         rbw = 'auto'
+    #     else:
+    #         rbw = float(self.ui.rbw_box.currentText())  # ui values are discrete ones in kHz
+    #     return rbw
+
     def setRBW(self):
-        if self.ui.rbw_auto.isChecked():
-            rbw = 'auto'
-        else:
-            rbw = float(self.ui.rbw_box.currentText())  # ui values are discrete ones in kHz
+        rbw = float(self.ui.rbw_box.currentText())  # ui values are discrete ones in kHz
         return rbw
 
     def setPoints(self):
@@ -1426,7 +1445,7 @@ class Analyser(QtCore.QObject):
         if restart:
             self.scan()
 
-    def updateGUI(self, route, freq, levl, maxl, minl, buffer, ser_num, dev_id, timestamp, split, sweep_end):
+    def updateGUI(self, route, freq, levl, maxl, minl, buffer, ser_num, dev_id, identifier, split, sweep_end):
         ''''updates all the traces in the route in one call'''
 
         lo_freq = self.data.bandstype.freq
@@ -1499,10 +1518,12 @@ class Analyser(QtCore.QObject):
                     spectrum.updateTrace(freq, data.get(trace_type))
                 logging.debug(f'updating {self.spectra.index(spectrum)}')
 
-                if timestamp != 0:
-                    spectrum.timestamp.setText(time.ctime(timestamp))
-                else:
-                    spectrum.timestamp.setText('Device ' + str(dev_id + 1))
+                # if isinstance(identifier, float):
+                #     spectrum.identifier.setText(time.ctime(identifier))
+                # else:
+                #     spectrum.identifier.setText('Device ' + str(dev_id + 1))
+    
+                spectrum.identifier.setText(str(dev_id + 1) + ": " + identifier)
     
                 # update the markers
                 maskFreq = self.rbwMask(freq[0], freq[-1])
@@ -1518,11 +1539,11 @@ class Analyser(QtCore.QObject):
                     spectrum.count += 1
                     timeNow = time.time()
 
-                    # update the monitor graph. timestamp is zero unless a recorded file is playing
-                    if timestamp == 0:
-                        spectrum.update_monitor(freq, timeNow)
+                    # update the monitor graph. identifier is a string unless a recorded file is playing
+                    if isinstance(identifier, float):
+                        spectrum.update_monitor(freq, identifier)
                     else:
-                        spectrum.update_monitor(freq, timestamp)
+                        spectrum.update_monitor(freq, timeNow)
 
                     # update phase noise and pattern graphs (which use trace 1 only)
                     if spectrum == self.s0:
@@ -1646,6 +1667,19 @@ class Analyser(QtCore.QObject):
     def centreTone(self):  # for phase noise graph
         centreF = self.s0.trace.m0.line.value() * 1e-6
         self.ui.centre_freq.setValue(centreF)
+
+    # def updateMarker(self):  # called by timer when not scanning
+    #     startF = self.ui.start_freq.value() * 1e6  # freq in Hz
+    #     stopF = self.ui.stop_freq.value() * 1e6
+    #     maskFreq = self.rbwMask(startF, stopF)
+    #     limits = (maskFreq,
+    #               self.limits.highF.line.value(),
+    #               self.limits.lowF.line.value(),
+    #               self.limits.threshold.line.value())
+
+    #     for spectrum in self.spectra:
+    #         for marker in spectrum.mkr_list:
+    #             marker.mkr_update(limits, spectrum.trace.is_visible)  # update markers that are inside the mask
 
     def updateMarker(self):  # called by timer when not scanning
         startF = self.ui.start_freq.value() * 1e6  # freq in Hz
@@ -1795,9 +1829,9 @@ class Analyser(QtCore.QObject):
     
     def save_data(self, frequencies, data_arr, ser_num):
         sn_txt = str(ser_num)
-        timeStamp = time.strftime('%Y-%m-%d-%H%M%S')
+        save_time = time.strftime('%Y-%m-%d-%H%M%S')
         folder = self.dialogs.settings.ui.save_folder.text()
-        file_name = str(timeStamp + '_RBW' + self.ui.rbw_box.currentText() + '_' + sn_txt + '.CSV')
+        file_name = str(save_time + '_RBW' + self.ui.rbw_box.currentText() + '_' + sn_txt + '.CSV')
         file_name = os.path.join(folder, file_name)
         saver = Worker(save_sweep, file_name, frequencies, data_arr)
         threadpool.start(saver)  # workers are deleted when thread ends
@@ -2289,11 +2323,13 @@ def popUp(window, message, button, icon):
     
 def main():
 
+    logging.basicConfig(format="%(message)s", level=logging.INFO, force=True)    
+
     app = QApplication.instance()
     if not app:
         app = QApplication([])
     app.setApplicationName('QtTinySA')
-    app.setApplicationVersion(' v2.1.y')
+    app.setApplicationVersion(' v2.1.z')
     logging.info(f'{app.applicationName()} {app.applicationVersion()}')
 
     # pyqtgraph custom exporters

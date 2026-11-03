@@ -87,16 +87,37 @@ logger = logging.getLogger(__name__)
 
 
 # ----------------------------------------------------------------------------------------------------------------
-# Preset sample rates, FFT/window sizing, and other constants -- identical to soapy_receiver.py, duplicated here
-# rather than imported since this is meant to be a standalone module.
+# Preset sample rates, FFT/window sizing, and other constants.
 # ----------------------------------------------------------------------------------------------------------------
-BASE_CLOCK_HZ = 30_720_000.0  # 30.72 MHz
-DEFAULT_SAMPLE_RATE_DIVISORS: tuple[int, ...] = (1, 2, 4, 8, 16, 32, 64, 128)
-DEFAULT_PRESET_SAMPLE_RATES: tuple[float, ...] = tuple(
-    BASE_CLOCK_HZ / d for d in DEFAULT_SAMPLE_RATE_DIVISORS
+# DEFAULT_PRESET_SAMPLE_RATES is a generic, device-agnostic STARTING POINT, used for every pre-start()
+# computation (set_span/set_sweep/set_rbw, and therefore fft_size/composite_size/segment_span_hz) before any
+# device has actually been opened. It is NOT guaranteed to match what any specific device can really do --
+# earlier versions of this module derived it from a 30.72 MHz base clock tied to LimeSDR/LTE conventions, which
+# RTL-SDR (max ~3.2 MSps, with an unstable gap below ~900 kSps) and HackRF (2-20 MSps spec'd range) mostly can't
+# achieve at all. These values instead span a broad range that's at least plausible across common SoapySDR
+# devices (not perfectly ideal for any one of them), deliberately overlapping HackRF's and RTL-SDR's practical
+# ranges as well as sitting well within LimeSDR's.
+#
+# The actual, authoritative sample rate range is queried from the device itself -- inside the worker process,
+# as part of _open_device(), via SoapySDR's getSampleRateRange() (superseding the deprecated listSampleRates()).
+# This is deliberately NOT done from the parent process: that would mean a second, short-lived connection to the
+# same hardware before the worker opens its own -- exactly the kind of USB resource-contention risk a great deal
+# of hands-on debugging on this project went into eliminating. The trade-off is timing: if the device's real
+# range differs from this generic fallback, the correction only happens once the worker actually opens the
+# device (reported via event_queue -- see _open_device()), which is necessarily after start(), not available
+# synchronously beforehand the way set_rbw()'s auto-couple messages are. LimeSDR's own driver has a further
+# documented quirk where getSampleRateRange() doesn't report anything useful until the clock rate is already
+# configured -- handled by querying after setSampleRate() has been attempted at least once, not before.
+DEFAULT_PRESET_SAMPLE_RATES: tuple[float, ...] = (
+    20_000_000.0, 10_000_000.0, 5_000_000.0, 2_500_000.0, 2_048_000.0, 1_024_000.0, 500_000.0, 250_000.0,
 )
 
-MAX_FFT_SIZE = 65536
+# Ceiling on the FFT size calculate_fft_size() will compute. 65536 was measured at ~4 ms per FFT on an ordinary
+# CPU -- needlessly conservative for "powerful hardware" means today, and it caps achievable RBW to a few
+# hundred Hz even at LimeSDR's full 61.44 MSps rate. 1,048,576 (2^20) was measured at ~52 ms per FFT -- still a
+# small fraction of a second, and this runs in its own OS process rather than competing with a GUI thread.
+# Override via set_max_fft_size() if your hardware needs a tighter or looser budget.
+MAX_FFT_SIZE = 1_048_576
 MIN_FFT_SIZE = 256
 
 DEFAULT_KAISER_BETA = 10.5
@@ -309,6 +330,46 @@ def list_devices() -> list[SoapyDeviceInfo]:
     return results
 
 
+def query_sample_rate_range(
+    driver: str, device_args: dict[str, str] | None = None, direction: int = SOAPY_SDR_RX, channel: int = 0
+) -> list[tuple[float, float, float]]:
+    """
+    Open a short-lived connection purely to ask a device what sample rates it actually supports (via
+    getSampleRateRange(), superseding the deprecated listSampleRates()), then release it immediately. Returns a
+    list of (minimum_hz, maximum_hz, step_hz) tuples -- step_hz of 0.0 means continuously variable within that
+    range; a device can report more than one disjoint range (RTL-SDR's R820T-based units, for example,
+    typically report two: roughly 225-300 kHz and 900 kHz-3.2 MSps, with an unstable gap in between that isn't
+    included in either).
+
+    SAFETY: this opens its own SoapySDR.Device connection. Only call this standalone -- e.g. once at
+    application startup, to help populate a UI or pick a sensible preset list -- never while a
+    SoapyReceiverProcess for the same device is also open or about to open, since the two connections can
+    contend for the same USB/hardware resource. This module's own pre-start() computations deliberately do NOT
+    call this, for exactly that reason -- see DEFAULT_PRESET_SAMPLE_RATES's module comment and
+    _ReceiverWorker._reconcile_actual_sample_rate(), which handles per-device correctness a different, safer way
+    (reading back the actual applied rate from inside the one real worker connection, after it opens).
+
+    Known driver quirk: LimeSDR's getSampleRateRange() has historically not reported anything useful until the
+    device's clock rate is already configured, which a fresh, unconfigured connection like this one won't have
+    done -- expect an empty or unhelpful result for Lime devices specifically; this is most useful for devices
+    like RTL-SDR and HackRF whose range doesn't depend on prior configuration.
+
+    Returns an empty list if the query fails for any reason (device not found, driver doesn't implement it,
+    etc.) rather than raising, since this is meant as an optional, best-effort capability check.
+    """
+    args = device_args or {"driver": driver}
+    device = None
+    try:
+        device = SoapySDR.Device(args)
+        ranges = device.getSampleRateRange(direction, channel)
+        return [(r.minimum(), r.maximum(), r.step()) for r in ranges]
+    except Exception:
+        logger.exception("Failed to query sample rate range for driver=%s", driver)
+        return []
+    finally:
+        del device  # no explicit close() in the SoapySDR Python API; dropping the reference releases it
+
+
 def _import_tsg_class():
     """
     Import LimeTestSignalGenerator whether this module is used as part of a package (e.g. QtTinySA's modules/
@@ -438,7 +499,52 @@ class _ReceiverWorker:
             self._device.setSampleRate(SOAPY_SDR_RX, 0, self._s["sample_rate"])
         except Exception:
             logger.exception("Failed to set sample rate")
+        self._reconcile_actual_sample_rate()
         self._apply_frequency()
+
+    def _reconcile_actual_sample_rate(self) -> None:
+        """
+        Read back the sample rate the device actually applied (via getSampleRate()) and correct our own state
+        to match if it differs from what was requested -- drivers commonly clamp/round silently rather than
+        raise, so this is the authoritative source of truth for "what rate is this device really running at",
+        not the generic preset fallback computed parent-side before the device was ever open (see
+        DEFAULT_PRESET_SAMPLE_RATES's module comment). If the requested rate wasn't achievable and the actual
+        rate makes the current RBW infeasible too, the FFT size is clamped to max_fft_size (a degraded-but-
+        working fallback) rather than aborting the whole device open over an RBW mismatch -- reported either
+        way via event_queue.
+        """
+        if self._device is None:
+            return
+        requested_rate = self._s["sample_rate"]
+        try:
+            actual_rate = self._device.getSampleRate(SOAPY_SDR_RX, 0)
+        except Exception:
+            logger.exception("Failed to read back actual sample rate; trusting the requested value")
+            return
+
+        if not actual_rate or abs(actual_rate - requested_rate) <= max(1.0, requested_rate * 1e-6):
+            return  # close enough to the request to not be worth reporting
+
+        self._s["sample_rate"] = actual_rate
+        try:
+            fft_size = calculate_fft_size(
+                self._s["rbw"], actual_rate, self._s["kaiser_beta"], max_fft_size=self._s["max_fft_size"]
+            )
+            self._s["fft_size"] = fft_size
+            self._event_queue.put((
+                "status",
+                f"Device reported actual sample rate {actual_rate:.0f} Hz (requested {requested_rate:.0f} Hz); "
+                f"FFT size adjusted to {fft_size} for the current RBW",
+            ))
+        except ValueError:
+            fft_size = self._s["max_fft_size"]
+            self._s["fft_size"] = fft_size
+            self._event_queue.put((
+                "error",
+                f"Device reported actual sample rate {actual_rate:.0f} Hz (requested {requested_rate:.0f} Hz); "
+                f"the current RBW is no longer achievable at this rate. Using the maximum FFT size "
+                f"({fft_size}) instead -- call set_rbw() again with a coarser value once notified.",
+            ))
 
     def _supports_offset_tuning_arg(self) -> bool:
         if self._device is None:
@@ -830,7 +936,8 @@ class SoapyReceiverProcess:
     Public API deliberately mirrors soapy_receiver.SoapySDRReceiver's setters (set_device, set_center_frequency,
     set_span, set_sweep, set_rbw, set_auto_couple, set_rx_gain, set_antenna, set_bandwidth, set_dc_offset_removal,
     set_iq_balance_mode, set_auto_calibrate, set_gfir_lpf_bandwidth, set_oversampling, set_kaiser_beta,
-    set_offset_tuning, set_amplitude_calibration, clear_amplitude_calibration, start, stop, wait), plus
+    set_max_fft_size, set_offset_tuning, set_amplitude_calibration, clear_amplitude_calibration, start, stop,
+    wait), plus query_sample_rate_range() (a standalone capability-query utility, see its own docstring), plus
     set_tx_gain(), set_tx_antenna(), enable_tsg(), disable_tsg() -- new here, since the threading version let
     LimeLoopbackCalibrator reach into receiver.device directly, which isn't possible across a process boundary.
 
@@ -895,8 +1002,11 @@ class SoapyReceiverProcess:
         self._oversampling: int = 0
         self._tuning_offset_hz: float = 0.0
         self._kaiser_beta: float = DEFAULT_KAISER_BETA
+        self._max_fft_size: int = MAX_FFT_SIZE
         self._rbw: float = 10_000.0
-        self._fft_size: int = calculate_fft_size(self._rbw, self._sample_rate, self._kaiser_beta)
+        self._fft_size: int = calculate_fft_size(
+            self._rbw, self._sample_rate, self._kaiser_beta, max_fft_size=self._max_fft_size
+        )
         self._cal_freqs_hz: np.ndarray | None = None
         self._cal_offsets_db: np.ndarray | None = None
 
@@ -904,6 +1014,14 @@ class SoapyReceiverProcess:
     @staticmethod
     def list_devices() -> list[SoapyDeviceInfo]:
         return list_devices()
+
+    @staticmethod
+    def query_sample_rate_range(
+        driver: str, device_args: dict[str, str] | None = None, direction: int = SOAPY_SDR_RX, channel: int = 0
+    ) -> list[tuple[float, float, float]]:
+        """See the module-level query_sample_rate_range() -- same function, same safety caveats about when
+        it's safe to call relative to a SoapyReceiverProcess for the same device."""
+        return query_sample_rate_range(driver, device_args, direction, channel)
 
     def _is_lime_driver(self) -> bool:
         return is_lime_driver(self._driver)
@@ -1009,7 +1127,7 @@ class SoapyReceiverProcess:
         if self._auto_couple_enabled and not self._sweep_active:
             old_span = self._sample_rate
             self._apply_auto_couple(rbw_hz)
-            fft_size = calculate_fft_size(rbw_hz, self._sample_rate, self._kaiser_beta)
+            fft_size = calculate_fft_size(rbw_hz, self._sample_rate, self._kaiser_beta, max_fft_size=self._max_fft_size)
             self._rbw = float(rbw_hz)
             self._fft_size = fft_size
             if self._sample_rate != old_span:
@@ -1017,13 +1135,13 @@ class SoapyReceiverProcess:
             return None
 
         try:
-            fft_size = calculate_fft_size(rbw_hz, self._sample_rate, self._kaiser_beta)
+            fft_size = calculate_fft_size(rbw_hz, self._sample_rate, self._kaiser_beta, max_fft_size=self._max_fft_size)
         except ValueError:
             if self._sweep_active:
                 raise  # auto-couple doesn't apply during a sweep; surface the original error as before
             self._auto_couple_enabled = True
             self._apply_auto_couple(rbw_hz)
-            fft_size = calculate_fft_size(rbw_hz, self._sample_rate, self._kaiser_beta)
+            fft_size = calculate_fft_size(rbw_hz, self._sample_rate, self._kaiser_beta, max_fft_size=self._max_fft_size)
             self._rbw = float(rbw_hz)
             self._fft_size = fft_size
             return (
@@ -1080,6 +1198,25 @@ class SoapyReceiverProcess:
             return self.set_rbw(self._rbw)
         except ValueError:
             self._kaiser_beta = old_beta
+            raise
+
+    def set_max_fft_size(self, max_fft_size: int) -> str | None:
+        """
+        Override the ceiling calculate_fft_size() enforces (MAX_FFT_SIZE, 1,048,576 by default -- see its
+        module-level comment for the measured timing this default is based on). Raise it on capable hardware
+        for finer achievable RBW at wide spans; lower it if FFT compute time needs to stay tighter than the
+        default budget allows. Recomputes fft_size for the current RBW, same as set_kaiser_beta() -- returns
+        whatever set_rbw() returns (None normally, or a message if this pushed auto-couple into action).
+        """
+        self._check_idle("max FFT size")
+        if max_fft_size < MIN_FFT_SIZE:
+            raise ValueError(f"max_fft_size must be >= MIN_FFT_SIZE ({MIN_FFT_SIZE}), got {max_fft_size}")
+        old_max = self._max_fft_size
+        self._max_fft_size = int(max_fft_size)
+        try:
+            return self.set_rbw(self._rbw)
+        except ValueError:
+            self._max_fft_size = old_max
             raise
 
     def set_rx_gain(self, gain_db: float | None) -> None:
@@ -1302,6 +1439,8 @@ class SoapyReceiverProcess:
             "oversampling": self._oversampling,
             "tuning_offset_hz": self._tuning_offset_hz,
             "kaiser_beta": self._kaiser_beta,
+            "rbw": self._rbw,
+            "max_fft_size": self._max_fft_size,
             "cal_freqs_hz": self._cal_freqs_hz,
             "cal_offsets_db": self._cal_offsets_db,
         }

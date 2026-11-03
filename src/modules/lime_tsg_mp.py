@@ -1,3 +1,11 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Oct 31 11:37:17 2026
+
+@author: ian
+"""
+
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # Copyright (C) 2026 <Your Name / QtTinySA project>
