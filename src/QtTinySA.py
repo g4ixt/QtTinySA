@@ -848,8 +848,8 @@ class Analyser:
         folder = settings.ui.save_folder.text()
         dialog.setDirectory(folder)
         file_name = dialog.getOpenFileName(caption="Select file to load", filter="NumPy array (*.npy)")[0]
-        if file_name != '':
-            loader = Worker(usbInstr.read_file, file_name)
+        if file_name == '':
+            return
         if usbInstr.loaded_files == 4:
             message = ('Clear all 4 recordings loaded in memory and\rstart loading new ones in their place?')
             load_new = popUp(offset, message, 'OkC', 'Question')
@@ -858,9 +858,9 @@ class Analyser:
                     usbInstr.recorders[j].reset_arr()
                     self.set_device_info('', j, -1, '') 
                 usbInstr.loaded_files = 0
-                threadpool.start(loader)
             else:
                 return
+        loader = Worker(usbInstr.read_file, file_name)
         threadpool.start(loader)
         QtTSA.vortex.show()
     
