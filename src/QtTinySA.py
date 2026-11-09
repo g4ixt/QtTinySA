@@ -371,6 +371,8 @@ class ApplicationController(QtCore.QObject):
 
         self.update_mapped_widgets()
         
+        del self.analyser.timespectrum.surface  # Fixes a Segmentation Fault on close.  From Issue #149
+        
         self.database.close()
         self.app.closeAllWindows()
         logging.info('QtTinySA Closed')
@@ -1291,8 +1293,8 @@ class Analyser(QtCore.QObject):
         self.depth = self.ui.memBox.value()
         for indx, spectrum in enumerate(self.spectra):
             time_points = self.dialogs.fading.ui.timePoints.value()
-            spectrum.monitor_data = np.full((int(time_points), 2), None, dtype=float)
-            self.wf_data = np.full((self.depth, self.points), None, dtype=float)
+            spectrum.monitor_data = np.full((int(time_points), 2), None, dtype=np.float32)
+            self.wf_data = np.full((self.depth, self.points), None, dtype=np.float32)
 
     def lna(self):
         if self.ui.lna_box.isChecked():
@@ -1450,17 +1452,17 @@ class Analyser(QtCore.QObject):
 
         lo_freq = self.data.bandstype.freq
         if lo_freq !=0 and lo_freq < self.ui.start_freq.value() * 1e6:
-            freq = freq + lo_freq
+            freq[:] = freq + lo_freq
         elif lo_freq !=0 and lo_freq > self.ui.start_freq.value() * 1e6:
-            freq = lo_freq - freq
+            freq[:] = lo_freq - freq
         
-        # reverse the arrays if in LNB/Mixer mode when LO is above measured freq
+        # reverse the arrays if in LNB/Mixer mode when LO is above measured freq. Re-use existing memory space [:]
         if lo_freq > self.ui.start_freq.value() * 1e6:
-            freq = freq[::-1]
-            levl = levl[::-1]
-            maxl = maxl[::-1]
-            minl = minl[::-1]
-            logging.info('invert freq axis')
+            freq[:] = freq[::-1]
+            levl[:] = levl[::-1]
+            maxl[:] = maxl[::-1]
+            minl[:] = minl[::-1]
+            logging.debug('invert freq axis')
             self.timespectrum.surface.axisX().setReversed(True)
         else:
             self.timespectrum.surface.axisX().setReversed(False)
@@ -1489,75 +1491,79 @@ class Analyser(QtCore.QObject):
             slice_end = slice_start + buffer_cols
             self.wf_data[:, slice_start:slice_end] = buffer
         else:
-            self.wf_data = buffer  
+            self.wf_data = buffer
         # self.ui.waterfall.setXRange(0, np.size(self.wf_data, axis=1))
 
-        # update the average values (nan check to prevent "mean of empty slice" error)
+        # update the average values
         if ~np.isnan(buffer[0, :]).any():
-            avg = np.nanmean(buffer[0:self.ui.avgBox.value(), :], axis=0)
+            # convert buffer to linear power and average
+            lin_power = 10 ** (buffer /10)
+            lin_avg = np.nanmean(lin_power[0:self.ui.avgBox.value(), :], axis=0) # nanmean stops "mean of empty slice"
+            # convert back to dB
+            avg = 10 * np.log10(lin_avg + 1e-15) # 1e-15 offset prevents log10(0) runtime warnings
         else:
             avg = levl
         
         for spectrum in route:
-                if sweep_end and ~np.all(np.isnan(self.wf_data)):
-                    spectrum.waterfall.setImage(self.wf_data, autoLevels=wf_auto)
-                
-                # update waterfall display if visible and if there is data
-                if sweep_end and self.ui.waterfall_size.value() > 0:
-                    if ~np.isnan(self.wf_data[0, :]).any():
-                        wf_levels = spectrum.waterfall.getLevels()
-                        self.timespectrum.set_dynamic_range(wf_levels)
-                        self.timespectrum.updater.updateTimeSpectrum(freq, self.wf_data)
-                         
-                # update the spectrum trace, according to trace type
-                gui_boxes = {0: self.ui.t1_type, 1: self.ui.t2_type, 2: self.ui.t3_type, 3: self.ui.t4_type}
-                trace_type = gui_boxes.get(self.spectra.index(spectrum)).currentText()
-                data = {'Normal': levl, 'Average': avg, 'Max': maxl, 'Min': minl, 'Freeze': levl}
+            if sweep_end and ~np.all(np.isnan(self.wf_data)):
+                spectrum.waterfall.setImage(self.wf_data, autoLevels=wf_auto)
+            
+            # update waterfall display if visible and if there is data
+            if sweep_end and self.ui.waterfall_size.value() > 0:
+                if ~np.isnan(self.wf_data[0, :]).any():
+                    wf_levels = spectrum.waterfall.getLevels()
+                    self.timespectrum.set_dynamic_range(wf_levels)
+                    self.timespectrum.updater.updateTimeSpectrum(freq, self.wf_data)
+                     
+            # update the spectrum trace, according to trace type
+            gui_boxes = {0: self.ui.t1_type, 1: self.ui.t2_type, 2: self.ui.t3_type, 3: self.ui.t4_type}
+            trace_type = gui_boxes.get(self.spectra.index(spectrum)).currentText()
+            data = {'Normal': levl, 'Average': avg, 'Max': maxl, 'Min': minl, 'Freeze': levl}
 
-                if trace_type != 'Freeze':
-                    spectrum.updateTrace(freq, data.get(trace_type))
-                logging.debug(f'updating {self.spectra.index(spectrum)}')
+            if trace_type != 'Freeze':
+                spectrum.updateTrace(freq, data.get(trace_type))
+            logging.debug(f'updating {self.spectra.index(spectrum)}')
 
-                # if isinstance(identifier, float):
-                #     spectrum.identifier.setText(time.ctime(identifier))
-                # else:
-                #     spectrum.identifier.setText('Device ' + str(dev_id + 1))
-    
-                spectrum.identifier.setText(str(dev_id + 1) + ": " + identifier)
-    
-                # update the markers
-                maskFreq = self.rbwMask(freq[0], freq[-1])
-                limits = (maskFreq,
-                          self.limits.highF.line.value(),
-                          self.limits.lowF.line.value(),
-                          self.limits.threshold.line.value())
-                
-                for trace in spectrum.mkr_list:
-                    trace.mkr_update(limits, spectrum.trace.is_visible)
-    
-                if sweep_end:
-                    spectrum.count += 1
-                    timeNow = time.time()
+            # if isinstance(identifier, float):
+            #     spectrum.identifier.setText(time.ctime(identifier))
+            # else:
+            #     spectrum.identifier.setText('Device ' + str(dev_id + 1))
 
-                    # update the monitor graph. identifier is a string unless a recorded file is playing
-                    if isinstance(identifier, float):
-                        spectrum.update_monitor(freq, identifier)
-                    else:
-                        spectrum.update_monitor(freq, timeNow)
+            spectrum.identifier.setText(str(dev_id + 1) + ": " + identifier)
 
-                    # update phase noise and pattern graphs (which use trace 1 only)
-                    if spectrum == self.s0:
-                        m0_index = np.argmin(np.abs(freq - (spectrum.trace.m0.line.value())))  # marker 1 index
-                        if self.dialogs.phasenoise.ui.isVisible() and not self.ui.rbw_auto.isChecked():
-                            self.phaseNoise.update(m0_index, freq, levl, float(self.ui.rbw_box.currentText()))
-                        if self.dialogs.pattern.ui.isVisible():
-                            self.polar.update_plot(self.dialogs.pattern.ui, m0_index, levl)
-    
-                # save sweep data to file if enabled and the waterfall data array is full
-                if spectrum.count == self.depth:
-                    if self.dialogs.settings.ui.saveSweep.isChecked():
-                        self.save_data(freq, self.wf_data, ser_num)
-                    spectrum.count = 0  # resets the counter only for the traces being updated by this route
+            # update the markers
+            maskFreq = self.rbwMask(freq[0], freq[-1])
+            limits = (maskFreq,
+                      self.limits.highF.line.value(),
+                      self.limits.lowF.line.value(),
+                      self.limits.threshold.line.value())
+            
+            for trace in spectrum.mkr_list:
+                trace.mkr_update(limits, spectrum.trace.is_visible)
+
+            if sweep_end:
+                spectrum.count += 1
+                timeNow = time.time()
+
+                # update the monitor graph. identifier is a string unless a recorded file is playing
+                if isinstance(identifier, float):
+                    spectrum.update_monitor(freq, identifier)
+                else:
+                    spectrum.update_monitor(freq, timeNow)
+
+                # update phase noise and pattern graphs (which use trace 1 only)
+                if spectrum == self.s0:
+                    m0_index = np.argmin(np.abs(freq - (spectrum.trace.m0.line.value())))  # marker 1 index
+                    if self.dialogs.phasenoise.ui.isVisible() and not self.ui.rbw_auto.isChecked():
+                        self.phaseNoise.update(m0_index, freq, levl, float(self.ui.rbw_box.currentText()))
+                    if self.dialogs.pattern.ui.isVisible():
+                        self.polar.update_plot(self.dialogs.pattern.ui, m0_index, levl)
+
+            # save sweep data to file if enabled and the waterfall data array is full
+            if spectrum.count == self.depth:
+                if self.dialogs.settings.ui.saveSweep.isChecked():
+                    self.save_data(freq, self.wf_data, ser_num)
+                spectrum.count = 0  # resets the counter only for the traces being updated by this route
 
     def set_dev_combo(self, ui_name, dev_names):
         '''Populate a device combo box with matching devices and return the matches.'''
@@ -1795,7 +1801,7 @@ class Analyser(QtCore.QObject):
         self.depth = self.ui.memBox.value()
         time_points = self.dialogs.fading.ui.timePoints.value()
         for spectrum in self.spectra:
-            spectrum.monitor_data = np.full((int(time_points), 2), None, dtype=float)
+            spectrum.monitor_data = np.full((int(time_points), 2), None, dtype=np.float32)
 
         # set the waterfall array size as the sum of the number of columns in all the loaded files
         points = []
@@ -1804,7 +1810,7 @@ class Analyser(QtCore.QObject):
                 dev_pnts = np.size(device.data_arr, axis=1) - 1  # number of columns
                 points.append(dev_pnts)
         wf_points = sum(points)
-        self.wf_data = np.full((self.depth, wf_points), np.nan, dtype=float)  
+        self.wf_data = np.full((self.depth, wf_points), np.nan, dtype=np.float32)  
 
         # create and start the measurement playback worker threads
         split = self.ui.split_scan.isChecked()
@@ -1913,7 +1919,7 @@ class Analyser(QtCore.QObject):
             popUp(self.dialogs.offset.ui, "Cannot read from tinySA whilst a scan is running", 'Ok', 'Info')
             return
 
-        self.data.unlimited()
+        self.data.correction.unlimited()
         self.dialogs.offset.ui.progress.setValue(0)
 
         update_failed = False

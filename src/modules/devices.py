@@ -34,7 +34,8 @@ except ImportError:
 threadpool = QThreadPool()
 
 SERIAL_HW = {(0x0483, 0x5740): 'tinySA',
-             (0x04b4, 0x0008): 'Nano-VNA'}
+             (0x04b4, 0x0008): 'Nano-VNA',
+             (0x1781, 0x0a44): 'tinySA4'}
 
 SOAPY_HW = {(0x0bda, 0x2838): 'RTL-SDR',
             (0x1d50, 0x6108): 'LimeSDR-USB',
@@ -348,6 +349,7 @@ class USBdevice(QObject):
         self.loaded_files = 0
         self.clear_all_gui_dev_info()
 
+
 class WorkerSignals(QObject):
     error = Signal(object, str, str, str)
     result = Signal(np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, str, int, str, bool, bool)
@@ -374,6 +376,48 @@ class Worker(QRunnable):
         logging.debug(f'{self.fn.__name__} thread running')
         self.fn(*self.args)
         logging.debug(f'{self.fn.__name__} thread stopped')
+
+
+class Buffer():
+    """Provides a fast-updating buffer array to the measurement classes for waterfall/3D and trace averaging"""
+    
+    def __init__(self, rows=500, cols=2048):
+        self.rows = rows
+        self.cols = cols
+
+        # 1. Allocate the static memory block once
+        # self.array = np.zeros((self.rows, self.cols), dtype=np.float32)  # needs to be nan
+        self.array = np.full((depth, fft_size), np.nan, dtype=np.float32)
+
+        # 2. Track where the NEXT row should be written
+        self.indx = 0
+
+    def write_row(self, fft_magnitude):
+        """np.roll has overhead rolling maybe 1e6 data items; this writes a single row of maybe 30k items
+           and we keep track of where we are with an index pointer instead of top row always latest"""
+
+        # Overwrite the row at the current index (Fast, zero-allocation)
+        self.array[self.indx, :] = fft_magnitude
+
+        # Keep a pointer to the next row, wrapping back to 0 if it hits the end using modulo division
+        self.indx = (self.indx + 1) % self.rows
+
+    def sort_chrono(self):
+        """Roll the array to time order using the index. Called when needed to re-draw.
+            np.roll is fine here because it only runs when rendering, not on every SDR sample"""
+        return np.roll(self.array, -self.indx, axis=0)
+
+    def resize(self, new_rows, new_cols):
+        """Safely handle dynamic size changes when scan settings change."""
+        if (new_rows, new_cols) != (self.rows, self.cols):
+            self.rows = new_rows
+            self.cols = new_cols
+            self.array = np.zeros((self.rows, self.cols), dtype=np.float32)  # needs to be nan
+            self.indx = 0
+
+    def average(self, alpha):
+        x = alpha
+        return # something
 
 
 class Tiny(QObject):
@@ -494,10 +538,10 @@ class Tiny(QObject):
         firstRun = True
         # create freq array here.  Non-Tiny devices may send list of freqs measured, so this preserves compatibility
         freq = np.linspace(startF, stopF, points, dtype=np.int64)
-        levl = np.full(points, -140, dtype=float)
-        maxl = np.full(points, -140, dtype=float)
-        minl = np.full(points, 0, dtype=float)
-        buffer = np.full((depth, points), np.nan, dtype=float)  # used for waterfall and calculating averages
+        levl = np.full(points, -140, dtype=np.float32)
+        maxl = np.full(points, -140, dtype=np.float32)
+        minl = np.full(points, 0, dtype=np.float32)
+        buffer = np.full((depth, points), np.nan, dtype=np.float32)  # used for waterfall and calculating averages
 
         # self.runTimer.start()  # debug
         # logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6:.3f}mS')  # debug
@@ -585,7 +629,7 @@ class Tiny(QObject):
 
             # also send the measurement data to router() at the end of each sweep
             # self.signals.result.emit(freq, levl, maxl, minl, buffer, self.usbPort, self.sn, 0, split, True)
-                    self.signals.result.emit(freq, levl, maxl, minl, buffer, self.usbPort, self.sn, self.name, split, False)
+                    self.signals.result.emit(freq, levl, maxl, minl, buffer, self.usbPort, self.sn, self.name, split, True)
         try:
             self.usb.read(2)  # discard the command prompt that the tinySA sends when sweeping ends
             self.serialWrite('abort\r')
@@ -1034,87 +1078,7 @@ class Lime(QObject):
         minl = np.full(fft_size, 0, dtype=float)
         buffer = np.full((depth, fft_size), np.nan, dtype=float)  # used for waterfall and calculating averages
         return maxl, minl, buffer
-
-    # def measurement(self, startF, stopF, points, rbw, rbw_auto, depth, maxF, interval, split, sdr_settings, loop):
-    #     '''SDR fft size is calculated and optimised based on span, RBW and kaiser window beta.
-    #        In segments mode the segments slightly overlap so the array size is bigger than for composite'''
-    #     self.threadRunning = True
-    #     # span = stopF - startF
-
-    #     if sdr_settings.get("sdr_mode_s"):
-    #         mode = "segments"
-    #     else:
-    #         mode = "composite"
-    #     # self.sdr.set_sweep(startF, stopF, output_mode=mode)
-        
-    #     span = stopF - startF
-    #     self.sdr.set_span(span)
-    #     centreF = (startF + int(span / 2))
-    #     self.sdr.set_center_frequency(centreF)        
-        
-    #     # rbw must be set after the sample rate; as must the GFIR otherwise it will be reset.
-    #     self.sdr.set_rbw(rbw * 1000)
-        
-    #     # set the Lime's low-pass real-time baseband FIR filter; not enabled by default for Soapy by the lime driver.
-    #     segment_span = self.sdr.segment_span_hz
-    #     gfir_ratio = sdr_settings.get("lime_gfir_bw") / 100
-    #     gfir_bw = segment_span * gfir_ratio
-    #     if sdr_settings.get("lime_gfir_enable"):
-    #         self.sdr.set_gfir_lpf_bandwidth(gfir_bw)
-    #     else:
-    #         # set it to zero which is hard coded in soapy_receiver to write "DISABLE_GFIR_LPF"
-    #         self.sdr.set_gfir_lpf_bandwidth(0)        
-        
-    #     # fetch the actual sweep and FFT parameters, which are calculated after setting RBW
-    #     maxl, minl, buffer = self._set_arr(depth)
-        
-    #     updateTimer = QElapsedTimer()
-    #     self.sdr.start()
-    #     updateTimer.start()
-    #     while self.sweeping:
-    #         count = 0
-    #         if not self.sdr.event_queue.empty():
-    #             event = self.sdr.event_queue.get_nowait()
-    #             logging.info(f'Lime event: {event}')
-    #             if event[0] == "status":
-    #                 # a status message alerts to a possible FFT size change
-    #                 maxl, minl, buffer = self._set_arr(depth)
-                    
-    #         while self.sdr.data_queue.empty():
-    #             time.sleep(0.03)
-    #             logging.info(f'Zzz... count {count}')
-    #             if not self.sweeping:
-    #                 break
-    #         try:
-    #             freqs, power, identifier, port_in_use = self.sdr.data_queue.get_nowait()
-    #             count += 1
-    #             if not self.sweeping:
-    #                 break
-    #         except queue.Empty:
-    #             logging.info('Lime measurement: queue is empty')
-            
-    #         try:
-    #             np.fmax(power, maxl, out=maxl)  # compare current level with max and min
-    #             np.fmin(power, minl, out=minl)  # and save them back on themselves
-    #             buffer = np.roll(buffer, 1, axis=0)
-    #             buffer[0] = power
-    #         except ValueError:
-    #             logging.info(f'Lime measurement: skipped array size mismatch')
-
-    #         timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
-    #         if timeElapsed/1e6 > interval:  # GUI update interval mS
-    #             # send the measurement data to router() in the Analyser class
-    #             # sn is a string for Lime but the 'result' signal expects int so send 100 for now
-    #             ser = 100
-    #             self.signals.result.emit(freqs, power, maxl, minl, buffer, self.usbPort, ser, self.name, split, True)
-    #             updateTimer.start()
-    #             logging.info(f'Lime: counted {count} at update interval')
-    #             count = 0
-            
-    #     self.sdr.stop()
-    #     self.sdr.wait()
-    #     self.threadRunning = False
-        
+      
     def measurement(self, startF, stopF, points, rbw, rbw_auto, depth, maxF, interval, split, sdr_settings, loop):
         '''SDR fft size is calculated and optimised based on span, RBW and kaiser window beta.
            In segments mode the segments slightly overlap so the array size is bigger than for composite'''
@@ -1132,11 +1096,9 @@ class Lime(QObject):
         self.sdr.set_span(span)
         centreF = (startF + int(span / 2))
         self.sdr.set_center_frequency(centreF)      
-        
-        
+         
         # rbw must be set after the sample rate; as must the GFIR otherwise it will be reset.
         self.sdr.set_rbw(rbw * 1000)
-        
         
         # set the Lime's low-pass real-time baseband FIR filter; not enabled by default for Soapy by the lime driver.
         segment_span = self.sdr.segment_span_hz
@@ -1149,46 +1111,40 @@ class Lime(QObject):
             self.sdr.set_gfir_lpf_bandwidth(0)        
         
         # fetch the actual sweep and FFT parameters, which are calculated after setting RBW
+        fft_size = self.sdr.fft_size
         maxl, minl, buffer = self._set_arr(depth)
         
-        updateTimer = QElapsedTimer()
         self.sdr.start()
         time.sleep(3)
         
-        updateTimer.start()
         while self.sweeping:
             if not self.sdr.event_queue.empty():
                 event = self.sdr.event_queue.get_nowait()
                 logging.info(f'Lime event: {event}')
                 if event[0] == "status":
                     # a status message alerts to a possible FFT size change
-                    maxl, minl, buffer = self._set_arr(depth)
+                    new_fft_size = self.sdr.fft_size
+                    if new_fft_size != fft_size:
+                        maxl, minl, buffer = self._set_arr(depth)
 
-            timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
-            if timeElapsed/1e6 > interval:  # GUI update interval mS
+            try:
+                # fetch data from the mp queue.  Blocks, consuming no cpu cycles, until data pops up in the queue
+                freqs, power, identifier, port_in_use = self.sdr.data_queue.get(timeout=5)
                 try:
-                    # while self.sdr.data_queue.qsize() > 3:
-                    #     # throw away older readings if it's running very fast [temporary]
-                    #     freqs, power, identifier, port_in_use = self.sdr.data_queue.get_nowait()
-                    freqs, power, identifier, port_in_use = self.sdr.data_queue.get_nowait()
-                    try:
-                        np.fmax(power, maxl, out=maxl)  # compare current level with max and min
-                        np.fmin(power, minl, out=minl)  # and save them back on themselves
-                        buffer = np.roll(buffer, 1, axis=0)
-                        buffer[0] = power
-                    except ValueError:
-                        logging.info(f'Lime measurement: skipped array size mismatch')
-                    
-                    # send the measurement data to router() in the Analyser class
-                    # sn is a string for Lime but the 'result' signal expects int so send 100 for now
-                    ser = 100
-                    self.signals.result.emit(freqs, power, maxl, minl, buffer, self.usbPort, ser, self.name, split, True)
-                    updateTimer.start()
-                except queue.Empty:
-                    logging.debug('Lime measurement: queue is empty')     
-                if not self.sweeping:
-                    self.sdr.stop()
-                    break
+                    np.fmax(power, maxl, out=maxl)  # compare current level with max and min
+                    np.fmin(power, minl, out=minl)  # and save them back on themselves
+                    buffer[:] = np.roll(buffer, 1, axis=0)
+                    buffer[0] = power
+                except ValueError:
+                    logging.info(f'Lime measurement: skipped array size mismatch')
+                
+                # send the measurement data to router() in the Analyser class
+                # sn is a string for Lime but the 'result' signal expects int so send 100 for now
+                ser = 100
+                self.signals.result.emit(freqs, power, maxl, minl, buffer, self.usbPort, ser, self.name, split, True)
+            except queue.Empty:
+                logging.info('no data from SDR after 5 seconds; stopped')
+                break
               
         self.sdr.stop()
         self.sdr.wait()
@@ -1277,68 +1233,68 @@ class HackRFOne(QObject):
         swp_size = self.sdr.composite_size
         num_segs = self.sdr.num_segments
         
-        maxl = np.full(fft_size, -140, dtype=float)
-        minl = np.full(fft_size, 0, dtype=float)
-        buffer = np.full((depth, fft_size), np.nan, dtype=float)  # used for waterfall and calculating averages
+        # logging.info(f'_set_arr hack: fft={fft_size} swp={swp_size} segs={num_segs}')
+        
+        maxl = np.full(fft_size, -140, dtype=np.float32)
+        minl = np.full(fft_size, 0, dtype=np.float32)
+        buffer = np.full((depth, fft_size), np.nan, dtype=np.float32)  # used for waterfall and calculating averages
         return maxl, minl, buffer
 
     def measurement(self, startF, stopF, points, rbw, rbw_auto, depth, maxF, interval, split, sdr_settings, loop):
         self.threadRunning = True
-        span = stopF - startF
-        # self.sdr.set_center_frequency(startF + (span/2))
-        # self.sdr.set_span(span)
         
         if sdr_settings.get("sdr_mode_s"):
             mode = "segments"
         else:
             mode = "composite"
-        
-        self.sdr.set_sweep(startF, stopF, output_mode=mode)
-        
-        rbw = float(rbw)  # need to handle rbw = 'auto'
+         
+        span = stopF - startF
+        self.sdr.set_span(span)
+        centreF = (startF + int(span / 2))
+        self.sdr.set_center_frequency(centreF)      
+         
+        # rbw must be set after the sample rate
         self.sdr.set_rbw(rbw * 1000)
         
-        # use the actual sweep and FFT parameters, which are calculated after setting RBW
+        # fetch the actual sweep and FFT parameters, which are calculated after setting RBW
+        fft_size = self.sdr.fft_size
         maxl, minl, buffer = self._set_arr(depth)
         
         self.sdr.start()
+        time.sleep(3)
         
-        updateTimer = QElapsedTimer()
-        updateTimer.start()
         while self.sweeping:
             if not self.sdr.event_queue.empty():
                 event = self.sdr.event_queue.get_nowait()
-                logging.info(f'Lime soapy event: {event}')
+                logging.info(f'hackrf event: {event}')
                 if event[0] == "status":
                     # a status message alerts to a possible FFT size change
-                    maxl, minl, buffer = self._set_arr(depth)
-            
-            while self.sdr.data_queue.empty():
-                time.sleep(0.001)
-            try:
-                freqs, power, identifier, port_in_use = self.sdr.data_queue.get_nowait()
-            except queue.Empty:
-                logging.info('HackRF measurement: queue is empty')
-            
-            try:
-                np.fmax(power, maxl, out=maxl)  # compare current level with max and min
-                np.fmin(power, minl, out=minl)  # and save them back on themselves
-                buffer = np.roll(buffer, 1, axis=0)
-                buffer[0] = power
-            except ValueError:
-                logging.info(f'HackRF measurement: skipped array size mismatch')
+                    new_fft_size = self.sdr.fft_size
+                    if new_fft_size != fft_size:
+                        maxl, minl, buffer = self._set_arr(depth)
 
-            timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
-            if timeElapsed/1e6 > interval:  # GUI update interval mS
+            try:
+                # fetch data from the mp queue.  Blocks, consuming no cpu cycles, until data pops up in the queue
+                freqs, power, identifier, port_in_use = self.sdr.data_queue.get(timeout=5)
+                try:
+                    np.fmax(power, maxl, out=maxl)  # compare current level with max and min
+                    np.fmin(power, minl, out=minl)  # and save them back on themselves
+                    buffer[:] = np.roll(buffer, 1, axis=0)
+                    buffer[0] = power
+                except ValueError:
+                    logging.info(f'hackrf measurement: skipped array size mismatch')
+                
                 # send the measurement data to router() in the Analyser class
-                # sn is a string for Lime but the 'result' signal expects int so send 100 for now
-                ser = 100
+                # sn is a string but the 'result' signal expects int so send 200 for now
+                ser = 200
                 self.signals.result.emit(freqs, power, maxl, minl, buffer, self.usbPort, ser, self.name, split, True)
-                updateTimer.start()
-
+            except queue.Empty:
+                logging.info('no data from SDR after 5 seconds; stopped')
+                break
+              
         self.sdr.stop()
         self.sdr.wait()
-        self.threadRunning = False
+        self.threadRunning = False        
         
     def test(self, port):
         port_list = port.split('_')
@@ -1406,9 +1362,9 @@ class RTL(QObject):
         swp_size = self.sdr.composite_size
         num_segs = self.sdr.num_segments
         
-        maxl = np.full(fft_size, -140, dtype=float)
-        minl = np.full(fft_size, 0, dtype=float)
-        buffer = np.full((depth, fft_size), np.nan, dtype=float)  # used for waterfall and calculating averages
+        maxl = np.full(fft_size, -140, dtype=np.float32)
+        minl = np.full(fft_size, 0, dtype=np.float32)
+        buffer = np.full((depth, fft_size), np.nan, dtype=np.float32)  # used for waterfall and calculating averages
         return maxl, minl, buffer
 
     def measurement(self, startF, stopF, points, rbw, rbw_auto, depth, maxF, interval, split, sdr_settings, loop):
@@ -1666,12 +1622,12 @@ class FilePlayer(QObject):
         scans = np.shape(self.data_arr)[0] - 1
         points = np.shape(self.data_arr)[1] - 1
         freq = self.data_arr[0, 1:]  # freqs are in row 0 from col 1 onwards
-        levl = np.full(points, -140, dtype=float)
+        levl = np.full(points, -140, dtype=np.float32)
         times = self.data_arr[1:, 0]  # time stamps are in col 0 from row 1 onwards
-        maxl = np.full(points, -140, dtype=float)
-        minl = np.full(points, 0, dtype=float)
+        maxl = np.full(points, -140, dtype=np.float32)
+        minl = np.full(points, 0, dtype=np.float32)
         sweep_time = 1
-        buffer = np.full((depth, points), None, dtype=float)  # used for waterfall and averages 
+        buffer = np.full((depth, points), None, dtype=np.float32)  # used for waterfall and averages 
 
         if scans > 1:
             sweep_time = float(times[1] - times[0])

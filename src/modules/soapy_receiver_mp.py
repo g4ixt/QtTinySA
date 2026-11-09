@@ -74,6 +74,10 @@ from typing import Any
 
 import numpy as np
 
+#
+import pyfftw
+#
+
 try:
     import SoapySDR
     from SoapySDR import SOAPY_SDR_RX, SOAPY_SDR_TX, SOAPY_SDR_CF32
@@ -309,13 +313,21 @@ def compute_composite_size(fft_size: int, num_segments: int, crop_bins: int) -> 
     return num_segments * fft_size - (num_segments - 1) * 2 * crop_bins
 
 
-def compute_spectrum(iq: np.ndarray, window: np.ndarray) -> np.ndarray:
-    """Apply the (coherent-gain-normalized) window, FFT, and convert to dB: 20*log10(|FFT(iq*window)|/N)."""
-    windowed = iq * window
-    spectrum = np.fft.fftshift(np.fft.fft(windowed))
-    n = len(spectrum)
-    power = 20 * np.log10(np.abs(spectrum) / n + 1e-20)
-    return power.astype(np.float32)
+def compute_spectrum(fft_object, fft_input, fft_output, iq: np.ndarray, window: np.ndarray, fft_size: int) -> np.ndarray:
+    """Apply the window, FFT, and convert to dB efficiently."""
+    
+    # Inject data directly into the aligned pyfftw buffer
+    fft_input[:] = iq * window
+    
+    # Execute the pre-planned FFT at the assembly/C level
+    fft_object()
+
+    # Calculate absolute magnitude first, on the raw output buffer.
+    # This turns complex64 down into float32, cutting the memory footprint in half
+    power = 20 * np.log10(np.abs(fft_output) / fft_size + 1e-20)
+    
+    # Shift the final real float32 array instead of the heavier complex one.
+    return np.fft.fftshift(power).astype(np.float32)
 
 
 def list_devices() -> list[SoapyDeviceInfo]:
@@ -886,7 +898,8 @@ class _ReceiverWorker:
             self._event_queue.put(("status", "SoapySDR receiver process stopped"))
             self._finished_event.set()
 
-    def _capture_block(self, fft_size: int, window: np.ndarray, read_buf: np.ndarray) -> np.ndarray | None:
+    def _capture_block(self, fft_object, fft_input, fft_output, fft_size: int,
+                       window: np.ndarray, read_buf: np.ndarray) -> np.ndarray | None:
         """
         Fill read_buf with fft_size IQ samples via readStream(), apply software DC removal if configured, and
         return the computed power spectrum (before calibration correction or any sweep-mode cropping). Returns
@@ -917,10 +930,15 @@ class _ReceiverWorker:
         if self._stop_event.is_set() or timed_out or n_collected < fft_size:
             return None
 
-        iq = read_buf.copy()
+        # iq = read_buf.copy()
+        # if self._s["dc_offset_mode"] in ("software", "both"):
+        #     iq = iq - np.mean(iq)
+          
         if self._s["dc_offset_mode"] in ("software", "both"):
-            iq = iq - np.mean(iq)
-        return compute_spectrum(iq, window)
+           # Direct in-place subtraction preserves memory block
+           read_buf -= np.mean(read_buf)
+        
+        return compute_spectrum(fft_object, fft_input, fft_output, read_buf, window, fft_size)
 
     def _emit(self, freqs: np.ndarray, power: np.ndarray) -> None:
         """Queue one (freqs, power, timestamp, port_in_use) item -- to calibration_queue while the TSG is
@@ -932,15 +950,33 @@ class _ReceiverWorker:
         except Exception:
             logger.exception("Failed to enqueue spectrum data")
 
-    def _run_single_loop(
-        self, fft_size: int, window: np.ndarray, read_buf: np.ndarray, sample_rate: float
-    ) -> None:
+    def _run_single_loop(self, fft_size: int, window: np.ndarray, read_buf: np.ndarray, sample_rate: float) -> None:
         """Ordinary single-frequency acquisition: one capture per iteration at self._s["center_freq"], which
         may change live between iterations (see set_center_frequency())."""
+        
         center_freq = self._s["center_freq"]
         freqs = np.fft.fftshift(np.fft.fftfreq(fft_size, d=1.0 / sample_rate)) + center_freq
         freqs = freqs.astype(np.float64)
 
+        # set-up for averaging
+        running_sum = np.zeros(fft_size, dtype=np.float32)
+        counter = 0
+        
+        info_count = 0
+        update_nS = 50 * 1e6
+        ref_nS = time.perf_counter_ns()  # lower overhead than a QElapsedTimer
+        #
+        # Allocate SIMD-aligned memory buffers
+        fft_input = pyfftw.empty_aligned(fft_size, dtype='complex64')
+        fft_output = pyfftw.empty_aligned(fft_size, dtype='complex64')
+
+        # Create a re-usable FFT plan
+        # 'FFTW_MEASURE' spends a few seconds upfront to find the fastest algorithm for the CPU
+        logging.info("Planning FFT... may take a few seconds...")
+
+        fft_object = pyfftw.FFTW(fft_input, fft_output, direction='FFTW_FORWARD', flags=('FFTW_MEASURE',), threads=1)
+        # Match threads to CPU's physical core count
+        
         while not self._stop_event.is_set():
             self._drain_commands()
 
@@ -948,21 +984,44 @@ class _ReceiverWorker:
                 center_freq = self._s["center_freq"]
                 freqs = np.fft.fftshift(np.fft.fftfreq(fft_size, d=1.0 / sample_rate)) + center_freq
                 freqs = freqs.astype(np.float64)
+                
+                # reset the averaging
+                running_sum.fill(0.0)
+                counter = 0
+                #
 
             if self._device is None or self._rx_stream is None:
                 time.sleep(IDLE_POLL_INTERVAL_S)
                 continue
 
-            power = self._capture_block(fft_size, window, read_buf)
+            power = self._capture_block(fft_object, fft_input, fft_output, fft_size, window, read_buf)
             if power is None:
+                logging.info("power is None")
                 continue
-
+            
             cal_freqs = self._s.get("cal_freqs_hz")
             cal_offsets = self._s.get("cal_offsets_db")
             if cal_freqs is not None and cal_offsets is not None:
                 power = power - np.interp(freqs, cal_freqs, cal_offsets).astype(np.float32)
 
-            self._emit(freqs, power)
+            # update the total
+            running_sum += power
+            counter += 1
+
+            # calculate the average and put it into the queue if a reading is due, otherwise loop
+            elapsed = time.perf_counter_ns() - ref_nS
+            if elapsed >= update_nS:  # this needs to be related or equal to 'interval'
+                ref_nS = time.perf_counter_ns()
+                info_count += 1
+                if info_count > 20:
+                    logging.info(f'{counter} measurement avg = {round(elapsed * 1e-6 / counter, 2)}mS')
+                    info_count = 0
+
+                average = running_sum / counter
+                self._emit(freqs, average)
+                running_sum.fill(0.0)
+                counter = 0
+
 
     def _run_sweep_loop(
         self, fft_size: int, window: np.ndarray, read_buf: np.ndarray, sample_rate: float
@@ -1055,7 +1114,8 @@ def _worker_main(
     stop_event: Any,
     finished_event: Any,
 ) -> None:
-    """multiprocessing.Process target -- constructs and runs a _ReceiverWorker."""
+    """multiprocessing.Process target -- constructs and runs a clear
+    Worker."""
     worker = _ReceiverWorker(
         settings, command_queue, data_queue, calibration_queue, event_queue, stop_event, finished_event
     )
