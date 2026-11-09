@@ -14,6 +14,9 @@
 # nuitka-project: --mode=standalone
 # nuitka-project: --remove-output
 
+# nuitka-project: --include-package=usb, libusb_package
+
+
 """TinySA GUI programme using Qt, PySide6 and PyQtGraph.
 
 This code provides some of the TinySA Ultra on-screen commands and PC control.
@@ -2335,7 +2338,7 @@ def main():
     if not app:
         app = QApplication([])
     app.setApplicationName('QtTinySA')
-    app.setApplicationVersion(' v2.1.z')
+    app.setApplicationVersion(' v2.1._09_11')
     logging.info(f'{app.applicationName()} {app.applicationVersion()}')
 
     # pyqtgraph custom exporters

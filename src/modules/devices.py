@@ -99,7 +99,7 @@ class USBdevice(QObject):
                 # make a list of recognised devices
                 logging.info(f'Found serial device {hex(key[0])} {hex(key[1])} {SERIAL_HW[key]} on {port.device}')
                 self.ports.append(port)
-                self.connect(port)
+                self.connect(port, driver=None)
            
     def probe_serial_disconnects(self):
         # detect usb-serial port devices that have been turned off or lost contact
@@ -156,7 +156,7 @@ class USBdevice(QObject):
                         logging.info(f'Soapy recognised {name} serial number {sn} with {driver} driver')
                         # logging.info(f'Attempting to connect {name}')
                         self.ports.append(port)
-                        self.connect(port)
+                        self.connect(port, driver=driver)
             else:
                 logging.info('Soapy module not installed or it is disabled in preferences')
         
@@ -178,7 +178,7 @@ class USBdevice(QObject):
         port_num = port_names.index(usbPort)
         return port_num
 
-    def connect(self, port):    
+    def connect(self, port, driver):    
         '''set up the specific device measurement function depending on the description from the usb port probe'''
         
         if len(self.devices) == 4:
@@ -196,15 +196,13 @@ class USBdevice(QObject):
             sa = Tiny(port.device, description, self.dev_sigs, basic=False)
         if description in ["NanoVnaPro Virtual ComPort", "CDC-ACM Demo"]:
             sa = Nano(port.device, description, self.dev_sigs)
+        
         if description in ['LimeSDR-USB', 'LimeSDR Mini']:
-                sa = Lime(port.device, description, self.dev_sigs)
-                logging.info(f'connect: {sa}')
+                sa = SoapySDRDevice(port.device, description, driver, self.dev_sigs)
         if description in ['hackrf']:
-                sa = HackRFOne(port.device, description, self.dev_sigs)
-                logging.info(f'connect: {sa}')
+                sa = SoapySDRDevice(port.device, description, driver, self.dev_sigs)    
         if description in ['rtlsdr']:
-                sa = RTL(port.device, description, self.dev_sigs)
-                logging.info(f'connect: {sa}')
+                sa = SoapySDRDevice(port.device, description, driver, self.dev_sigs)
 
         if sa is not None:
             self.devices.append(sa)
@@ -1022,427 +1020,7 @@ class Nano(QObject):
 # 5:Transmission Tracking, 6:Isolation
 
 
-class Lime(QObject):
-    def __init__(self, port, description, sigs):
-        super().__init__()       
-        self.sdr = SoapyReceiverProcess()
-        self.setSignals(sigs)
-        self.usbPort = port  # a fake port for code compatibility
-        self.enabled = True
-        self.sweeping = False
-        self.threadRunning = False
-        self.name = None
-        self.sn = 0
-        self.fifoTimer = QTimer(self)  # not used, for compatibility
 
-    def setSignals(self, sigs):
-        self.signals = WorkerSignals()
-        self.signals.save.connect(sigs["save"])
-        # self.sdr.error.connect(sigs["error"])
-        # self.sdr.status.connect(sigs["status"])
-        self.signals.result.connect(sigs["result"])
-        self.signals.error.connect(sigs["error"])
-
-    def set_ctrls(self, rbw, rbw_auto, attn, lna, spur, sdr_settings):
-        self.sdr.set_device("limesuiteng", {"driver": "limesuiteng", "name": "LimeSDR-USB", "serial":"0009081C05C41930"}, port_in_use=self.usbPort)
-        
-        # set common controls
-        self.sdr.set_kaiser_beta(sdr_settings.get("sdr_kaiser"))
-        self.sdr.set_auto_couple(sdr_settings.get("sdr_link_span_rbw"))
-        
-        self.sdr.set_max_fft_size(2 ** sdr_settings.get("sdr_fft"))
-
-        # set hardware-specific controls
-        self.sdr.set_iq_balance_mode(sdr_settings.get("lime_iq_balance"))
-        self.sdr.set_antenna(sdr_settings.get("lime_rx_ant"))
-        
-        self.sdr.set_rx_gain(sdr_settings.get("lime_lna_gain"))  # needs to be updated once soapy_rx updated
-        tia = sdr_settings.get("lime_tia_gain")
-        pga = sdr_settings.get("lime_pga_gain")
-
-        dc = sdr_settings.get("lime_dc")
-        if dc == "Hardware":
-            self.sdr.set_dc_offset_removal(mode="hardware")
-        elif dc == "Both":
-            self.sdr.set_dc_offset_removal(mode="both")
-        elif dc == "Software":
-            self.sdr.set_dc_offset_removal(mode="software")
-
-    def _set_arr(self, depth):
-        # fetch the actual sweep and FFT parameters, which are calculated after setting RBW
-        fft_size = self.sdr.fft_size
-        swp_size = self.sdr.composite_size
-        num_segs = self.sdr.num_segments
-        
-        maxl = np.full(fft_size, -140, dtype=float)
-        minl = np.full(fft_size, 0, dtype=float)
-        buffer = np.full((depth, fft_size), np.nan, dtype=float)  # used for waterfall and calculating averages
-        return maxl, minl, buffer
-      
-    def measurement(self, startF, stopF, points, rbw, rbw_auto, depth, maxF, interval, split, sdr_settings, loop):
-        '''SDR fft size is calculated and optimised based on span, RBW and kaiser window beta.
-           In segments mode the segments slightly overlap so the array size is bigger than for composite'''
-        self.threadRunning = True
-        # span = stopF - startF
-
-        if sdr_settings.get("sdr_mode_s"):
-            mode = "segments"
-            self.sdr.set_offset_tuning(int(span / 4))
-        else:
-            mode = "composite"
-        # self.sdr.set_sweep(startF, stopF, output_mode=mode)
-        
-        span = stopF - startF
-        self.sdr.set_span(span)
-        centreF = (startF + int(span / 2))
-        self.sdr.set_center_frequency(centreF)      
-         
-        # rbw must be set after the sample rate; as must the GFIR otherwise it will be reset.
-        self.sdr.set_rbw(rbw * 1000)
-        
-        # set the Lime's low-pass real-time baseband FIR filter; not enabled by default for Soapy by the lime driver.
-        segment_span = self.sdr.segment_span_hz
-        gfir_ratio = sdr_settings.get("lime_gfir_bw") / 100
-        gfir_bw = segment_span * gfir_ratio
-        if sdr_settings.get("lime_gfir_enable"):
-            self.sdr.set_gfir_lpf_bandwidth(gfir_bw)
-        else:
-            # set it to zero which is hard coded in soapy_receiver to write "DISABLE_GFIR_LPF"
-            self.sdr.set_gfir_lpf_bandwidth(0)        
-        
-        # fetch the actual sweep and FFT parameters, which are calculated after setting RBW
-        fft_size = self.sdr.fft_size
-        maxl, minl, buffer = self._set_arr(depth)
-        
-        self.sdr.start()
-        time.sleep(3)
-        
-        while self.sweeping:
-            if not self.sdr.event_queue.empty():
-                event = self.sdr.event_queue.get_nowait()
-                logging.info(f'Lime event: {event}')
-                if event[0] == "status":
-                    # a status message alerts to a possible FFT size change
-                    new_fft_size = self.sdr.fft_size
-                    if new_fft_size != fft_size:
-                        maxl, minl, buffer = self._set_arr(depth)
-
-            try:
-                # fetch data from the mp queue.  Blocks, consuming no cpu cycles, until data pops up in the queue
-                freqs, power, identifier, port_in_use = self.sdr.data_queue.get(timeout=5)
-                try:
-                    np.fmax(power, maxl, out=maxl)  # compare current level with max and min
-                    np.fmin(power, minl, out=minl)  # and save them back on themselves
-                    buffer[:] = np.roll(buffer, 1, axis=0)
-                    buffer[0] = power
-                except ValueError:
-                    logging.info(f'Lime measurement: skipped array size mismatch')
-                
-                # send the measurement data to router() in the Analyser class
-                # sn is a string for Lime but the 'result' signal expects int so send 100 for now
-                ser = 100
-                self.signals.result.emit(freqs, power, maxl, minl, buffer, self.usbPort, ser, self.name, split, True)
-            except queue.Empty:
-                logging.info('no data from SDR after 5 seconds; stopped')
-                break
-              
-        self.sdr.stop()
-        self.sdr.wait()
-        self.threadRunning = False
-    
-    
-    def test(self, port):
-        port_list = port.split('_')
-        self.name = port_list[0]
-        self.sn = port_list[1]
-        logging.info(f'name= {self.name} sn = {self.sn}')
-        return True
-
-    @Slot()
-    def usbSend(self):
-        # for compatibility
-        return
-    
-    def close(self):
-        if self.sdr is not None:
-            self.sweeping = False   # tell measurement()'s loop to exit, if a scan is currently running
-            self.sdr.shutdown(timeout=5.0)
-            logging.debug(f'Close: Lime SDR {self.usbPort} stopped')
-            self.sdr = None
-
-class HackRFOne(QObject):
-    '''
-    • Frequency Control: setFrequency, getFrequency; range query (getFrequencyRange) for RF and baseband components.
-    • Sample Rates: setSampleRate, getSampleRate, and listing available rates (listSampleRates up to 20 MSps).
-    • Bandwidth Control: setBandwidth, getBandwidth, istBandwidths (supports manual or auto filter configurations).
-    • Gain Management: setGain, getGain, and controls for RF amplifier (AMP), LNA / IF gain, and VGA / baseband gain.
-    • Antenna Selection: setAntenna, getAntenna, and listAntennas (typically TX/RX).
-    • Streaming Operations: setupStream, closeStream, activateStream, deactivateStream,
-                            readStream (RX), writeStream (TX) supporting formats like CS8, CS16, CF32, and CF64.
-    • Device Settings / Bias-Tee Control: writeSetting and readSetting hooks for hardware configurations
-                                         like antenna power (bias_tee or RX/TX bias).'''
-    def __init__(self, port, description, sigs):
-        super().__init__()       
-        self.sdr = SoapyReceiverProcess()
-        self.setSignals(sigs)
-        self.usbPort = port  # a fake port for code compatibility
-        self.enabled = True
-        self.sweeping = False
-        self.threadRunning = False
-        self.name = None
-        self.sn = 0
-        self.fifoTimer = QTimer(self)  # not used, for compatibility
-
-    def setSignals(self, sigs):
-        self.signals = WorkerSignals()
-        self.signals.save.connect(sigs["save"])
-        # self.sdr.error.connect(sigs["error"])
-        # self.sdr.status.connect(sigs["status"])
-        self.signals.result.connect(sigs["result"])
-        self.signals.error.connect(sigs["error"])
-
-    def set_ctrls(self, rbw, rbw_auto, attn, lna, spur, sdr_settings):
-        self.sdr.set_device("hackrf", {"driver": "hackrf",
-                            "serial":"0000000000000000088869dc2541451b"},
-                            port_in_use=self.usbPort)
-        
-        # set common controls
-        self.sdr.set_kaiser_beta(sdr_settings.get("sdr_kaiser"))
-        self.sdr.set_auto_couple(sdr_settings.get("sdr_link_span_rbw"))  
-        self.sdr.set_dc_offset_removal(mode="software")
-        
-        self.sdr.set_max_fft_size(2 ** sdr_settings.get("sdr_fft"))
-
-        # set hardware-specific controls
-        IF_gain = sdr_settings.get("hack_if_gain")
-        BB_gain = sdr_settings.get("hack_bb_gain")
-        RF_gain = sdr_settings.get("hack_rf_gain")
-        filter_bw = sdr_settings.get("hack_filter")
-        rx = sdr_settings.get("hack_rx")
-        amp = sdr_settings.get("hack_amp")
-        
-        # and we need to do something with those
-        
-        
-        self.sdr.set_antenna("TX/RX")
-            # set the amplifier, which needs an update to soapy_receiver
-
-    def _set_arr(self, depth):
-        # fetch the actual sweep and FFT parameters, which are calculated after setting RBW
-        fft_size = self.sdr.fft_size
-        swp_size = self.sdr.composite_size
-        num_segs = self.sdr.num_segments
-        
-        # logging.info(f'_set_arr hack: fft={fft_size} swp={swp_size} segs={num_segs}')
-        
-        maxl = np.full(fft_size, -140, dtype=np.float32)
-        minl = np.full(fft_size, 0, dtype=np.float32)
-        buffer = np.full((depth, fft_size), np.nan, dtype=np.float32)  # used for waterfall and calculating averages
-        return maxl, minl, buffer
-
-    def measurement(self, startF, stopF, points, rbw, rbw_auto, depth, maxF, interval, split, sdr_settings, loop):
-        self.threadRunning = True
-        
-        if sdr_settings.get("sdr_mode_s"):
-            mode = "segments"
-        else:
-            mode = "composite"
-         
-        span = stopF - startF
-        self.sdr.set_span(span)
-        centreF = (startF + int(span / 2))
-        self.sdr.set_center_frequency(centreF)      
-         
-        # rbw must be set after the sample rate
-        self.sdr.set_rbw(rbw * 1000)
-        
-        # fetch the actual sweep and FFT parameters, which are calculated after setting RBW
-        fft_size = self.sdr.fft_size
-        maxl, minl, buffer = self._set_arr(depth)
-        
-        self.sdr.start()
-        time.sleep(3)
-        
-        while self.sweeping:
-            if not self.sdr.event_queue.empty():
-                event = self.sdr.event_queue.get_nowait()
-                logging.info(f'hackrf event: {event}')
-                if event[0] == "status":
-                    # a status message alerts to a possible FFT size change
-                    new_fft_size = self.sdr.fft_size
-                    if new_fft_size != fft_size:
-                        maxl, minl, buffer = self._set_arr(depth)
-
-            try:
-                # fetch data from the mp queue.  Blocks, consuming no cpu cycles, until data pops up in the queue
-                freqs, power, identifier, port_in_use = self.sdr.data_queue.get(timeout=5)
-                try:
-                    np.fmax(power, maxl, out=maxl)  # compare current level with max and min
-                    np.fmin(power, minl, out=minl)  # and save them back on themselves
-                    buffer[:] = np.roll(buffer, 1, axis=0)
-                    buffer[0] = power
-                except ValueError:
-                    logging.info(f'hackrf measurement: skipped array size mismatch')
-                
-                # send the measurement data to router() in the Analyser class
-                # sn is a string but the 'result' signal expects int so send 200 for now
-                ser = 200
-                self.signals.result.emit(freqs, power, maxl, minl, buffer, self.usbPort, ser, self.name, split, True)
-            except queue.Empty:
-                logging.info('no data from SDR after 5 seconds; stopped')
-                break
-              
-        self.sdr.stop()
-        self.sdr.wait()
-        self.threadRunning = False        
-        
-    def test(self, port):
-        port_list = port.split('_')
-        self.name = port_list[0]
-        self.sn = port_list[1]
-        logging.info(f'name= {self.name} sn = {self.sn}')
-        return True
-
-    @Slot()
-    def usbSend(self):
-        # for compatibility
-        return
-    
-    def close(self):
-        if self.sdr is not None:
-            self.sweeping = False   # tell measurement()'s loop to exit, if a scan is currently running
-            self.sdr.shutdown(timeout=5.0)
-            logging.debug(f'Close: Lime SDR {self.usbPort} stopped')
-            self.sdr = None
-
-
-class RTL(QObject):
-
-    def __init__(self, port, description, sigs):
-        super().__init__()       
-        self.sdr = SoapyReceiverProcess()
-        self.setSignals(sigs)
-        self.usbPort = port  # a fake port for code compatibility
-        self.enabled = True
-        self.sweeping = False
-        self.threadRunning = False
-        self.name = None
-        self.sn = 0
-        self.fifoTimer = QTimer(self)  # not used, for compatibility
-
-    def setSignals(self, sigs):
-        self.signals = WorkerSignals()
-        self.signals.save.connect(sigs["save"])
-        # self.sdr.error.connect(sigs["error"])
-        # self.sdr.status.connect(sigs["status"])
-        self.signals.result.connect(sigs["result"])
-        self.signals.error.connect(sigs["error"])
-
-    def set_ctrls(self, rbw, rbw_auto, attn, lna, spur, sdr_settings):
-        self.sdr.set_device("RTL-SDR", {"driver": "rtlsdr"}, port_in_use=self.usbPort)
-        if lna:
-            self.sdr.set_rx_gain(20) # or set_gain(None) for AGC
-        else:
-            self.sdr.set_rx_gain(0)
-            
-        # set common controls
-        self.sdr.set_kaiser_beta(sdr_settings.get("sdr_kaiser"))
-        self.sdr.set_auto_couple(sdr_settings.get("sdr_link_span_rbw"))  
-        self.sdr.set_dc_offset_removal(mode="software")
-
-        self.sdr.set_max_fft_size(2 ** sdr_settings.get("sdr_fft"))
-        
-        self.sdr.set_oversampling(0)  # auto
-        
-        # set hardware-specific controls
-
-    def _set_arr(self, depth):
-        # fetch the actual sweep and FFT parameters, which are calculated after setting RBW
-        fft_size = self.sdr.fft_size
-        swp_size = self.sdr.composite_size
-        num_segs = self.sdr.num_segments
-        
-        maxl = np.full(fft_size, -140, dtype=np.float32)
-        minl = np.full(fft_size, 0, dtype=np.float32)
-        buffer = np.full((depth, fft_size), np.nan, dtype=np.float32)  # used for waterfall and calculating averages
-        return maxl, minl, buffer
-
-    def measurement(self, startF, stopF, points, rbw, rbw_auto, depth, maxF, interval, split, sdr_settings, loop):
-        '''SDR fft size is calculated and optimised based on span, RBW and kaiser window beta.
-           In segmments mode the segments slightly overlap so the array size is bigger than for composite'''
-
-        self.threadRunning = True
-
-        span = stopF - startF
-
-        if sdr_settings.get("sdr_mode_s"):
-            mode = "segments"
-        else:
-            mode = "composite"
-
-        self.sdr.set_sweep(startF, stopF, output_mode=mode)
-        self.sdr.set_rbw(rbw * 1000)
-        
-        # fetch the actual sweep and FFT parameters, which are calculated after setting RBW
-        maxl, minl, buffer = self._set_arr(depth)
-        
-        self.sdr.start()
-        
-        updateTimer = QElapsedTimer()
-        updateTimer.start()
-        while self.sweeping:
-            if not self.sdr.event_queue.empty():
-                event = self.sdr.event_queue.get_nowait()
-                logging.info(f'Lime soapy event: {event}')
-                if event[0] == "status":
-                    # a status message alerts to a possible FFT size change
-                    maxl, minl, buffer = self._set_arr(depth)
-            
-            while self.sdr.data_queue.empty():
-                time.sleep(0.001)
-            try:
-                freqs, power, identifier, port_in_use = self.sdr.data_queue.get_nowait()
-            except queue.Empty:
-                logging.info('Lime measurement: queue is empty')
-            
-            try:
-                np.fmax(power, maxl, out=maxl)  # compare current level with max and min
-                np.fmin(power, minl, out=minl)  # and save them back on themselves
-                buffer = np.roll(buffer, 1, axis=0)
-                buffer[0] = power
-            except ValueError:
-                logging.info(f'Lime measurement: skipped array size mismatch')
-
-            timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
-            if timeElapsed/1e6 > interval:  # GUI update interval mS
-                # send the measurement data to router() in the Analyser class
-                # sn is a string for Lime but the 'result' signal expects int so send 100 for now
-                ser = 100
-                self.signals.result.emit(freqs, power, maxl, minl, buffer, self.usbPort, ser, self.name, split, True)
-                updateTimer.start()
-
-        self.sdr.stop()
-        self.sdr.wait()
-        self.threadRunning = False
-        
-    def test(self, port):
-        port_list = port.split('_')
-        self.name = port_list[0]
-        self.sn = port_list[1]
-        logging.info(f'name= {self.name} sn = {self.sn}')
-        return True
-
-    @Slot()
-    def usbSend(self):
-        # for compatibility
-        return
-    
-    def close(self):
-        if self.sdr is not None:
-            self.sweeping = False   # tell measurement()'s loop to exit, if a scan is currently running
-            self.sdr.shutdown(timeout=5.0)
-            logging.debug(f'Close: Lime SDR {self.usbPort} stopped')
-            self.sdr = None
 
 class SDRplay(QObject):
     '''
@@ -1498,8 +1076,10 @@ class SDRplay(QObject):
     
     sdr.writeSetting("rfnotch_ctrl", "true")    # Engage AM/FM Broadcast Notch filter
     sdr.writeSetting("dabnotch_ctrl", "true")   # Engage DAB Band Notch filter'''
-    
-    def __init__(self, port, description, sigs):
+
+
+class SoapySDRDevice(QObject):
+    def __init__(self, port, description, driver, sigs):
         super().__init__()       
         self.sdr = SoapyReceiverProcess()
         self.setSignals(sigs)
@@ -1509,8 +1089,230 @@ class SDRplay(QObject):
         self.threadRunning = False
         self.name = None
         self.sn = 0
+        self.driver = driver
         self.fifoTimer = QTimer(self)  # not used, for compatibility
 
+    def setSignals(self, sigs):
+        self.signals = WorkerSignals()
+        self.signals.save.connect(sigs["save"])
+        # self.sdr.error.connect(sigs["error"])
+        # self.sdr.status.connect(sigs["status"])
+        self.signals.result.connect(sigs["result"])
+        self.signals.error.connect(sigs["error"])
+
+    def set_ctrls(self, rbw, rbw_auto, attn, lna, spur, sdr_settings):
+        self.sdr.set_device(self.driver, 
+                            {"driver": self.driver,"name": self.name,"serial": self.sn},
+                            port_in_use=self.usbPort)
+        
+        # set common controls
+        self.sdr.set_kaiser_beta(sdr_settings.get("sdr_kaiser"))
+        self.sdr.set_auto_couple(sdr_settings.get("sdr_link_span_rbw"))
+        self.sdr.set_max_fft_size(2 ** sdr_settings.get("sdr_fft"))
+
+        # set hardware-specific controls
+        if self.driver in ("lime", "limesuiteng"):
+            self._set_lime(sdr_settings)
+        
+        if self.driver == "hackrf":
+            self._set_hackrf(sdr_settings)
+            
+        if self.driver == "rtlsdr":
+            self._set_rtl(sdr_settings)
+         
+    def _set_lime(self, sdr_settings):
+            self.sdr.set_iq_balance_mode(sdr_settings.get("lime_iq_balance"))
+            self.sdr.set_antenna(sdr_settings.get("lime_rx_ant"))
+            self.sdr.set_rx_gain(sdr_settings.get("lime_lna_gain"))  # needs to be updated once soapy_rx updated
+            tia = sdr_settings.get("lime_tia_gain")
+            pga = sdr_settings.get("lime_pga_gain")            
+            dc = sdr_settings.get("lime_dc")
+            if dc == "Hardware":
+                self.sdr.set_dc_offset_removal(mode="hardware")
+            elif dc == "Both":
+                self.sdr.set_dc_offset_removal(mode="both")
+            elif dc == "Software":
+                self.sdr.set_dc_offset_removal(mode="software")
+
+    def _set_lime_gfir(self, sdr_settings):
+            # The Lime's low-pass real-time baseband FIR filter must be set after sample rate
+            segment_span = self.sdr.segment_span_hz
+            gfir_ratio = sdr_settings.get("lime_gfir_bw") / 100
+            gfir_bw = segment_span * gfir_ratio
+            if sdr_settings.get("lime_gfir_enable"):
+                self.sdr.set_gfir_lpf_bandwidth(gfir_bw)
+            else:
+                # set it to zero which is hard coded in soapy_receiver to write "DISABLE_GFIR_LPF"
+                self.sdr.set_gfir_lpf_bandwidth(0)  
+
+    def _set_hackrf(self, sdr_settings):
+            IF_gain = sdr_settings.get("hack_if_gain")
+            BB_gain = sdr_settings.get("hack_bb_gain")
+            filter_bw = sdr_settings.get("hack_filter")
+            rx = sdr_settings.get("hack_rx")
+            amp = sdr_settings.get("hack_amp")  # needs an update to soapy_receiver
+            # and we need to do something with those
+
+            self.sdr.set_antenna("TX/RX")
+
+    def _set_rtl(self, sdr_settings):
+            max_rate = sdr_settings.get("rtl_max_rate")
+            agc = sdr_settings.get("rtl_agc_box")
+            bias_T = sdr_settings.get("rtl_bias")
+            # and we need to do something with those
+            
+            rx_gain = sdr_settings.get("rtl_gain")
+            self.sdr.set_rx_gain(rx_gain)
+
+    def _set_SDRplay(self, sdr_settings):
+        '''
+        SoapySDR Support
+    
+        IQ Balance
+        
+        The driver defaults to true via the iqcorr_ctrl parameter. It can be manually toggled via hardware arguments:
+        iqcorr_ctrl=true
+        
+        DC Removal
+        
+        • The hardware structure handles DC offset removal natively via the standard SoapySDR corrections framework.
+        	• Control string: dc_offset_mode=true or via standard setDCOffsetMode() API commands
+        
+        sdr.setDCOffsetMode(SOAPY_SDR_RX, 0, True)  # Enables DC removal mode
+    
+        RX Gain
+        
+        • The RSPdx exposes specific gain controls across its multi-stage design:
+            FGR (IF Gain Reduction): Adjusts the baseband gain stage (typically ranges from 20 to 59 dB).
+            FGR (RF Gain Reduction / LNA State): Selectable step-attenuation levels (ranges from 0 to 27 dB, mapping to
+            the specific LNA attenuation steps for the chosen frequency band).
+            fgain_sel: Numeric profile selection (0 to 27) that acts as an overall target state 
+        
+        sdr.setGain(SOAPY_SDR_RX, 0, "IFGR", 35.0)   # IF Gain Reduction stage
+        sdr.setGain(SOAPY_SDR_RX, 0, "RFGR", 12.0)   # RF (LNA) Gain Reduction
+        sdr.setGainMode(SOAPY_SDR_RX, 0, True)       # Turn on AGC
+        
+        FIR Selection
+        
+        • You cannot upload custom arbitrary FIR taps directly via SoapySDR, but you can select the analog filter
+          bandwidths natively supported by the RSPdx's internal chip.
+          electable bandwidth options using bandwidth= 0.2, 0.3, 0.6, 1.536, 5, 6, 7, and 8 MHz.
+        
+        # Select an anti-aliasing hardware filter bandwidth (in Hz)
+        sdr.setBandwidth(SOAPY_SDR_RX, 0, 200000.0)  # 200 kHz preset filter
+        sdr.setBandwidth(SOAPY_SDR_RX, 0, 8000000.0)  # 8 MHz preset filter
+        
+        
+        Antenna Switch	Yes	  antenna="Antenna A"	Selects physical inputs Antenna A, B, or C (HDR port).
+        Bias-T	Yes	  biasT_ctrl=true	Provides 4.7V DC to power external LNAs on Antenna B.
+        
+        sdr.setAntenna(SOAPY_SDR_RX, 0, "Antenna C")  # Switches physical input to HDR port (Antenna C)
+        sdr.writeSetting("biasT_ctrl", "true")         # Directs 4.7V DC down Antenna B path
+    
+        Hardware Notch Filters
+        
+        The RSPdx features dedicated physical broadcast filter traps that can be clicked on or off via argument strings:
+            fnotch_ctrl=true/false (Broadcast FM / AM Notch Filter)
+            dabnotch_ctrl=true/false (DAB Band Notch Filter)
+        
+        sdr.writeSetting("rfnotch_ctrl", "true")    # Engage AM/FM Broadcast Notch filter
+        sdr.writeSetting("dabnotch_ctrl", "true")   # Engage DAB Band Notch filter'''
+
+
+    def _set_arr(self, depth):
+        # fetch the actual sweep and FFT parameters, which are calculated after setting RBW
+        fft_size = self.sdr.fft_size
+        swp_size = self.sdr.composite_size
+        num_segs = self.sdr.num_segments
+        
+        maxl = np.full(fft_size, -140, dtype=float)
+        minl = np.full(fft_size, 0, dtype=float)
+        buffer = np.full((depth, fft_size), np.nan, dtype=float)  # used for waterfall and calculating averages
+        return maxl, minl, buffer
+      
+    def measurement(self, startF, stopF, points, rbw, rbw_auto, depth, maxF, interval, split, sdr_settings, loop):
+        '''SDR fft size is calculated and optimised based on span, RBW and kaiser window beta.
+           In segments mode the segments slightly overlap so the array size is bigger than for composite'''
+        self.threadRunning = True
+        # span = stopF - startF
+
+        if sdr_settings.get("sdr_mode_s"):
+            mode = "segments"
+            self.sdr.set_offset_tuning(int(span / 4))
+        else:
+            mode = "composite"
+        # self.sdr.set_sweep(startF, stopF, output_mode=mode)
+        
+        span = stopF - startF
+        self.sdr.set_span(span)
+        centreF = (startF + int(span / 2))
+        self.sdr.set_center_frequency(centreF)      
+         
+        # rbw must be set after the sample rate
+        self.sdr.set_rbw(rbw * 1000)
+        
+        # lime GFIR must be set after the sample rate
+        if self.driver in ("lime", "limesuiteng"):
+            self._set_lime_gfir(sdr_settings)
+      
+        # fetch the actual sweep and FFT parameters, which are calculated after setting RBW
+        fft_size = self.sdr.fft_size
+        maxl, minl, buffer = self._set_arr(depth)
+        
+        self.sdr.start()
+        time.sleep(3)
+        
+        while self.sweeping:
+            if not self.sdr.event_queue.empty():
+                event = self.sdr.event_queue.get_nowait()
+                logging.info(f'SoapySDR event: {event[1]}')
+                if event[0] == "status":
+                    # a status message alerts to a possible FFT size change
+                    new_fft_size = self.sdr.fft_size
+                    if new_fft_size != fft_size:
+                        maxl, minl, buffer = self._set_arr(depth)
+
+            try:
+                # fetch data from the mp queue.  Blocks, consuming no cpu cycles, until data pops up in the queue
+                freqs, power, identifier, port_in_use = self.sdr.data_queue.get(timeout=5)
+                try:
+                    np.fmax(power, maxl, out=maxl)  # compare current level with max and min
+                    np.fmin(power, minl, out=minl)  # and save them back on themselves
+                    buffer[:] = np.roll(buffer, 1, axis=0)
+                    buffer[0] = power
+                except ValueError:
+                    logging.info(f'Lime measurement: skipped array size mismatch')
+                
+                # send the measurement data to router() in the Analyser class
+                # sn is a string for Lime but the 'result' signal expects int so send 100 for now
+                ser = 100
+                self.signals.result.emit(freqs, power, maxl, minl, buffer, self.usbPort, ser, self.name, split, True)
+            except queue.Empty:
+                logging.info('no data from SDR after 5 seconds; stopped')
+                break
+              
+        self.sdr.stop()
+        self.sdr.wait()
+        self.threadRunning = False
+     
+    def test(self, port):
+        port_list = port.split('_')
+        self.name = port_list[0]
+        self.sn = port_list[1]
+        logging.info(f'name= {self.name} sn = {self.sn}')
+        return True
+
+    @Slot()
+    def usbSend(self):
+        # for compatibility
+        return
+    
+    def close(self):
+        if self.sdr is not None:
+            self.sweeping = False   # tell measurement()'s loop to exit, if a scan is currently running
+            self.sdr.shutdown(timeout=5.0)
+            logging.debug(f'Close: Lime SDR {self.usbPort} stopped')
+            self.sdr = None
 
 class SiglentSA(QObject):
     def __init__(self, visaPort, product, sigs):

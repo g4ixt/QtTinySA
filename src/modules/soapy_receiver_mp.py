@@ -1014,14 +1014,13 @@ class _ReceiverWorker:
                 ref_nS = time.perf_counter_ns()
                 info_count += 1
                 if info_count > 20:
-                    logging.info(f'{counter} measurement avg = {round(elapsed * 1e-6 / counter, 2)}mS')
+                    logging.debug(f'{counter} measurement avg = {round(elapsed * 1e-6 / counter, 2)}mS')
                     info_count = 0
 
                 average = running_sum / counter
                 self._emit(freqs, average)
                 running_sum.fill(0.0)
                 counter = 0
-
 
     def _run_sweep_loop(
         self, fft_size: int, window: np.ndarray, read_buf: np.ndarray, sample_rate: float
