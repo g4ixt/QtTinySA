@@ -172,8 +172,11 @@
       <property name="maximum">
        <number>14</number>
       </property>
+      <property name="singleStep">
+       <number>14</number>
+      </property>
       <property name="value">
-       <number>5</number>
+       <number>0</number>
       </property>
      </widget>
     </item>
@@ -224,6 +227,9 @@
       <property name="maximum">
        <number>62</number>
       </property>
+      <property name="singleStep">
+       <number>2</number>
+      </property>
       <property name="value">
        <number>50</number>
       </property>
@@ -271,13 +277,19 @@
     <item row="8" column="1">
      <widget class="QSpinBox" name="lime_tia_gain">
       <property name="toolTip">
-       <string>TIA gain of 0dB is a good default</string>
+       <string>0, 9 and 12 are the only valid values.  0dB recommended.</string>
       </property>
       <property name="suffix">
        <string>dB</string>
       </property>
       <property name="maximum">
        <number>12</number>
+      </property>
+      <property name="singleStep">
+       <number>3</number>
+      </property>
+      <property name="stepType">
+       <enum>QAbstractSpinBox::StepType::DefaultStepType</enum>
       </property>
      </widget>
     </item>
@@ -425,7 +437,7 @@
     <item row="9" column="1">
      <widget class="QSpinBox" name="lime_pga_gain">
       <property name="toolTip">
-       <string>PGA gain of 6dB is a good default</string>
+       <string>6dB is a good default</string>
       </property>
       <property name="suffix">
        <string>dB</string>
@@ -499,7 +511,7 @@
        </font>
       </property>
       <property name="toolTip">
-       <string>LNA gain of 20dB is a good default</string>
+       <string>LNA gain of 21dB is a good default</string>
       </property>
       <property name="suffix">
        <string>dB</string>
@@ -507,8 +519,11 @@
       <property name="maximum">
        <number>30</number>
       </property>
+      <property name="singleStep">
+       <number>3</number>
+      </property>
       <property name="value">
-       <number>20</number>
+       <number>21</number>
       </property>
      </widget>
     </item>

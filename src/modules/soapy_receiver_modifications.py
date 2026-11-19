@@ -6,10 +6,89 @@ Created on Tue Nov  3 16:10:52 2026
 @author: ian
 """
 
-import time
-
-from PySide6.QtCore import QElapsedTimer
 # ----------------------------------------------------------------------------------------------------------------
+import pyfftw
+import time
+from PySide6.QtCore import QElapsedTimer
+from modules.utility import Calc
+# ----------------------------------------------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------------------------------------------
+
+    # def _run_single_loop(self, fft_size: int, window: np.ndarray, read_buf: np.ndarray, sample_rate: float) -> None:
+    #     """Ordinary single-frequency acquisition: one capture per iteration at self._s["center_freq"], which
+    #     may change live between iterations (see set_center_frequency())."""
+        
+    #     center_freq = self._s["center_freq"]
+    #     freqs = np.fft.fftshift(np.fft.fftfreq(fft_size, d=1.0 / sample_rate)) + center_freq
+    #     freqs = freqs.astype(np.float64)
+
+    #     # set-up for averaging
+    #     running_sum = np.zeros(fft_size, dtype=np.float32)
+    #     counter = 0
+        
+    #     info_count = 0
+    #     update_nS = 50 * 1e6
+    #     ref_nS = time.perf_counter_ns()  # lower overhead than a QElapsedTimer
+    #     #
+    #     # Allocate SIMD-aligned memory buffers
+    #     fft_input = pyfftw.empty_aligned(fft_size, dtype='complex64')
+    #     fft_output = pyfftw.empty_aligned(fft_size, dtype='complex64')
+
+    #     # Create a re-usable FFT plan
+    #     # 'FFTW_MEASURE' spends a few seconds upfront to find the fastest algorithm for the CPU
+    #     logging.info("Planning FFT... may take a few seconds...")
+
+    #     fft_object = pyfftw.FFTW(fft_input, fft_output, direction='FFTW_FORWARD', flags=('FFTW_MEASURE',), threads=1)
+    #     # Match threads to CPU's physical core count
+        
+    #     while not self._stop_event.is_set():
+    #         self._drain_commands()
+
+    #         if self._s["center_freq"] != center_freq:
+    #             center_freq = self._s["center_freq"]
+    #             freqs = np.fft.fftshift(np.fft.fftfreq(fft_size, d=1.0 / sample_rate)) + center_freq
+    #             freqs = freqs.astype(np.float64)
+                
+    #             # reset the averaging
+    #             running_sum.fill(0.0)
+    #             counter = 0
+    #             #
+
+    #         if self._device is None or self._rx_stream is None:
+    #             time.sleep(IDLE_POLL_INTERVAL_S)
+    #             continue
+
+    #         power = self._capture_block(fft_object, fft_input, fft_output, fft_size, window, read_buf)
+    #         if power is None:
+    #             logging.info("power is None")
+    #             continue
+            
+    #         cal_freqs = self._s.get("cal_freqs_hz")
+    #         cal_offsets = self._s.get("cal_offsets_db")
+    #         if cal_freqs is not None and cal_offsets is not None:
+    #             power = power - np.interp(freqs, cal_freqs, cal_offsets).astype(np.float32)
+
+    #         # update the total
+    #         running_sum += power
+    #         counter += 1
+
+    #         # calculate the average and put it into the queue if a reading is due, otherwise loop
+    #         elapsed = time.perf_counter_ns() - ref_nS
+    #         if elapsed >= update_nS:  # this needs to be related or equal to 'interval'
+    #             ref_nS = time.perf_counter_ns()
+    #             info_count += 1
+    #             if info_count > 20:
+    #                 logging.info(f'{counter} measurement avg = {round(elapsed * 1e-6 / counter, 2)}mS')
+    #                 info_count = 0
+
+    #             average = running_sum / counter
+    #             self._emit(freqs, average)
+    #             running_sum.fill(0.0)
+    #             counter = 0
+    
+
+    # ----------------------------------------------------------------------------------------------------------------
 
     def _run_single_loop(self, fft_size: int, window: np.ndarray, read_buf: np.ndarray, sample_rate: float) -> None:
         """Ordinary single-frequency acquisition: one capture per iteration at self._s["center_freq"], which
@@ -18,15 +97,7 @@ from PySide6.QtCore import QElapsedTimer
         center_freq = self._s["center_freq"]
         freqs = np.fft.fftshift(np.fft.fftfreq(fft_size, d=1.0 / sample_rate)) + center_freq
         freqs = freqs.astype(np.float64)
-
-        # set-up for averaging
-        running_sum = np.zeros(fft_size, dtype=np.float32)
-        counter = 0
         
-        info_count = 0
-        update_nS = 50 * 1e6
-        ref_nS = time.perf_counter_ns()  # lower overhead than a QElapsedTimer
-        #
         # Allocate SIMD-aligned memory buffers
         fft_input = pyfftw.empty_aligned(fft_size, dtype='complex64')
         fft_output = pyfftw.empty_aligned(fft_size, dtype='complex64')
@@ -36,7 +107,14 @@ from PySide6.QtCore import QElapsedTimer
         logging.info("Planning FFT... may take a few seconds...")
 
         fft_object = pyfftw.FFTW(fft_input, fft_output, direction='FFTW_FORWARD', flags=('FFTW_MEASURE',), threads=1)
-        # Match threads to CPU's physical core count
+        # Should match threads to CPU core count but threads > 1 is much slower, especially for small FFT size
+        
+        # set-up for averaging and performance logging
+        running_sum = np.zeros(fft_size, dtype=np.float32)
+        counter = 0 
+        update_nS = 50 * 1e6
+        ref_nS = time.perf_counter_ns()  # lower overhead than a QElapsedTimer
+        info_count = 0
         
         while not self._stop_event.is_set():
             self._drain_commands()
@@ -55,33 +133,54 @@ from PySide6.QtCore import QElapsedTimer
                 time.sleep(IDLE_POLL_INTERVAL_S)
                 continue
 
+            # capture the FFT and convert to power units
             power = self._capture_block(fft_object, fft_input, fft_output, fft_size, window, read_buf)
+            
             if power is None:
-                logging.info("power is None")
                 continue
             
-            cal_freqs = self._s.get("cal_freqs_hz")
-            cal_offsets = self._s.get("cal_offsets_db")
-            if cal_freqs is not None and cal_offsets is not None:
-                power = power - np.interp(freqs, cal_freqs, cal_offsets).astype(np.float32)
-
-            # update the total
+            # update the fft running sum
             running_sum += power
             counter += 1
 
-            # calculate the average and put it into the queue if a reading is due, otherwise loop
+            # calculate the average power and put it into the queue if a reading is due, otherwise loop
             elapsed = time.perf_counter_ns() - ref_nS
-            if elapsed >= update_nS:  # this needs to be related or equal to 'interval'
+            if elapsed >= update_nS:  # this needs to be related to, or equal to, 'interval'
                 ref_nS = time.perf_counter_ns()
+
+                # calculate a running average of the FFT absolute magnitude squared (not power in dB)
+                averaged_fft = running_sum / counter
+                sub_freq, sub_power = Calc.resample_spectrum(freqs, averaged_fft, is_dBm=False)
+                
+                # convert linear power to dB
+                power = compute_power(sub_power, 1024)
+                
+                # if calibrated, convert to dBm using the calibration table
+                cal_freqs = self._s.get("cal_freqs_hz")
+                cal_offsets = self._s.get("cal_offsets_db")
+                if cal_freqs is not None and cal_offsets is not None:
+                    power = power - np.interp(sub_freq, cal_freqs, cal_offsets).astype(np.float32)
+                
+                # self._emit(freqs, power)
+                # self._emit(freqs, averaged_fft)
+                self._emit(sub_freq, power)
+                running_sum.fill(0.0)
+
+                # temporary performance logging
                 info_count += 1
                 if info_count > 20:
                     logging.info(f'{counter} measurement avg = {round(elapsed * 1e-6 / counter, 2)}mS')
                     info_count = 0
+                # temporary performance logging
 
-                average = running_sum / counter
-                self._emit(freqs, average)
-                running_sum.fill(0.0)
                 counter = 0
+            
+                # if power is None:
+                if averaged_fft is None:
+                    logging.info("FFT is None")
+                    continue
+            
+
     
 # ----------------------------------------------------------------------------------------------------------------
 
@@ -164,6 +263,152 @@ from PySide6.QtCore import QElapsedTimer
             if output_mode == "composite" and cycle_ok and composite_power_parts and not self._stop_event.is_set():
                 self._emit(np.concatenate(composite_freqs_parts), np.concatenate(composite_power_parts))
 
+# ----------------------------------------------------------------------------------------------------------------
+  
+
+
+# ----------------------------------------------------------------------------------------------------------------
+
+    def _capture_block(self, fft_object, fft_input, fft_output, fft_size: int,
+                       window: np.ndarray, read_buf: np.ndarray) -> np.ndarray | None:
+        """
+        Fill read_buf with fft_size IQ samples via readStream(), apply software DC removal if configured, and
+        return the computed power spectrum (before calibration correction or any sweep-mode cropping). Returns
+        None on timeout, an unrecoverable readStream error, or if stop_event fires mid-read -- callers should
+        treat None as "skip this capture, try again" (or, in composite sweep mode, "discard this whole cycle").
+        """
+        n_collected = 0
+        timed_out = False
+        while n_collected < fft_size:
+            sr = self._device.readStream(
+                self._rx_stream, [read_buf[n_collected:]], fft_size - n_collected, timeoutUs=200_000,
+            )
+            if sr.ret > 0:
+                n_collected += sr.ret
+            elif sr.ret == SoapySDR.SOAPY_SDR_TIMEOUT:
+                timed_out = True
+                break
+            elif sr.ret == SoapySDR.SOAPY_SDR_OVERFLOW:
+                logger.debug("SoapySDR overflow, continuing")
+                continue
+            else:
+                self._event_queue.put(("error", f"SoapySDR readStream error: {sr.ret}"))
+                timed_out = True
+                break
+            if self._stop_event.is_set():
+                return None
+
+        if self._stop_event.is_set() or timed_out or n_collected < fft_size:
+            return None
+          
+        if self._s["dc_offset_mode"] in ("software", "both"):
+           # Direct in-place subtraction preserves memory block
+           read_buf -= np.mean(read_buf)
+        
+        # return compute_spectrum(fft_object, fft_input, fft_output, read_buf, window, fft_size)
+        return compute_fft(fft_object, fft_input, fft_output, read_buf, window)
+
+
+# ----------------------------------------------------------------------------------------------------------------
+
+# def compute_spectrum(fft_object, fft_input, fft_output, iq: np.ndarray, window: np.ndarray, fft_size: int) -> np.ndarray:
+#     """Apply the window, FFT, and convert to dB efficiently."""
+    
+#     # Inject data into the aligned pyfftw buffer and execute the pre-planned FFT 
+#     fft_input[:] = iq * window
+#     fft_object()
+
+#     # Calculate absolute magnitude first on the raw output buffer.
+#     # This turns complex64 down into float32, cutting the memory footprint in half.
+#     power = 20 * np.log10(np.abs(fft_output) / fft_size + 1e-20)
+    
+#     # 4. Shift the final real float32 array instead of the heavier complex one.
+#     return np.fft.fftshift(power).astype(np.float32)
+
+
+# ----------------------------------------------------------------------------------------------------------------
+
+def compute_fft(fft_object, fft_input, fft_output, iq: np.ndarray, window: np.ndarray) -> np.ndarray:
+    """Apply the (coherent-gain-normalized) window, compute FFT, shift and """
+    
+    # Pass windowed data into the (memory-aligned) pyfftw input buffer
+    fft_input[:] = iq * window
+    
+    # Execute the pre-planned FFT 
+    fft_object()
+    
+    # Calculate the abs magintude squared (signal power) and shift it so 0 Hz is at centre.  
+    fft = np.abs(fft_output)
+    fft_shifted = np.fft.fftshift(fft)
+    fft_size = len(fft_output)
+    power = (fft_shifted / fft_size + 1e-20) ** 2
+    
+    return power
+
+# ----------------------------------------------------------------------------------------------------------------
+
+def compute_power(fft, fft_size):
+    power = fft / fft_size
+    powerdB = 10 * np.log10(fft)
+    return powerdB.astype(np.float32)
+
+# ----------------------------------------------------------------------------------------------------------------
+
+original numpy fft single loop
+
+    def _run_single_loop(
+        self, fft_size: int, window: np.ndarray, read_buf: np.ndarray, sample_rate: float) -> None:
+        """Ordinary single-frequency acquisition: one capture per iteration at self._s["center_freq"], which
+        may change live between iterations (see set_center_frequency())."""
+        center_freq = self._s["center_freq"]
+        freqs = np.fft.fftshift(np.fft.fftfreq(fft_size, d=1.0 / sample_rate)) + center_freq
+        freqs = freqs.astype(np.float64)
+        #
+        running_sum = np.zeros(fft_size, dtype=np.float32)
+        counter = 0
+        info_count = 0
+
+        update_nS = 50 * 1e6
+        ref_nS = time.perf_counter_ns()  # lower overhead than a QElapsedTimer
+        #
+        while not self._stop_event.is_set():
+            self._drain_commands()
+
+            if self._s["center_freq"] != center_freq:
+                center_freq = self._s["center_freq"]
+                freqs = np.fft.fftshift(np.fft.fftfreq(fft_size, d=1.0 / sample_rate)) + center_freq
+                freqs = freqs.astype(np.float64)
+                
+                running_sum.fill(0.0)
+                counter = 0
+
+            if self._device is None or self._rx_stream is None:
+                time.sleep(IDLE_POLL_INTERVAL_S)
+                continue
+
+            power = self._capture_block(fft_size, window, read_buf)
+            if power is None:
+                continue
+
+            cal_freqs = self._s.get("cal_freqs_hz")
+            cal_offsets = self._s.get("cal_offsets_db")
+            if cal_freqs is not None and cal_offsets is not None:
+                power = power - np.interp(freqs, cal_freqs, cal_offsets).astype(np.float32)
+
+            #
+            running_sum += power
+            counter += 1
+            elapsed = time.perf_counter_ns() - ref_nS
+            if elapsed >= update_nS:  # this needs to be related or equal to 'interval'
+                ref_nS = time.perf_counter_ns()
+                info_count += 1
+                if info_count > 20:
+                    logging.info(f'{counter} measurement avg = {round(elapsed * 1e-6 / counter, 2)}mS')
+                    info_count = 0
+                average = running_sum / counter
+                self._emit(freqs, average)
+                running_sum.fill(0.0)
+                counter = 0
 
 # ----------------------------------------------------------------------------------------------------------------
 # pyfftw example
@@ -220,121 +465,3 @@ except KeyboardInterrupt:
  
 
  
-# ----------------------------------------------------------------------------------------------------------------
-  
-    def _capture_block(self, fft_object, fft_input, fft_output, fft_size: int,
-                       window: np.ndarray, read_buf: np.ndarray) -> np.ndarray | None:
-        """
-        Fill read_buf with fft_size IQ samples via readStream(), apply software DC removal if configured, and
-        return the computed power spectrum (before calibration correction or any sweep-mode cropping). Returns
-        None on timeout, an unrecoverable readStream error, or if stop_event fires mid-read -- callers should
-        treat None as "skip this capture, try again" (or, in composite sweep mode, "discard this whole cycle").
-        """
-        n_collected = 0
-        timed_out = False
-        while n_collected < fft_size:
-            sr = self._device.readStream(
-                self._rx_stream, [read_buf[n_collected:]], fft_size - n_collected, timeoutUs=200_000,
-            )
-            if sr.ret > 0:
-                n_collected += sr.ret
-            elif sr.ret == SoapySDR.SOAPY_SDR_TIMEOUT:
-                timed_out = True
-                break
-            elif sr.ret == SoapySDR.SOAPY_SDR_OVERFLOW:
-                logger.debug("SoapySDR overflow, continuing")
-                continue
-            else:
-                self._event_queue.put(("error", f"SoapySDR readStream error: {sr.ret}"))
-                timed_out = True
-                break
-            if self._stop_event.is_set():
-                return None
-
-        if self._stop_event.is_set() or timed_out or n_collected < fft_size:
-            return None
-          
-        if self._s["dc_offset_mode"] in ("software", "both"):
-           # Direct in-place subtraction preserves memory block
-           read_buf -= np.mean(read_buf)
-        
-        return compute_spectrum(fft_object, fft_input, fft_output, read_buf, window, fft_size)
-
-
-# ----------------------------------------------------------------------------------------------------------------
-
-def compute_spectrum(fft_object, fft_input, fft_output, iq: np.ndarray, window: np.ndarray, fft_size: int) -> np.ndarray:
-    """Apply the window, FFT, and convert to dB efficiently."""
-    
-    # Inject data into the aligned pyfftw buffer and execute the pre-planned FFT 
-    fft_input[:] = iq * window
-    fft_object()
-
-    # Calculate absolute magnitude first on the raw output buffer.
-    # This turns complex64 down into float32, cutting the memory footprint in half.
-    power = 20 * np.log10(np.abs(fft_output) / fft_size + 1e-20)
-    
-    # 4. Shift the final real float32 array instead of the heavier complex one.
-    return np.fft.fftshift(power).astype(np.float32)
-
-
-# ----------------------------------------------------------------------------------------------------------------
-
-
-numpy fft single loop
-
-    def _run_single_loop(
-        self, fft_size: int, window: np.ndarray, read_buf: np.ndarray, sample_rate: float) -> None:
-        """Ordinary single-frequency acquisition: one capture per iteration at self._s["center_freq"], which
-        may change live between iterations (see set_center_frequency())."""
-        center_freq = self._s["center_freq"]
-        freqs = np.fft.fftshift(np.fft.fftfreq(fft_size, d=1.0 / sample_rate)) + center_freq
-        freqs = freqs.astype(np.float64)
-        #
-        running_sum = np.zeros(fft_size, dtype=np.float32)
-        counter = 0
-        info_count = 0
-
-        update_nS = 50 * 1e6
-        ref_nS = time.perf_counter_ns()  # lower overhead than a QElapsedTimer
-        #
-        while not self._stop_event.is_set():
-            self._drain_commands()
-
-            if self._s["center_freq"] != center_freq:
-                center_freq = self._s["center_freq"]
-                freqs = np.fft.fftshift(np.fft.fftfreq(fft_size, d=1.0 / sample_rate)) + center_freq
-                freqs = freqs.astype(np.float64)
-                
-                running_sum.fill(0.0)
-                counter = 0
-
-            if self._device is None or self._rx_stream is None:
-                time.sleep(IDLE_POLL_INTERVAL_S)
-                continue
-
-            power = self._capture_block(fft_size, window, read_buf)
-            if power is None:
-                continue
-
-            cal_freqs = self._s.get("cal_freqs_hz")
-            cal_offsets = self._s.get("cal_offsets_db")
-            if cal_freqs is not None and cal_offsets is not None:
-                power = power - np.interp(freqs, cal_freqs, cal_offsets).astype(np.float32)
-
-            #
-            running_sum += power
-            counter += 1
-            elapsed = time.perf_counter_ns() - ref_nS
-            if elapsed >= update_nS:  # this needs to be related or equal to 'interval'
-                ref_nS = time.perf_counter_ns()
-                info_count += 1
-                if info_count > 20:
-                    logging.info(f'{counter} measurement avg = {round(elapsed * 1e-6 / counter, 2)}mS')
-                    info_count = 0
-                average = running_sum / counter
-                self._emit(freqs, average)
-                running_sum.fill(0.0)
-                counter = 0
-                
-# ----------------------------------------------------------------------------------------------------------------

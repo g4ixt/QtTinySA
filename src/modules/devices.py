@@ -20,7 +20,7 @@ from serial.tools import list_ports
 from datetime import datetime
 from platform import system
 
-from modules.utility import FakePortInfo
+from modules.utility import FakePortInfo, Calc
 
 SOAPY = True
 try:
@@ -41,6 +41,9 @@ SOAPY_HW = {(0x0bda, 0x2838): 'RTL-SDR',
             (0x1d50, 0x6108): 'LimeSDR-USB',
             (0x0403, 0x601f): 'LimeSDR-Mini',
             (0x1d50, 0x6089): 'HackRF-One'}
+
+# specification for waterfall, 3D graph and spectrum graph fixed pixel width
+GRAPH_POINTS = 1024
 
 class USBdevice(QObject):
     stopped = Signal(bool)
@@ -284,6 +287,8 @@ class USBdevice(QObject):
                     startF = spectra[indx].startF
                     stopF = spectra[indx].stopF
                     points = spectra[indx].points
+                    device.graph_start = startF
+                    device.graph_finis = stopF
                     logging.debug(f'usbInstr.start: startF={startF} stopF={stopF} pts={points}')
                     device.sa = Worker(device.measurement, startF, stopF, points,
                                        rbw, rbw_auto, depth, maxF, interval, split, sdr_settings, loop)
@@ -308,6 +313,13 @@ class USBdevice(QObject):
                 time.sleep(0.1)
         self.is_scanning = False
         self.stopped.emit(restart)
+
+    def set_graph_freqs(self, startF, stopF):
+        if not self.devices:
+            return
+        for device in self.devices:  # devices contains the device class instances
+            device.graph_start = startF
+            device.graph_finis = stopF
 
     def load_player(self, file):  # run in separate thread to avoid blocking GUI for large files
         # create a player for this file
@@ -433,6 +445,8 @@ class Tiny(QObject):
         self.setSignals(sigs)
         self.setDevice(usbPort)
         self.sn = 0
+        self.graph_start = 0
+        self.graph_finis = 0
 
     def setDevice(self, usbPort):
         self.setScale()
@@ -521,6 +535,123 @@ class Tiny(QObject):
         logging.debug(f'sweepTimeout = {timeout:.2f} s')
         return timeout
 
+    # def measurement(self, startF, stopF, points, rbw, rbw_auto, depth, maxF, interval, split, sdr_settings, loop=True):
+    #     # runs in separate thread
+    #     if self.basic:
+    #         rbw = np.clip(rbw, 3, 600)
+    #         maxF = min(960000000, maxF)
+    #         startF = np.clip(startF, 100000, maxF)
+    #         stopF = np.clip(stopF, 100000, maxF)
+    #     else:
+    #         startF = np.clip(startF, 100000, maxF)
+    #         stopF = np.clip(stopF, 100000, maxF)
+    #     updateTimer = QElapsedTimer()
+    #     self.threadRunning = True
+    #     firstRun = True
+    #     # create freq array here.  Non-Tiny devices may send list of freqs measured, so this preserves compatibility
+    #     freq = np.linspace(startF, stopF, points, dtype=np.int64)
+    #     levl = np.full(points, -140, dtype=np.float32)
+    #     maxl = np.full(points, -140, dtype=np.float32)
+    #     minl = np.full(points, 0, dtype=np.float32)
+    #     buffer = np.full((depth, points), np.nan, dtype=np.float32)  # used for waterfall and calculating averages
+
+    #     # self.runTimer.start()  # debug
+    #     # logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6:.3f}mS')  # debug
+
+    #     updateTimer.start()  # used to trigger the signal that sends measurements to updateGUI()
+    #     while self.sweeping:
+    #         if loop:
+    #             command = f'scanraw {int(startF)} {int(stopF)} {int(points)} 3\r'
+    #         else:
+    #             command = f'scanraw {int(startF)} {int(stopF)} {int(points)} 1\r'
+
+    #         self.usb.timeout = 1  # should be from self.sweepTimeout(frequencies)
+
+    #         # firmware versions before 4.177 don't support auto-repeating scanraw so command must be sent each sweep
+    #         if firstRun or not loop:
+    #             try:
+    #                 self.usb.write(command.encode())
+    #                 self.usb.read_until(command.encode() + b'\n{')  # skip command echo
+    #                 dataBlock = ''
+    #             except serial.SerialException:
+    #                 logging.info('serial port exception')
+    #                 self.signals.error.emit(None, 'serial port exception', 'Ok', 'Critical')
+    #                 self.sweeping = False
+    #                 self.usb.reset_input_buffer()
+    #                 break
+
+    #         # read the measurement data from the tinySA
+    #         for point in range(points):
+    #             try:
+    #                 dataBlock = (self.usb.read(3))  # read a block of 3 bytes of data
+    #                 logging.debug(f'dataBlock: {dataBlock}\n')
+    #             except serial.SerialException:
+    #                 self.sweeping = False
+    #                 self.signals.error.emit(None, 'serial port exception', 'Ok', 'Critical')
+    #                 self.usb.reset_input_buffer()
+    #                 break
+    #             if dataBlock == b'}':  # from FW165 jog button press returns different value
+    #                 logging.info('screen touched or jog button pressed')
+    #                 self.signals.error.emit(None, 'screen touched or jog button pressed', 'Ok', 'Info')
+    #                 self.sweeping = False
+    #                 self.usb.reset_input_buffer()
+    #                 break
+    #             try:
+    #                 c, data = struct.unpack('<' + 'cH', dataBlock)
+    #             except struct.error:
+    #                 logging.info(f'data error, dataBlock={dataBlock!r}')
+    #                 self.signals.error.emit(None, 'serial data error', 'Ok', 'Critical')
+    #                 self.sweeping = False
+    #                 self.usb.reset_input_buffer()
+    #                 break
+    #             levl[point] = (data / 32) - self.scale  # scale 0..4095 -> -128..-0.03 dBm
+
+    #             if not self.sweeping:  # end without completing sweep
+    #                 self.usb.reset_input_buffer()
+    #                 break
+
+    #             # If it's the final point of this sweep, set up for the next sweep
+    #             if point == points - 1:
+    #                 np.fmax(levl, maxl, out=maxl)  # compare current level with max and min
+    #                 np.fmin(levl, minl, out=minl)  # and save them back on themselves
+                    
+    #                 buffer = np.roll(buffer, 1, axis=0)
+    #                 buffer[0] = levl
+                    
+    #                 if loop:
+    #                     try:
+    #                         if self.usb.read(2) != b'}{':  # the end of scan marker character is '}{'
+    #                             logging.info('QtTinySA display is out of sync with tinySA frequency')
+    #                             self.signals.error.emit(None, 'QtTinySA display out of sync', 'Ok', 'Critical')
+    #                             self.sweeping = False
+    #                             self.usb.reset_input_buffer()
+    #                             break
+    #                     except serial.SerialException:
+    #                         self.sweeping = False
+    #                         self.signals.error.emit(None, 'serial port exception', 'Ok', 'Critical')
+    #                         self.usb.reset_input_buffer()
+    #                         break
+    #                     firstRun = False
+    #             timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
+    #             if timeElapsed/1e6 > interval:  # GUI update interval mS
+    #                 # send the measurement data to router() in the Analyser class
+    #                 # self.signals.result.emit(freq, levl, maxl, minl, buffer, self.usbPort, self.sn, 0, split, False)
+    #                 self.signals.result.emit(freq, levl, maxl, minl, buffer, self.usbPort, self.sn, self.name, split, False)
+    #                 updateTimer.start()
+
+    #         # also send the measurement data to router() at the end of each sweep
+    #         # self.signals.result.emit(freq, levl, maxl, minl, buffer, self.usbPort, self.sn, 0, split, True)
+    #                 self.signals.result.emit(freq, levl, maxl, minl, buffer, self.usbPort, self.sn, self.name, split, True)
+    #     try:
+    #         self.usb.read(2)  # discard the command prompt that the tinySA sends when sweeping ends
+    #         self.serialWrite('abort\r')
+    #         self.usb.reset_input_buffer()
+    #     except serial.SerialException:
+    #         logging.info('tinySA serial comms failed')
+    #         self.signals.error.emit(None, 'tinySA serial comms failed', 'Ok', 'Critical')
+    #         self.usb.reset_input_buffer()
+    #     self.threadRunning = False
+
     def measurement(self, startF, stopF, points, rbw, rbw_auto, depth, maxF, interval, split, sdr_settings, loop=True):
         # runs in separate thread
         if self.basic:
@@ -531,9 +662,10 @@ class Tiny(QObject):
         else:
             startF = np.clip(startF, 100000, maxF)
             stopF = np.clip(stopF, 100000, maxF)
-        updateTimer = QElapsedTimer()
+
         self.threadRunning = True
         firstRun = True
+
         # create freq array here.  Non-Tiny devices may send list of freqs measured, so this preserves compatibility
         freq = np.linspace(startF, stopF, points, dtype=np.int64)
         levl = np.full(points, -140, dtype=np.float32)
@@ -544,7 +676,9 @@ class Tiny(QObject):
         # self.runTimer.start()  # debug
         # logging.debug(f'elapsed time = {self.runTimer.nsecsElapsed()/1e6:.3f}mS')  # debug
 
+        updateTimer = QElapsedTimer()
         updateTimer.start()  # used to trigger the signal that sends measurements to updateGUI()
+
         while self.sweeping:
             if loop:
                 command = f'scanraw {int(startF)} {int(stopF)} {int(points)} 3\r'
@@ -618,24 +752,32 @@ class Tiny(QObject):
                             self.usb.reset_input_buffer()
                             break
                         firstRun = False
-                timeElapsed = updateTimer.nsecsElapsed()  # how long this batch of measurements has been running, nS
+
+                # Check if a GUI update is due, and if so send the measurement data to analyser.router()
+                timeElapsed = updateTimer.nsecsElapsed()
                 if timeElapsed/1e6 > interval:  # GUI update interval mS
-                    # send the measurement data to router() in the Analyser class
-                    # self.signals.result.emit(freq, levl, maxl, minl, buffer, self.usbPort, self.sn, 0, split, False)
-                    self.signals.result.emit(freq, levl, maxl, minl, buffer, self.usbPort, self.sn, self.name, split, False)
+                
+                    wf_freq, wf_levl = Calc.max_pool(freq, levl, GRAPH_POINTS)
+                
+                    self.signals.result.emit(wf_freq, wf_levl, maxl, minl, buffer,
+                                             self.usbPort, self.sn, self.name, split, False)
                     updateTimer.start()
 
-            # also send the measurement data to router() at the end of each sweep
-            # self.signals.result.emit(freq, levl, maxl, minl, buffer, self.usbPort, self.sn, 0, split, True)
-                    self.signals.result.emit(freq, levl, maxl, minl, buffer, self.usbPort, self.sn, self.name, split, True)
+            # The GUI is updated at the end of each sweep otherise some measurements could be lost
+            self.signals.result.emit(freq, levl, maxl, minl, buffer, self.usbPort, self.sn, self.name, split, True)
+
+        # Clean up because the While loop has ended so the thread will stop
         try:
-            self.usb.read(2)  # discard the command prompt that the tinySA sends when sweeping ends
+            # discard the command prompt that the tinySA sends when sweeping ends
+            self.usb.read(2)  
+            # tell the tinySA to abort the auto-repeating scanraw command
             self.serialWrite('abort\r')
-            self.usb.reset_input_buffer()
+
         except serial.SerialException:
             logging.info('tinySA serial comms failed')
             self.signals.error.emit(None, 'tinySA serial comms failed', 'Ok', 'Critical')
-            self.usb.reset_input_buffer()
+            
+        self.usb.reset_input_buffer()
         self.threadRunning = False
 
     @Slot()
@@ -788,6 +930,11 @@ class Tiny(QObject):
         logging.debug(f'rbw = {rbw}')
         command = f'rbw {rbw}\r'
         self.fifo.put(command)
+
+    # def sweepTime(self, seconds):
+    #     #  0.003 to 60S
+    #     command = f'sweeptime {seconds}\r'
+    #     self.fifo.put(command)
 
     # @Slot()
     # def threadEnds(self):
@@ -1123,9 +1270,15 @@ class SoapySDRDevice(QObject):
     def _set_lime(self, sdr_settings):
             self.sdr.set_iq_balance_mode(sdr_settings.get("lime_iq_balance"))
             self.sdr.set_antenna(sdr_settings.get("lime_rx_ant"))
-            self.sdr.set_rx_gain(sdr_settings.get("lime_lna_gain"))  # needs to be updated once soapy_rx updated
+            # self.sdr.set_rx_gain(sdr_settings.get("lime_lna_gain"))  # needs to be updated once soapy_rx updated
+            lna = sdr_settings.get("lime_lna_gain")
             tia = sdr_settings.get("lime_tia_gain")
-            pga = sdr_settings.get("lime_pga_gain")            
+            pga = sdr_settings.get("lime_pga_gain")  
+            
+            self.sdr.set_rx_gain(lna, stage="LNA")
+            self.sdr.set_rx_gain(tia, stage="TIA")
+            self.sdr.set_rx_gain(pga, stage="PGA")
+            
             dc = sdr_settings.get("lime_dc")
             if dc == "Hardware":
                 self.sdr.set_dc_offset_removal(mode="hardware")
@@ -1133,6 +1286,9 @@ class SoapySDRDevice(QObject):
                 self.sdr.set_dc_offset_removal(mode="both")
             elif dc == "Software":
                 self.sdr.set_dc_offset_removal(mode="software")
+                
+            LIME_PRESETS = [61.44e6 / d for d in (1, 2, 4, 8, 16, 32, 64, 128, 256)]
+            self.sdr.set_preset_sample_rates(LIME_PRESETS)
 
     def _set_lime_gfir(self, sdr_settings):
             # The Lime's low-pass real-time baseband FIR filter must be set after sample rate
@@ -1225,9 +1381,14 @@ class SoapySDRDevice(QObject):
         swp_size = self.sdr.composite_size
         num_segs = self.sdr.num_segments
         
-        maxl = np.full(fft_size, -140, dtype=float)
-        minl = np.full(fft_size, 0, dtype=float)
-        buffer = np.full((depth, fft_size), np.nan, dtype=float)  # used for waterfall and calculating averages
+        # maxl = np.full(fft_size, -140, dtype=float)
+        # minl = np.full(fft_size, 0, dtype=float)
+        # buffer = np.full((depth, fft_size), np.nan, dtype=float)  # used for waterfall and calculating averages
+        
+        maxl = np.full(1024, -140, dtype=float)
+        minl = np.full(1024, 0, dtype=float)
+        buffer = np.full((depth, 1024), np.nan, dtype=float)  # used for waterfall and calculating averages
+        
         return maxl, minl, buffer
       
     def measurement(self, startF, stopF, points, rbw, rbw_auto, depth, maxF, interval, split, sdr_settings, loop):
@@ -1256,7 +1417,7 @@ class SoapySDRDevice(QObject):
             self._set_lime_gfir(sdr_settings)
       
         # fetch the actual sweep and FFT parameters, which are calculated after setting RBW
-        fft_size = self.sdr.fft_size
+        # fft_size = self.sdr.fft_size
         maxl, minl, buffer = self._set_arr(depth)
         
         self.sdr.start()
@@ -1265,15 +1426,15 @@ class SoapySDRDevice(QObject):
         while self.sweeping:
             if not self.sdr.event_queue.empty():
                 event = self.sdr.event_queue.get_nowait()
-                logging.info(f'SoapySDR event: {event[1]}')
-                if event[0] == "status":
-                    # a status message alerts to a possible FFT size change
-                    new_fft_size = self.sdr.fft_size
-                    if new_fft_size != fft_size:
-                        maxl, minl, buffer = self._set_arr(depth)
+                logging.info(f'SoapySDR: {event[1]}')
+                # if event[0] == "status":
+                #     # a status message alerts to a possible FFT size change
+                #     new_fft_size = self.sdr.fft_size
+                #     if new_fft_size != fft_size:
+                #         maxl, minl, buffer = self._set_arr(depth)
 
             try:
-                # fetch data from the mp queue.  Blocks, consuming no cpu cycles, until data pops up in the queue
+                # fetch data from the mp queue.  Blocks until timeout, consuming no cpu cycles, until data pops up.
                 freqs, power, identifier, port_in_use = self.sdr.data_queue.get(timeout=5)
                 try:
                     np.fmax(power, maxl, out=maxl)  # compare current level with max and min

@@ -130,6 +130,59 @@ class SurfaceGraph(QObject):
         self.surface.setCameraYRotation(angle)
 
 
+
+class QtGraphsWaterfallSync:
+    from PySide6.QtGraphs import QValue3DAxis
+    
+    def __init__(self, surface_widget, proxy, depth=200, cols=1024):
+        self.surface = surface_widget
+        self.proxy = proxy
+        self.depth = depth
+        self.cols = cols
+
+        # 1. Configure X-Axis (Frequency)
+        self.axis_x = QValue3DAxis()
+        self.axis_x.setLabelFormat("%.2f MHz")
+        self.axis_x.setSegmentCount(5)
+        self.surface.setAxisX(self.axis_x)
+
+        # 2. Configure Z-Axis (Time / History depth)
+        self.axis_z = QValue3DAxis()
+        self.axis_z.setRange(0, self.depth)
+        self.axis_z.setLabelFormat("%d")
+        self.axis_z.setTitle("History (Sweeps)")
+        self.axis_z.setLabelsVisible(True)
+        self.surface.setAxisZ(self.axis_z)
+
+    def on_sweep_reset(self, start_freq_hz, stop_freq_hz, noise_floor_dbm=-120.0):
+        """
+        Updates axis ranges and wipes Y-heights without destroying the mesh objects.
+        """
+        start_mhz = start_freq_hz / 1e6
+        stop_mhz = stop_freq_hz / 1e6
+
+        # 1. Update X-Axis display boundaries immediately
+        self.axis_x.setRange(start_mhz, stop_mhz)
+
+        # 2. Reset Z-Axis range (useful if you change history depth or time scale)
+        self.axis_z.setRange(0, self.depth)
+
+        # 3. Reset existing QSurfaceDataItem Y-values in-place (No object recreation)
+        x_coords = np.linspace(start_mhz, stop_mhz, self.cols)
+        
+        for z_idx, row in enumerate(self.grid_data):
+            for x_idx, item in enumerate(row):
+                pos = item.position()
+                pos.setX(x_coords[x_idx])
+                pos.setY(noise_floor_dbm)
+                pos.setZ(z_idx)
+                item.setPosition(pos)
+
+        # Commit the cleared baseline to the GPU
+        self.proxy.resetArray(self.grid_data)
+
+
+
 class SurfaceUpdater(QObject):
 
     def __init__(self, frequencies, readings):
@@ -341,6 +394,8 @@ class SpectrumGraph(QObject):
         self.identifier = pyqtgraph.TextItem(border=None, anchor=(0, 0))
         self.identifier.setParentItem(s_widget.plotItem)
         self.identifier.setPos(h_pos, 0)
+        
+        s_widget.setLimits(minXRange=1)
 
         # create four markers, all bound to this trace
         self.trace.m0 = Marker(s_widget, self, 'm1', 20, h_pos)

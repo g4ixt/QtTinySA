@@ -73,17 +73,15 @@ class Calc():
         if beta <= 0.0:
             return 21.0  # Base case for a rectangular-like window
             
-        # Boundary check: At beta = 0.5842*(29)**0.4 + 0.07886*(29) ≈ 2.7845,
-        # the formula switches over to the linear >50 dB equation.
+        # At beta = 0.5842*(29)**0.4 + 0.07886*(29) ≈ 2.7845, switch to the linear >50 dB equation.
         beta_switch = 0.5842 * (29)**0.4 + 0.07886 * (29)
         
         if beta > beta_switch:
-            # Case 1: Attenuation > 50 dB (Linear relationship)
-            # beta = 0.1102 * (A - 8.7)
+            # Attenuation > 50 dB (Linear relationship) beta = 0.1102 * (A - 8.7)
             A = (beta / 0.1102) + 8.7
             return A
         else:
-            # Case 2: 21 <= Attenuation <= 50 dB
+            # 21 <= Attenuation <= 50 dB
             # beta = 0.5842 * (A - 21)**0.4 + 0.07886 * (A - 21)
             # Let x = (A - 21)**0.2. Then: 0.07886*x^5 + 0.5842*x^2 - beta = 0
             coefficients = [0.07886, 0.0, 0.0, 0.5842, 0.0, -beta]
@@ -98,77 +96,98 @@ class Calc():
                 return A
             else:
                 return 21.0
+    
+    # @staticmethod()
+    # def compute_power(fft, fft_size):
+    #     # 20*log10 is correct here, because soapy_receiver sends the magnitude, not the squared magnitude
+    #     power = 20 * np.log10(fft / fft_size + 1e-20)  # +1e-20 gives -400dBm if fft values are zero
+    #     return power.astype(np.float32)
+
 
     @staticmethod
-    def cubic_spline_interp(x_data, y_data, x_new):
+    def resample_spectrum(freq, levl, is_dBm=True):
+        GUI_DISPLAY_COLUMNS = 1024
         """
-        Interpolates 1D data using a Natural Cubic Spline algorithm powered strictly by NumPy.
+        Resamples 'freq' (Hz) and 'levl' to exact 1,024-element arrays.
         
-        :param x_data: Array of measured calibration frequencies (must be strictly increasing).
-        :param y_data: Array of measured path deltas (dB).
-        :param x_new:  The target frequency or array of frequencies to calculate corrections for.
-        :return:       Interpolated dB correction factor(s).
+        Parameters:
+        - freq: 1D NumPy array of frequencies in Hz.
+        - levl: 1D NumPy array of levels (in dBm if is_dBm=True, or linear power if is_dBm=False).
+        - is_dBm: Set True for tinySA (converts to linear mW before interpolating).
+                  Set False for raw SDR FFT linear power (converts to dB at the end).
+                  
+        For SDR (pyFFTW): Pass raw linear squared magnitudes (np.abs(fft_shifted) ** 2) with is_dBm=False.
+        It skips all linear conversions, max-pools the raw FFT power directly, tracks the exact peak frequency bins,
+        and converts only the final 1,024 points to dB at the very end.
+                  
+        Returns:
+        - out_freq: 1,024-element array of peak-aligned frequencies (Hz).
+        - out_levl: 1,024-element array of levels in dBm.
         """
-        x = np.asarray(x_data, dtype=float)
-        y = np.asarray(y_data, dtype=float)
-        x_new = np.asarray(x_new, dtype=float)
+        num_points = len(levl)
+    
+        # Convert tinySA dBm to linear power (mW) if interpolating is needed
+        # (Skip conversion if num_points is already an exact multiple of 1024)
+        needs_interp = (num_points < GUI_DISPLAY_COLUMNS) or (num_points % GUI_DISPLAY_COLUMNS != 0)
         
-        n = len(x)
-        h = np.diff(x)
-        
-        # 1. Setup the tridiagonal system matrix components for natural boundary conditions
-        A = np.zeros((n, n))
-        B = np.zeros(n)
-        
-        A[0, 0] = 1.0
-        A[n-1, n-1] = 1.0
-        
-        for i in range(1, n - 1):
-            A[i, i - 1] = h[i - 1]
-            A[i, i] = 2.0 * (h[i - 1] + h[i])
-            A[i, i + 1] = h[i]
-            B[i] = 3.0 * ((y[i + 1] - y[i]) / h[i] - (y[i] - y[i - 1]) / h[i - 1])
+        if is_dBm and needs_interp:
+            linear_levl = 10.0 ** (levl / 10.0)
+        else:
+            linear_levl = levl
+    
+        # Exact Match of 1,024 points
+        if num_points == GUI_DISPLAY_COLUMNS:
+            out_freq = freq
+            out_linear = linear_levl
+    
+        # Upsample if < 1,024 points, e.g., 450 tinySA points.  [should we prevent SDR FFT < 1024 to avoid upsampling?]
+        elif num_points < GUI_DISPLAY_COLUMNS:
+            old_x = np.linspace(0, 1, num_points)
+            new_x = np.linspace(0, 1, GUI_DISPLAY_COLUMNS)
             
-        # 2. Solve for the second derivatives (curvatures) at each node point
-        c = np.linalg.solve(A, B)
-        
-        # 3. Derive the remaining spline coefficients (a, b, d) for each interval
-        a = y[:-1]
-        b = (y[1:] - y[:-1]) / h - h * (2.0 * c[:-1] + c[1:]) / 3.0
-        d = (c[1:] - c[:-1]) / (3.0 * h)
-        c_intervals = c[:-1]
-        
-        # 4. Vectorized interpolation evaluation loop
-        # Vectorized search to find which interval bin each 'x_new' value belongs to
-        indices = np.searchsorted(x, x_new) - 1
-        indices = np.clip(indices, 0, n - 2) # Handle edge out-of-bounds inputs safely
-        
-        # Evaluate the piecewise polynomial: S_i(x) = a + b(x-x_i) + c(x-x_i)^2 + d(x-x_i)^3
-        dx = x_new - x[indices]
-        y_new = a[indices] + b[indices] * dx + c_intervals[indices] * (dx ** 2) + d[indices] * (dx ** 3)
-        
-        return y_new
+            out_freq = np.interp(new_x, old_x, freq)
+            out_linear = np.interp(new_x, old_x, linear_levl)
     
+        # Downsample if > 1,024 points
+        else:
+            # If size is an exact Power-of-2 multiple (e.g., 16,384 SDR points)
+            if num_points % GUI_DISPLAY_COLUMNS == 0:
+                work_freq = freq
+                work_levl = linear_levl
+                factor = num_points // GUI_DISPLAY_COLUMNS
     
-    # ==========================================
-    # Verification & Accuracy Evaluation Sandbox
-    # ==========================================
-    if __name__ == "__main__":
-        # Measured calibration data points across an RF boundary (e.g., HF/VHF transition)
-        cal_freqs = [0.5e6, 1.0e6, 5.0e6, 10.0e6, 20.0e6, 30.0e6, 50.0e6, 75.0e6, 100.0e6]
-        cal_deltas = [18.5,  14.2,  8.1,   5.4,   3.2,   2.1,   1.5,   1.2,   1.0] # Smoothly curving dB drop
-        
-        # Target custom runtime channel frequency to evaluate
-        target_freq = 15.5e6 
-        
-        # Calculate corrections using Cubic Spline vs standard Linear Interpolation
-        spline_correction = numpy_cubic_spline_interp(cal_freqs, cal_deltas, target_freq)
-        linear_correction = np.interp(target_freq, cal_freqs, cal_deltas)
-        
-        print(f"Target Operating Frequency: {target_freq / 1e6:.3f} MHz")
-        print(f"NumPy Piecewise Linear Correction:  {linear_correction:.4f} dB")
-        print(f"NumPy Natural Cubic Spline Correction: {spline_correction:.4f} dB")
-        print(f"Calculated Curve Deviation Delta:      {abs(spline_correction - linear_correction):.4f} dB")
+            # If size is an odd point count (e.g., 1,521 tinySA points)
+            # Stretch in linear power to the next multiple of 1,024 (e.g., 2,048) before downsampling
+            else:
+                factor = int(np.ceil(num_points / GUI_DISPLAY_COLUMNS))
+                aligned_size = factor * GUI_DISPLAY_COLUMNS
+                
+                old_x = np.linspace(0, 1, num_points)
+                aligned_x = np.linspace(0, 1, aligned_size)
+                
+                work_freq = np.interp(aligned_x, old_x, freq)
+                work_levl = np.interp(aligned_x, old_x, linear_levl)
+    
+            # Reshape into (1024, factor) blocks and extract peaks
+            levl_matrix = work_levl.reshape(GUI_DISPLAY_COLUMNS, factor)
+            out_linear = levl_matrix.max(axis=1)
+    
+            # Find the exact column index of each peak within its block to identify freqs of peaks
+            local_peak_idx = levl_matrix.argmax(axis=1)
+            flat_peak_idx = (np.arange(GUI_DISPLAY_COLUMNS) * factor) + local_peak_idx
+            out_freq = work_freq[flat_peak_idx]
+    
+        # Convert back to dBm if it started that way
+        if is_dBm and not needs_interp:
+            # Already in dBm and never converted to linear
+            out_levl = out_linear
+        elif is_dBm:
+            # Convert linear power back to dB / dBm safely (avoiding log10(0))
+            out_levl = 10.0 * np.log10(np.maximum(out_linear, 1e-20))
+        else:
+            out_levl = out_linear
+    
+        return out_freq, out_levl
 
 
 class FakePortInfo():

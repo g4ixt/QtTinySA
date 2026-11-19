@@ -74,9 +74,12 @@ from typing import Any
 
 import numpy as np
 
-#
+# ----------------------------------------------------------------------------------------------------------------
 import pyfftw
-#
+import time
+from PySide6.QtCore import QElapsedTimer
+from modules.utility import Calc
+# ----------------------------------------------------------------------------------------------------------------
 
 try:
     import SoapySDR
@@ -312,23 +315,43 @@ def compute_composite_size(fft_size: int, num_segments: int, crop_bins: int) -> 
         return fft_size
     return num_segments * fft_size - (num_segments - 1) * 2 * crop_bins
 
+# ----------------------------------------------------------------------------------------------------------------
 
-def compute_spectrum(fft_object, fft_input, fft_output, iq: np.ndarray, window: np.ndarray, fft_size: int) -> np.ndarray:
-    """Apply the window, FFT, and convert to dB efficiently."""
+# def compute_spectrum(iq: np.ndarray, window: np.ndarray) -> np.ndarray:
+#     """Apply the (coherent-gain-normalized) window, FFT, and convert to dB: 20*log10(|FFT(iq*window)|/N)."""
+#     windowed = iq * window
+#     spectrum = np.fft.fftshift(np.fft.fft(windowed))
+#     n = len(spectrum)
+#     power = 20 * np.log10(np.abs(spectrum) / n + 1e-20)
+#     return power.astype(np.float32)
+
+# ----------------------------------------------------------------------------------------------------------------
+
+def compute_fft(fft_object, fft_input, fft_output, iq: np.ndarray, window: np.ndarray) -> np.ndarray:
+    """Apply the (coherent-gain-normalized) window, compute FFT, shift and """
     
-    # Inject data directly into the aligned pyfftw buffer
+    # Pass windowed data into the (memory-aligned) pyfftw input buffer
     fft_input[:] = iq * window
     
-    # Execute the pre-planned FFT at the assembly/C level
+    # Execute the pre-planned FFT 
     fft_object()
-
-    # Calculate absolute magnitude first, on the raw output buffer.
-    # This turns complex64 down into float32, cutting the memory footprint in half
-    power = 20 * np.log10(np.abs(fft_output) / fft_size + 1e-20)
     
-    # Shift the final real float32 array instead of the heavier complex one.
-    return np.fft.fftshift(power).astype(np.float32)
+    # Calculate the abs magintude squared (signal power) and shift it so 0 Hz is at centre.  
+    fft = np.abs(fft_output)
+    fft_shifted = np.fft.fftshift(fft)
+    fft_size = len(fft_output)
+    power = (fft_shifted / fft_size + 1e-20) ** 2
+    
+    return power
 
+# ----------------------------------------------------------------------------------------------------------------
+
+def compute_power(fft, fft_size):
+    power = fft / fft_size
+    powerdB = 10 * np.log10(fft)
+    return powerdB.astype(np.float32)
+
+# ----------------------------------------------------------------------------------------------------------------
 
 def list_devices() -> list[SoapyDeviceInfo]:
     """Enumerate all SoapySDR devices currently visible on the system. Safe to call without a worker process."""
@@ -382,6 +405,34 @@ def query_sample_rate_range(
         return []
     finally:
         del device  # no explicit close() in the SoapySDR Python API; dropping the reference releases it
+
+
+def query_gain_stages(
+    driver: str, device_args: dict[str, str] | None = None, direction: int = SOAPY_SDR_RX, channel: int = 0
+) -> dict[str, tuple[float, float, float]]:
+    """
+    Open a short-lived connection purely to ask a device which gain stages it has and each one's range, returning
+    {stage_name: (minimum_db, maximum_db, step_db)} -- e.g. LimeSDR RX: LNA/TIA/PGA; HackRF RX: LNA (0-40 dB in 8 dB
+    steps), AMP (0 or 14 dB), VGA (0-62 dB in 2 dB steps). A step of 0.0 means continuously variable.
+
+    Same safety rules as query_sample_rate_range(), for the same reason: this opens its own connection, so use it
+    standalone (e.g. once at start-up, to populate a UI) and never while a SoapyReceiverProcess for the same device
+    is open or about to open. Returns an empty dict if the query fails for any reason.
+    """
+    args = device_args or {"driver": driver}
+    device = None
+    try:
+        device = SoapySDR.Device(args)
+        stages: dict[str, tuple[float, float, float]] = {}
+        for name in device.listGains(direction, channel):
+            r = device.getGainRange(direction, channel, name)
+            stages[name] = (r.minimum(), r.maximum(), r.step())
+        return stages
+    except Exception:
+        logger.exception("Failed to query gain stages for driver=%s", driver)
+        return {}
+    finally:
+        del device
 
 
 def _import_tsg_class():
@@ -461,9 +512,13 @@ class _ReceiverWorker:
                 f"Devices visible to this worker process: {self._describe_visible_devices()}"
             ) from exc
 
-        self._apply_oversampling()
         self._apply_antenna()
         self._apply_rate_and_freq()
+        # Order matters on LimeSDR, and each of these can invalidate what came before it. OVERSAMPLING must follow
+        # the sample rate (setting it makes the LMS7002M re-initialise its clocking), and GFIR must follow both:
+        # LimeSuite documents ENABLE_GFIR_LPF as "must be set after sample rate", and classic LimeSuite reconfigures
+        # GFIR itself whenever the rate changes -- so a GFIR set any earlier can't be relied on to survive.
+        self._apply_oversampling()
         self._apply_gfir_lpf()
         self._apply_rx_gain()
         self._apply_bandwidth()
@@ -715,19 +770,71 @@ class _ReceiverWorker:
     def _apply_rx_gain(self) -> None:
         if self._device is None:
             return
+        stage_gains = dict(self._s.get("rx_stage_gains") or {})
+        # Manually-set stage gains imply manual gain mode, so they win over a requested AGC.
+        agc = bool(self._s["rx_agc"]) and not stage_gains
+        if stage_gains and self._s["rx_agc"]:
+            self._event_queue.put(("status", "RX gain stages were set manually; automatic gain control disabled"))
         try:
             if hasattr(self._device, "setGainMode"):
-                self._device.setGainMode(SOAPY_SDR_RX, 0, bool(self._s["rx_agc"]))
-            if not self._s["rx_agc"] and self._s["rx_gain"] is not None:
+                self._device.setGainMode(SOAPY_SDR_RX, 0, agc)
+            # Overall gain first, then the stage overrides: setting the overall gain makes the driver redistribute
+            # it across its stages, which would clobber a stage that had been set earlier.
+            if not agc and self._s["rx_gain"] is not None:
                 self._device.setGain(SOAPY_SDR_RX, 0, self._s["rx_gain"])
         except Exception:
             logger.exception("Failed to set RX gain")
+        for name, requested in stage_gains.items():
+            self._set_gain_stage(SOAPY_SDR_RX, 0, name, requested)
 
-    def _set_tx_gain(self, gain_db: float) -> None:
+    def _set_gain_stage(self, direction: int, channel: int, name: str, requested: float) -> None:
+        """
+        Set one named gain stage (LimeSDR: LNA/TIA/PGA RX, PAD/IAMP TX; HackRF: LNA/AMP/VGA RX, AMP/VGA TX),
+        validating the name against what the driver itself reports and reading back what was actually applied.
+        Stage names are driver-specific -- notably SoapyHackRF's is "LNA" for what gr-osmosdr calls its "IF" gain --
+        so a wrong one is reported with the list of valid names rather than silently ignored. Stages are often
+        quantized (HackRF's LNA moves in 8 dB steps, its VGA in 2 dB steps), so the applied value is read back and
+        reported whenever it differs from the request.
+        """
         if self._device is None:
             return
+        label = "RX" if direction == SOAPY_SDR_RX else "TX"
         try:
-            self._device.setGain(SOAPY_SDR_TX, self._s.get("tx_channel", 0), gain_db)
+            available = list(self._device.listGains(direction, channel))
+        except Exception:
+            available = None  # can't validate; let setGain() be the judge
+        if available is not None and name not in available:
+            self._event_queue.put((
+                "error",
+                f"{label} gain stage '{name}' is not available on this device (stages: {', '.join(available)})",
+            ))
+            return
+        try:
+            self._device.setGain(direction, channel, name, requested)
+        except Exception:
+            logger.exception("Failed to set %s gain stage %s", label, name)
+            self._event_queue.put(("error", f"Failed to set {label} gain stage '{name}'"))
+            return
+        try:
+            actual = self._device.getGain(direction, channel, name)
+        except Exception:
+            return
+        if abs(actual - requested) > 0.01:
+            self._event_queue.put((
+                "status",
+                f"{label} gain stage '{name}' is {actual:g} dB (requested {requested:g} dB; the stage is "
+                f"quantized or range-limited)",
+            ))
+
+    def _set_tx_gain(self, gain_db: float, stage: str | None = None) -> None:
+        if self._device is None:
+            return
+        channel = self._s.get("tx_channel", 0)
+        if stage is not None:
+            self._set_gain_stage(SOAPY_SDR_TX, channel, stage, gain_db)
+            return
+        try:
+            self._device.setGain(SOAPY_SDR_TX, channel, gain_db)
         except Exception:
             logger.exception("Failed to set TX gain")
 
@@ -769,12 +876,18 @@ class _ReceiverWorker:
             logger.exception("Failed to set IQ balance mode")
 
     def _apply_oversampling(self) -> None:
-        if self._device is None or not self._is_lime():
+        ratio = self._s["oversampling"]
+        if self._device is None or not self._is_lime() or not ratio:
+            # 0 means "auto", which is already the device default -- writing it anyway would only force the
+            # re-initialisation described below on every open for no benefit.
             return
         try:
-            self._device.writeSetting("OVERSAMPLING", str(self._s["oversampling"]))
+            self._device.writeSetting("OVERSAMPLING", str(ratio))
         except Exception:
             logger.exception("Failed to set LimeSDR OVERSAMPLING")
+            return
+        # Setting oversampling re-initialises the sample-rate configuration, so confirm what rate we have now.
+        self._reconcile_actual_sample_rate()
 
     def _apply_gfir_lpf(self) -> None:
         bw = self._s.get("gfir_lpf_bandwidth")
@@ -785,8 +898,20 @@ class _ReceiverWorker:
                 # Confirmed against real LimeSDR hardware: disabling requires the distinct DISABLE_GFIR_LPF
                 # key, not ENABLE_GFIR_LPF with a zero bandwidth -- the latter does not actually disable it.
                 self._device.writeSetting(SOAPY_SDR_RX, 0, "DISABLE_GFIR_LPF", str(bw))
-            else:
-                self._device.writeSetting(SOAPY_SDR_RX, 0, "ENABLE_GFIR_LPF", str(bw))
+                return
+            sample_rate = self._s["sample_rate"]  # the ACTUAL rate, after _reconcile_actual_sample_rate()
+            if bw > sample_rate:
+                # LimeSuite documents the valid GFIR bandwidth as 0-100% of the sample rate. Exceeding it doesn't
+                # fail cleanly -- it leaves the datapath returning all-zero samples (-400 dB spectra). The actual
+                # rate can be lower than the one this bandwidth was chosen against (the device may have clamped
+                # it), so this has to be checked here, against the real rate, not when the value was set.
+                self._event_queue.put((
+                    "status",
+                    f"GFIR bandwidth {bw:.0f} Hz exceeds the sample rate ({sample_rate:.0f} Hz; valid range is "
+                    f"0-100% of it); clamped to {sample_rate:.0f} Hz",
+                ))
+                bw = sample_rate
+            self._device.writeSetting(SOAPY_SDR_RX, 0, "ENABLE_GFIR_LPF", str(bw))
         except Exception:
             logger.exception("Failed to set LimeSDR GFIR LPF bandwidth")
 
@@ -859,7 +984,7 @@ class _ReceiverWorker:
             elif name == "set_tx_antenna":
                 self._set_tx_antenna(cmd[1])
             elif name == "set_tx_gain":
-                self._set_tx_gain(cmd[1])
+                self._set_tx_gain(cmd[1], cmd[2] if len(cmd) > 2 else None)
             elif name == "enable_tsg":
                 self._enable_tsg(cmd[1], cmd[2])
             elif name == "disable_tsg":
@@ -893,10 +1018,55 @@ class _ReceiverWorker:
                 self._run_sweep_loop(fft_size, window, read_buf, sample_rate)
             else:
                 self._run_single_loop(fft_size, window, read_buf, sample_rate)
+        except Exception as exc:
+            # Without this the exception would escape run() and the parent would only ever learn that the worker
+            # stopped -- the reason would go to the child's stderr, which an application typically never sees.
+            logger.exception("Acquisition loop crashed")
+            self._event_queue.put(("error", f"Acquisition loop crashed: {exc!r}"))
         finally:
             self._close_device()
             self._event_queue.put(("status", "SoapySDR receiver process stopped"))
             self._finished_event.set()
+
+# ----------------------------------------------------------------------------------------------------------------
+
+    # def _capture_block(self, fft_size: int, window: np.ndarray, read_buf: np.ndarray) -> np.ndarray | None:
+    #     """
+    #     Fill read_buf with fft_size IQ samples via readStream(), apply software DC removal if configured, and
+    #     return the computed power spectrum (before calibration correction or any sweep-mode cropping). Returns
+    #     None on timeout, an unrecoverable readStream error, or if stop_event fires mid-read -- callers should
+    #     treat None as "skip this capture, try again" (or, in composite sweep mode, "discard this whole cycle").
+    #     """
+    #     n_collected = 0
+    #     timed_out = False
+    #     while n_collected < fft_size:
+    #         sr = self._device.readStream(
+    #             self._rx_stream, [read_buf[n_collected:]], fft_size - n_collected, timeoutUs=200_000,
+    #         )
+    #         if sr.ret > 0:
+    #             n_collected += sr.ret
+    #         elif sr.ret == SoapySDR.SOAPY_SDR_TIMEOUT:
+    #             timed_out = True
+    #             break
+    #         elif sr.ret == SoapySDR.SOAPY_SDR_OVERFLOW:
+    #             logger.debug("SoapySDR overflow, continuing")
+    #             continue
+    #         else:
+    #             self._event_queue.put(("error", f"SoapySDR readStream error: {sr.ret}"))
+    #             timed_out = True
+    #             break
+    #         if self._stop_event.is_set():
+    #             return None
+
+    #     if self._stop_event.is_set() or timed_out or n_collected < fft_size:
+    #         return None
+
+    #     iq = read_buf.copy()
+    #     if self._s["dc_offset_mode"] in ("software", "both"):
+    #         iq = iq - np.mean(iq)
+    #     return compute_spectrum(iq, window)
+
+# ----------------------------------------------------------------------------------------------------------------
 
     def _capture_block(self, fft_object, fft_input, fft_output, fft_size: int,
                        window: np.ndarray, read_buf: np.ndarray) -> np.ndarray | None:
@@ -929,16 +1099,15 @@ class _ReceiverWorker:
 
         if self._stop_event.is_set() or timed_out or n_collected < fft_size:
             return None
-
-        # iq = read_buf.copy()
-        # if self._s["dc_offset_mode"] in ("software", "both"):
-        #     iq = iq - np.mean(iq)
           
         if self._s["dc_offset_mode"] in ("software", "both"):
            # Direct in-place subtraction preserves memory block
            read_buf -= np.mean(read_buf)
         
-        return compute_spectrum(fft_object, fft_input, fft_output, read_buf, window, fft_size)
+        # return compute_spectrum(fft_object, fft_input, fft_output, read_buf, window, fft_size)
+        return compute_fft(fft_object, fft_input, fft_output, read_buf, window)
+
+# ----------------------------------------------------------------------------------------------------------------
 
     def _emit(self, freqs: np.ndarray, power: np.ndarray) -> None:
         """Queue one (freqs, power, timestamp, port_in_use) item -- to calibration_queue while the TSG is
@@ -950,6 +1119,42 @@ class _ReceiverWorker:
         except Exception:
             logger.exception("Failed to enqueue spectrum data")
 
+# ----------------------------------------------------------------------------------------------------------------
+
+    # def _run_single_loop(
+    #     self, fft_size: int, window: np.ndarray, read_buf: np.ndarray, sample_rate: float
+    # ) -> None:
+    #     """Ordinary single-frequency acquisition: one capture per iteration at self._s["center_freq"], which
+    #     may change live between iterations (see set_center_frequency())."""
+    #     center_freq = self._s["center_freq"]
+    #     freqs = np.fft.fftshift(np.fft.fftfreq(fft_size, d=1.0 / sample_rate)) + center_freq
+    #     freqs = freqs.astype(np.float64)
+
+    #     while not self._stop_event.is_set():
+    #         self._drain_commands()
+
+    #         if self._s["center_freq"] != center_freq:
+    #             center_freq = self._s["center_freq"]
+    #             freqs = np.fft.fftshift(np.fft.fftfreq(fft_size, d=1.0 / sample_rate)) + center_freq
+    #             freqs = freqs.astype(np.float64)
+
+    #         if self._device is None or self._rx_stream is None:
+    #             time.sleep(IDLE_POLL_INTERVAL_S)
+    #             continue
+
+    #         power = self._capture_block(fft_size, window, read_buf)
+    #         if power is None:
+    #             continue
+
+    #         cal_freqs = self._s.get("cal_freqs_hz")
+    #         cal_offsets = self._s.get("cal_offsets_db")
+    #         if cal_freqs is not None and cal_offsets is not None:
+    #             power = power - np.interp(freqs, cal_freqs, cal_offsets).astype(np.float32)
+
+    #         self._emit(freqs, power)
+
+# ----------------------------------------------------------------------------------------------------------------
+
     def _run_single_loop(self, fft_size: int, window: np.ndarray, read_buf: np.ndarray, sample_rate: float) -> None:
         """Ordinary single-frequency acquisition: one capture per iteration at self._s["center_freq"], which
         may change live between iterations (see set_center_frequency())."""
@@ -957,15 +1162,7 @@ class _ReceiverWorker:
         center_freq = self._s["center_freq"]
         freqs = np.fft.fftshift(np.fft.fftfreq(fft_size, d=1.0 / sample_rate)) + center_freq
         freqs = freqs.astype(np.float64)
-
-        # set-up for averaging
-        running_sum = np.zeros(fft_size, dtype=np.float32)
-        counter = 0
         
-        info_count = 0
-        update_nS = 50 * 1e6
-        ref_nS = time.perf_counter_ns()  # lower overhead than a QElapsedTimer
-        #
         # Allocate SIMD-aligned memory buffers
         fft_input = pyfftw.empty_aligned(fft_size, dtype='complex64')
         fft_output = pyfftw.empty_aligned(fft_size, dtype='complex64')
@@ -975,7 +1172,14 @@ class _ReceiverWorker:
         logging.info("Planning FFT... may take a few seconds...")
 
         fft_object = pyfftw.FFTW(fft_input, fft_output, direction='FFTW_FORWARD', flags=('FFTW_MEASURE',), threads=1)
-        # Match threads to CPU's physical core count
+        # Should match threads to CPU core count but threads > 1 is much slower, especially for small FFT size
+        
+        # set-up for averaging and performance logging
+        running_sum = np.zeros(fft_size, dtype=np.float32)
+        counter = 0 
+        update_nS = 50 * 1e6
+        ref_nS = time.perf_counter_ns()  # lower overhead than a QElapsedTimer
+        info_count = 0
         
         while not self._stop_event.is_set():
             self._drain_commands()
@@ -994,33 +1198,54 @@ class _ReceiverWorker:
                 time.sleep(IDLE_POLL_INTERVAL_S)
                 continue
 
+            # capture the FFT and convert to power units
             power = self._capture_block(fft_object, fft_input, fft_output, fft_size, window, read_buf)
+            
             if power is None:
-                logging.info("power is None")
                 continue
             
-            cal_freqs = self._s.get("cal_freqs_hz")
-            cal_offsets = self._s.get("cal_offsets_db")
-            if cal_freqs is not None and cal_offsets is not None:
-                power = power - np.interp(freqs, cal_freqs, cal_offsets).astype(np.float32)
-
-            # update the total
+            # update the fft running sum
             running_sum += power
             counter += 1
 
-            # calculate the average and put it into the queue if a reading is due, otherwise loop
+            # calculate the average power and put it into the queue if a reading is due, otherwise loop
             elapsed = time.perf_counter_ns() - ref_nS
-            if elapsed >= update_nS:  # this needs to be related or equal to 'interval'
+            if elapsed >= update_nS:  # this needs to be related to, or equal to, 'interval'
                 ref_nS = time.perf_counter_ns()
+
+                # calculate a running average of the FFT absolute magnitude squared (not power in dB)
+                averaged_fft = running_sum / counter
+                sub_freq, sub_power = Calc.resample_spectrum(freqs, averaged_fft, is_dBm=False)
+                
+                # convert linear power to dB
+                power = compute_power(sub_power, 1024)
+                
+                # if calibrated, convert to dBm using the calibration table
+                cal_freqs = self._s.get("cal_freqs_hz")
+                cal_offsets = self._s.get("cal_offsets_db")
+                if cal_freqs is not None and cal_offsets is not None:
+                    power = power - np.interp(sub_freq, cal_freqs, cal_offsets).astype(np.float32)
+                
+                # self._emit(freqs, power)
+                # self._emit(freqs, averaged_fft)
+                self._emit(sub_freq, power)
+                running_sum.fill(0.0)
+
+                # temporary performance logging
                 info_count += 1
                 if info_count > 20:
-                    logging.debug(f'{counter} measurement avg = {round(elapsed * 1e-6 / counter, 2)}mS')
+                    logging.info(f'{counter} measurement avg = {round(elapsed * 1e-6 / counter, 2)}mS')
                     info_count = 0
+                # temporary performance logging
 
-                average = running_sum / counter
-                self._emit(freqs, average)
-                running_sum.fill(0.0)
                 counter = 0
+            
+                # if power is None:
+                if averaged_fft is None:
+                    logging.info("FFT is None")
+                    continue
+
+# ----------------------------------------------------------------------------------------------------------------
 
     def _run_sweep_loop(
         self, fft_size: int, window: np.ndarray, read_buf: np.ndarray, sample_rate: float
@@ -1113,8 +1338,7 @@ def _worker_main(
     stop_event: Any,
     finished_event: Any,
 ) -> None:
-    """multiprocessing.Process target -- constructs and runs a clear
-    Worker."""
+    """multiprocessing.Process target -- constructs and runs a _ReceiverWorker."""
     worker = _ReceiverWorker(
         settings, command_queue, data_queue, calibration_queue, event_queue, stop_event, finished_event
     )
@@ -1132,7 +1356,8 @@ class SoapyReceiverProcess:
     set_span, set_sweep, set_rbw, set_auto_couple, set_rx_gain, set_antenna, set_bandwidth, set_dc_offset_removal,
     set_iq_balance_mode, set_auto_calibrate, set_gfir_lpf_bandwidth, set_oversampling, set_kaiser_beta,
     set_max_fft_size, set_offset_tuning, set_amplitude_calibration, clear_amplitude_calibration, start, stop,
-    wait), plus query_sample_rate_range() (a standalone capability-query utility, see its own docstring), plus
+    wait), plus query_sample_rate_range() and query_gain_stages() (standalone capability-query utilities, see their
+    own docstrings), plus
     set_tx_gain(), set_tx_antenna(), enable_tsg(), disable_tsg() -- new here, since the threading version let
     LimeLoopbackCalibrator reach into receiver.device directly, which isn't possible across a process boundary.
 
@@ -1188,6 +1413,7 @@ class SoapyReceiverProcess:
         self._bandwidth: float | None = None
         self._rx_gain: float | None = None
         self._rx_agc: bool = False
+        self._rx_stage_gains: dict[str, float] = {}
         self._antenna: str | None = None
         self._preset_sample_rates: list[float] = list(DEFAULT_PRESET_SAMPLE_RATES)
         self._dc_offset_mode: str = "software"
@@ -1209,6 +1435,13 @@ class SoapyReceiverProcess:
     @staticmethod
     def list_devices() -> list[SoapyDeviceInfo]:
         return list_devices()
+
+    @staticmethod
+    def query_gain_stages(
+        driver: str, device_args: dict[str, str] | None = None, direction: int = SOAPY_SDR_RX, channel: int = 0
+    ) -> dict[str, tuple[float, float, float]]:
+        """See the module-level query_gain_stages() -- same function, same safety caveats."""
+        return query_gain_stages(driver, device_args, direction, channel)
 
     @staticmethod
     def query_sample_rate_range(
@@ -1414,25 +1647,56 @@ class SoapyReceiverProcess:
             self._max_fft_size = old_max
             raise
 
-    def set_rx_gain(self, gain_db: float | None) -> None:
-        """Set the RX gain. Pass None to enable the device's automatic gain control."""
-        self._check_idle("RX gain")
-        self._rx_gain = gain_db
-        self._rx_agc = gain_db is None
+    def set_rx_gain(self, gain_db: float | None, stage: str | None = None) -> None:
+        """
+        Set the RX gain. With no stage, this is the overall gain (None enables the device's automatic gain
+        control) and the driver distributes it across its gain stages itself.
 
-    def set_tx_gain(self, gain_db: float) -> None:
+        With a stage name, sets just that stage -- e.g. stage="LNA" or "TIA" on a LimeSDR (which also has "PGA"), or
+        "LNA", "AMP" or "VGA" on a HackRF. Stage names are whatever the driver reports, not a fixed list: SoapyHackRF
+        calls its IF gain "LNA" (there is no "IF" stage there, unlike in gr-osmosdr), and a wrong name is reported by
+        the worker with the valid ones listed. Use query_gain_stages() to see a device's stage names and ranges ahead
+        of time. Stages can be quantized (HackRF's LNA moves in 8 dB steps), in which case the worker reports the
+        value actually applied.
+
+        Stage gains are applied after the overall gain, so they win where both are given, and they imply manual
+        gain mode, overriding a requested AGC. Passing gain_db=None together with a stage removes that stage's
+        override (AGC is a whole-device mode, not a per-stage one). Takes effect at the next start(), like all the
+        other RX settings.
+        """
+        self._check_idle("RX gain")
+        if stage is None:
+            self._rx_gain = gain_db
+            self._rx_agc = gain_db is None
+            return
+        if not isinstance(stage, str) or not stage.strip():
+            raise ValueError("stage must be a non-empty string naming a gain stage")
+        if gain_db is None:
+            self._rx_stage_gains.pop(stage, None)
+        else:
+            self._rx_stage_gains[stage] = float(gain_db)
+
+    def set_tx_gain(self, gain_db: float, stage: str | None = None) -> None:
         """
         Set the TX gain used for TSG/loopback purposes (see set_tx_antenna(), enable_tsg()). Only meaningful
         while running -- sent as a command applied against the worker's live device, mirroring
         set_tx_antenna(); a no-op with a logged warning if called before start().
+
+        stage selects a single TX gain stage by its driver-reported name (LimeSDR: "PAD", "IAMP"; HackRF: "AMP",
+        "VGA") instead of the overall gain, with the same validation and applied-value reporting as set_rx_gain()'s
+        stage argument.
 
         Fixing this explicitly matters for external-power-meter calibration workflows: the TSG's actual RF
         output level depends on TX gain, which otherwise defaults to whatever the driver picks. Use the
         identical value here in both the power-meter reference-measurement session and the later loopback
         sweep (LimeLoopbackCalibrator), or the two measurements won't agree with each other.
         """
+        # Validate on the caller's side so a bad argument fails right here, not as a log line inside the worker.
+        if stage is not None and (not isinstance(stage, str) or not stage.strip()):
+            raise ValueError("stage must be a non-empty string naming a gain stage")
+        gain_db = float(gain_db)
         if self._active:
-            self._command_queue.put(("set_tx_gain", gain_db))
+            self._command_queue.put(("set_tx_gain", gain_db, stage))
         else:
             logger.warning("set_tx_gain() called while not running; command dropped")
 
@@ -1463,7 +1727,20 @@ class SoapyReceiverProcess:
         self._auto_calibrate = bool(enabled)
 
     def set_gfir_lpf_bandwidth(self, bandwidth_hz: float | None) -> None:
+        """
+        Set the LimeSDR digital GFIR low-pass filter bandwidth in Hz. None (the default) leaves LimeSuite's own
+        setting alone; 0 disables the filter (via the distinct DISABLE_GFIR_LPF key). Applied by the worker after
+        the sample rate and any oversampling change, because LimeSuite requires GFIR to be set after the rate.
+
+        LimeSuite documents the valid range as 0-100% of the sample rate, and exceeding it does not fail cleanly --
+        it leaves the datapath returning all-zero samples (-400 dB spectra). The worker therefore clamps to the
+        ACTUAL sample rate, which can differ from the requested one (see _reconcile_actual_sample_rate()), and
+        reports when it has. Choose a margin below 100% (0.9 of segment_span_hz works well) if you don't want the
+        filter edge sitting right at the edge of the span.
+        """
         self._check_idle("GFIR LPF bandwidth")
+        if bandwidth_hz is not None and bandwidth_hz < 0:
+            raise ValueError("bandwidth_hz must be >= 0 (0 disables the filter)")
         self._gfir_lpf_bandwidth = bandwidth_hz
 
     def set_oversampling(self, ratio: int) -> None:
@@ -1625,6 +1902,7 @@ class SoapyReceiverProcess:
             "bandwidth": self._bandwidth,
             "rx_gain": self._rx_gain,
             "rx_agc": self._rx_agc,
+            "rx_stage_gains": dict(self._rx_stage_gains),
             "antenna": self._antenna,
             "fft_size": self._fft_size,
             "dc_offset_mode": self._dc_offset_mode,
@@ -1696,6 +1974,16 @@ class SoapyReceiverProcess:
     @property
     def port_in_use(self) -> object | None:
         return self._port_in_use
+
+    @property
+    def is_running(self) -> bool:
+        """
+        True while the worker process is alive. It goes False on its own, without stop() being called, if the
+        worker exits unexpectedly -- the device failed to open, or couldn't be tuned anywhere near the requested
+        frequency at start-up (see _apply_rate_and_freq()). Poll this in any loop that waits on data_queue: a
+        worker that has exited will never produce another item, so a wait with no liveness check spins forever.
+        """
+        return self._process is not None and self._process.is_alive()
 
     @property
     def fft_size(self) -> int:
